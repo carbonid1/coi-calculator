@@ -1,0 +1,44 @@
+import { type Module } from "./modules";
+
+export const fuelReprocessing: Module = {
+  id: "fuel-reprocessing",
+  name: "Nuclear Fuel",
+  description: "Nuclear fuel cycle — reprocess spent fuel into usable core fuel",
+  buildingTotals: {
+    "nuclear-reprocessing": 1,
+    "enrichment-plant": 1,
+    "nuclear-reprocessing-spent-fuel": 1,
+    "nuclear-reprocessing-spent-mox": 1,
+  },
+  externalInputs: {
+    coreFuelSpent: 4,
+    blanketFuelEnriched: 4,
+  },
+  presets: [
+    {
+      id: "default",
+      name: "Default",
+      description: "Spent fuel reprocessing active, no MOX",
+      active: {
+        "nuclear-reprocessing": 0.25,
+        "enrichment-plant": 0.5,
+        "nuclear-reprocessing-spent-fuel": 1,
+        "nuclear-reprocessing-spent-mox": 0,
+      },
+      pinned: ["nuclear-reprocessing", "enrichment-plant", "nuclear-reprocessing-spent-fuel", "nuclear-reprocessing-spent-mox"],
+    },
+    {
+      id: "with-mox",
+      name: "With MOX",
+      description: "Both spent fuel and spent MOX reprocessing active",
+      active: {
+        "nuclear-reprocessing": 0.25,
+        "enrichment-plant": 0.5,
+        "nuclear-reprocessing-spent-fuel": 1,
+        "nuclear-reprocessing-spent-mox": 1,
+      },
+      pinned: ["nuclear-reprocessing", "enrichment-plant", "nuclear-reprocessing-spent-fuel", "nuclear-reprocessing-spent-mox"],
+    },
+  ],
+  defaultPresetId: "default",
+};
