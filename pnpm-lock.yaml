@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@carbonid1/tailwind-config':
-        specifier: ^0.2.0
-        version: 0.2.0(tailwindcss@4.2.2)
+        specifier: ^0.3.0
+        version: 0.3.0(@tailwindcss/postcss@4.2.2)(tailwindcss@4.2.2)
       next:
         specifier: ^16.1.0
         version: 16.2.3(@babel/core@7.29.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -160,9 +160,10 @@ packages:
       prettier: ^3.0.0
       prettier-plugin-organize-imports: ^4.0.0
 
-  '@carbonid1/tailwind-config@0.2.0':
-    resolution: {integrity: sha512-EA3mdfjuG9/pOPCx6vQ9R2eJiswnoi0OmB0X2ypNqHAAcocJDvDM4HaQxR+X1jfMzdk8yWmm9hsmX8SQi1bmAg==}
+  '@carbonid1/tailwind-config@0.3.0':
+    resolution: {integrity: sha512-GFyzGjX1IjoJ0jVBGnFpOWoqW0lQL15b7ONZ5KtHBpd4TTuJLtlZGbEz5TALc/kIDjvDXsefjfqALl3oj+MgAw==}
     peerDependencies:
+      '@tailwindcss/postcss': ^4.0.0
       tailwindcss: ^4.0.0
 
   '@carbonid1/tsconfig@0.1.0':
@@ -2384,8 +2385,9 @@ snapshots:
       prettier: 3.8.2
       prettier-plugin-organize-imports: 4.3.0(prettier@3.8.2)(typescript@6.0.2)
 
-  '@carbonid1/tailwind-config@0.2.0(tailwindcss@4.2.2)':
+  '@carbonid1/tailwind-config@0.3.0(@tailwindcss/postcss@4.2.2)(tailwindcss@4.2.2)':
     dependencies:
+      '@tailwindcss/postcss': 4.2.2
       tailwindcss: 4.2.2
 
   '@carbonid1/tsconfig@0.1.0': {}
