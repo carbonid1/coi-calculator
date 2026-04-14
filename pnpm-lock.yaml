@@ -10,10 +10,10 @@ importers:
     dependencies:
       '@carbonid1/design-system':
         specifier: ^3.0.0
-        version: 3.0.0(@base-ui/react@1.4.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@carbonid1/tailwind-config@0.4.0)(class-variance-authority@0.7.1)(clsx@2.1.1)(lucide-react@1.8.0(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react-hotkeys-hook@5.2.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)(tailwind-merge@3.5.0)
+        version: 3.0.0(@base-ui/react@1.4.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@carbonid1/tailwind-config@0.4.1(postcss@8.5.9))(class-variance-authority@0.7.1)(clsx@2.1.1)(lucide-react@1.8.0(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react-hotkeys-hook@5.2.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)(tailwind-merge@3.5.0)
       '@carbonid1/tailwind-config':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.4.1
+        version: 0.4.1(postcss@8.5.9)
       next:
         specifier: ^16.1.0
         version: 16.2.3(@babel/core@7.29.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -31,8 +31,8 @@ importers:
         specifier: ^0.2.1
         version: 0.2.1(prettier-plugin-organize-imports@4.3.0(prettier@3.8.2)(typescript@6.0.2))(prettier@3.8.2)
       '@carbonid1/tsconfig':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.2.0
+        version: 0.2.0(typescript@6.0.2)
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.17
@@ -42,18 +42,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.3(@types/react@19.2.14)
-      eslint:
-        specifier: ^9.0.0
-        version: 9.39.4(jiti@2.6.1)
-      postcss:
-        specifier: ^8.5.9
-        version: 8.5.9
-      prettier:
-        specifier: ^3.0.0
-        version: 3.8.2
-      typescript:
-        specifier: ^6.0.0
-        version: 6.0.2
       vitest:
         specifier: ^4.0.0
         version: 4.1.4(@types/node@22.19.17)(vite@8.0.8(@types/node@22.19.17)(jiti@2.6.1))
@@ -192,11 +180,15 @@ packages:
       prettier-plugin-tailwindcss:
         optional: true
 
-  '@carbonid1/tailwind-config@0.4.0':
-    resolution: {integrity: sha512-NTttSr1q2li2lUDQGjFsnpZYUX8h+uBRIWQOfGzcNHHv+jfiXvzL++CiD976/0RE5htCKCB2FOhj6tpr3TeWFQ==}
+  '@carbonid1/tailwind-config@0.4.1':
+    resolution: {integrity: sha512-fgNyN71PE806TccOx9psC+BOasBNBKn/sdq9He5SY8v3AExmM7CYBrJX+z/vBQxYUWy87KE4ZOAMQGTs2NsOwg==}
+    peerDependencies:
+      postcss: ^8.0.0
 
-  '@carbonid1/tsconfig@0.1.0':
-    resolution: {integrity: sha512-ouKWi0olO7f2rUSZVjqsqHPz/EBgJ/QBHRhn/FiChW+0D5/kZR2D4fZx9wwvZDOjtSlIGhZ/dQSFN0VywtPZfw==}
+  '@carbonid1/tsconfig@0.2.0':
+    resolution: {integrity: sha512-GUA2LLU19LyLvmud/OffxT+MFvHw/aywnrTltDfpcqlVteBqfCGuxuE8dmwjb+iHsBApHKN4m+/fhiL9e6AK2A==}
+    peerDependencies:
+      typescript: ^5.0.0 || ^6.0.0
 
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
@@ -2492,10 +2484,10 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.14
 
-  '@carbonid1/design-system@3.0.0(@base-ui/react@1.4.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@carbonid1/tailwind-config@0.4.0)(class-variance-authority@0.7.1)(clsx@2.1.1)(lucide-react@1.8.0(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react-hotkeys-hook@5.2.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)(tailwind-merge@3.5.0)':
+  '@carbonid1/design-system@3.0.0(@base-ui/react@1.4.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@carbonid1/tailwind-config@0.4.1(postcss@8.5.9))(class-variance-authority@0.7.1)(clsx@2.1.1)(lucide-react@1.8.0(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react-hotkeys-hook@5.2.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)(tailwind-merge@3.5.0)':
     dependencies:
       '@base-ui/react': 1.4.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@carbonid1/tailwind-config': 0.4.0
+      '@carbonid1/tailwind-config': 0.4.1(postcss@8.5.9)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
       lucide-react: 1.8.0(react@19.2.5)
@@ -2517,12 +2509,15 @@ snapshots:
       prettier: 3.8.2
       prettier-plugin-organize-imports: 4.3.0(prettier@3.8.2)(typescript@6.0.2)
 
-  '@carbonid1/tailwind-config@0.4.0':
+  '@carbonid1/tailwind-config@0.4.1(postcss@8.5.9)':
     dependencies:
       '@tailwindcss/postcss': 4.2.2
+      postcss: 8.5.9
       tailwindcss: 4.2.2
 
-  '@carbonid1/tsconfig@0.1.0': {}
+  '@carbonid1/tsconfig@0.2.0(typescript@6.0.2)':
+    dependencies:
+      typescript: 6.0.2
 
   '@date-fns/tz@1.4.1': {}
 
