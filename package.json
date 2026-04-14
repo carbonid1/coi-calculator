@@ -14,8 +14,8 @@
     "ts": "tsc --noEmit"
   },
   "dependencies": {
-    "@carbonid1/design-system": "^2.0.0",
-    "@carbonid1/tailwind-config": "^0.3.0",
+    "@carbonid1/design-system": "^3.0.0",
+    "@carbonid1/tailwind-config": "^0.4.0",
     "next": "^16.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -24,17 +24,12 @@
     "@carbonid1/eslint-config": "^0.1.0",
     "@carbonid1/prettier-config": "^0.2.1",
     "@carbonid1/tsconfig": "^0.1.0",
-    "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^16.1.0",
-    "eslint-config-prettier": "^10.0.0",
     "postcss": "^8.5.9",
     "prettier": "^3.0.0",
-    "prettier-plugin-organize-imports": "^4.0.0",
-    "tailwindcss": "^4.0.0",
     "typescript": "^6.0.0",
     "vitest": "^4.0.0"
   }
