@@ -1,1 +1,1 @@
-export { default } from '@carbonid1/tailwind-config/postcss'
+export { default } from '@carbonid1/design-system/postcss'
