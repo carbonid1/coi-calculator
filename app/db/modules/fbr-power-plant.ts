@@ -3,7 +3,7 @@ import { type Module } from "./modules";
 
 const ext = (vals: Partial<Record<ResourceId, number>>): Partial<Record<ResourceId, number>> => vals;
 
-// Steam buildings — 1+1 has no super steam excess, 1+4 needs cooling
+// Steam buildings — 1+1 has no super steam excess; 1+4 routes all super to turbines
 const steam1x1 = {
   "seawater-pump": 4,
   "turbine-super": 2,
@@ -15,8 +15,16 @@ const steam1x1 = {
   "cooling-tower-large-depleted": 1,
 };
 
+// 1+4: 408 super steam → 9 of each turbine tier (8.5 active, 255 MW at full FBR burn).
+// Turbines have recipe-order priority, so super-reformer / super-desal / super-cooling
+// stay idle at 100% burn but remain built for consistency when FBRs are throttled.
 const steam1x4 = {
   ...steam1x1,
+  "turbine-super": 9,
+  "turbine-high": 9,
+  "turbine-low": 9,
+  "thermal-desalinator-depleted": 9,
+  "cooling-tower-large-depleted": 2,
   "cooling-tower-large-super": 3,
 };
 
