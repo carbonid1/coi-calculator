@@ -11,7 +11,7 @@ type Props = {
 }
 
 const RootLayout = ({ children }: Props) => (
-  <html lang="en" suppressHydrationWarning>
+  <html lang="en" className="dark" suppressHydrationWarning>
     <body className="min-h-screen bg-background text-foreground">{children}</body>
   </html>
 )
