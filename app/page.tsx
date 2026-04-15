@@ -3,6 +3,7 @@
 import { type RecipeGroup } from "./db/recipes";
 import { buildings } from "./db/buildings";
 import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
+import { useMounted } from "./helpers/use-mounted/use-mounted";
 import { modules } from "./db/modules/modules";
 import { calculateNet } from "./helpers/calculate/calculate";
 import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
@@ -25,11 +26,14 @@ const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "sink"
 const FACTORY_TOTAL_ID = "factory-total";
 
 const Page = () => {
+  const mounted = useMounted();
   const [activeModuleId, setActiveModuleId] = useLocalStorage("coi-module", modules[0]!.id);
   const [presetSelections, setPresetSelections] = useLocalStorage<Record<string, string | null>>(
     "coi-presets",
     Object.fromEntries(modules.map((m) => [m.id, m.defaultPresetId])),
   );
+
+  if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
 
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID;
   const activeModule = isFactoryTotal ? null : modules.find((m) => m.id === activeModuleId)!;
