@@ -66,13 +66,6 @@ No spare BFE. All 12 BFE to enrichment. BF gap filled by yellowcake.
 
 DU burn rate is 12/60s at N≤2, drops to 10 at N=3, zero at N=4.
 
-## Free resources (burn stockpiles first)
-
-While spent fuel/MOX stockpiles last, they replace YC for the BF gap — zero UO cost. Priority:
-1. Spent Fuel (0.5 SF/60s → 0.5 BF)
-2. Spent MOX (0.5 SM/60s → 0.5 BF)
-3. Then DU as described above
-
 ## Key recipes
 
 - **Reprocessing**: 16 CFS + 2 acid + 2 MG + 1 steel → 12 CF + 2 FP
@@ -80,7 +73,5 @@ While spent fuel/MOX stockpiles last, they replace YC for the BF gap — zero UO
 - **Enrichment (EU20)**: 16 BFE → 12 BF + 2 EU20
 - **DU → BF**: 2 BFE + 10 DU + 4 salt → 4 BF
 - **YC → BF**: 12 YC + 4 salt → 4 BF
-- **NRP Spent Fuel**: 2 SF + 2 acid + 2 MG + 2 salt → 2 BF + 2 FP
-- **NRP Spent MOX**: 2 SM + 2 acid + 2 MG + 2 salt → 2 BF + 2 FP
 - **Crusher**: 72 UO → 72 UOP
 - **Settling Tank**: 36 UOP + 12 acid → 6 YC + 36 toxic slurry

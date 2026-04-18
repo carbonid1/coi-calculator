@@ -192,17 +192,6 @@ describe("FBR power plant module", () => {
     expect(net.yellowcake).toBeUndefined(); // external
   });
 
-  it("1+1 spent-fuel: DU and SF hidden, EU20 produced", () => {
-    const net = getPresetNet("1+1-spent-fuel");
-
-    expect(net.coreFuel).toBeUndefined();
-    expect(net.blanketFuel).toBeUndefined();
-    expect(net.depletedUranium).toBeUndefined();
-    expect(net.spentFuel).toBeUndefined();
-    expect(net.yellowcake).toBeUndefined();
-    expect(net.enrichedUranium20).toBeGreaterThan(0);
-  });
-
   it("1+1: starved buildings have supplyRatio 0", () => {
     const preset = fbrPowerPlant.presets.find((p) => p.id === "1+1-burn-du")!;
     const { lines, pinnedIds } = buildModuleLines(fbrPowerPlant, preset);
