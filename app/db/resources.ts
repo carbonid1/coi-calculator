@@ -37,6 +37,9 @@ export const resources = {
   uraniumOrePowder: { id: "uraniumOrePowder", name: "Uranium Ore Powder", state: "loose" },
   toxicSlurry: { id: "toxicSlurry", name: "Toxic Slurry", state: "fluid" },
   hydrogenFluoride: { id: "hydrogenFluoride", name: "Hydrogen Fluoride", state: "fluid" },
+  titaniumAlloy: { id: "titaniumAlloy", name: "Titanium Alloy", state: "unit" },
+  electronicsIv: { id: "electronicsIv", name: "Electronics IV", state: "unit" },
+  compactReactor: { id: "compactReactor", name: "Compact Reactor", state: "unit" },
   electricity: { id: "electricity", name: "Electricity", state: "unit" },
 } as const satisfies Record<string, Resource>;
 

@@ -1,5 +1,6 @@
 import { type ResourceId } from "../resources";
 import { fbrPowerPlant } from "./fbr-power-plant";
+import { yellowcakePlant } from "./yellowcake-plant";
 
 export type Preset = {
   id: string;
@@ -21,4 +22,4 @@ export type Module = {
   externalInputs?: Partial<Record<ResourceId, number>>;
 };
 
-export const modules: Module[] = [fbrPowerPlant];
+export const modules: Module[] = [fbrPowerPlant, yellowcakePlant];

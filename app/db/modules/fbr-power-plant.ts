@@ -3,56 +3,50 @@ import { type Module } from "./modules";
 
 const ext = (vals: Partial<Record<ResourceId, number>>): Partial<Record<ResourceId, number>> => vals;
 
-// Steam buildings — 1+1 has no super steam excess; 1+4 routes all super to turbines
-const steam1x1 = {
+// Non-fuel buildings are identical across every preset so the physical plant
+// never needs reworking. Steam / water / hydrogen infrastructure is sized for
+// the 1+1 DU case; in YC modes the surplus gets absorbed by cooling + desal +
+// reformer by priority.
+const plantInfra = {
   "seawater-pump": 4,
   "turbine-super": 2,
   "turbine-high": 2,
   "turbine-low": 2,
-  "hydrogen-reformer-super": 2,
+  "thermal-desalinator-depleted": 2,
   "thermal-desalinator-super": 6,
-  "thermal-desalinator-depleted": 5,
+  "hydrogen-reformer-super": 2,
   "cooling-tower-large-depleted": 1,
+  "cooling-tower-large-super": 1,
 };
 
-// 1+4: 408 super steam → 9 of each turbine tier (8.5 active, 255 MW at full FBR burn).
-// Turbines have recipe-order priority, so super-reformer / super-desal / super-cooling
-// stay idle at 100% burn but remain built for consistency when FBRs are throttled.
-const steam1x4 = {
-  ...steam1x1,
-  "turbine-super": 9,
-  "turbine-high": 9,
-  "turbine-low": 9,
-  "thermal-desalinator-depleted": 9,
-  "cooling-tower-large-depleted": 2,
-  "cooling-tower-large-super": 3,
-};
-
-
-// Only fuel loop is pinned — pre-calculated BFE/CFS split.
-// Steam consumers are flexible (engine allocates by priority).
-const fuelPinned = [
+const fuelPinnedDu = [
   "fbr-3x", "fbr-0x",
   "nuclear-reprocessing", "enrichment-plant", "enrichment-plant-uranium",
-  "chemical-plant-blanket-enriched", "chemical-plant-yellowcake",
+  "chemical-plant-blanket-enriched",
+];
+
+const fuelPinnedYc = [
+  "fbr",
+  "nuclear-reprocessing", "enrichment-plant",
+  "chemical-plant-yellowcake",
 ];
 
 export const fbrPowerPlant: Module = {
   id: "fbr-power-plant",
   name: "FBR Power Plant",
-  description: "1 Breeder (3x) + N Energy (0x) — phased fuel loop",
+  description: "1+1 DU burn and YC-only no-breed modes — shared plant infrastructure",
   buildingTotals: {}, // presets define their own
   presets: [
     {
       id: "1+1-burn-du",
       name: "1+1 Burn DU",
-      description: "75 MW — zero UO, 12 DU/60s, +0.45 EU20/60s",
+      description: "75 MW — 0 UO, 12 DU/60s, +0.45 EU20/60s",
       buildingTotals: {
         "fbr-3x": 1, "fbr-0x": 1,
         "nuclear-reprocessing": 1,
         "enrichment-plant": 1, "enrichment-plant-uranium": 1,
         "chemical-plant-blanket-enriched": 2,
-        ...steam1x1,
+        ...plantInfra,
       },
       active: {
         "fbr-3x": 1, "fbr-0x": 1,
@@ -61,28 +55,28 @@ export const fbrPowerPlant: Module = {
         "enrichment-plant-uranium": 0.225,
         "chemical-plant-blanket-enriched": 1.2,
       },
-      pinned: fuelPinned,
+      pinned: fuelPinnedDu,
       externalInputs: ext({ acid: 0.75, moltenGlass: 0.75, steel: 0.375, salt: 4.8, depletedUranium: 12 }),
     },
     {
-      id: "1+4-steady",
-      name: "1+4 Steady State",
-      description: "255 MW — 54 UO, no DU needed",
+      id: "1fbr-yc",
+      name: "1 FBR — YC, no breed",
+      description: "60 MW — 3 YC/60s (18 UO), no EU20, no DU",
       buildingTotals: {
-        "fbr-3x": 1, "fbr-0x": 4,
+        "fbr": 1,
         "nuclear-reprocessing": 1,
-        "enrichment-plant": 2,
+        "enrichment-plant": 1,
         "chemical-plant-yellowcake": 1,
-        ...steam1x4,
+        ...plantInfra,
       },
       active: {
-        "fbr-3x": 1, "fbr-0x": 4,
-        "nuclear-reprocessing": 0.75,
-        "enrichment-plant": 1.5,
-        "chemical-plant-yellowcake": 0.75,
+        "fbr": 1,
+        "nuclear-reprocessing": 0.25,
+        "enrichment-plant": 0.5,
+        "chemical-plant-yellowcake": 0.25,
       },
-      pinned: fuelPinned,
-      externalInputs: ext({ acid: 1.5, moltenGlass: 1.5, steel: 0.75, salt: 3, yellowcake: 9 }),
+      pinned: fuelPinnedYc,
+      externalInputs: ext({ acid: 0.5, moltenGlass: 0.5, steel: 0.25, salt: 1, yellowcake: 3 }),
     },
   ],
   defaultPresetId: "1+1-burn-du",

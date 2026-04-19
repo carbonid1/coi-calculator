@@ -214,6 +214,20 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    id: "assembly-v-compact-reactor",
+    name: "Assembly V (Compact Reactor)",
+    building: "Assembly V",
+    group: "production",
+    inputs: [
+      { resourceId: "titaniumAlloy", quantity: 12 },
+      { resourceId: "electronicsIv", quantity: 6 },
+      { resourceId: "enrichedUranium20", quantity: 2 },
+    ],
+    outputs: [
+      { resourceId: "compactReactor", quantity: 4 },
+    ],
+  },
+  {
     id: "chemical-plant-mox-rod",
     name: "Chemical Plant (Plutonium → MOX Rod)",
     building: "Chemical Plant II",
