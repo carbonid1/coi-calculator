@@ -1,14 +1,16 @@
+import { cn } from "@carbonid1/design-system";
+
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { BuildingCount } from "./BuildingCount";
 
-type Props = {
+interface Props {
   recipe: Recipe;
   activeCount: number;
   totalCount: number;
   supplyRatio: number;
   pinned: boolean;
-};
+}
 
 export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, pinned }) => {
   const effectiveMultiplier = activeCount * supplyRatio;
@@ -17,13 +19,11 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
 
   return (
     <div
-      className={`rounded-lg border p-4 ${
-        inactive
-          ? "border-dashed border-gray-300 opacity-40 dark:border-gray-600"
-          : pinned
-            ? "border-blue-200 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/30"
-            : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
-      }`}
+      className={cn("rounded-lg border p-4", {
+        "border-dashed border-gray-300 opacity-40 dark:border-gray-600": inactive,
+        "border-blue-200 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/30": !inactive && pinned,
+        "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800": !inactive && !pinned,
+      })}
     >
       <div className="mb-3 flex items-center justify-between">
         <div>
@@ -32,6 +32,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
           </h3>
           {recipe.name !== recipe.building && (() => {
             const match = recipe.name.match(/\((.+)\)$/);
+
             return match ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{match[1]}</p>
             ) : null;

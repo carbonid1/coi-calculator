@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: 'Production chain calculator for Captain of Industry',
 }
 
-type Props = {
+interface Props {
   children: React.ReactNode
 }
 

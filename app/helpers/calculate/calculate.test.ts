@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { recipes } from "../../db/recipes";
-import { nuclearStation } from "../../db/modules/nuclear-station";
-import { fuelReprocessing } from "../../db/modules/fuel-reprocessing";
 import { fbrPowerPlant } from "../../db/modules/fbr-power-plant";
+import { fuelReprocessing } from "../../db/modules/fuel-reprocessing";
+import { nuclearStation } from "../../db/modules/nuclear-station";
+import { recipes } from "../../db/recipes";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateNet, type ProductionLine } from "./calculate";
 
@@ -10,11 +10,13 @@ const { buildingTotals, presets } = nuclearStation;
 
 const buildLines = (presetId: string): ProductionLine[] => {
   const preset = presets.find((p) => p.id === presetId)!;
+
   return recipes
     .filter((r) => r.id in buildingTotals)
     .map((recipe) => {
       const total = buildingTotals[recipe.id] ?? 0;
       const active = recipe.id in preset.active ? (preset.active[recipe.id] ?? total) : total;
+
       return { recipe, buildingCount: active, totalBuildings: total };
     });
 };
@@ -24,12 +26,14 @@ const getNet = (presetId: string) => {
   const lines = buildLines(presetId);
   const pinnedIds = new Set(preset.pinned);
   const { resourceFlows } = calculateNet(lines, pinnedIds);
+
   return Object.fromEntries(resourceFlows.map((f) => [f.resourceId, Math.round(f.net)]));
 };
 
 describe("hydrogen mode", () => {
   it("net summary matches expected values", () => {
     const net = getNet("hydrogen");
+
     expect(net).toEqual({
       water: 244,
       coreFuel: -4,
@@ -47,6 +51,7 @@ describe("hydrogen mode", () => {
 describe("hydrogen full", () => {
   it("net summary matches expected values", () => {
     const net = getNet("hydrogen-full");
+
     expect(net).toEqual({
       water: 410,
       coreFuel: -4,
@@ -62,6 +67,7 @@ describe("hydrogen full", () => {
 describe("max electricity", () => {
   it("net summary matches expected values", () => {
     const net = getNet("max-electricity");
+
     expect(net).toEqual({
       water: 6,
       coreFuel: -4,
@@ -93,6 +99,7 @@ describe("edge cases", () => {
     const { regularResults } = calculateNet(lines, new Set(["fbr", "turbine-super", "turbine-high", "turbine-low"]));
 
     const superDesal = regularResults.find((r) => r.recipe.id === "thermal-desalinator-super");
+
     expect(superDesal?.supplyRatio).toBeLessThan(1);
     expect(superDesal?.supplyRatio).toBeGreaterThan(0);
   });
@@ -128,21 +135,25 @@ describe("nuclear fuel module", () => {
 
     // Nuclear reprocessing: 1 building pinned at 0.25
     const reprocessing = regularResults.find((r) => r.recipe.id === "nuclear-reprocessing")!;
+
     expect(reprocessing.buildingCount).toBe(0.25);
     expect(reprocessing.pinned).toBe(true);
     expect(reprocessing.supplyRatio).toBe(1);
 
     // Spent fuel: 1 building at full capacity
     const spentFuel = regularResults.find((r) => r.recipe.id === "nuclear-reprocessing-spent-fuel")!;
+
     expect(spentFuel.buildingCount).toBe(1);
     expect(spentFuel.pinned).toBe(true);
 
     // Spent MOX: pinned to 0
     const spentMox = regularResults.find((r) => r.recipe.id === "nuclear-reprocessing-spent-mox")!;
+
     expect(spentMox.buildingCount).toBe(0);
 
     // External inputs (coreFuelSpent: 4, blanketFuelEnriched: 4) satisfied — not in net
     const net = Object.fromEntries(resourceFlows.map((f) => [f.resourceId, f.net]));
+
     expect(net.coreFuelSpent).toBeUndefined();
     expect(net.blanketFuelEnriched).toBeUndefined();
 
@@ -159,6 +170,7 @@ describe("nuclear fuel module", () => {
     const { resourceFlows } = calculateNet(lines, pinnedIds);
 
     const net = Object.fromEntries(resourceFlows.map((f) => [f.resourceId, f.net]));
+
     expect(net.coreFuelSpent).toBe(-4);
     expect(net.blanketFuelEnriched).toBe(-4);
   });
@@ -170,6 +182,7 @@ describe("FBR power plant module", () => {
     const { lines, pinnedIds } = buildModuleLines(fbrPowerPlant, preset);
     const externalInputs = preset.externalInputs ?? fbrPowerPlant.externalInputs;
     const { resourceFlows } = calculateNet(lines, pinnedIds, externalInputs);
+
     return Object.fromEntries(resourceFlows.map((f) => [f.resourceId, parseFloat(f.net.toFixed(2))]));
   };
 
@@ -200,6 +213,7 @@ describe("FBR power plant module", () => {
 
     // Super desalinator gets 0 super steam (hydrogen reformers consume all remaining)
     const superDesal = regularResults.find((r) => r.recipe.id === "thermal-desalinator-super");
+
     expect(superDesal).toBeDefined();
     expect(superDesal!.supplyRatio).toBe(0);
   });
@@ -212,6 +226,7 @@ describe("FBR power plant module", () => {
 
     // Cooling towers get no excess steam in 1+1 — all consumed by turbines/reformers/desalinators
     const superCooling = sinkResults.find((r) => r.recipe.id === "cooling-tower-large-super");
+
     expect(superCooling).toBeDefined();
     expect(superCooling!.actualOutputs.length).toBe(0);
   });

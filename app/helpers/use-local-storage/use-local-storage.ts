@@ -1,25 +1,32 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import type { z } from 'zod'
 
-export const useLocalStorage = <T>(
+export const useLocalStorage = <S extends z.ZodType>(
   key: string,
-  initial: T,
-): [T, (value: T | ((prev: T) => T)) => void] => {
-  const [stored, setStored] = useState<T>(() => {
+  schema: S,
+  initial: z.infer<S>,
+): [z.infer<S>, (value: z.infer<S> | ((prev: z.infer<S>) => z.infer<S>)) => void] => {
+  const [stored, setStored] = useState<z.infer<S>>(() => {
     if (typeof window === 'undefined') return initial
     try {
       const item = window.localStorage.getItem(key)
-      return item ? (JSON.parse(item) as T) : initial
+
+      if (!item) return initial
+      const parsed = schema.safeParse(JSON.parse(item))
+
+      return parsed.success ? parsed.data : initial
     } catch {
       return initial
     }
   })
 
   const setValue = useCallback(
-    (value: T | ((prev: T) => T)) => {
+    (value: z.infer<S> | ((prev: z.infer<S>) => z.infer<S>)) => {
       setStored(prev => {
         const next = value instanceof Function ? value(prev) : value
+
         try {
           window.localStorage.setItem(key, JSON.stringify(next))
         } catch {

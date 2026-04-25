@@ -1,20 +1,20 @@
 import { type ResourceId } from "./resources";
 
-export type Ingredient = {
+export interface Ingredient {
   resourceId: ResourceId;
   quantity: number; // per 60 seconds
-};
+}
 
 export type RecipeGroup = "source" | "electricity" | "production" | "sink";
 
-export type Recipe = {
+export interface Recipe {
   id: string;
   name: string;
   building: string;
   group: RecipeGroup;
   inputs: Ingredient[];
   outputs: Ingredient[];
-};
+}
 
 export const recipes: Recipe[] = [
   // Sources

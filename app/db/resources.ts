@@ -1,10 +1,10 @@
 export type ResourceState = "loose" | "fluid" | "unit";
 
-export type Resource = {
+export interface Resource {
   id: string;
   name: string;
   state: ResourceState;
-};
+}
 
 export const resources = {
   seaWater: { id: "seaWater", name: "Sea Water", state: "fluid" },

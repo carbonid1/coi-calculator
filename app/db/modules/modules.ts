@@ -2,7 +2,7 @@ import { type ResourceId } from "../resources";
 import { fbrPowerPlant } from "./fbr-power-plant";
 import { yellowcakePlant } from "./yellowcake-plant";
 
-export type Preset = {
+export interface Preset {
   id: string;
   name: string;
   description: string;
@@ -10,9 +10,9 @@ export type Preset = {
   pinned: string[];
   externalInputs?: Partial<Record<ResourceId, number>>;
   buildingTotals?: Record<string, number>;
-};
+}
 
-export type Module = {
+export interface Module {
   id: string;
   name: string;
   description: string;
@@ -20,6 +20,6 @@ export type Module = {
   presets: Preset[];
   defaultPresetId: string | null;
   externalInputs?: Partial<Record<ResourceId, number>>;
-};
+}
 
-export const modules: Module[] = [fbrPowerPlant, yellowcakePlant];
+export const modules: [Module, ...Module[]] = [fbrPowerPlant, yellowcakePlant];

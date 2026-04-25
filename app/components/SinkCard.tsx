@@ -2,10 +2,10 @@ import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
 import { BuildingCount } from "./BuildingCount";
 
-type Props = {
+interface Props {
   result: PassiveResult;
   role: "source" | "sink";
-};
+}
 
 export const SinkCard: React.FC<Props> = ({ result }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
@@ -14,8 +14,9 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
   // Effective building count based on actual vs max output
   const effectiveCount = hasWork && result.recipe.outputs.length > 0
     ? (() => {
-        const maxOutput = result.recipe.outputs[0]!.quantity * result.buildingCount;
+        const maxOutput = (result.recipe.outputs[0]?.quantity ?? 0) * result.buildingCount;
         const actualOutput = result.actualOutputs[0]?.quantity ?? 0;
+
         return maxOutput > 0 ? parseFloat((result.buildingCount * actualOutput / maxOutput).toFixed(2)) : result.buildingCount;
       })()
     : 0;
@@ -35,6 +36,7 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
           </h3>
           {result.recipe.name !== result.recipe.building && (() => {
             const match = result.recipe.name.match(/\((.+)\)$/);
+
             return match ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{match[1]}</p>
             ) : null;

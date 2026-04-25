@@ -1,7 +1,7 @@
-type BuildingData = {
+interface BuildingData {
   workers: number;
   electricityKw: number;
-};
+}
 
 export const buildings: Record<string, BuildingData> = {
   "Seawater Pump": { workers: 1, electricityKw: 100 },

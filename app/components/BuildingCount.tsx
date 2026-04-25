@@ -1,7 +1,9 @@
-type Props = {
+import { cn } from "@carbonid1/design-system";
+
+interface Props {
   effective: number;
   total: number;
-};
+}
 
 export const BuildingCount: React.FC<Props> = ({ effective, total }) => {
   const full = effective === total;
@@ -9,13 +11,11 @@ export const BuildingCount: React.FC<Props> = ({ effective, total }) => {
 
   return (
     <span
-      className={`text-sm font-medium ${
-        inactive
-          ? "text-gray-400"
-          : full
-            ? "text-green-600 dark:text-green-400"
-            : "text-yellow-600 dark:text-yellow-400"
-      }`}
+      className={cn("text-sm font-medium", {
+        "text-gray-400": inactive,
+        "text-green-600 dark:text-green-400": !inactive && full,
+        "text-yellow-600 dark:text-yellow-400": !inactive && !full,
+      })}
     >
       {effective}/{total}
     </span>

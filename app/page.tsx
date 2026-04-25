@@ -1,18 +1,20 @@
 "use client";
 
-import { type RecipeGroup } from "./db/recipes";
-import { buildings } from "./db/buildings";
-import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
-import { useMounted } from "./helpers/use-mounted/use-mounted";
-import { modules } from "./db/modules/modules";
-import { calculateNet } from "./helpers/calculate/calculate";
-import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
-import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
-import { RecipeCard } from "./components/RecipeCard";
-import { SinkCard } from "./components/SinkCard";
+import { z } from "zod";
+
+import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { PresetSwitcher } from "./components/PresetSwitcher";
-import { ModuleSwitcher } from "./components/ModuleSwitcher";
+import { RecipeCard } from "./components/RecipeCard";
+import { SinkCard } from "./components/SinkCard";
+import { buildings } from "./db/buildings";
+import { modules } from "./db/modules/modules";
+import { type RecipeGroup } from "./db/recipes";
+import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
+import { calculateNet } from "./helpers/calculate/calculate";
+import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
+import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
+import { useMounted } from "./helpers/use-mounted/use-mounted";
 
 const groupLabels: Record<RecipeGroup, string> = {
   source: "Sources",
@@ -25,18 +27,22 @@ const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "sink"
 
 const FACTORY_TOTAL_ID = "factory-total";
 
+const activeModuleIdSchema = z.enum([FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
+const presetSelectionsSchema = z.record(z.string(), z.string().nullable());
+
 const Page = () => {
   const mounted = useMounted();
-  const [activeModuleId, setActiveModuleId] = useLocalStorage("coi-module", modules[0]!.id);
-  const [presetSelections, setPresetSelections] = useLocalStorage<Record<string, string | null>>(
+  const [activeModuleId, setActiveModuleId] = useLocalStorage("coi-module", activeModuleIdSchema, modules[0].id);
+  const [presetSelections, setPresetSelections] = useLocalStorage(
     "coi-presets",
+    presetSelectionsSchema,
     Object.fromEntries(modules.map((m) => [m.id, m.defaultPresetId])),
   );
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
 
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID;
-  const activeModule = isFactoryTotal ? null : modules.find((m) => m.id === activeModuleId)!;
+  const activeModule = isFactoryTotal ? null : (modules.find((m) => m.id === activeModuleId) ?? modules[0]);
 
   const presetId = activeModule
     ? (presetSelections[activeModule.id] ?? activeModule.defaultPresetId)
@@ -54,6 +60,7 @@ const Page = () => {
     ? (() => {
         const { lines, pinnedIds } = buildModuleLines(activeModule, preset);
         const calc = calculateNet(lines, pinnedIds, resolvedExternalInputs);
+
         return { lines, ...calc };
       })()
     : null;
@@ -61,6 +68,7 @@ const Page = () => {
   const buildingStats = activeModule && moduleResult
     ? moduleResult.lines.reduce((acc, line) => {
         const data = buildings[line.recipe.building];
+
         if (!data || line.buildingCount <= 0) return acc;
         return {
           workers: acc.workers + data.workers * Math.ceil(line.buildingCount),
@@ -74,6 +82,7 @@ const Page = () => {
   const factoryStats = factoryResult
     ? factoryResult.allLines.reduce((acc, line) => {
         const data = buildings[line.recipe.building];
+
         if (!data || line.buildingCount <= 0) return acc;
         return {
           workers: acc.workers + data.workers * Math.ceil(line.buildingCount),
@@ -131,17 +140,20 @@ const Page = () => {
                 {items.map((line) => {
                   if (group === "source") {
                     const result = moduleResult.sourceResults.find((s) => s.recipe.id === line.recipe.id);
+
                     return result ? (
                       <SinkCard key={line.recipe.id} result={result} role="source" />
                     ) : null;
                   }
                   if (group === "sink") {
                     const result = moduleResult.sinkResults.find((s) => s.recipe.id === line.recipe.id);
+
                     return result ? (
                       <SinkCard key={line.recipe.id} result={result} role="sink" />
                     ) : null;
                   }
                   const result = moduleResult.regularResults.find((r) => r.recipe.id === line.recipe.id);
+
                   return (
                     <RecipeCard
                       key={line.recipe.id}

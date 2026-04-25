@@ -2,11 +2,11 @@
 
 import { type Preset } from "../db/modules/modules";
 
-type Props = {
+interface Props {
   presets: Preset[];
   active: string;
   onChange: (id: string) => void;
-};
+}
 
 export const PresetSwitcher: React.FC<Props> = ({ presets, active, onChange }) => (
   <div className="flex flex-wrap gap-2">

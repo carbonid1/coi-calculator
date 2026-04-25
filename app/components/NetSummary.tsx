@@ -1,17 +1,16 @@
 import { type ResourceId, resources } from "../db/resources";
 import { type ResourceFlow } from "../helpers/calculate/calculate";
+import { typedEntries } from "../helpers/typed-entries/typed-entries";
 
-type Props = {
+interface Props {
   flows: ResourceFlow[];
   externalInputs?: Partial<Record<ResourceId, number>>;
   workers?: number;
   electricityConsumptionKw?: number;
-};
+}
 
 export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw }) => {
-  const externalEntries = externalInputs
-    ? (Object.entries(externalInputs) as [ResourceId, number][]).filter(([, qty]) => qty > 0)
-    : [];
+  const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
 
   const electricityFlow = flows.find((f) => f.resourceId === "electricity");
   const regularFlows = flows.filter((f) => f.resourceId !== "electricity");
