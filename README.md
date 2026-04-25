@@ -14,12 +14,14 @@ State lives in `localStorage` — no backend, no login.
 
 ## Develop
 
+Prerequisites: [portless](https://github.com/vercel-labs/portless).
+
 ```sh
 pnpm install
 pnpm dev
 ```
 
-Open [localhost:3000](http://localhost:3000).
+Open [coi-calculator.localhost](https://coi-calculator.localhost).
 
 ## Scripts
 
