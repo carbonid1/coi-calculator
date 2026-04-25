@@ -10,6 +10,7 @@ export interface Preset {
   pinned: string[];
   externalInputs?: Partial<Record<ResourceId, number>>;
   buildingTotals?: Record<string, number>;
+  speedLevels?: Record<string, number>;
 }
 
 export interface Module {

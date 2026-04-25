@@ -9,8 +9,9 @@ export const buildModuleLines = (mod: Module, preset: Preset | null): { lines: P
   const lines: ProductionLine[] = visibleRecipes.map((recipe) => {
     const total = totals[recipe.id] ?? 0;
     const active = preset && recipe.id in preset.active ? (preset.active[recipe.id] ?? total) : total;
+    const speedLevel = preset?.speedLevels?.[recipe.id] ?? 1;
 
-    return { recipe, buildingCount: active, totalBuildings: total };
+    return { recipe, buildingCount: active, totalBuildings: total, speedLevel };
   });
 
   const pinnedIds = preset ? new Set(preset.pinned) : new Set<string>();

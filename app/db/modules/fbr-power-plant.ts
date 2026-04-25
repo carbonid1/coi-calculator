@@ -25,11 +25,7 @@ const fuelPinnedDu = [
   "chemical-plant-blanket-enriched",
 ];
 
-const fuelPinnedYc = [
-  "fbr",
-  "nuclear-reprocessing", "enrichment-plant",
-  "chemical-plant-yellowcake",
-];
+const fuelPinnedYc = ["fbr"];
 
 export const fbrPowerPlant: Module = {
   id: "fbr-power-plant",
@@ -60,8 +56,8 @@ export const fbrPowerPlant: Module = {
     },
     {
       id: "1fbr-yc",
-      name: "1 FBR — YC, no breed",
-      description: "60 MW — 3 YC/60s (18 UO), no EU20, no DU",
+      name: "1 FBR ×2 — YC, no breed",
+      description: "60 MW + 64 H₂ — 6 YC/60s (36 UO), reactor speed 2x, 1x operating mode, no EU20, no DU",
       buildingTotals: {
         "fbr": 1,
         "nuclear-reprocessing": 1,
@@ -71,12 +67,13 @@ export const fbrPowerPlant: Module = {
       },
       active: {
         "fbr": 1,
-        "nuclear-reprocessing": 0.25,
-        "enrichment-plant": 0.5,
-        "chemical-plant-yellowcake": 0.25,
+        "nuclear-reprocessing": 1,
+        "enrichment-plant": 1,
+        "chemical-plant-yellowcake": 1,
       },
+      speedLevels: { "fbr": 2 },
       pinned: fuelPinnedYc,
-      externalInputs: ext({ acid: 0.5, moltenGlass: 0.5, steel: 0.25, salt: 1, yellowcake: 3 }),
+      externalInputs: ext({ acid: 1, moltenGlass: 1, steel: 0.5, salt: 2, yellowcake: 6 }),
     },
   ],
   defaultPresetId: "1+1-burn-du",

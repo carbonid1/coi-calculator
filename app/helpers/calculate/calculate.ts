@@ -6,6 +6,7 @@ export interface ProductionLine {
   recipe: Recipe;
   buildingCount: number;
   totalBuildings: number;
+  speedLevel: number;
 }
 
 export interface ResourceFlow {
@@ -31,6 +32,8 @@ export interface PassiveResult {
   actualInputs: { resourceId: ResourceId; quantity: number }[];
   actualOutputs: { resourceId: ResourceId; quantity: number }[];
 }
+
+const lineFactor = (line: ProductionLine) => line.buildingCount * line.speedLevel;
 
 type FlowMap = Map<ResourceId, { consumed: number; produced: number }>;
 
@@ -62,12 +65,12 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
   }
 
   for (const line of sourceLines) {
-    for (const output of line.recipe.outputs) {
-      simGet(output.resourceId).produced += output.quantity * line.buildingCount;
-    }
+    const m = lineFactor(line);
+
+    for (const output of line.recipe.outputs) simGet(output.resourceId).produced += output.quantity * m;
   }
   for (const line of regularLines) {
-    const m = line.buildingCount;
+    const m = lineFactor(line);
 
     for (const input of line.recipe.inputs) simGet(input.resourceId).consumed += input.quantity * m;
     for (const output of line.recipe.outputs) simGet(output.resourceId).produced += output.quantity * m;
@@ -90,14 +93,14 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
 
   // Sources at full capacity
   for (const line of sourceLines) {
-    for (const output of line.recipe.outputs) {
-      getFlow(output.resourceId).produced += output.quantity * line.buildingCount;
-    }
+    const m = lineFactor(line);
+
+    for (const output of line.recipe.outputs) getFlow(output.resourceId).produced += output.quantity * m;
   }
 
   // Pinned buildings at full capacity
   for (const line of pinnedLines) {
-    const m = line.buildingCount;
+    const m = lineFactor(line);
 
     for (const input of line.recipe.inputs) getFlow(input.resourceId).consumed += input.quantity * m;
     for (const output of line.recipe.outputs) getFlow(output.resourceId).produced += output.quantity * m;
@@ -112,13 +115,14 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
       continue;
     }
 
+    const factor = lineFactor(line);
     let ratio = 1;
 
     for (const input of line.recipe.inputs) {
       if (!constrained.has(input.resourceId)) continue;
       const f = getFlow(input.resourceId);
       const available = f.produced - f.consumed;
-      const needed = input.quantity * line.buildingCount;
+      const needed = input.quantity * factor;
 
       if (needed > 0) {
         ratio = Math.min(ratio, Math.max(0, available / needed));
@@ -127,7 +131,7 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
 
     flexibleSupplyRatios.set(line.recipe.id, ratio);
 
-    const m = line.buildingCount * ratio;
+    const m = factor * ratio;
 
     for (const input of line.recipe.inputs) getFlow(input.resourceId).consumed += input.quantity * m;
     for (const output of line.recipe.outputs) getFlow(output.resourceId).produced += output.quantity * m;
@@ -145,11 +149,12 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
   // Adjust source output to actual consumption
   const sourceResults: PassiveResult[] = sourceLines.map((line) => {
     const actualOutputs: PassiveResult["actualOutputs"] = [];
+    const cap = lineFactor(line);
 
     for (const output of line.recipe.outputs) {
       const f = getFlow(output.resourceId);
-      const actualUsed = Math.min(output.quantity * line.buildingCount, f.consumed);
-      const overproduction = output.quantity * line.buildingCount - actualUsed;
+      const actualUsed = Math.min(output.quantity * cap, f.consumed);
+      const overproduction = output.quantity * cap - actualUsed;
 
       if (overproduction > 0) f.produced -= overproduction;
       actualOutputs.push({ resourceId: output.resourceId, quantity: actualUsed });
@@ -172,7 +177,7 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
       continue;
     }
 
-    const capacity = line.buildingCount;
+    const capacity = lineFactor(line);
     let utilizationRatio = 1;
 
     for (const input of line.recipe.inputs) {

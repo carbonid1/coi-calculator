@@ -162,6 +162,7 @@ const Page = () => {
                       totalCount={line.totalBuildings}
                       supplyRatio={result?.supplyRatio ?? 1}
                       pinned={result?.pinned ?? false}
+                      speedLevel={line.speedLevel}
                     />
                   );
                 })}

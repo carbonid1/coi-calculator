@@ -10,11 +10,13 @@ interface Props {
   totalCount: number;
   supplyRatio: number;
   pinned: boolean;
+  speedLevel: number;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, pinned }) => {
-  const effectiveMultiplier = activeCount * supplyRatio;
-  const effective = Math.round(effectiveMultiplier * 100) / 100;
+export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, pinned, speedLevel }) => {
+  const buildingMultiplier = activeCount * supplyRatio;
+  const effective = Math.round(buildingMultiplier * 100) / 100;
+  const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = effective === 0;
 
   return (
@@ -37,6 +39,11 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
               <p className="text-sm text-gray-500 dark:text-gray-400">{match[1]}</p>
             ) : null;
           })()}
+          {speedLevel !== 1 && (
+            <p className="text-xs font-medium text-attention-foreground">
+              Reactor speed ×{speedLevel}
+            </p>
+          )}
         </div>
         <BuildingCount effective={effective} total={totalCount} />
       </div>
@@ -50,7 +57,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
                   {resources[input.resourceId].name}
                 </span>
                 <span className="shrink-0 font-mono text-red-600 dark:text-red-400">
-                  {parseFloat((input.quantity * effectiveMultiplier).toFixed(2))}
+                  {parseFloat((input.quantity * ioMultiplier).toFixed(2))}
                 </span>
               </div>
             ))}
@@ -65,7 +72,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
                   {resources[output.resourceId].name}
                 </span>
                 <span className="shrink-0 font-mono text-green-600 dark:text-green-400">
-                  {parseFloat((output.quantity * effectiveMultiplier).toFixed(2))}
+                  {parseFloat((output.quantity * ioMultiplier).toFixed(2))}
                 </span>
               </div>
             ))}

@@ -17,7 +17,7 @@ const buildLines = (presetId: string): ProductionLine[] => {
       const total = buildingTotals[recipe.id] ?? 0;
       const active = recipe.id in preset.active ? (preset.active[recipe.id] ?? total) : total;
 
-      return { recipe, buildingCount: active, totalBuildings: total };
+      return { recipe, buildingCount: active, totalBuildings: total, speedLevel: 1 };
     });
 };
 
@@ -94,6 +94,7 @@ describe("edge cases", () => {
         recipe,
         buildingCount: overrides[recipe.id] ?? (buildingTotals[recipe.id] ?? 0),
         totalBuildings: buildingTotals[recipe.id] ?? 0,
+        speedLevel: 1,
       }));
 
     const { regularResults } = calculateNet(lines, new Set(["fbr", "turbine-super", "turbine-high", "turbine-low"]));
@@ -117,6 +118,7 @@ describe("edge cases", () => {
         recipe,
         buildingCount: overrides[recipe.id] ?? (buildingTotals[recipe.id] ?? 0),
         totalBuildings: buildingTotals[recipe.id] ?? 0,
+        speedLevel: 1,
       }));
 
     const { resourceFlows } = calculateNet(lines, new Set(["fbr", "turbine-super", "turbine-high", "turbine-low"]));
@@ -196,13 +198,20 @@ describe("FBR power plant module", () => {
     expect(net.enrichedUranium20).toBeGreaterThan(0); // EU20 produced
   });
 
-  it("1+4: no DU, YC only", () => {
-    const net = getPresetNet("1+4-steady");
+  it("1 FBR YC at reactor speed 2: unpinned fuel cycle balances via supplyRatio", () => {
+    const net = getPresetNet("1fbr-yc");
 
+    // FBR @ speed 2: 8 CF/BF consumed, 8 CFspent/BFEnriched produced.
+    // Enrichment runs at 1.0 (8 BFEnriched -> 6 BF + 2 CF). Reproc throttles to
+    // 0.5 via CFspent (8/16) -> 6 CF + 1 fission. Chem-plant-yc throttles to
+    // 0.5 via YC (6/12) -> 2 BF. Loop balances; only fission product surfaces.
     expect(net.coreFuel).toBeUndefined();
     expect(net.blanketFuel).toBeUndefined();
-    expect(net.depletedUranium).toBeUndefined(); // not consumed
-    expect(net.yellowcake).toBeUndefined(); // external
+    expect(net.coreFuelSpent).toBeUndefined();
+    expect(net.blanketFuelEnriched).toBeUndefined();
+    expect(net.depletedUranium).toBeUndefined();
+    expect(net.yellowcake).toBeUndefined();
+    expect(net.fissionProduct).toBe(1);
   });
 
   it("1+1: starved buildings have supplyRatio 0", () => {
