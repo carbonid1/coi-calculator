@@ -28,7 +28,6 @@
     "@types/react-dom": "^19.0.0",
     "eslint-import-resolver-typescript": "^4.4.4",
     "prettier": "^3.8.2",
-    "prettier-plugin-organize-imports": "^4.3.0",
     "vitest": "^4.0.0"
   },
   "pnpm": {

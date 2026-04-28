@@ -5,8 +5,6 @@ const config = {
   trailingComma: 'all',
   jsxSingleQuote: false,
   semi: false,
-  plugins: ['prettier-plugin-organize-imports'],
-  organizeImportsSkipDestructiveCodeActions: true,
 }
 
 export default config
