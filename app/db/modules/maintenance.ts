@@ -1,4 +1,3 @@
-import { recipes } from "../recipes";
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
 
@@ -22,31 +21,10 @@ const activeRecipeIds = {
   maintenanceIII: "maintenance-iii-recycling",
 } as const;
 
-const buildingCountForDemand = (recipeId: string, outputId: ResourceId, demand: number) => {
-  const recipe = recipes.find((candidate) => candidate.id === recipeId);
-  const output = recipe?.outputs.find((candidate) => candidate.resourceId === outputId);
-
-  if (!output) throw new Error(`Missing ${outputId} output for ${recipeId}`);
-
-  return demand / output.quantity;
-};
-
 const active = {
-  [activeRecipeIds.maintenanceI]: buildingCountForDemand(
-    activeRecipeIds.maintenanceI,
-    "maintenanceI",
-    maintenanceDemandPerCycle.maintenanceI,
-  ),
-  [activeRecipeIds.maintenanceII]: buildingCountForDemand(
-    activeRecipeIds.maintenanceII,
-    "maintenanceII",
-    maintenanceDemandPerCycle.maintenanceII,
-  ),
-  [activeRecipeIds.maintenanceIII]: buildingCountForDemand(
-    activeRecipeIds.maintenanceIII,
-    "maintenanceIII",
-    maintenanceDemandPerCycle.maintenanceIII,
-  ),
+  [activeRecipeIds.maintenanceI]: 1,
+  [activeRecipeIds.maintenanceII]: 1,
+  [activeRecipeIds.maintenanceIII]: 1,
 };
 
 export const maintenance: Module = {
@@ -66,6 +44,7 @@ export const maintenance: Module = {
       active,
       pinned: Object.values(activeRecipeIds),
       incomingFromModules: ["mechanicalParts", "electronicsI", "electronicsII", "electronicsIII"],
+      outputTargets: maintenanceDemandPerCycle,
     },
   ],
   defaultPresetId: "current-demand",

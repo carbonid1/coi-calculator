@@ -2,6 +2,7 @@ import { cn } from "@carbonid1/design-system";
 
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
+import { getRecipeOutputQuantity, type OutputModifierMultipliers } from "../helpers/modifiers/recipe-output";
 import { BuildingCount } from "./BuildingCount";
 
 interface Props {
@@ -11,9 +12,10 @@ interface Props {
   supplyRatio: number;
   pinned: boolean;
   speedLevel: number;
+  outputModifiers?: OutputModifierMultipliers;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, pinned, speedLevel }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, pinned, speedLevel, outputModifiers }) => {
   const buildingMultiplier = activeCount * supplyRatio;
   const effective = Math.round(buildingMultiplier * 100) / 100;
   const ioMultiplier = buildingMultiplier * speedLevel;
@@ -72,7 +74,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
                   {resources[output.resourceId].name}
                 </span>
                 <span className="shrink-0 font-mono text-green-600 dark:text-green-400">
-                  {parseFloat((output.quantity * ioMultiplier).toFixed(2))}
+                  {parseFloat((getRecipeOutputQuantity(recipe, output, outputModifiers) * ioMultiplier).toFixed(2))}
                 </span>
               </div>
             ))}

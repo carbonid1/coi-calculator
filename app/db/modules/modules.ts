@@ -12,6 +12,7 @@ export interface Preset {
   incomingFromModules?: ResourceId[];
   incomingFromContracts?: ResourceId[];
   externalInputs?: Partial<Record<ResourceId, number>>;
+  outputTargets?: Partial<Record<ResourceId, number>>;
   buildingTotals?: Record<string, number>;
   speedLevels?: Record<string, number>;
 }

@@ -3,9 +3,11 @@ import { type ResourceId } from "./resources";
 export interface Ingredient {
   resourceId: ResourceId;
   quantity: number; // per 60 seconds
+  outputModifierId?: OutputModifierId;
 }
 
 export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
+export type OutputModifierId = "maintenanceOutput";
 
 export interface DecayStorage {
   capacity: number;
@@ -22,6 +24,7 @@ export interface Recipe {
   decayStorage?: DecayStorage;
   loadBalancesInput?: boolean;
   loadBalancesOutput?: boolean;
+  cycleDurationSeconds?: number;
   /**
    * Whether creating Recyclables applies the global recycling-efficiency loss.
    * Defaults to true. Captain of Industry v0.8.6 game data identifies Shredder
@@ -252,12 +255,13 @@ export const recipes: Recipe[] = [
     name: "Maintenance I (Basic)",
     building: "Maintenance Depot (Basic)",
     group: "production",
+    cycleDurationSeconds: 30,
     inputs: [
       { resourceId: "mechanicalParts", quantity: 12 },
       { resourceId: "electronicsI", quantity: 6 },
     ],
     outputs: [
-      { resourceId: "maintenanceI", quantity: 220 },
+      { resourceId: "maintenanceI", quantity: 220, outputModifierId: "maintenanceOutput" },
     ],
   },
   {
@@ -265,12 +269,13 @@ export const recipes: Recipe[] = [
     name: "Maintenance I",
     building: "Maintenance Depot",
     group: "production",
+    cycleDurationSeconds: 20,
     inputs: [
       { resourceId: "mechanicalParts", quantity: 24 },
       { resourceId: "electronicsI", quantity: 12 },
     ],
     outputs: [
-      { resourceId: "maintenanceI", quantity: 480 },
+      { resourceId: "maintenanceI", quantity: 480, outputModifierId: "maintenanceOutput" },
     ],
   },
   {
@@ -278,12 +283,13 @@ export const recipes: Recipe[] = [
     name: "Maintenance I (Recycling)",
     building: "Maintenance Depot",
     group: "production",
+    cycleDurationSeconds: 20,
     inputs: [
       { resourceId: "mechanicalParts", quantity: 24 },
       { resourceId: "electronicsI", quantity: 12 },
     ],
     outputs: [
-      { resourceId: "maintenanceI", quantity: 480 },
+      { resourceId: "maintenanceI", quantity: 480, outputModifierId: "maintenanceOutput" },
       { resourceId: "recyclables", quantity: 18 },
     ],
   },
@@ -292,12 +298,13 @@ export const recipes: Recipe[] = [
     name: "Maintenance II",
     building: "Maintenance II Depot",
     group: "production",
+    cycleDurationSeconds: 20,
     inputs: [
       { resourceId: "mechanicalParts", quantity: 18 },
       { resourceId: "electronicsII", quantity: 12 },
     ],
     outputs: [
-      { resourceId: "maintenanceII", quantity: 480 },
+      { resourceId: "maintenanceII", quantity: 480, outputModifierId: "maintenanceOutput" },
     ],
   },
   {
@@ -305,12 +312,13 @@ export const recipes: Recipe[] = [
     name: "Maintenance II (Recycling)",
     building: "Maintenance II Depot",
     group: "production",
+    cycleDurationSeconds: 20,
     inputs: [
       { resourceId: "mechanicalParts", quantity: 18 },
       { resourceId: "electronicsII", quantity: 12 },
     ],
     outputs: [
-      { resourceId: "maintenanceII", quantity: 480 },
+      { resourceId: "maintenanceII", quantity: 480, outputModifierId: "maintenanceOutput" },
       { resourceId: "recyclables", quantity: 24 },
     ],
   },
@@ -319,12 +327,13 @@ export const recipes: Recipe[] = [
     name: "Maintenance III",
     building: "Maintenance III Depot",
     group: "production",
+    cycleDurationSeconds: 20,
     inputs: [
       { resourceId: "mechanicalParts", quantity: 9 },
       { resourceId: "electronicsIII", quantity: 6 },
     ],
     outputs: [
-      { resourceId: "maintenanceIII", quantity: 240 },
+      { resourceId: "maintenanceIII", quantity: 240, outputModifierId: "maintenanceOutput" },
     ],
   },
   {
@@ -332,12 +341,13 @@ export const recipes: Recipe[] = [
     name: "Maintenance III (Recycling)",
     building: "Maintenance III Depot",
     group: "production",
+    cycleDurationSeconds: 20,
     inputs: [
       { resourceId: "mechanicalParts", quantity: 9 },
       { resourceId: "electronicsIII", quantity: 6 },
     ],
     outputs: [
-      { resourceId: "maintenanceIII", quantity: 240 },
+      { resourceId: "maintenanceIII", quantity: 240, outputModifierId: "maintenanceOutput" },
       { resourceId: "recyclables", quantity: 24 },
     ],
   },

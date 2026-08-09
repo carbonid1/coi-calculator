@@ -14,9 +14,11 @@ import { activeContracts } from "./db/contracts";
 import { defaultActiveEdicts } from "./db/edicts";
 import { modules } from "./db/modules/modules";
 import { type RecipeGroup } from "./db/recipes";
+import { defaultInfiniteResearchLevels, maintenanceOutputResearch } from "./db/research";
 import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "./helpers/calculate/calculate";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
+import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
 import { useMounted } from "./helpers/use-mounted/use-mounted";
@@ -44,6 +46,7 @@ const edictLevelSchema = z.union([
   z.literal(4),
   z.literal(5),
 ]);
+const maintenanceOutputLevelSchema = z.number().int().min(0).max(maintenanceOutputResearch.maxLevel);
 
 const Page = () => {
   const mounted = useMounted();
@@ -52,6 +55,11 @@ const Page = () => {
     "coi-recycling-increase-level",
     edictLevelSchema,
     defaultActiveEdicts.recyclingIncrease,
+  );
+  const [maintenanceOutputLevel, setMaintenanceOutputLevel] = useLocalStorage(
+    "coi-maintenance-output-level",
+    maintenanceOutputLevelSchema,
+    defaultInfiniteResearchLevels.maintenanceOutput,
   );
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
@@ -73,11 +81,19 @@ const Page = () => {
   const incomingFromModules = preset?.incomingFromModules ?? activeModule?.incomingFromModules;
   const incomingFromContracts = preset?.incomingFromContracts ?? activeModule?.incomingFromContracts;
   const recyclingEfficiencyPercent = calculateRecyclingEfficiency(recyclingIncreaseLevel).effectivePercent;
+  const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
+  const outputModifiers = { maintenanceOutput: maintenanceOutput.multiplier };
 
   const moduleResult = activeModule
     ? (() => {
-        const { lines, pinnedIds } = buildModuleLines(activeModule, preset);
-        const calc = calculateNet(lines, pinnedIds, resolvedExternalInputs, recyclingEfficiencyPercent);
+        const { lines, pinnedIds } = buildModuleLines(activeModule, preset, outputModifiers);
+        const calc = calculateNet(
+          lines,
+          pinnedIds,
+          resolvedExternalInputs,
+          recyclingEfficiencyPercent,
+          outputModifiers,
+        );
 
         return { lines, ...calc };
       })()
@@ -96,7 +112,7 @@ const Page = () => {
     : { workers: 0, electricityKw: 0 };
 
   const factoryResult = isContracts || isFactoryTotal
-    ? calculateFactoryTotal(modules, activeContracts, recyclingEfficiencyPercent)
+    ? calculateFactoryTotal(modules, activeContracts, recyclingEfficiencyPercent, outputModifiers)
     : null;
 
   const factoryStats = factoryResult
@@ -138,6 +154,8 @@ const Page = () => {
         <ModifiersView
           recyclingIncreaseLevel={recyclingIncreaseLevel}
           onRecyclingIncreaseLevelChange={setRecyclingIncreaseLevel}
+          maintenanceOutputLevel={maintenanceOutputLevel}
+          onMaintenanceOutputLevelChange={setMaintenanceOutputLevel}
         />
       )}
 
@@ -197,6 +215,7 @@ const Page = () => {
                       supplyRatio={result?.supplyRatio ?? 1}
                       pinned={result?.pinned ?? false}
                       speedLevel={line.speedLevel}
+                      outputModifiers={outputModifiers}
                     />
                   );
                 })}

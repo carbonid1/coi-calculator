@@ -1,6 +1,7 @@
 import { baseConfig } from "../../db/config";
 import { type Recipe } from "../../db/recipes";
 import { type ResourceId, resources } from "../../db/resources";
+import { getRecipeOutputQuantity, type OutputModifierMultipliers } from "../modifiers/recipe-output";
 import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface ProductionLine {
@@ -63,6 +64,7 @@ export const calculateNet = (
   pinnedIds: Set<string> = new Set(),
   externalInputs: Partial<Record<ResourceId, number>> = {},
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
+  outputModifiers: OutputModifierMultipliers = {},
 ) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
@@ -89,13 +91,17 @@ export const calculateNet = (
   for (const line of sourceLines) {
     const m = lineFactor(line);
 
-    for (const output of line.recipe.outputs) simGet(output.resourceId).produced += output.quantity * m;
+    for (const output of line.recipe.outputs) {
+      simGet(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+    }
   }
   for (const line of regularLines) {
     const m = lineFactor(line);
 
     for (const input of line.recipe.inputs) simGet(input.resourceId).consumed += input.quantity * m;
-    for (const output of line.recipe.outputs) simGet(output.resourceId).produced += output.quantity * m;
+    for (const output of line.recipe.outputs) {
+      simGet(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+    }
   }
 
   const constrained = new Set<ResourceId>();
@@ -122,7 +128,9 @@ export const calculateNet = (
   for (const line of sourceLines) {
     const m = lineFactor(line);
 
-    for (const output of line.recipe.outputs) getFlow(output.resourceId).produced += output.quantity * m;
+    for (const output of line.recipe.outputs) {
+      getFlow(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+    }
   }
 
   // Pinned buildings at full capacity
@@ -130,7 +138,9 @@ export const calculateNet = (
     const m = lineFactor(line);
 
     for (const input of line.recipe.inputs) getFlow(input.resourceId).consumed += input.quantity * m;
-    for (const output of line.recipe.outputs) getFlow(output.resourceId).produced += output.quantity * m;
+    for (const output of line.recipe.outputs) {
+      getFlow(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+    }
   }
 
   // Flexible buildings — priority allocation only for constrained resources
@@ -161,7 +171,7 @@ export const calculateNet = (
     if (line.recipe.loadBalancesOutput) {
       const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
         const flow = flows.get(output.resourceId);
-        const capacity = output.quantity * factor;
+        const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
 
         if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
 
@@ -178,7 +188,9 @@ export const calculateNet = (
     const m = factor * ratio;
 
     for (const input of line.recipe.inputs) getFlow(input.resourceId).consumed += input.quantity * m;
-    for (const output of line.recipe.outputs) getFlow(output.resourceId).produced += output.quantity * m;
+    for (const output of line.recipe.outputs) {
+      getFlow(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+    }
   }
 
   // Regular results
@@ -201,8 +213,9 @@ export const calculateNet = (
 
     for (const output of line.recipe.outputs) {
       const f = getFlow(output.resourceId);
-      const actualUsed = Math.min(output.quantity * cap, f.consumed);
-      const overproduction = output.quantity * cap - actualUsed;
+      const outputQuantity = getRecipeOutputQuantity(line.recipe, output, outputModifiers);
+      const actualUsed = Math.min(outputQuantity * cap, f.consumed);
+      const overproduction = outputQuantity * cap - actualUsed;
 
       if (overproduction > 0) f.produced -= overproduction;
       actualOutputs.push({ resourceId: output.resourceId, quantity: actualUsed });
@@ -247,7 +260,9 @@ export const calculateNet = (
         actualInputs.push({ resourceId: input.resourceId, quantity: actual });
       }
       for (const output of line.recipe.outputs) {
-        const actual = Math.round(output.quantity * capacity * utilizationRatio);
+        const actual = Math.round(
+          getRecipeOutputQuantity(line.recipe, output, outputModifiers) * capacity * utilizationRatio,
+        );
 
         getFlow(output.resourceId).produced += actual;
         actualOutputs.push({ resourceId: output.resourceId, quantity: actual });
@@ -271,7 +286,10 @@ export const calculateNet = (
 
     const physicalQuantity = result.recipe.outputs
       .filter((output) => output.resourceId === "recyclables")
-      .reduce((quantity, output) => quantity + output.quantity, 0)
+      .reduce(
+        (quantity, output) => quantity + getRecipeOutputQuantity(result.recipe, output, outputModifiers),
+        0,
+      )
       * result.buildingCount
       * (lines.find((line) => line.recipe.id === result.recipe.id)?.speedLevel ?? 1)
       * result.supplyRatio;

@@ -5,6 +5,7 @@ import { type ResourceId, resources } from "../../db/resources";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { type ResourceFlow, type ProductionLine, calculateNet } from "../calculate/calculate";
 import { applyContracts, type ContractResult } from "../contracts/calculate-contracts";
+import { type OutputModifierMultipliers } from "../modifiers/recipe-output";
 
 export interface FactoryTotalResult {
   flows: ResourceFlow[];
@@ -16,6 +17,7 @@ export const calculateFactoryTotal = (
   modules: Module[],
   contracts: Contract[] = [],
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
+  outputModifiers: OutputModifierMultipliers = {},
 ): FactoryTotalResult => {
   const combined = new Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>();
   const allLines: ProductionLine[] = [];
@@ -24,10 +26,16 @@ export const calculateFactoryTotal = (
     const preset = mod.defaultPresetId
       ? mod.presets.find((p) => p.id === mod.defaultPresetId) ?? mod.presets[0] ?? null
       : null;
-    const { lines, pinnedIds } = buildModuleLines(mod, preset);
+    const { lines, pinnedIds } = buildModuleLines(mod, preset, outputModifiers);
 
     allLines.push(...lines);
-    const { allResourceFlows } = calculateNet(lines, pinnedIds, {}, recyclingEfficiencyPercent);
+    const { allResourceFlows } = calculateNet(
+      lines,
+      pinnedIds,
+      {},
+      recyclingEfficiencyPercent,
+      outputModifiers,
+    );
     const localResourceIds = new Set(mod.localResources);
 
     for (const flow of allResourceFlows) {
