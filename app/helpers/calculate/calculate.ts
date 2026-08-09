@@ -1,3 +1,4 @@
+import { baseConfig } from "../../db/config";
 import { type Recipe } from "../../db/recipes";
 import { type ResourceId, resources } from "../../db/resources";
 import { typedEntries } from "../typed-entries/typed-entries";
@@ -15,6 +16,8 @@ export interface ResourceFlow {
   consumed: number;
   produced: number;
   net: number;
+  /** Hidden source-product value retained when Recyclables were created. */
+  recyclableSourceValueProduced?: number;
 }
 
 export interface RegularResult {
@@ -23,6 +26,7 @@ export interface RegularResult {
   totalBuildings: number;
   pinned: boolean;
   supplyRatio: number;
+  appliedRecyclingEfficiencyPercent: number | null;
 }
 
 export interface PassiveResult {
@@ -35,6 +39,16 @@ export interface PassiveResult {
 
 const lineFactor = (line: ProductionLine) => line.buildingCount * line.speedLevel;
 
+export const getAppliedRecyclingEfficiencyPercent = (recipe: Recipe, globalEfficiencyPercent: number) => {
+  const createsRecyclables = recipe.outputs.some((output) => output.resourceId === "recyclables");
+
+  if (!createsRecyclables) return null;
+
+  return recipe.appliesRecyclingEfficiency === false
+    ? 100
+    : Math.min(100, Math.max(0, globalEfficiencyPercent));
+};
+
 type FlowMap = Map<ResourceId, { consumed: number; produced: number }>;
 
 const makeGetFlow = (flows: FlowMap) => (id: ResourceId) => {
@@ -44,7 +58,12 @@ const makeGetFlow = (flows: FlowMap) => (id: ResourceId) => {
   return f;
 };
 
-export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = new Set(), externalInputs: Partial<Record<ResourceId, number>> = {}) => {
+export const calculateNet = (
+  lines: ProductionLine[],
+  pinnedIds: Set<string> = new Set(),
+  externalInputs: Partial<Record<ResourceId, number>> = {},
+  recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
+) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
   const sinkLines = lines.filter((l) => l.recipe.group === "sink");
@@ -169,6 +188,10 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
     totalBuildings: line.totalBuildings,
     pinned: pinnedIds.has(line.recipe.id),
     supplyRatio: pinnedIds.has(line.recipe.id) ? 1 : (flexibleSupplyRatios.get(line.recipe.id) ?? 1),
+    appliedRecyclingEfficiencyPercent: getAppliedRecyclingEfficiencyPercent(
+      line.recipe,
+      recyclingEfficiencyPercent,
+    ),
   }));
 
   // Adjust source output to actual consumption
@@ -243,16 +266,31 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
 
   const resourceFlows: ResourceFlow[] = [];
   const allResourceFlows: ResourceFlow[] = [];
+  const recyclableSourceValueProduced = regularResults.reduce((total, result) => {
+    if (result.appliedRecyclingEfficiencyPercent == null) return total;
+
+    const physicalQuantity = result.recipe.outputs
+      .filter((output) => output.resourceId === "recyclables")
+      .reduce((quantity, output) => quantity + output.quantity, 0)
+      * result.buildingCount
+      * (lines.find((line) => line.recipe.id === result.recipe.id)?.speedLevel ?? 1)
+      * result.supplyRatio;
+
+    return total + physicalQuantity * result.appliedRecyclingEfficiencyPercent / 100;
+  }, 0);
 
   for (const [resourceId, { consumed, produced }] of flows) {
     const net = produced - consumed;
+    const recyclingMetadata = resourceId === "recyclables"
+      ? { recyclableSourceValueProduced }
+      : {};
 
-    allResourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
+    allResourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net, ...recyclingMetadata });
 
     if (externalIds.has(resourceId)) {
       // External inputs: only show deficit beyond declared external supply
       if (net < -0.001) {
-        resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
+        resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net, ...recyclingMetadata });
       }
     } else if (sourceResourceIds.has(resourceId)) {
       // Source resources: only show deficit (from simulation), hide surplus
@@ -261,12 +299,12 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
         const deficit = sim.produced - sim.consumed;
 
         if (deficit < -0.001) {
-          resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed: sim.consumed, produced: sim.produced, net: deficit });
+          resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed: sim.consumed, produced: sim.produced, net: deficit, ...recyclingMetadata });
         }
       }
     } else {
       if (Math.abs(net) > 0.001) {
-        resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
+        resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net, ...recyclingMetadata });
       }
     }
   }

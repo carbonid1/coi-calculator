@@ -62,7 +62,7 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, incomingFro
         Net Summary <span className="text-sm font-normal text-gray-500">(per 60s)</span>
       </h3>
 
-      {(electricityFlow || (workers && workers > 0)) && (() => {
+      {(electricityFlow || (electricityConsumptionKw && electricityConsumptionKw > 0) || (workers && workers > 0)) && (() => {
         const generationMw = electricityFlow ? electricityFlow.net : 0;
         const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
         const netMw = generationMw - consumptionMw;
@@ -70,34 +70,34 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, incomingFro
         return (
           <div className="mb-3 border-b border-gray-200 pb-3 dark:border-gray-700 space-y-1">
             {electricityFlow && (
-              <>
-                <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    ⚡ Generation
-                  </span>
-                  <span className="font-mono text-green-600 dark:text-green-400">
-                    +{parseFloat(generationMw.toFixed(1))} MW
-                  </span>
-                </div>
-                {consumptionMw > 0 && (
-                  <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      ⚡ Consumption
-                    </span>
-                    <span className="font-mono text-red-600 dark:text-red-400">
-                      -{parseFloat(consumptionMw.toFixed(1))} MW
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                    ⚡ Net
-                  </span>
-                  <span className={`font-mono font-semibold ${netMw > 0 ? "text-yellow-500 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
-                    {parseFloat(netMw.toFixed(1))} MW
-                  </span>
-                </div>
-              </>
+              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  ⚡ Generation
+                </span>
+                <span className="font-mono text-green-600 dark:text-green-400">
+                  +{parseFloat(generationMw.toFixed(1))} MW
+                </span>
+              </div>
+            )}
+            {consumptionMw > 0 && (
+              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  ⚡ Consumption
+                </span>
+                <span className="font-mono text-red-600 dark:text-red-400">
+                  -{parseFloat(consumptionMw.toFixed(1))} MW
+                </span>
+              </div>
+            )}
+            {electricityFlow && (
+              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                  ⚡ Net
+                </span>
+                <span className={`font-mono font-semibold ${netMw > 0 ? "text-yellow-500 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
+                  {parseFloat(netMw.toFixed(1))} MW
+                </span>
+              </div>
             )}
             {workers != null && workers > 0 && (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">

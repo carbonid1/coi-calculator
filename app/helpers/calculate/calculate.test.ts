@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { general } from "../../db/modules/general";
+import { maintenance } from "../../db/modules/maintenance";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateNet } from "./calculate";
 
@@ -13,4 +14,25 @@ it("matches the verified yellowcake game rates", () => {
 
   expect(uraniumOrePowder.quantity * settlingTank.buildingCount * settlingTank.speedLevel).toBe(72);
   expect(yellowcake.produced).toBe(12);
+
+  const maintenancePreset = maintenance.presets.find(
+    (candidate) => candidate.id === maintenance.defaultPresetId,
+  )!;
+  const maintenanceLine = buildModuleLines(maintenance, maintenancePreset).lines.find(
+    (line) => line.recipe.id === "maintenance-i-recycling",
+  )!;
+  const maintenanceResult = calculateNet(
+    [maintenanceLine],
+    new Set([maintenanceLine.recipe.id]),
+    {},
+    50,
+  );
+  const recyclables = maintenanceResult.resourceFlows.find(
+    (flow) => flow.resourceId === "recyclables",
+  )!;
+
+  expect({
+    produced: recyclables.produced,
+    sourceValue: recyclables.recyclableSourceValueProduced,
+  }).toEqual({ produced: 14.6875, sourceValue: 7.34375 });
 });

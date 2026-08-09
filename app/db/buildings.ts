@@ -20,5 +20,9 @@ export const buildings: Record<string, BuildingData> = {
   "Crusher": { workers: 2, electricityKw: 300 },
   "Crusher (Large)": { workers: 6, electricityKw: 1000 },
   "Settling Tank": { workers: 6, electricityKw: 120 },
+  "Maintenance Depot (Basic)": { workers: 6, electricityKw: 100 },
+  "Maintenance Depot": { workers: 12, electricityKw: 200 },
+  "Maintenance II Depot": { workers: 16, electricityKw: 400 },
+  "Maintenance III Depot": { workers: 20, electricityKw: 600 },
   "Cooling Tower (Large)": { workers: 0, electricityKw: 0 },
 };

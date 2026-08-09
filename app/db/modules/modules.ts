@@ -1,6 +1,7 @@
 import { type ResourceId } from "../resources";
 import { fbrPowerPlant } from "./fbr-power-plant";
 import { general } from "./general";
+import { maintenance } from "./maintenance";
 
 export interface Preset {
   id: string;
@@ -25,6 +26,8 @@ export interface Module {
   incomingFromModules?: ResourceId[];
   incomingFromContracts?: ResourceId[];
   externalInputs?: Partial<Record<ResourceId, number>>;
+  /** Resources reported inside this module but intentionally excluded from Factory Total. */
+  localResources?: ResourceId[];
 }
 
-export const modules: [Module, ...Module[]] = [fbrPowerPlant, general];
+export const modules: [Module, ...Module[]] = [fbrPowerPlant, general, maintenance];

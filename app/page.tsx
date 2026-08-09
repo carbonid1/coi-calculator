@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { ContractsView } from "./components/ContractsView";
+import { ModifiersView } from "./components/ModifiersView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { RecipeCard } from "./components/RecipeCard";
@@ -10,11 +11,13 @@ import { SinkCard } from "./components/SinkCard";
 import { StorageCard } from "./components/StorageCard";
 import { buildings } from "./db/buildings";
 import { activeContracts } from "./db/contracts";
+import { defaultActiveEdicts } from "./db/edicts";
 import { modules } from "./db/modules/modules";
 import { type RecipeGroup } from "./db/recipes";
 import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "./helpers/calculate/calculate";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
+import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
 import { useMounted } from "./helpers/use-mounted/use-mounted";
 
@@ -30,18 +33,33 @@ const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "waste
 
 const FACTORY_TOTAL_ID = "factory-total";
 const CONTRACTS_ID = "contracts";
+const MODIFIERS_ID = "modifiers";
 
-const activeModuleIdSchema = z.enum([CONTRACTS_ID, FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
+const activeModuleIdSchema = z.enum([MODIFIERS_ID, CONTRACTS_ID, FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
+const edictLevelSchema = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+]);
 
 const Page = () => {
   const mounted = useMounted();
   const [activeModuleId, setActiveModuleId] = useLocalStorage("coi-module", activeModuleIdSchema, modules[0].id);
+  const [recyclingIncreaseLevel, setRecyclingIncreaseLevel] = useLocalStorage(
+    "coi-recycling-increase-level",
+    edictLevelSchema,
+    defaultActiveEdicts.recyclingIncrease,
+  );
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
 
+  const isModifiers = activeModuleId === MODIFIERS_ID;
   const isContracts = activeModuleId === CONTRACTS_ID;
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID;
-  const activeModule = isContracts || isFactoryTotal
+  const activeModule = isModifiers || isContracts || isFactoryTotal
     ? null
     : (modules.find((m) => m.id === activeModuleId) ?? modules[0]);
 
@@ -54,11 +72,12 @@ const Page = () => {
   const resolvedExternalInputs = preset?.externalInputs ?? activeModule?.externalInputs;
   const incomingFromModules = preset?.incomingFromModules ?? activeModule?.incomingFromModules;
   const incomingFromContracts = preset?.incomingFromContracts ?? activeModule?.incomingFromContracts;
+  const recyclingEfficiencyPercent = calculateRecyclingEfficiency(recyclingIncreaseLevel).effectivePercent;
 
   const moduleResult = activeModule
     ? (() => {
         const { lines, pinnedIds } = buildModuleLines(activeModule, preset);
-        const calc = calculateNet(lines, pinnedIds, resolvedExternalInputs);
+        const calc = calculateNet(lines, pinnedIds, resolvedExternalInputs, recyclingEfficiencyPercent);
 
         return { lines, ...calc };
       })()
@@ -77,7 +96,7 @@ const Page = () => {
     : { workers: 0, electricityKw: 0 };
 
   const factoryResult = isContracts || isFactoryTotal
-    ? calculateFactoryTotal(modules, activeContracts)
+    ? calculateFactoryTotal(modules, activeContracts, recyclingEfficiencyPercent)
     : null;
 
   const factoryStats = factoryResult
@@ -113,7 +132,14 @@ const Page = () => {
         </p>
       </div>
 
-      <ModuleSwitcher modules={modules} active={activeModuleId} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
+      <ModuleSwitcher modules={modules} active={activeModuleId} modifiersId={MODIFIERS_ID} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
+
+      {isModifiers && (
+        <ModifiersView
+          recyclingIncreaseLevel={recyclingIncreaseLevel}
+          onRecyclingIncreaseLevelChange={setRecyclingIncreaseLevel}
+        />
+      )}
 
       {isContracts && factoryResult && (
         <ContractsView results={factoryResult.contractResults} />

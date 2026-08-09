@@ -9,6 +9,7 @@ interface Props {
   active: string;
   contractsId: string;
   factoryTotalId: string;
+  modifiersId: string;
   onChange: (id: string) => void;
 }
 
@@ -24,13 +25,16 @@ const SwitchButton: React.FC<SwitchButtonProps> = ({ active, children, onClick }
   </Button>
 );
 
-export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, factoryTotalId, onChange }) => (
+export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, factoryTotalId, modifiersId, onChange }) => (
   <div className="flex flex-wrap gap-1 border-b border-border pb-2">
     {modules.map((mod) => (
       <SwitchButton key={mod.id} active={active === mod.id} onClick={() => onChange(mod.id)}>
         {mod.name}
       </SwitchButton>
     ))}
+    <SwitchButton active={active === modifiersId} onClick={() => onChange(modifiersId)}>
+      Modifiers
+    </SwitchButton>
     <SwitchButton active={active === contractsId} onClick={() => onChange(contractsId)}>
       Contracts
     </SwitchButton>

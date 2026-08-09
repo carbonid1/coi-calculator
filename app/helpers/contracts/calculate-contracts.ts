@@ -10,10 +10,10 @@ export interface ContractResult {
 }
 
 const getFlow = (
-  flows: Map<ResourceId, { consumed: number; produced: number }>,
+  flows: Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>,
   resourceId: ResourceId,
 ) => {
-  const flow = flows.get(resourceId) ?? { consumed: 0, produced: 0 };
+  const flow = flows.get(resourceId) ?? { consumed: 0, produced: 0, recyclableSourceValueProduced: 0 };
 
   flows.set(resourceId, flow);
   return flow;
@@ -23,8 +23,12 @@ export const applyContracts = (
   resourceFlows: ResourceFlow[],
   contracts: Contract[],
 ): { flows: ResourceFlow[]; contractResults: ContractResult[] } => {
-  const combined = new Map<ResourceId, { consumed: number; produced: number }>(
-    resourceFlows.map((flow) => [flow.resourceId, { consumed: flow.consumed, produced: flow.produced }]),
+  const combined = new Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>(
+    resourceFlows.map((flow) => [flow.resourceId, {
+      consumed: flow.consumed,
+      produced: flow.produced,
+      recyclableSourceValueProduced: flow.recyclableSourceValueProduced ?? 0,
+    }]),
   );
   const contractResults: ContractResult[] = [];
 
@@ -46,10 +50,13 @@ export const applyContracts = (
 
   const flows: ResourceFlow[] = [];
 
-  for (const [resourceId, { consumed, produced }] of combined) {
+  for (const [resourceId, { consumed, produced, recyclableSourceValueProduced }] of combined) {
     const net = produced - consumed;
+    const recyclingMetadata = resourceId === "recyclables"
+      ? { recyclableSourceValueProduced }
+      : {};
 
-    flows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
+    flows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net, ...recyclingMetadata });
   }
 
   return { flows, contractResults };

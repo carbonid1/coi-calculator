@@ -22,6 +22,12 @@ export interface Recipe {
   decayStorage?: DecayStorage;
   loadBalancesInput?: boolean;
   loadBalancesOutput?: boolean;
+  /**
+   * Whether creating Recyclables applies the global recycling-efficiency loss.
+   * Defaults to true. Captain of Industry v0.8.6 game data identifies Shredder
+   * recycling as the only observed built-in bypass.
+   */
+  appliesRecyclingEfficiency?: boolean;
 }
 
 const radioactiveWasteStorageCapacity = 2400;
@@ -239,6 +245,102 @@ export const recipes: Recipe[] = [
       { resourceId: "compactReactor", quantity: 4 },
     ],
   },
+
+  // Maintenance
+  {
+    id: "maintenance-i-basic",
+    name: "Maintenance I (Basic)",
+    building: "Maintenance Depot (Basic)",
+    group: "production",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 12 },
+      { resourceId: "electronicsI", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "maintenanceI", quantity: 220 },
+    ],
+  },
+  {
+    id: "maintenance-i",
+    name: "Maintenance I",
+    building: "Maintenance Depot",
+    group: "production",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 24 },
+      { resourceId: "electronicsI", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "maintenanceI", quantity: 480 },
+    ],
+  },
+  {
+    id: "maintenance-i-recycling",
+    name: "Maintenance I (Recycling)",
+    building: "Maintenance Depot",
+    group: "production",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 24 },
+      { resourceId: "electronicsI", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "maintenanceI", quantity: 480 },
+      { resourceId: "recyclables", quantity: 18 },
+    ],
+  },
+  {
+    id: "maintenance-ii",
+    name: "Maintenance II",
+    building: "Maintenance II Depot",
+    group: "production",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 18 },
+      { resourceId: "electronicsII", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "maintenanceII", quantity: 480 },
+    ],
+  },
+  {
+    id: "maintenance-ii-recycling",
+    name: "Maintenance II (Recycling)",
+    building: "Maintenance II Depot",
+    group: "production",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 18 },
+      { resourceId: "electronicsII", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "maintenanceII", quantity: 480 },
+      { resourceId: "recyclables", quantity: 24 },
+    ],
+  },
+  {
+    id: "maintenance-iii",
+    name: "Maintenance III",
+    building: "Maintenance III Depot",
+    group: "production",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 9 },
+      { resourceId: "electronicsIII", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "maintenanceIII", quantity: 240 },
+    ],
+  },
+  {
+    id: "maintenance-iii-recycling",
+    name: "Maintenance III (Recycling)",
+    building: "Maintenance III Depot",
+    group: "production",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 9 },
+      { resourceId: "electronicsIII", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "maintenanceIII", quantity: 240 },
+      { resourceId: "recyclables", quantity: 24 },
+    ],
+  },
   {
     id: "chemical-plant-mox-rod",
     name: "Chemical Plant (Plutonium → MOX Rod)",
@@ -340,8 +442,8 @@ export const recipes: Recipe[] = [
     outputs: [
       { resourceId: "recyclables", quantity: 6 },
     ],
-    // Recycling increases change the recoverable scrap composition downstream,
-    // not this fixed 1:1 Retired Waste to Recyclables conversion.
+    // Preserve the recoverable source materials carried by Retired Waste.
+    appliesRecyclingEfficiency: false,
     loadBalancesInput: true,
   },
 
