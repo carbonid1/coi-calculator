@@ -54,6 +54,9 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
 
   const externalEntries = typedEntries(externalInputs);
   const externalIds = new Set(externalEntries.map(([id]) => id));
+  const internallyProducedIds = new Set(
+    lines.flatMap((line) => line.recipe.outputs.map((output) => output.resourceId)),
+  );
 
   // ── Pass 1: full-capacity simulation to find truly constrained resources ──
   const simFlows: FlowMap = new Map();
@@ -79,7 +82,12 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
   const constrained = new Set<ResourceId>();
 
   for (const [id, flow] of simFlows) {
-    if (flow.consumed > flow.produced) constrained.add(id);
+    if (
+      flow.consumed > flow.produced
+      && (internallyProducedIds.has(id) || externalIds.has(id))
+    ) {
+      constrained.add(id);
+    }
   }
 
   // ── Pass 2: actual allocation with priority for constrained resources only ──
@@ -126,6 +134,23 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
 
       if (needed > 0) {
         ratio = Math.min(ratio, Math.max(0, available / needed));
+      }
+    }
+
+    // Explicit load balancers run only enough to cover the largest outstanding
+    // co-product deficit; outputs with no downstream consumer remain unrestricted.
+    if (line.recipe.loadBalancesOutput) {
+      const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
+        const flow = flows.get(output.resourceId);
+        const capacity = output.quantity * factor;
+
+        if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
+
+        return [Math.max(0, flow.consumed - flow.produced) / capacity];
+      });
+
+      if (outputDemandRatios.length > 0) {
+        ratio = Math.min(ratio, Math.max(...outputDemandRatios));
       }
     }
 

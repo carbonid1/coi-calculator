@@ -5,17 +5,22 @@ import { typedEntries } from "../helpers/typed-entries/typed-entries";
 interface Props {
   flows: ResourceFlow[];
   externalInputs?: Partial<Record<ResourceId, number>>;
+  incomingFromModules?: ResourceId[];
   workers?: number;
   electricityConsumptionKw?: number;
 }
 
-export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw }) => {
+export const NetSummary: React.FC<Props> = ({ flows, externalInputs, incomingFromModules = [], workers, electricityConsumptionKw }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
+  const incomingIds = new Set(incomingFromModules);
 
   const electricityFlow = flows.find((f) => f.resourceId === "electricity");
-  const regularFlows = flows.filter((f) => f.resourceId !== "electricity");
+  const incomingFlows = flows.filter((flow) => flow.net < 0 && incomingIds.has(flow.resourceId));
+  const regularFlows = flows.filter(
+    (flow) => flow.resourceId !== "electricity" && !(flow.net < 0 && incomingIds.has(flow.resourceId)),
+  );
 
-  if (regularFlows.length === 0 && externalEntries.length === 0 && !electricityFlow) return null;
+  if (regularFlows.length === 0 && incomingFlows.length === 0 && externalEntries.length === 0 && !electricityFlow) return null;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -86,6 +91,24 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
               </span>
               <span className="font-mono text-blue-500 dark:text-blue-400">
                 {parseFloat(qty.toFixed(2))}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {incomingFlows.length > 0 && (
+        <div className="mb-3 space-y-1 border-b border-border pb-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            From other modules
+          </p>
+          {incomingFlows.map((flow) => (
+            <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
+              <span className="text-muted-foreground">
+                {flow.name}
+              </span>
+              <span className="font-mono font-semibold text-foreground">
+                {parseFloat(Math.abs(flow.net).toFixed(2))}
               </span>
             </div>
           ))}

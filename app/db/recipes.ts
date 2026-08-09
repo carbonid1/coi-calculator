@@ -14,6 +14,7 @@ export interface Recipe {
   group: RecipeGroup;
   inputs: Ingredient[];
   outputs: Ingredient[];
+  loadBalancesOutput?: boolean;
 }
 
 export const recipes: Recipe[] = [
@@ -259,12 +260,13 @@ export const recipes: Recipe[] = [
     name: "Chemical Plant (Yellowcake → Blanket Fuel)",
     building: "Chemical Plant II",
     group: "production",
+    loadBalancesOutput: true,
     inputs: [
-      { resourceId: "yellowcake", quantity: 12 },
-      { resourceId: "salt", quantity: 4 },
+      { resourceId: "yellowcake", quantity: 6 },
+      { resourceId: "salt", quantity: 2 },
     ],
     outputs: [
-      { resourceId: "blanketFuel", quantity: 4 },
+      { resourceId: "blanketFuel", quantity: 2 },
     ],
   },
   {
@@ -311,6 +313,18 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: "uraniumOrePowder", quantity: 12 },
+    ],
+  },
+  {
+    id: "crusher-large",
+    name: "Crusher (Large) — Uranium Ore",
+    building: "Crusher (Large)",
+    group: "production",
+    inputs: [
+      { resourceId: "uraniumOre", quantity: 72 },
+    ],
+    outputs: [
+      { resourceId: "uraniumOrePowder", quantity: 72 },
     ],
   },
   {

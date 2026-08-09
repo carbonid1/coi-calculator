@@ -8,17 +8,13 @@ export interface FactoryTotalResult {
   allLines: ProductionLine[];
 }
 
-export const calculateFactoryTotal = (
-  modules: Module[],
-  presetSelections: Record<string, string | null>,
-): FactoryTotalResult => {
+export const calculateFactoryTotal = (modules: Module[]): FactoryTotalResult => {
   const combined = new Map<ResourceId, { consumed: number; produced: number }>();
   const allLines: ProductionLine[] = [];
 
   for (const mod of modules) {
-    const presetId = presetSelections[mod.id] ?? mod.defaultPresetId;
-    const preset = presetId
-      ? mod.presets.find((p) => p.id === presetId) ?? mod.presets.find((p) => p.id === mod.defaultPresetId) ?? null
+    const preset = mod.defaultPresetId
+      ? mod.presets.find((p) => p.id === mod.defaultPresetId) ?? mod.presets[0] ?? null
       : null;
     const { lines, pinnedIds } = buildModuleLines(mod, preset);
 

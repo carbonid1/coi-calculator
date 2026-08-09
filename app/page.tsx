@@ -4,7 +4,6 @@ import { z } from "zod";
 
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
-import { PresetSwitcher } from "./components/PresetSwitcher";
 import { RecipeCard } from "./components/RecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { buildings } from "./db/buildings";
@@ -28,33 +27,24 @@ const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "sink"
 const FACTORY_TOTAL_ID = "factory-total";
 
 const activeModuleIdSchema = z.enum([FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
-const presetSelectionsSchema = z.record(z.string(), z.string().nullable());
 
 const Page = () => {
   const mounted = useMounted();
   const [activeModuleId, setActiveModuleId] = useLocalStorage("coi-module", activeModuleIdSchema, modules[0].id);
-  const [presetSelections, setPresetSelections] = useLocalStorage(
-    "coi-presets",
-    presetSelectionsSchema,
-    Object.fromEntries(modules.map((m) => [m.id, m.defaultPresetId])),
-  );
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
 
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID;
   const activeModule = isFactoryTotal ? null : (modules.find((m) => m.id === activeModuleId) ?? modules[0]);
 
-  const presetId = activeModule
-    ? (presetSelections[activeModule.id] ?? activeModule.defaultPresetId)
-    : null;
-
-  const preset = activeModule && presetId
-    ? activeModule.presets.find((p) => p.id === presetId)
-      ?? activeModule.presets.find((p) => p.id === activeModule.defaultPresetId)
+  const preset = activeModule && activeModule.defaultPresetId
+    ? activeModule.presets.find((p) => p.id === activeModule.defaultPresetId)
+      ?? activeModule.presets[0]
       ?? null
     : null;
 
   const resolvedExternalInputs = preset?.externalInputs ?? activeModule?.externalInputs;
+  const incomingFromModules = preset?.incomingFromModules ?? activeModule?.incomingFromModules;
 
   const moduleResult = activeModule
     ? (() => {
@@ -77,7 +67,7 @@ const Page = () => {
       }, { workers: 0, electricityKw: 0 })
     : { workers: 0, electricityKw: 0 };
 
-  const factoryResult = isFactoryTotal ? calculateFactoryTotal(modules, presetSelections) : null;
+  const factoryResult = isFactoryTotal ? calculateFactoryTotal(modules) : null;
 
   const factoryStats = factoryResult
     ? factoryResult.allLines.reduce((acc, line) => {
@@ -103,22 +93,13 @@ const Page = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Captain of Industry
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Production Chain Calculator
-          </p>
-        </div>
-        {activeModule && activeModule.presets.length > 0 && preset && (
-          <PresetSwitcher
-            presets={activeModule.presets}
-            active={preset.id}
-            onChange={(id) => setPresetSelections((prev) => ({ ...prev, [activeModule.id]: id }))}
-          />
-        )}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          Captain of Industry
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Production Chain Calculator
+        </p>
       </div>
 
       <ModuleSwitcher modules={modules} active={activeModuleId} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
@@ -129,7 +110,7 @@ const Page = () => {
 
       {moduleResult && activeModule && (
         <>
-          <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
+          <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} incomingFromModules={incomingFromModules} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
 
           {grouped.map(({ group, label, items }) => (
             <div key={group} className="space-y-3">
