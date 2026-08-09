@@ -8,18 +8,26 @@ import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { RecipeCard } from "./components/RecipeCard";
 import { SinkCard } from "./components/SinkCard";
+import { SolarPowerSettings } from "./components/SolarPowerSettings";
 import { StorageCard } from "./components/StorageCard";
 import { buildings } from "./db/buildings";
 import { activeContracts } from "./db/contracts";
 import { defaultActiveEdicts } from "./db/edicts";
 import { modules } from "./db/modules/modules";
+import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
 import { type RecipeGroup } from "./db/recipes";
-import { defaultInfiniteResearchLevels, maintenanceOutputResearch } from "./db/research";
+import {
+  defaultInfiniteResearchLevels,
+  maintenanceOutputResearch,
+  solarPowerResearch,
+} from "./db/research";
+import { defaultSolarPanelCounts } from "./db/solar";
 import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "./helpers/calculate/calculate";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
+import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
 import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
 import { useMounted } from "./helpers/use-mounted/use-mounted";
 
@@ -46,7 +54,18 @@ const edictLevelSchema = z.union([
   z.literal(4),
   z.literal(5),
 ]);
+const cleanPanelsLevelSchema = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+]);
 const maintenanceOutputLevelSchema = z.number().int().min(0).max(maintenanceOutputResearch.maxLevel);
+const solarPowerLevelSchema = z.number().int().min(0).max(solarPowerResearch.maxLevel);
+const solarPanelCountsSchema = z.object({
+  standard: z.number().int().min(0),
+  mono: z.number().int().min(0),
+});
 
 const Page = () => {
   const mounted = useMounted();
@@ -56,20 +75,41 @@ const Page = () => {
     edictLevelSchema,
     defaultActiveEdicts.recyclingIncrease,
   );
+  const [cleanPanelsLevel, setCleanPanelsLevel] = useLocalStorage(
+    "coi-clean-panels-level",
+    cleanPanelsLevelSchema,
+    defaultActiveEdicts.cleanPanels,
+  );
   const [maintenanceOutputLevel, setMaintenanceOutputLevel] = useLocalStorage(
     "coi-maintenance-output-level",
     maintenanceOutputLevelSchema,
     defaultInfiniteResearchLevels.maintenanceOutput,
   );
+  const [solarPowerLevel, setSolarPowerLevel] = useLocalStorage(
+    "coi-solar-power-level",
+    solarPowerLevelSchema,
+    defaultInfiniteResearchLevels.solarPower,
+  );
+  const [solarPanelCounts, setSolarPanelCounts] = useLocalStorage(
+    "coi-solar-panel-counts",
+    solarPanelCountsSchema,
+    defaultSolarPanelCounts,
+  );
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
+
+  const configuredModules = modules.map((module) => (
+    module.id === SOLAR_POWER_MODULE_ID
+      ? createSolarPowerModule(solarPanelCounts)
+      : module
+  ));
 
   const isModifiers = activeModuleId === MODIFIERS_ID;
   const isContracts = activeModuleId === CONTRACTS_ID;
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID;
   const activeModule = isModifiers || isContracts || isFactoryTotal
     ? null
-    : (modules.find((m) => m.id === activeModuleId) ?? modules[0]);
+    : (configuredModules.find((m) => m.id === activeModuleId) ?? configuredModules[0]);
 
   const preset = activeModule && activeModule.defaultPresetId
     ? activeModule.presets.find((p) => p.id === activeModule.defaultPresetId)
@@ -82,7 +122,11 @@ const Page = () => {
   const incomingFromContracts = preset?.incomingFromContracts ?? activeModule?.incomingFromContracts;
   const recyclingEfficiencyPercent = calculateRecyclingEfficiency(recyclingIncreaseLevel).effectivePercent;
   const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
-  const outputModifiers = { maintenanceOutput: maintenanceOutput.multiplier };
+  const solarPowerOutput = calculateSolarPower(solarPowerLevel, cleanPanelsLevel);
+  const outputModifiers = {
+    maintenanceOutput: maintenanceOutput.multiplier,
+    solarPower: solarPowerOutput.multiplier,
+  };
 
   const moduleResult = activeModule
     ? (() => {
@@ -112,7 +156,7 @@ const Page = () => {
     : { workers: 0, electricityKw: 0 };
 
   const factoryResult = isContracts || isFactoryTotal
-    ? calculateFactoryTotal(modules, activeContracts, recyclingEfficiencyPercent, outputModifiers)
+    ? calculateFactoryTotal(configuredModules, activeContracts, recyclingEfficiencyPercent, outputModifiers)
     : null;
 
   const factoryStats = factoryResult
@@ -148,14 +192,24 @@ const Page = () => {
         </p>
       </div>
 
-      <ModuleSwitcher modules={modules} active={activeModuleId} modifiersId={MODIFIERS_ID} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
+      <ModuleSwitcher modules={configuredModules} active={activeModuleId} modifiersId={MODIFIERS_ID} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
+
+      {activeModule && (
+        <p className="text-sm text-muted-foreground">
+          {activeModule.description}
+        </p>
+      )}
 
       {isModifiers && (
         <ModifiersView
           recyclingIncreaseLevel={recyclingIncreaseLevel}
           onRecyclingIncreaseLevelChange={setRecyclingIncreaseLevel}
+          cleanPanelsLevel={cleanPanelsLevel}
+          onCleanPanelsLevelChange={setCleanPanelsLevel}
           maintenanceOutputLevel={maintenanceOutputLevel}
           onMaintenanceOutputLevelChange={setMaintenanceOutputLevel}
+          solarPowerLevel={solarPowerLevel}
+          onSolarPowerLevelChange={setSolarPowerLevel}
         />
       )}
 
@@ -165,6 +219,15 @@ const Page = () => {
 
       {isFactoryTotal && factoryResult && (
         <NetSummary flows={factoryResult.flows} workers={factoryStats.workers} electricityConsumptionKw={factoryStats.electricityKw} groupByBalance />
+      )}
+
+      {activeModule?.id === SOLAR_POWER_MODULE_ID && (
+        <SolarPowerSettings
+          counts={solarPanelCounts}
+          onChange={(panel, count) => {
+            setSolarPanelCounts((current) => ({ ...current, [panel]: count }));
+          }}
+        />
       )}
 
       {moduleResult && activeModule && (

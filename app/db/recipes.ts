@@ -1,4 +1,5 @@
 import { type ResourceId } from "./resources";
+import { solarPanels } from "./solar";
 
 export interface Ingredient {
   resourceId: ResourceId;
@@ -7,7 +8,7 @@ export interface Ingredient {
 }
 
 export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
-export type OutputModifierId = "maintenanceOutput";
+export type OutputModifierId = "maintenanceOutput" | "solarPower";
 
 export interface DecayStorage {
   capacity: number;
@@ -134,6 +135,34 @@ export const recipes: Recipe[] = [
     outputs: [
       { resourceId: "steamDepleted", quantity: 48 },
       { resourceId: "electricity", quantity: 5 },
+    ],
+  },
+  {
+    id: solarPanels.standard.recipeId,
+    name: solarPanels.standard.name,
+    building: solarPanels.standard.building,
+    group: "electricity",
+    inputs: [],
+    outputs: [
+      {
+        resourceId: "electricity",
+        quantity: solarPanels.standard.sunnyOutputKw / 1000,
+        outputModifierId: "solarPower",
+      },
+    ],
+  },
+  {
+    id: solarPanels.mono.recipeId,
+    name: solarPanels.mono.name,
+    building: solarPanels.mono.building,
+    group: "electricity",
+    inputs: [],
+    outputs: [
+      {
+        resourceId: "electricity",
+        quantity: solarPanels.mono.sunnyOutputKw / 1000,
+        outputModifierId: "solarPower",
+      },
     ],
   },
 

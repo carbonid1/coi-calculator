@@ -32,6 +32,11 @@ export const getRecipeOutputQuantity = (
   if (!output.outputModifierId) return output.quantity;
 
   const multiplier = modifiers[output.outputModifierId] ?? 1;
+
+  // SolarPanelsManager scales Electricity directly. Unlike material Quantity,
+  // Electricity is not rounded to a whole material unit per recipe cycle.
+  if (output.outputModifierId === "solarPower") return output.quantity * multiplier;
+
   const cyclesPer60Seconds = recipe.cycleDurationSeconds
     ? 60 / recipe.cycleDurationSeconds
     : 1;
