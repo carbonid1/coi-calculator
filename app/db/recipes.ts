@@ -58,6 +58,8 @@ export interface Recipe {
   /** Demand sources ignore declared capacity and supply only the remaining deficit. */
   sourceMode?: "demand";
   sourceKind?: SourceKind;
+  /** Recipe-specific multiplier applied to the building's base electricity draw. */
+  electricityMultiplier?: number;
 }
 
 const radioactiveWasteStorageCapacity = 2400;
@@ -99,6 +101,30 @@ export const recipes: Recipe[] = [
     ],
     sourceMode: "demand",
     sourceKind: "world-mine",
+  },
+  {
+    id: "gold-map-mine",
+    name: "Gold Ore (Map Mine)",
+    building: "Gold Ore Mine",
+    group: "source",
+    inputs: [],
+    outputs: [
+      { resourceId: "goldOre", quantity: 0 },
+    ],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
+  },
+  {
+    id: "sand-map-mine",
+    name: "Sand (Map Mine)",
+    building: "Sand Mine",
+    group: "source",
+    inputs: [],
+    outputs: [
+      { resourceId: "sand", quantity: 0 },
+    ],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
   },
 
   // Electricity
@@ -793,6 +819,96 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: "copperOreCrushed", quantity: 192 },
+    ],
+  },
+  {
+    id: "gold-furnace-scrap",
+    name: "Gold Furnace (Gold Scrap — priority 1)",
+    building: "Gold Furnace",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["goldScrap"],
+    sharedCapacity: { id: "gold-furnace", priority: 1 },
+    inputs: [
+      { resourceId: "goldScrap", quantity: 9 },
+    ],
+    outputs: [
+      { resourceId: "gold", quantity: 9 },
+    ],
+    electricityMultiplier: 0.6,
+  },
+  {
+    id: "gold-furnace-concentrate",
+    name: "Gold Furnace (Concentrate — priority 2)",
+    building: "Gold Furnace",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["gold"],
+    sharedCapacity: { id: "gold-furnace", priority: 2 },
+    inputs: [
+      { resourceId: "goldOreConcentrate", quantity: 18 },
+      { resourceId: "sand", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "gold", quantity: 9 },
+      { resourceId: "exhaust", quantity: 12 },
+    ],
+  },
+  {
+    id: "settling-tank-gold",
+    name: "Settling Tank (Gold Ore Concentrate)",
+    building: "Settling Tank",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["goldOreConcentrate"],
+    inputs: [
+      { resourceId: "goldOrePowder", quantity: 36 },
+      { resourceId: "acid", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "goldOreConcentrate", quantity: 9 },
+      { resourceId: "toxicSlurry", quantity: 27 },
+    ],
+  },
+  {
+    id: "crusher-large-gold-crushing",
+    name: "Gold Ore Crushing",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: {
+      id: "crusher-large-gold",
+      label: "Crusher (Large) — Gold",
+      priority: 1,
+    },
+    inputs: [
+      { resourceId: "goldOre", quantity: 144 },
+    ],
+    outputs: [
+      { resourceId: "goldOreCrushed", quantity: 144 },
+    ],
+  },
+  {
+    id: "crusher-large-gold-milling",
+    name: "Gold Ore Milling",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 40,
+    balanceBy: "output",
+    sharedCapacity: {
+      id: "crusher-large-gold",
+      label: "Crusher (Large) — Gold",
+      priority: 2,
+    },
+    inputs: [
+      { resourceId: "goldOreCrushed", quantity: 72 },
+    ],
+    outputs: [
+      { resourceId: "goldOrePowder", quantity: 72 },
     ],
   },
 

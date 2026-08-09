@@ -236,6 +236,11 @@ export const calculateNet = (
   const demandBalancedLines = orderDemandBalancedLines(
     primaryBalancedLines.filter((line) => line.recipe.balanceBy === "output"),
   );
+  const demandProducedIds = new Set(
+    demandBalancedLines.flatMap((line) => (
+      line.recipe.outputs.map((output) => output.resourceId)
+    )),
+  );
 
   const externalEntries = typedEntries(externalInputs);
   const externalIds = new Set(externalEntries.map(([id]) => id));
@@ -419,12 +424,18 @@ export const calculateNet = (
     let ratio = capacityTracker.availableRatio(line);
 
     for (const input of line.recipe.inputs) {
+      const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(input.resourceId) ?? false;
+
       if (
         line.recipe.balanceInputIds
-        && !line.recipe.balanceInputIds.includes(input.resourceId)
+        && !explicitlyInputBalanced
       ) {
         continue;
       }
+      // Output-balanced producers run in the later demand-propagation pass. Let
+      // their products go temporarily negative here so downstream demand can
+      // start them; explicit input-balancing still requires available stock.
+      if (demandProducedIds.has(input.resourceId) && !explicitlyInputBalanced) continue;
       if (line.recipe.balanceBy !== "input" && !constrained.has(input.resourceId)) continue;
 
       const flow = getFlow(input.resourceId);

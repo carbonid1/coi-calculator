@@ -174,10 +174,10 @@ const Page = () => {
     : null;
 
   const buildingStats = activeModule && moduleResult
-    ? calculateBuildingStats(moduleResult.lines)
+    ? calculateBuildingStats(moduleResult.lines, moduleResult)
     : { workers: 0, electricityKw: 0 };
 
-  const factoryStats = calculateBuildingStats(factoryResult.allLines);
+  const factoryStats = calculateBuildingStats(factoryResult.allLines, factoryResult.calculation);
 
   const grouped = moduleResult
     ? groupOrder

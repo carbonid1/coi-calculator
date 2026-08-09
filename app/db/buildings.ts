@@ -29,6 +29,7 @@ export const buildings: Record<string, BuildingData> = {
   "Microchip Machine II": { workers: 6, electricityKw: 500 },
   "Rubber Maker I": { workers: 6, electricityKw: 300 },
   "Waste Sorting Plant": { workers: 32, electricityKw: 300 },
+  "Gold Furnace": { workers: 6, electricityKw: 800 },
   "Arc Furnace II": { workers: 14, electricityKw: 3600 },
   "Metal Caster II": { workers: 2, electricityKw: 0 },
   "Copper Electrolysis": { workers: 5, electricityKw: 400 },

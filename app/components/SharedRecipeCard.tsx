@@ -77,6 +77,10 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
                 </h4>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {formatQuantity(supplyRatio * 100)}% load
+                  {line.recipe.electricityMultiplier != null
+                    && line.recipe.electricityMultiplier !== 1
+                    ? ` · ${formatQuantity(line.recipe.electricityMultiplier)}× power`
+                    : ""}
                 </span>
               </div>
 

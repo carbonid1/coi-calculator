@@ -35,6 +35,11 @@ export const general: Module = {
     "arc-furnace-ii-copper-ore": 1,
     "metal-caster-ii-copper": 2,
     "crusher-large-copper": 1,
+    "gold-furnace-scrap": 1,
+    "gold-furnace-concentrate": 1,
+    "settling-tank-gold": 1,
+    "crusher-large-gold-crushing": 1,
+    "crusher-large-gold-milling": 1,
   },
   presets: [
     {
@@ -72,6 +77,11 @@ export const general: Module = {
         "arc-furnace-ii-copper-ore": 1,
         "metal-caster-ii-copper": 2,
         "crusher-large-copper": 1,
+        "gold-furnace-scrap": 1,
+        "gold-furnace-concentrate": 1,
+        "settling-tank-gold": 1,
+        "crusher-large-gold-crushing": 1,
+        "crusher-large-gold-milling": 1,
       },
       available: {
         "settling-tank": 2,

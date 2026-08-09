@@ -93,6 +93,10 @@ export const resources = {
   uraniumOre: { id: "uraniumOre", name: "Uranium Ore", state: "loose" },
   uraniumOrePowder: { id: "uraniumOrePowder", name: "Uranium Ore Powder", state: "loose" },
   foodPack: { id: "foodPack", name: "Food Pack", state: "unit" },
+  goldOre: { id: "goldOre", name: "Gold Ore", state: "loose" },
+  goldOreCrushed: { id: "goldOreCrushed", name: "Gold Ore Crushed", state: "loose" },
+  goldOrePowder: { id: "goldOrePowder", name: "Gold Ore Powder", state: "loose" },
+  goldOreConcentrate: { id: "goldOreConcentrate", name: "Gold Ore Concentrate", state: "loose" },
   gold: {
     id: "gold",
     name: "Gold",
