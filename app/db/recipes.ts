@@ -5,7 +5,12 @@ export interface Ingredient {
   quantity: number; // per 60 seconds
 }
 
-export type RecipeGroup = "source" | "electricity" | "production" | "sink";
+export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
+
+export interface DecayStorage {
+  capacity: number;
+  decayCycles: number;
+}
 
 export interface Recipe {
   id: string;
@@ -14,8 +19,14 @@ export interface Recipe {
   group: RecipeGroup;
   inputs: Ingredient[];
   outputs: Ingredient[];
+  decayStorage?: DecayStorage;
+  loadBalancesInput?: boolean;
   loadBalancesOutput?: boolean;
 }
+
+const radioactiveWasteStorageCapacity = 2400;
+const fissionProductDecayCycles = 100 * 12;
+const radioactiveWasteStorageThroughput = radioactiveWasteStorageCapacity / fissionProductDecayCycles;
 
 export const recipes: Recipe[] = [
   // Sources
@@ -300,6 +311,38 @@ export const recipes: Recipe[] = [
       { resourceId: "blanketFuel", quantity: 2 },
       { resourceId: "fissionProduct", quantity: 2 },
     ],
+  },
+  {
+    id: "radioactive-waste-storage",
+    name: "Radioactive Waste Storage (Fission Product)",
+    building: "Radioactive Waste Storage",
+    group: "waste",
+    inputs: [
+      { resourceId: "fissionProduct", quantity: radioactiveWasteStorageThroughput },
+    ],
+    outputs: [
+      { resourceId: "retiredWaste", quantity: radioactiveWasteStorageThroughput },
+    ],
+    decayStorage: {
+      capacity: radioactiveWasteStorageCapacity,
+      decayCycles: fissionProductDecayCycles,
+    },
+    loadBalancesInput: true,
+  },
+  {
+    id: "shredder-retired-waste",
+    name: "Shredder (Retired Waste)",
+    building: "Shredder",
+    group: "waste",
+    inputs: [
+      { resourceId: "retiredWaste", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "recyclables", quantity: 6 },
+    ],
+    // Recycling increases change the recoverable scrap composition downstream,
+    // not this fixed 1:1 Retired Waste to Recyclables conversion.
+    loadBalancesInput: true,
   },
 
   // Uranium processing

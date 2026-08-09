@@ -29,6 +29,8 @@ export const resources = {
   moltenGlass: { id: "moltenGlass", name: "Molten Glass", state: "fluid" },
   steel: { id: "steel", name: "Steel", state: "unit" },
   fissionProduct: { id: "fissionProduct", name: "Fission Product", state: "unit" },
+  retiredWaste: { id: "retiredWaste", name: "Retired Waste", state: "unit" },
+  recyclables: { id: "recyclables", name: "Recyclables", state: "loose" },
   depletedUranium: { id: "depletedUranium", name: "Depleted Uranium", state: "unit" },
   yellowcake: { id: "yellowcake", name: "Yellowcake", state: "loose" },
   spentFuel: { id: "spentFuel", name: "Spent Fuel", state: "unit" },

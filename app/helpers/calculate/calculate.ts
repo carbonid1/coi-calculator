@@ -127,7 +127,7 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
     let ratio = 1;
 
     for (const input of line.recipe.inputs) {
-      if (!constrained.has(input.resourceId)) continue;
+      if (!line.recipe.loadBalancesInput && !constrained.has(input.resourceId)) continue;
       const f = getFlow(input.resourceId);
       const available = f.produced - f.consumed;
       const needed = input.quantity * factor;

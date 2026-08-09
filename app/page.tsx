@@ -7,6 +7,7 @@ import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { RecipeCard } from "./components/RecipeCard";
 import { SinkCard } from "./components/SinkCard";
+import { StorageCard } from "./components/StorageCard";
 import { buildings } from "./db/buildings";
 import { activeContracts } from "./db/contracts";
 import { modules } from "./db/modules/modules";
@@ -21,10 +22,11 @@ const groupLabels: Record<RecipeGroup, string> = {
   source: "Sources",
   electricity: "Electricity",
   production: "Production",
+  waste: "Waste processing",
   sink: "Sinks",
 };
 
-const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "sink"];
+const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "waste", "sink"];
 
 const FACTORY_TOTAL_ID = "factory-total";
 const CONTRACTS_ID = "contracts";
@@ -147,6 +149,18 @@ const Page = () => {
                     ) : null;
                   }
                   const result = moduleResult.regularResults.find((r) => r.recipe.id === line.recipe.id);
+
+                  if (line.recipe.decayStorage) {
+                    return (
+                      <StorageCard
+                        key={line.recipe.id}
+                        recipe={line.recipe}
+                        storage={line.recipe.decayStorage}
+                        activeCount={line.buildingCount}
+                        totalCount={line.totalBuildings}
+                      />
+                    );
+                  }
 
                   return (
                     <RecipeCard

@@ -31,6 +31,8 @@ export const fbrPowerPlant: Module = {
         "nuclear-reprocessing": 1,
         "enrichment-plant": 1,
         "chemical-plant-yellowcake": 1,
+        "radioactive-waste-storage": 1,
+        "shredder-retired-waste": 1,
         ...plantInfra,
       },
       active: {
@@ -38,6 +40,8 @@ export const fbrPowerPlant: Module = {
         "nuclear-reprocessing": 1,
         "enrichment-plant": 1,
         "chemical-plant-yellowcake": 1,
+        "radioactive-waste-storage": 1,
+        "shredder-retired-waste": 1,
       },
       pinned: fuelPinnedYc,
       incomingFromModules: ["yellowcake"],
