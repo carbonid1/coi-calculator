@@ -6,6 +6,9 @@ import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface ProductionLine {
   recipe: Recipe;
+  moduleId: string;
+  /** Module-scoped identity for recipes sharing the same installed buildings. */
+  capacityPoolId?: string;
   buildingCount: number;
   totalBuildings: number;
   speedLevel: number;
@@ -26,16 +29,21 @@ export type OperatingMode = "fixed" | "balanced";
 
 export interface RegularResult {
   recipe: Recipe;
+  moduleId: string;
+  capacityPoolId?: string;
   buildingCount: number;
   totalBuildings: number;
   operatingMode: OperatingMode;
   supplyRatio: number;
   speedLevel: number;
+  actualInputs: { resourceId: ResourceId; quantity: number }[];
+  actualOutputs: { resourceId: ResourceId; quantity: number }[];
   appliedRecyclingEfficiencyPercent: number | null;
 }
 
 export interface PassiveResult {
   recipe: Recipe;
+  moduleId: string;
   buildingCount: number;
   totalBuildings: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
@@ -44,7 +52,74 @@ export interface PassiveResult {
 
 const lineFactor = (line: ProductionLine) => line.buildingCount * line.speedLevel;
 
+const sharedCapacityPriority = (line: ProductionLine) => line.recipe.sharedCapacity?.priority ?? 0;
+
+const orderSharedCapacity = (lines: ProductionLine[]) => {
+  const ordered = [...lines];
+  const indexesByPool = new Map<string, number[]>();
+
+  for (const [index, line] of ordered.entries()) {
+    if (!line.capacityPoolId) continue;
+
+    const indexes = indexesByPool.get(line.capacityPoolId) ?? [];
+
+    indexes.push(index);
+    indexesByPool.set(line.capacityPoolId, indexes);
+  }
+
+  for (const indexes of indexesByPool.values()) {
+    const poolLines = indexes
+      .map((index) => ordered[index])
+      .filter((line): line is ProductionLine => line != null)
+      .toSorted((a, b) => sharedCapacityPriority(a) - sharedCapacityPriority(b));
+
+    indexes.forEach((index, poolIndex) => {
+      const line = poolLines[poolIndex];
+
+      if (line) ordered[index] = line;
+    });
+  }
+
+  return ordered;
+};
+
+const createCapacityTracker = (lines: ProductionLine[]) => {
+  const remainingByPool = new Map<string, number>();
+
+  for (const line of lines) {
+    if (!line.capacityPoolId) continue;
+
+    remainingByPool.set(
+      line.capacityPoolId,
+      Math.max(remainingByPool.get(line.capacityPoolId) ?? 0, line.buildingCount),
+    );
+  }
+
+  const availableRatio = (line: ProductionLine) => {
+    if (!line.capacityPoolId || line.buildingCount <= 0) return 1;
+
+    return Math.min(
+      1,
+      Math.max(0, (remainingByPool.get(line.capacityPoolId) ?? 0) / line.buildingCount),
+    );
+  };
+
+  const use = (line: ProductionLine, ratio: number) => {
+    if (!line.capacityPoolId) return;
+
+    const remaining = remainingByPool.get(line.capacityPoolId) ?? 0;
+
+    remainingByPool.set(
+      line.capacityPoolId,
+      Math.max(0, remaining - line.buildingCount * ratio),
+    );
+  };
+
+  return { availableRatio, use };
+};
+
 const orderDemandBalancedLines = (lines: ProductionLine[]) => {
+  const priorityOrderedLines = orderSharedCapacity(lines);
   const ordered: ProductionLine[] = [];
   const visiting = new Set<ProductionLine>();
   const visited = new Set<ProductionLine>();
@@ -55,7 +130,7 @@ const orderDemandBalancedLines = (lines: ProductionLine[]) => {
     visiting.add(line);
     const outputIds = new Set(line.recipe.outputs.map((output) => output.resourceId));
 
-    for (const possibleConsumer of lines) {
+    for (const possibleConsumer of priorityOrderedLines) {
       if (
         possibleConsumer !== line
         && possibleConsumer.recipe.inputs.some((input) => outputIds.has(input.resourceId))
@@ -69,7 +144,7 @@ const orderDemandBalancedLines = (lines: ProductionLine[]) => {
     ordered.push(line);
   };
 
-  for (const line of lines) visit(line);
+  for (const line of priorityOrderedLines) visit(line);
 
   return ordered;
 };
@@ -105,9 +180,17 @@ export const calculateNet = (
 
   const fixedLines = regularLines.filter((line) => line.operatingMode === "fixed");
   const balancedLines = regularLines.filter((line) => line.operatingMode === "balanced");
-  const supplyBalancedLines = balancedLines.filter((line) => line.recipe.balanceBy !== "output");
+  const fallbackLines = orderSharedCapacity(
+    balancedLines.filter((line) => line.recipe.sharedCapacity?.allocation === "fallback"),
+  );
+  const primaryBalancedLines = balancedLines.filter(
+    (line) => line.recipe.sharedCapacity?.allocation !== "fallback",
+  );
+  const supplyBalancedLines = primaryBalancedLines.filter(
+    (line) => line.recipe.balanceBy !== "output",
+  );
   const demandBalancedLines = orderDemandBalancedLines(
-    balancedLines.filter((line) => line.recipe.balanceBy === "output"),
+    primaryBalancedLines.filter((line) => line.recipe.balanceBy === "output"),
   );
 
   const externalEntries = typedEntries(externalInputs);
@@ -170,75 +253,143 @@ export const calculateNet = (
     }
   }
 
-  // Fixed buildings run at their configured capacity.
-  for (const line of fixedLines) {
-    const m = lineFactor(line);
+  const allocationRatios = new Map<ProductionLine, number>();
+  const capacityTracker = createCapacityTracker(regularLines);
+  const applyRegularLine = (line: ProductionLine, ratio: number) => {
+    allocationRatios.set(line, ratio);
+    capacityTracker.use(line, ratio);
 
-    for (const input of line.recipe.inputs) getFlow(input.resourceId).consumed += input.quantity * m;
-    for (const output of line.recipe.outputs) {
-      getFlow(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+    const multiplier = lineFactor(line) * ratio;
+
+    for (const input of line.recipe.inputs) {
+      getFlow(input.resourceId).consumed += input.quantity * multiplier;
     }
+    for (const output of line.recipe.outputs) {
+      getFlow(output.resourceId).produced += getRecipeOutputQuantity(
+        line.recipe,
+        output,
+        outputModifiers,
+      ) * multiplier;
+    }
+  };
+
+  // Fixed recipes reserve their physical building capacity first.
+  for (const line of orderSharedCapacity(fixedLines)) {
+    applyRegularLine(line, capacityTracker.availableRatio(line));
   }
 
-  // Supply-balanced consumers run first so demand-balanced producers can see
-  // their actual deficits. Demand-balanced chains run downstream-to-upstream.
-  const balancedSupplyRatios = new Map<ProductionLine, number>();
-
-  for (const line of [...supplyBalancedLines, ...demandBalancedLines]) {
+  // Ordinary supply-balanced recipes retain the existing constrained-resource
+  // behavior. Shared fallback recipes are deferred until primary demand is known.
+  for (const line of orderSharedCapacity(supplyBalancedLines)) {
     if (line.buildingCount === 0) {
-      balancedSupplyRatios.set(line, 0);
+      applyRegularLine(line, 0);
       continue;
     }
 
     const factor = lineFactor(line);
-    let ratio = 1;
+    let ratio = capacityTracker.availableRatio(line);
 
     for (const input of line.recipe.inputs) {
       if (line.recipe.balanceBy !== "input" && !constrained.has(input.resourceId)) continue;
-      const f = getFlow(input.resourceId);
-      const available = f.produced - f.consumed;
+
+      const flow = getFlow(input.resourceId);
+      const available = flow.produced - flow.consumed;
       const needed = input.quantity * factor;
 
-      if (needed > 0) {
-        ratio = Math.min(ratio, Math.max(0, available / needed));
+      if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+    }
+
+    applyRegularLine(line, ratio);
+  }
+
+  // Propagate demand from consumers to producers. Internally produced inputs are
+  // intentionally allowed to go temporarily negative because their upstream
+  // recipes run later in this downstream-to-upstream pass. An explicit external
+  // supply with no internal producer (including zero) remains a hard limit.
+  for (const line of demandBalancedLines) {
+    if (line.buildingCount === 0) {
+      applyRegularLine(line, 0);
+      continue;
+    }
+
+    const factor = lineFactor(line);
+    let ratio = capacityTracker.availableRatio(line);
+
+    for (const input of line.recipe.inputs) {
+      if (!externalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
+
+      const flow = getFlow(input.resourceId);
+      const available = flow.produced - flow.consumed;
+      const needed = input.quantity * factor;
+
+      if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+    }
+
+    const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
+      if (
+        line.recipe.balanceOutputIds
+        && !line.recipe.balanceOutputIds.includes(output.resourceId)
+      ) {
+        return [];
       }
+
+      const flow = flows.get(output.resourceId);
+      const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+
+      if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
+
+      return [Math.max(0, flow.consumed - flow.produced) / capacity];
+    });
+
+    ratio = outputDemandRatios.length > 0
+      ? Math.min(ratio, Math.max(...outputDemandRatios))
+      : 0;
+
+    applyRegularLine(line, ratio);
+  }
+
+  // Fallback recipes model the game's lower-priority recipe slots: they can use
+  // only real surplus inputs and physical capacity left by primary recipes.
+  for (const line of fallbackLines) {
+    if (line.buildingCount === 0) {
+      applyRegularLine(line, 0);
+      continue;
     }
 
-    // Explicit load balancers run only enough to cover the largest outstanding
-    // co-product deficit; outputs with no downstream consumer remain unrestricted.
-    if (line.recipe.balanceBy === "output") {
-      const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
-        const flow = flows.get(output.resourceId);
-        const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+    const factor = lineFactor(line);
+    let ratio = capacityTracker.availableRatio(line);
 
-        if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
+    for (const input of line.recipe.inputs) {
+      const flow = getFlow(input.resourceId);
+      const available = flow.produced - flow.consumed;
+      const needed = input.quantity * factor;
 
-        return [Math.max(0, flow.consumed - flow.produced) / capacity];
-      });
-
-      if (outputDemandRatios.length > 0) {
-        ratio = Math.min(ratio, Math.max(...outputDemandRatios));
-      }
+      if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
     }
 
-    balancedSupplyRatios.set(line, ratio);
-
-    const m = factor * ratio;
-
-    for (const input of line.recipe.inputs) getFlow(input.resourceId).consumed += input.quantity * m;
-    for (const output of line.recipe.outputs) {
-      getFlow(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
-    }
+    applyRegularLine(line, ratio);
   }
 
   // Regular results
   const regularResults: RegularResult[] = regularLines.map((line) => ({
     recipe: line.recipe,
+    moduleId: line.moduleId,
+    capacityPoolId: line.capacityPoolId,
     buildingCount: line.buildingCount,
     totalBuildings: line.totalBuildings,
     operatingMode: line.operatingMode,
-    supplyRatio: line.operatingMode === "fixed" ? 1 : (balancedSupplyRatios.get(line) ?? 1),
+    supplyRatio: allocationRatios.get(line) ?? 0,
     speedLevel: line.speedLevel,
+    actualInputs: line.recipe.inputs.map((input) => ({
+      resourceId: input.resourceId,
+      quantity: input.quantity * lineFactor(line) * (allocationRatios.get(line) ?? 0),
+    })),
+    actualOutputs: line.recipe.outputs.map((output) => ({
+      resourceId: output.resourceId,
+      quantity: getRecipeOutputQuantity(line.recipe, output, outputModifiers)
+        * lineFactor(line)
+        * (allocationRatios.get(line) ?? 0),
+    })),
     appliedRecyclingEfficiencyPercent: getAppliedRecyclingEfficiencyPercent(
       line.recipe,
       recyclingEfficiencyPercent,
@@ -261,6 +412,7 @@ export const calculateNet = (
     }
     return {
       recipe: line.recipe,
+      moduleId: line.moduleId,
       buildingCount: line.buildingCount,
       totalBuildings: line.totalBuildings,
       actualInputs: [],
@@ -273,7 +425,7 @@ export const calculateNet = (
 
   for (const line of sinkLines) {
     if (line.buildingCount === 0) {
-      sinkResults.push({ recipe: line.recipe, buildingCount: 0, totalBuildings: line.totalBuildings, actualInputs: [], actualOutputs: [] });
+      sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, buildingCount: 0, totalBuildings: line.totalBuildings, actualInputs: [], actualOutputs: [] });
       continue;
     }
 
@@ -308,7 +460,7 @@ export const calculateNet = (
       }
     }
 
-    sinkResults.push({ recipe: line.recipe, buildingCount: line.buildingCount, totalBuildings: line.totalBuildings, actualInputs, actualOutputs });
+    sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, buildingCount: line.buildingCount, totalBuildings: line.totalBuildings, actualInputs, actualOutputs });
   }
 
   // Identify source-produced resources

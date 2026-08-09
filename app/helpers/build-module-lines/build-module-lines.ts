@@ -33,6 +33,10 @@ export const buildModuleLines = (
 
     return {
       recipe,
+      moduleId: mod.id,
+      capacityPoolId: recipe.sharedCapacity
+        ? `${mod.id}:${recipe.sharedCapacity.id}`
+        : undefined,
       buildingCount: active,
       totalBuildings: total,
       speedLevel,

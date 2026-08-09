@@ -7,10 +7,10 @@ import { ModifiersView } from "./components/ModifiersView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { RecipeCard } from "./components/RecipeCard";
+import { SharedRecipeCard } from "./components/SharedRecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { SolarPowerSettings } from "./components/SolarPowerSettings";
 import { StorageCard } from "./components/StorageCard";
-import { buildings } from "./db/buildings";
 import { activeContracts } from "./db/contracts";
 import { defaultActiveEdicts } from "./db/edicts";
 import { modules } from "./db/modules/modules";
@@ -22,12 +22,13 @@ import {
   solarPowerResearch,
 } from "./db/research";
 import { defaultSolarPanelCounts } from "./db/solar";
-import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
-import { calculateNet } from "./helpers/calculate/calculate";
+import { calculateBuildingStats } from "./helpers/building-stats/building-stats";
+import { type ProductionLine } from "./helpers/calculate/calculate";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
+import { extractModuleResult } from "./helpers/module-result/module-result";
 import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
 import { useMounted } from "./helpers/use-mounted/use-mounted";
 
@@ -44,6 +45,32 @@ const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "waste
 const FACTORY_TOTAL_ID = "factory-total";
 const CONTRACTS_ID = "contracts";
 const MODIFIERS_ID = "modifiers";
+
+const groupSharedProductionLines = (lines: ProductionLine[]) => {
+  const groups: { key: string; lines: ProductionLine[] }[] = [];
+  const groupByPool = new Map<string, ProductionLine[]>();
+
+  for (const line of lines) {
+    if (!line.capacityPoolId) {
+      groups.push({ key: line.recipe.id, lines: [line] });
+      continue;
+    }
+
+    const existing = groupByPool.get(line.capacityPoolId);
+
+    if (existing) {
+      existing.push(line);
+      continue;
+    }
+
+    const sharedLines = [line];
+
+    groupByPool.set(line.capacityPoolId, sharedLines);
+    groups.push({ key: line.capacityPoolId, lines: sharedLines });
+  }
+
+  return groups;
+};
 
 const activeModuleIdSchema = z.enum([MODIFIERS_ID, CONTRACTS_ID, FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
 const edictLevelSchema = z.union([
@@ -125,48 +152,27 @@ const Page = () => {
     maintenanceOutput: maintenanceOutput.multiplier,
     solarPower: solarPowerOutput.multiplier,
   };
+  const factoryResult = calculateFactoryTotal(
+    configuredModules,
+    activeContracts,
+    recyclingEfficiencyPercent,
+    outputModifiers,
+  );
 
   const moduleResult = activeModule
     ? (() => {
-        const { lines } = buildModuleLines(activeModule, preset, outputModifiers);
-        const calc = calculateNet(
-          lines,
-          resolvedExternalInputs,
-          recyclingEfficiencyPercent,
-          outputModifiers,
-        );
+        const lines = factoryResult.allLines.filter((line) => line.moduleId === activeModule.id);
+        const calc = extractModuleResult(activeModule.id, factoryResult.calculation);
 
         return { lines, ...calc };
       })()
     : null;
 
   const buildingStats = activeModule && moduleResult
-    ? moduleResult.lines.reduce((acc, line) => {
-        const data = buildings[line.recipe.building];
-
-        if (!data || line.buildingCount <= 0) return acc;
-        return {
-          workers: acc.workers + data.workers * Math.ceil(line.buildingCount),
-          electricityKw: acc.electricityKw + data.electricityKw * line.buildingCount,
-        };
-      }, { workers: 0, electricityKw: 0 })
+    ? calculateBuildingStats(moduleResult.lines)
     : { workers: 0, electricityKw: 0 };
 
-  const factoryResult = isContracts || isFactoryTotal
-    ? calculateFactoryTotal(configuredModules, activeContracts, recyclingEfficiencyPercent, outputModifiers)
-    : null;
-
-  const factoryStats = factoryResult
-    ? factoryResult.allLines.reduce((acc, line) => {
-        const data = buildings[line.recipe.building];
-
-        if (!data || line.buildingCount <= 0) return acc;
-        return {
-          workers: acc.workers + data.workers * Math.ceil(line.buildingCount),
-          electricityKw: acc.electricityKw + data.electricityKw * line.buildingCount,
-        };
-      }, { workers: 0, electricityKw: 0 })
-    : { workers: 0, electricityKw: 0 };
+  const factoryStats = calculateBuildingStats(factoryResult.allLines);
 
   const grouped = moduleResult
     ? groupOrder
@@ -237,7 +243,11 @@ const Page = () => {
                 {label}
               </h2>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {items.map((line) => {
+                {groupSharedProductionLines(items).map(({ key, lines }) => {
+                  const line = lines[0];
+
+                  if (!line) return null;
+
                   if (group === "source") {
                     const result = moduleResult.sourceResults.find((s) => s.recipe.id === line.recipe.id);
 
@@ -252,6 +262,22 @@ const Page = () => {
                       <SinkCard key={line.recipe.id} result={result} role="sink" />
                     ) : null;
                   }
+
+                  if (lines.length > 1) {
+                    return (
+                      <SharedRecipeCard
+                        key={key}
+                        lines={lines}
+                        results={lines.map((sharedLine) => (
+                          moduleResult.regularResults.find(
+                            (result) => result.recipe.id === sharedLine.recipe.id,
+                          )
+                        ))}
+                        outputModifiers={outputModifiers}
+                      />
+                    );
+                  }
+
                   const result = moduleResult.regularResults.find((r) => r.recipe.id === line.recipe.id);
 
                   if (line.recipe.decayStorage) {

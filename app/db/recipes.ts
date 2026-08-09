@@ -10,6 +10,16 @@ export interface Ingredient {
 export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
 export type OutputModifierId = "maintenanceOutput" | "solarPower";
 export type BalanceBy = "input" | "output";
+export type SharedCapacityAllocation = "primary" | "fallback";
+
+export interface SharedCapacity {
+  /** Recipes with the same ID share one installed building pool inside a module. */
+  id: string;
+  /** Lower values are allocated first, matching the in-game recipe order. */
+  priority: number;
+  /** Fallback recipes receive only capacity left after primary recipes. */
+  allocation?: SharedCapacityAllocation;
+}
 
 export interface DecayStorage {
   capacity: number;
@@ -26,6 +36,9 @@ export interface Recipe {
   decayStorage?: DecayStorage;
   /** The resource side that determines utilization when this recipe is not fixed by its preset. */
   balanceBy?: BalanceBy;
+  /** Outputs that create demand for an output-balanced recipe; defaults to every output. */
+  balanceOutputIds?: ResourceId[];
+  sharedCapacity?: SharedCapacity;
   cycleDurationSeconds?: number;
   /**
    * Whether creating Recyclables applies the global recycling-efficiency loss.
@@ -276,6 +289,107 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: "compactReactor", quantity: 4 },
+    ],
+  },
+
+  // Electronics I chain
+  {
+    id: "assembly-v-electronics-i",
+    name: "Assembly V (Electronics I)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 15,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "rubber", quantity: 16 },
+      { resourceId: "copper", quantity: 96 },
+    ],
+    outputs: [
+      { resourceId: "electronicsI", quantity: 96 },
+    ],
+  },
+  {
+    id: "rubber-maker-naphtha",
+    name: "Rubber Maker I (Naphtha)",
+    building: "Rubber Maker I",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "rubber-maker-i", priority: 1 },
+    inputs: [
+      { resourceId: "naphtha", quantity: 12 },
+      { resourceId: "sulfur", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "rubber", quantity: 24 },
+    ],
+  },
+  {
+    id: "rubber-maker-ethanol",
+    name: "Rubber Maker I (Ethanol)",
+    building: "Rubber Maker I",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "rubber-maker-i", priority: 2 },
+    inputs: [
+      { resourceId: "ethanol", quantity: 12 },
+      { resourceId: "sulfur", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "rubber", quantity: 24 },
+    ],
+  },
+  {
+    id: "chemical-plant-ii-ethanol",
+    name: "Chemical Plant II (Ethanol)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["ethanol"],
+    sharedCapacity: { id: "chemical-plant-ii-electronics", priority: 1 },
+    inputs: [
+      { resourceId: "hydrogen", quantity: 36 },
+      { resourceId: "carbonDioxide", quantity: 27 },
+    ],
+    outputs: [
+      { resourceId: "ethanol", quantity: 18 },
+      { resourceId: "water", quantity: 9 },
+    ],
+  },
+  {
+    id: "chemical-plant-ii-graphite",
+    name: "Chemical Plant II (Graphite)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "input",
+    sharedCapacity: {
+      id: "chemical-plant-ii-electronics",
+      priority: 2,
+      allocation: "fallback",
+    },
+    inputs: [
+      { resourceId: "carbonDioxide", quantity: 144 },
+    ],
+    outputs: [
+      { resourceId: "graphite", quantity: 6 },
+    ],
+  },
+  {
+    id: "copper-electrolysis-acid",
+    name: "Copper Electrolysis (Acid)",
+    building: "Copper Electrolysis",
+    group: "production",
+    cycleDurationSeconds: 40,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "impureCopper", quantity: 24 },
+      { resourceId: "acid", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "copper", quantity: 24 },
     ],
   },
 

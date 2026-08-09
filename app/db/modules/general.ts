@@ -8,6 +8,11 @@ export const general: Module = {
     "crusher-large": 3,
     "settling-tank": 2,
     "mixer-ii-acid": 1,
+    "assembly-v-electronics-i": 1,
+    "rubber-maker-ethanol": 1,
+    "chemical-plant-ii-ethanol": 1,
+    "chemical-plant-ii-graphite": 1,
+    "copper-electrolysis-acid": 1,
   },
   presets: [
     {
@@ -18,6 +23,11 @@ export const general: Module = {
         "crusher-large": 3,
         "settling-tank": 2,
         "mixer-ii-acid": 1,
+        "assembly-v-electronics-i": 1,
+        "rubber-maker-ethanol": 1,
+        "chemical-plant-ii-ethanol": 1,
+        "chemical-plant-ii-graphite": 1,
+        "copper-electrolysis-acid": 1,
       },
       available: {
         "settling-tank": 2,
