@@ -9,6 +9,7 @@ export interface Preset {
   active: Record<string, number>;
   pinned: string[];
   incomingFromModules?: ResourceId[];
+  incomingFromContracts?: ResourceId[];
   externalInputs?: Partial<Record<ResourceId, number>>;
   buildingTotals?: Record<string, number>;
   speedLevels?: Record<string, number>;
@@ -22,6 +23,7 @@ export interface Module {
   presets: Preset[];
   defaultPresetId: string | null;
   incomingFromModules?: ResourceId[];
+  incomingFromContracts?: ResourceId[];
   externalInputs?: Partial<Record<ResourceId, number>>;
 }
 

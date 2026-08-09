@@ -2,11 +2,13 @@
 
 import { z } from "zod";
 
+import { ContractsView } from "./components/ContractsView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { RecipeCard } from "./components/RecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { buildings } from "./db/buildings";
+import { activeContracts } from "./db/contracts";
 import { modules } from "./db/modules/modules";
 import { type RecipeGroup } from "./db/recipes";
 import { buildModuleLines } from "./helpers/build-module-lines/build-module-lines";
@@ -25,8 +27,9 @@ const groupLabels: Record<RecipeGroup, string> = {
 const groupOrder: RecipeGroup[] = ["source", "electricity", "production", "sink"];
 
 const FACTORY_TOTAL_ID = "factory-total";
+const CONTRACTS_ID = "contracts";
 
-const activeModuleIdSchema = z.enum([FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
+const activeModuleIdSchema = z.enum([CONTRACTS_ID, FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
 
 const Page = () => {
   const mounted = useMounted();
@@ -34,8 +37,11 @@ const Page = () => {
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
 
+  const isContracts = activeModuleId === CONTRACTS_ID;
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID;
-  const activeModule = isFactoryTotal ? null : (modules.find((m) => m.id === activeModuleId) ?? modules[0]);
+  const activeModule = isContracts || isFactoryTotal
+    ? null
+    : (modules.find((m) => m.id === activeModuleId) ?? modules[0]);
 
   const preset = activeModule && activeModule.defaultPresetId
     ? activeModule.presets.find((p) => p.id === activeModule.defaultPresetId)
@@ -45,6 +51,7 @@ const Page = () => {
 
   const resolvedExternalInputs = preset?.externalInputs ?? activeModule?.externalInputs;
   const incomingFromModules = preset?.incomingFromModules ?? activeModule?.incomingFromModules;
+  const incomingFromContracts = preset?.incomingFromContracts ?? activeModule?.incomingFromContracts;
 
   const moduleResult = activeModule
     ? (() => {
@@ -67,7 +74,9 @@ const Page = () => {
       }, { workers: 0, electricityKw: 0 })
     : { workers: 0, electricityKw: 0 };
 
-  const factoryResult = isFactoryTotal ? calculateFactoryTotal(modules) : null;
+  const factoryResult = isContracts || isFactoryTotal
+    ? calculateFactoryTotal(modules, activeContracts)
+    : null;
 
   const factoryStats = factoryResult
     ? factoryResult.allLines.reduce((acc, line) => {
@@ -102,15 +111,19 @@ const Page = () => {
         </p>
       </div>
 
-      <ModuleSwitcher modules={modules} active={activeModuleId} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
+      <ModuleSwitcher modules={modules} active={activeModuleId} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
+
+      {isContracts && factoryResult && (
+        <ContractsView results={factoryResult.contractResults} />
+      )}
 
       {isFactoryTotal && factoryResult && (
-        <NetSummary flows={factoryResult.flows} workers={factoryStats.workers} electricityConsumptionKw={factoryStats.electricityKw} />
+        <NetSummary flows={factoryResult.flows} workers={factoryStats.workers} electricityConsumptionKw={factoryStats.electricityKw} groupByBalance />
       )}
 
       {moduleResult && activeModule && (
         <>
-          <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} incomingFromModules={incomingFromModules} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
+          <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} incomingFromModules={incomingFromModules} incomingFromContracts={incomingFromContracts} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
 
           {grouped.map(({ group, label, items }) => (
             <div key={group} className="space-y-3">

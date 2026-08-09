@@ -1,14 +1,17 @@
+import { type Contract } from "../../db/contracts";
 import { type Module } from "../../db/modules/modules";
 import { type ResourceId, resources } from "../../db/resources";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { type ResourceFlow, type ProductionLine, calculateNet } from "../calculate/calculate";
+import { applyContracts, type ContractResult } from "../contracts/calculate-contracts";
 
 export interface FactoryTotalResult {
   flows: ResourceFlow[];
   allLines: ProductionLine[];
+  contractResults: ContractResult[];
 }
 
-export const calculateFactoryTotal = (modules: Module[]): FactoryTotalResult => {
+export const calculateFactoryTotal = (modules: Module[], contracts: Contract[] = []): FactoryTotalResult => {
   const combined = new Map<ResourceId, { consumed: number; produced: number }>();
   const allLines: ProductionLine[] = [];
 
@@ -19,9 +22,9 @@ export const calculateFactoryTotal = (modules: Module[]): FactoryTotalResult => 
     const { lines, pinnedIds } = buildModuleLines(mod, preset);
 
     allLines.push(...lines);
-    const { resourceFlows } = calculateNet(lines, pinnedIds);
+    const { allResourceFlows } = calculateNet(lines, pinnedIds);
 
-    for (const flow of resourceFlows) {
+    for (const flow of allResourceFlows) {
       const existing = combined.get(flow.resourceId) ?? { consumed: 0, produced: 0 };
 
       existing.consumed += flow.consumed;
@@ -35,10 +38,10 @@ export const calculateFactoryTotal = (modules: Module[]): FactoryTotalResult => 
   for (const [resourceId, { consumed, produced }] of combined) {
     const net = produced - consumed;
 
-    if (Math.abs(net) > 0.001) {
-      flows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
-    }
+    flows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
   }
 
-  return { flows, allLines };
+  const withContracts = applyContracts(flows, contracts);
+
+  return { flows: withContracts.flows, allLines, contractResults: withContracts.contractResults };
 };

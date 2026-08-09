@@ -22,6 +22,7 @@ export const general: Module = {
         "settling-tank": 2,
       },
       pinned: ["crusher-large", "settling-tank"],
+      incomingFromContracts: ["uraniumOre"],
     },
   ],
   defaultPresetId: "yellowcake",

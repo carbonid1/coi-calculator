@@ -242,12 +242,15 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
   }
 
   const resourceFlows: ResourceFlow[] = [];
+  const allResourceFlows: ResourceFlow[] = [];
 
   for (const [resourceId, { consumed, produced }] of flows) {
+    const net = produced - consumed;
+
+    allResourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
+
     if (externalIds.has(resourceId)) {
       // External inputs: only show deficit beyond declared external supply
-      const net = produced - consumed;
-
       if (net < -0.001) {
         resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
       }
@@ -262,13 +265,11 @@ export const calculateNet = (lines: ProductionLine[], pinnedIds: Set<string> = n
         }
       }
     } else {
-      const net = produced - consumed;
-
       if (Math.abs(net) > 0.001) {
         resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net });
       }
     }
   }
 
-  return { resourceFlows, regularResults, sourceResults, sinkResults };
+  return { resourceFlows, allResourceFlows, regularResults, sourceResults, sinkResults };
 };

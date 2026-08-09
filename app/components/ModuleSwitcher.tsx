@@ -1,32 +1,41 @@
 "use client";
 
-import { cn } from "@carbonid1/design-system";
+import { Button } from "@carbonid1/design-system";
 
 import { type Module } from "../db/modules/modules";
 
 interface Props {
   modules: Module[];
   active: string;
+  contractsId: string;
   factoryTotalId: string;
   onChange: (id: string) => void;
 }
 
-const tabClass = (isActive: boolean) =>
-  cn("border-b-2 px-4 py-2 text-sm font-medium transition-colors", {
-    "border-gray-900 text-gray-900 dark:border-gray-100 dark:text-gray-100": isActive,
-    "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300":
-      !isActive,
-  });
+interface SwitchButtonProps {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}
 
-export const ModuleSwitcher: React.FC<Props> = ({ modules, active, factoryTotalId, onChange }) => (
-  <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+const SwitchButton: React.FC<SwitchButtonProps> = ({ active, children, onClick }) => (
+  <Button variant="ghost" selected={active} aria-pressed={active} onClick={onClick}>
+    {children}
+  </Button>
+);
+
+export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, factoryTotalId, onChange }) => (
+  <div className="flex flex-wrap gap-1 border-b border-border pb-2">
     {modules.map((mod) => (
-      <button key={mod.id} onClick={() => onChange(mod.id)} className={tabClass(active === mod.id)}>
+      <SwitchButton key={mod.id} active={active === mod.id} onClick={() => onChange(mod.id)}>
         {mod.name}
-      </button>
+      </SwitchButton>
     ))}
-    <button onClick={() => onChange(factoryTotalId)} className={tabClass(active === factoryTotalId)}>
+    <SwitchButton active={active === contractsId} onClick={() => onChange(contractsId)}>
+      Contracts
+    </SwitchButton>
+    <SwitchButton active={active === factoryTotalId} onClick={() => onChange(factoryTotalId)}>
       Factory Total
-    </button>
+    </SwitchButton>
   </div>
 );
