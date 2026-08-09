@@ -1,7 +1,5 @@
 import type { NextConfig } from 'next'
 
-const nextConfig: NextConfig = {
-  transpilePackages: ['@carbonid1/design-system'],
-}
+const nextConfig: NextConfig = {}
 
 export default nextConfig

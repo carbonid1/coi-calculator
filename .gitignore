@@ -11,3 +11,6 @@ next-env.d.ts
 .vercel
 
 .claude/skills/design-system
+.claude/skills/design-system-package
+.agents/skills/design-system
+.agents/skills/design-system-package

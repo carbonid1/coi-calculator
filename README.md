@@ -7,7 +7,7 @@ Pick a module, plug in building counts, see net resource flows and where to plac
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript)
-- **Tailwind CSS v4** via [`@carbonid1/tailwind-config/dashboard`](https://www.npmjs.com/package/@carbonid1/tailwind-config)
+- **Tailwind CSS v4** via `@carbonid1/design-system/themes/dashboard`
 - **Configs** from [`@carbonid1/packages`](https://github.com/carbonid1/packages): `tsconfig`, `eslint-config`, `prettier-config`
 
 State lives in `localStorage` — no backend, no login.

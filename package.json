@@ -14,7 +14,8 @@
     "ts": "tsc --noEmit"
   },
   "dependencies": {
-    "@carbonid1/design-system": "^4.3.0",
+    "@base-ui/react": "^1.7.0",
+    "@carbonid1/design-system": "^7.2.0",
     "next": "^16.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -28,6 +29,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-import-resolver-typescript": "^4.4.4",
+    "postcss": "^8.5.26",
     "prettier": "^3.8.2",
     "typescript": "^6.0.0",
     "vitest": "^4.0.0"
