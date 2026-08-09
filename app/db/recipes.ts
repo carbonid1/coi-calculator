@@ -11,6 +11,7 @@ export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "s
 export type OutputModifierId = "maintenanceOutput" | "solarPower";
 export type BalanceBy = "input" | "output";
 export type SharedCapacityAllocation = "primary" | "fallback";
+export type SourceKind = "map-mine" | "world-mine";
 
 export interface SharedCapacity {
   /** Recipes with the same ID share one installed building pool inside a module. */
@@ -54,6 +55,9 @@ export interface Recipe {
   appliesRecyclingEfficiency?: boolean;
   /** Emits the recoverable material composition carried by Recyclables. */
   sortsRecyclableSources?: boolean;
+  /** Demand sources ignore declared capacity and supply only the remaining deficit. */
+  sourceMode?: "demand";
+  sourceKind?: SourceKind;
 }
 
 const radioactiveWasteStorageCapacity = 2400;
@@ -71,6 +75,30 @@ export const recipes: Recipe[] = [
     outputs: [
       { resourceId: "seaWater", quantity: 216 },
     ],
+  },
+  {
+    id: "copper-map-mine",
+    name: "Copper Ore (Map Mine)",
+    building: "Copper Ore Mine",
+    group: "source",
+    inputs: [],
+    outputs: [
+      { resourceId: "copperOre", quantity: 0 },
+    ],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
+  },
+  {
+    id: "sulfur-world-mine",
+    name: "Sulfur (World Mine)",
+    building: "Sulfur World Mine",
+    group: "source",
+    inputs: [],
+    outputs: [
+      { resourceId: "sulfur", quantity: 0 },
+    ],
+    sourceMode: "demand",
+    sourceKind: "world-mine",
   },
 
   // Electricity

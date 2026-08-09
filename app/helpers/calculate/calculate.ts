@@ -242,6 +242,17 @@ export const calculateNet = (
   const internallyProducedIds = new Set(
     lines.flatMap((line) => line.recipe.outputs.map((output) => output.resourceId)),
   );
+  const sourceOutputCapacities = new Map<ProductionLine, Map<ResourceId, number>>();
+  const setSourceOutputCapacity = (
+    line: ProductionLine,
+    resourceId: ResourceId,
+    quantity: number,
+  ) => {
+    const capacities = sourceOutputCapacities.get(line) ?? new Map<ResourceId, number>();
+
+    capacities.set(resourceId, quantity);
+    sourceOutputCapacities.set(line, capacities);
+  };
 
   // ── Pass 1: full-capacity simulation to find truly constrained resources ──
   const simFlows: FlowMap = new Map();
@@ -252,11 +263,14 @@ export const calculateNet = (
     simGet(id).produced += qty;
   }
 
-  for (const line of sourceLines) {
+  for (const line of sourceLines.filter((source) => source.recipe.sourceMode !== "demand")) {
     const m = lineFactor(line);
 
     for (const output of line.recipe.outputs) {
-      simGet(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+      const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+
+      simGet(output.resourceId).produced += capacity;
+      setSourceOutputCapacity(line, output.resourceId, capacity);
     }
   }
   for (const line of regularLines) {
@@ -265,6 +279,18 @@ export const calculateNet = (
     for (const input of line.recipe.inputs) simGet(input.resourceId).consumed += input.quantity * m;
     for (const output of line.recipe.outputs) {
       simGet(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+    }
+  }
+
+  // Demand sources are effectively unbounded during allocation. Their final
+  // output is reduced after regular production has supplied what it can.
+  for (const line of sourceLines.filter((source) => source.recipe.sourceMode === "demand")) {
+    for (const output of line.recipe.outputs) {
+      const flow = simGet(output.resourceId);
+      const capacity = line.buildingCount > 0 ? flow.consumed : 0;
+
+      flow.produced += capacity;
+      setSourceOutputCapacity(line, output.resourceId, capacity);
     }
   }
 
@@ -288,12 +314,13 @@ export const calculateNet = (
     getFlow(id).produced += qty;
   }
 
-  // Sources at full capacity
+  // Sources reserve enough supply for allocation. Unused output is removed
+  // after regular production has been calculated.
   for (const line of sourceLines) {
-    const m = lineFactor(line);
-
     for (const output of line.recipe.outputs) {
-      getFlow(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+      const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
+
+      getFlow(output.resourceId).produced += capacity;
     }
   }
 
@@ -513,20 +540,40 @@ export const calculateNet = (
     ].reduce((total, quantity) => total + quantity, 0),
   }));
 
-  // Adjust source output to actual consumption
-  const sourceResults: PassiveResult[] = sourceLines.map((line) => {
-    const actualOutputs: PassiveResult["actualOutputs"] = [];
-    const cap = lineFactor(line);
+  // Sources are fallback streams: internal production is retained first, then
+  // sources are allocated in declaration order to cover only what remains.
+  const remainingSourceDemand = new Map<ResourceId, number>();
 
+  for (const line of sourceLines) {
     for (const output of line.recipe.outputs) {
-      const f = getFlow(output.resourceId);
-      const outputQuantity = getRecipeOutputQuantity(line.recipe, output, outputModifiers);
-      const actualUsed = Math.min(outputQuantity * cap, f.consumed);
-      const overproduction = outputQuantity * cap - actualUsed;
+      if (remainingSourceDemand.has(output.resourceId)) continue;
 
-      if (overproduction > 0) f.produced -= overproduction;
-      actualOutputs.push({ resourceId: output.resourceId, quantity: actualUsed });
+      const flow = getFlow(output.resourceId);
+      const totalSourceCapacity = sourceLines.reduce((total, source) => {
+        return total + (sourceOutputCapacities.get(source)?.get(output.resourceId) ?? 0);
+      }, 0);
+      const internallyProduced = flow.produced - totalSourceCapacity;
+
+      remainingSourceDemand.set(
+        output.resourceId,
+        Math.max(0, flow.consumed - internallyProduced),
+      );
     }
+  }
+
+  const sourceResults: PassiveResult[] = sourceLines.map((line) => {
+    const actualOutputs = line.recipe.outputs.map((output) => {
+      const flow = getFlow(output.resourceId);
+      const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
+      const remaining = remainingSourceDemand.get(output.resourceId) ?? 0;
+      const actualUsed = Math.min(capacity, remaining);
+
+      flow.produced -= capacity - actualUsed;
+      remainingSourceDemand.set(output.resourceId, remaining - actualUsed);
+
+      return { resourceId: output.resourceId, quantity: actualUsed };
+    });
+
     return {
       recipe: line.recipe,
       moduleId: line.moduleId,

@@ -2,6 +2,7 @@ import { type ResourceId } from "../resources";
 import { fbrPowerPlant } from "./fbr-power-plant";
 import { general } from "./general";
 import { maintenance } from "./maintenance";
+import { mines } from "./mines";
 import { solarPower } from "./solar-power";
 
 export interface Preset {
@@ -30,4 +31,4 @@ export interface Module {
   localResources?: ResourceId[];
 }
 
-export const modules: [Module, ...Module[]] = [general, fbrPowerPlant, solarPower, maintenance];
+export const modules: [Module, ...Module[]] = [general, mines, fbrPowerPlant, solarPower, maintenance];

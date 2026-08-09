@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { ContractsView } from "./components/ContractsView";
+import { MinesView } from "./components/MinesView";
 import { ModifiersView } from "./components/ModifiersView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
@@ -13,6 +14,7 @@ import { SolarPowerSettings } from "./components/SolarPowerSettings";
 import { StorageCard } from "./components/StorageCard";
 import { activeContracts } from "./db/contracts";
 import { defaultActiveEdicts } from "./db/edicts";
+import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
 import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
 import { type RecipeGroup } from "./db/recipes";
@@ -238,9 +240,13 @@ const Page = () => {
 
       {moduleResult && activeModule && (
         <>
-          <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
+          {activeModule.id === MINES_MODULE_ID ? (
+            <MinesView results={moduleResult.sourceResults} />
+          ) : (
+            <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
+          )}
 
-          {grouped.map(({ group, label, items }) => (
+          {activeModule.id !== MINES_MODULE_ID && grouped.map(({ group, label, items }) => (
             <div key={group} className="space-y-3">
               <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 {label}
