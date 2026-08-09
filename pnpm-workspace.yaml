@@ -1,0 +1,4 @@
+allowBuilds:
+  '@carbonid1/design-system': true
+  sharp: false
+  unrs-resolver: false

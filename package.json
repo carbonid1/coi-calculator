@@ -2,12 +2,12 @@
   "name": "coi-calculator",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.28.1",
+  "packageManager": "pnpm@11.20.0",
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   },
   "scripts": {
-    "dev": "portless run next dev",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --fix",
@@ -23,16 +23,13 @@
   "devDependencies": {
     "@carbonid1/eslint-config": "^0.4.0",
     "@carbonid1/tsconfig": "^0.3.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
     "eslint-import-resolver-typescript": "^4.4.4",
     "prettier": "^3.8.2",
+    "typescript": "^6.0.0",
     "vitest": "^4.0.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@carbonid1/design-system"
-    ]
   }
 }
