@@ -6,6 +6,14 @@ Wiki login and submission workflow: to be decided.
 
 ## Pending
 
+### Hydrogen Reformer workers and electricity
+
+- Game version: 0.8.6
+- Wiki value: 12 workers and 250 kW
+- Verified game value: 8 workers and 400 kW
+- Verification: installed game data and in-game building panel
+- Status: ready for a future wiki edit
+
 ### Maintenance III Depot workers
 
 - Game version: 0.8.6

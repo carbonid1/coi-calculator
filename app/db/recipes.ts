@@ -60,6 +60,11 @@ export interface Recipe {
   sourceKind?: SourceKind;
   /** Recipe-specific multiplier applied to the building's base electricity draw. */
   electricityMultiplier?: number;
+  /** Generators in one group share utilization; lower priorities serve demand first. */
+  electricityDispatch?: {
+    groupId: string;
+    priority: number;
+  };
 }
 
 const radioactiveWasteStorageCapacity = 2400;
@@ -186,6 +191,7 @@ export const recipes: Recipe[] = [
       { resourceId: "steamHigh", quantity: 48 },
       { resourceId: "electricity", quantity: 15 },
     ],
+    electricityDispatch: { groupId: "fbr-turbines", priority: 2 },
   },
   {
     id: "turbine-high",
@@ -199,6 +205,7 @@ export const recipes: Recipe[] = [
       { resourceId: "steamLow", quantity: 48 },
       { resourceId: "electricity", quantity: 10 },
     ],
+    electricityDispatch: { groupId: "fbr-turbines", priority: 2 },
   },
   {
     id: "turbine-low",
@@ -212,6 +219,7 @@ export const recipes: Recipe[] = [
       { resourceId: "steamDepleted", quantity: 48 },
       { resourceId: "electricity", quantity: 5 },
     ],
+    electricityDispatch: { groupId: "fbr-turbines", priority: 2 },
   },
   {
     id: solarPanels.standard.recipeId,
@@ -226,6 +234,7 @@ export const recipes: Recipe[] = [
         outputModifierId: "solarPower",
       },
     ],
+    electricityDispatch: { groupId: "solar", priority: 1 },
   },
   {
     id: solarPanels.mono.recipeId,
@@ -240,6 +249,7 @@ export const recipes: Recipe[] = [
         outputModifierId: "solarPower",
       },
     ],
+    electricityDispatch: { groupId: "solar", priority: 1 },
   },
 
   // Production (order = priority)
@@ -1214,6 +1224,8 @@ export const recipes: Recipe[] = [
       { resourceId: "water", quantity: 16 },
       { resourceId: "steamSuper", quantity: 12 },
     ],
+    balanceBy: "input",
+    balanceInputIds: ["steamSuper"],
     outputs: [
       { resourceId: "hydrogen", quantity: 32 },
       { resourceId: "oxygen", quantity: 32 },
@@ -1229,6 +1241,8 @@ export const recipes: Recipe[] = [
       { resourceId: "seaWater", quantity: 15 },
       { resourceId: "steamDepleted", quantity: 24 },
     ],
+    balanceBy: "input",
+    balanceInputIds: ["steamDepleted"],
     outputs: [
       { resourceId: "water", quantity: 33 },
       { resourceId: "brine", quantity: 6 },
@@ -1243,6 +1257,8 @@ export const recipes: Recipe[] = [
       { resourceId: "seaWater", quantity: 108 },
       { resourceId: "steamSuper", quantity: 6 },
     ],
+    balanceBy: "input",
+    balanceInputIds: ["steamSuper"],
     outputs: [
       { resourceId: "water", quantity: 72 },
       { resourceId: "brine", quantity: 42 },

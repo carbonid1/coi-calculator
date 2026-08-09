@@ -1,7 +1,8 @@
 import { type Module } from "./modules";
 
-// Steam / water / hydrogen infrastructure for the YC-fed plant. Surplus is
-// absorbed by cooling, desalination, and reforming in priority order.
+// Steam / water / hydrogen infrastructure for the YC-fed plant. Electricity
+// demand gets turbine priority; surplus steam then goes to reforming,
+// desalination, and finally cooling.
 const plantInfra = {
   "seawater-pump": 4,
   "turbine-super": 2,
@@ -9,7 +10,7 @@ const plantInfra = {
   "turbine-low": 2,
   "thermal-desalinator-depleted": 2,
   "thermal-desalinator-super": 6,
-  "hydrogen-reformer-super": 2,
+  "hydrogen-reformer-super": 4,
   "cooling-tower-large-depleted": 1,
   "cooling-tower-large-super": 1,
 };
@@ -19,7 +20,7 @@ const fuelFixedYc = ["fbr"];
 export const fbrPowerPlant: Module = {
   id: "fbr-power-plant",
   name: "FBR Power Plant",
-  description: "YC-fed no-breed mode with shared plant infrastructure",
+  description: "YC-fed no-breed mode; turbines follow factory demand after solar",
   buildingTotals: {}, // presets define their own
   presets: [
     {

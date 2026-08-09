@@ -13,6 +13,8 @@ export interface ProductionLine {
   totalBuildings: number;
   speedLevel: number;
   operatingMode: OperatingMode;
+  /** Factory-wide dispatch can assign a utilization without changing installed capacity. */
+  allocationRatio?: number;
 }
 
 export interface ResourceFlow {
@@ -160,7 +162,12 @@ const orderSupplyBalancedLines = (lines: ProductionLine[]) => {
     if (visited.has(line) || visiting.has(line)) return;
 
     visiting.add(line);
-    const inputIds = new Set(line.recipe.inputs.map((input) => input.resourceId));
+    const balanceInputIds = line.recipe.balanceInputIds
+      ? new Set(line.recipe.balanceInputIds)
+      : null;
+    const inputIds = new Set(line.recipe.inputs
+      .filter((input) => !balanceInputIds || balanceInputIds.has(input.resourceId))
+      .map((input) => input.resourceId));
 
     for (const possibleProducer of priorityOrderedLines) {
       if (
@@ -222,8 +229,13 @@ export const calculateNet = (
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
   const sinkLines = lines.filter((l) => l.recipe.group === "sink");
 
-  const fixedLines = regularLines.filter((line) => line.operatingMode === "fixed");
-  const balancedLines = regularLines.filter((line) => line.operatingMode === "balanced");
+  const allocatedLines = regularLines.filter((line) => line.allocationRatio != null);
+  const fixedLines = regularLines.filter((line) => (
+    line.operatingMode === "fixed" && line.allocationRatio == null
+  ));
+  const balancedLines = regularLines.filter((line) => (
+    line.operatingMode === "balanced" && line.allocationRatio == null
+  ));
   const fallbackLines = orderSharedCapacity(
     balancedLines.filter((line) => line.recipe.sharedCapacity?.allocation === "fallback"),
   );
@@ -410,6 +422,13 @@ export const calculateNet = (
   // Fixed recipes reserve their physical building capacity first.
   for (const line of orderSharedCapacity(fixedLines)) {
     applyRegularLine(line, capacityTracker.availableRatio(line));
+  }
+
+  // Factory-wide dispatch assigns utilization while preserving installed count.
+  for (const line of orderSharedCapacity(allocatedLines)) {
+    const requestedRatio = Math.min(1, Math.max(0, line.allocationRatio ?? 0));
+
+    applyRegularLine(line, Math.min(requestedRatio, capacityTracker.availableRatio(line)));
   }
 
   // Ordinary supply-balanced recipes retain the existing constrained-resource
