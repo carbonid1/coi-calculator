@@ -1,18 +1,12 @@
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
 
-const productionCyclesPerGameYear = 12;
-
-export const maintenanceDemandPerGameYear = {
-  maintenanceI: 4_700,
-  maintenanceII: 1_600,
-  maintenanceIII: 1_600,
-} as const satisfies Partial<Record<ResourceId, number>>;
-
-export const maintenanceDemandPerCycle = {
-  maintenanceI: maintenanceDemandPerGameYear.maintenanceI / productionCyclesPerGameYear,
-  maintenanceII: maintenanceDemandPerGameYear.maintenanceII / productionCyclesPerGameYear,
-  maintenanceIII: maintenanceDemandPerGameYear.maintenanceIII / productionCyclesPerGameYear,
+// Inferred from the 10-year average building loads at Maintenance Output III:
+// I: 495 * 83%, II: 495 * 29%, III: 246 * 50%.
+export const maintenanceDemandPerMonth = {
+  maintenanceI: 410.85,
+  maintenanceII: 143.55,
+  maintenanceIII: 123,
 } as const satisfies Partial<Record<ResourceId, number>>;
 
 const activeRecipeIds = {
@@ -40,11 +34,11 @@ export const maintenance: Module = {
     {
       id: "current-demand",
       name: "Current demand",
-      description: "4.7k Maintenance I, 1.6k Maintenance II, and 1.6k Maintenance III per game year",
+      description: "10-year average: 83% Maintenance I, 29% Maintenance II, and 50% Maintenance III load",
       active,
       pinned: Object.values(activeRecipeIds),
       incomingFromModules: ["mechanicalParts", "electronicsI", "electronicsII", "electronicsIII"],
-      outputTargets: maintenanceDemandPerCycle,
+      outputTargets: maintenanceDemandPerMonth,
     },
   ],
   defaultPresetId: "current-demand",
