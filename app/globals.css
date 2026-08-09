@@ -1,1 +1,5 @@
 @import '@carbonid1/design-system/themes/dashboard';
+
+html {
+  scrollbar-gutter: stable;
+}
