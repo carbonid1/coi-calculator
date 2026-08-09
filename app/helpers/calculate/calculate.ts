@@ -9,6 +9,7 @@ export interface ProductionLine {
   buildingCount: number;
   totalBuildings: number;
   speedLevel: number;
+  operatingMode: OperatingMode;
 }
 
 export interface ResourceFlow {
@@ -21,12 +22,15 @@ export interface ResourceFlow {
   recyclableSourceValueProduced?: number;
 }
 
+export type OperatingMode = "fixed" | "balanced";
+
 export interface RegularResult {
   recipe: Recipe;
   buildingCount: number;
   totalBuildings: number;
-  pinned: boolean;
+  operatingMode: OperatingMode;
   supplyRatio: number;
+  speedLevel: number;
   appliedRecyclingEfficiencyPercent: number | null;
 }
 
@@ -39,6 +43,36 @@ export interface PassiveResult {
 }
 
 const lineFactor = (line: ProductionLine) => line.buildingCount * line.speedLevel;
+
+const orderDemandBalancedLines = (lines: ProductionLine[]) => {
+  const ordered: ProductionLine[] = [];
+  const visiting = new Set<ProductionLine>();
+  const visited = new Set<ProductionLine>();
+
+  const visit = (line: ProductionLine) => {
+    if (visited.has(line) || visiting.has(line)) return;
+
+    visiting.add(line);
+    const outputIds = new Set(line.recipe.outputs.map((output) => output.resourceId));
+
+    for (const possibleConsumer of lines) {
+      if (
+        possibleConsumer !== line
+        && possibleConsumer.recipe.inputs.some((input) => outputIds.has(input.resourceId))
+      ) {
+        visit(possibleConsumer);
+      }
+    }
+
+    visiting.delete(line);
+    visited.add(line);
+    ordered.push(line);
+  };
+
+  for (const line of lines) visit(line);
+
+  return ordered;
+};
 
 export const getAppliedRecyclingEfficiencyPercent = (recipe: Recipe, globalEfficiencyPercent: number) => {
   const createsRecyclables = recipe.outputs.some((output) => output.resourceId === "recyclables");
@@ -61,7 +95,6 @@ const makeGetFlow = (flows: FlowMap) => (id: ResourceId) => {
 
 export const calculateNet = (
   lines: ProductionLine[],
-  pinnedIds: Set<string> = new Set(),
   externalInputs: Partial<Record<ResourceId, number>> = {},
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
   outputModifiers: OutputModifierMultipliers = {},
@@ -70,8 +103,12 @@ export const calculateNet = (
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
   const sinkLines = lines.filter((l) => l.recipe.group === "sink");
 
-  const pinnedLines = regularLines.filter((l) => pinnedIds.has(l.recipe.id));
-  const flexibleLines = regularLines.filter((l) => !pinnedIds.has(l.recipe.id));
+  const fixedLines = regularLines.filter((line) => line.operatingMode === "fixed");
+  const balancedLines = regularLines.filter((line) => line.operatingMode === "balanced");
+  const supplyBalancedLines = balancedLines.filter((line) => line.recipe.balanceBy !== "output");
+  const demandBalancedLines = orderDemandBalancedLines(
+    balancedLines.filter((line) => line.recipe.balanceBy === "output"),
+  );
 
   const externalEntries = typedEntries(externalInputs);
   const externalIds = new Set(externalEntries.map(([id]) => id));
@@ -133,8 +170,8 @@ export const calculateNet = (
     }
   }
 
-  // Pinned buildings at full capacity
-  for (const line of pinnedLines) {
+  // Fixed buildings run at their configured capacity.
+  for (const line of fixedLines) {
     const m = lineFactor(line);
 
     for (const input of line.recipe.inputs) getFlow(input.resourceId).consumed += input.quantity * m;
@@ -143,12 +180,13 @@ export const calculateNet = (
     }
   }
 
-  // Flexible buildings — priority allocation only for constrained resources
-  const flexibleSupplyRatios = new Map<string, number>();
+  // Supply-balanced consumers run first so demand-balanced producers can see
+  // their actual deficits. Demand-balanced chains run downstream-to-upstream.
+  const balancedSupplyRatios = new Map<ProductionLine, number>();
 
-  for (const line of flexibleLines) {
+  for (const line of [...supplyBalancedLines, ...demandBalancedLines]) {
     if (line.buildingCount === 0) {
-      flexibleSupplyRatios.set(line.recipe.id, 0);
+      balancedSupplyRatios.set(line, 0);
       continue;
     }
 
@@ -156,7 +194,7 @@ export const calculateNet = (
     let ratio = 1;
 
     for (const input of line.recipe.inputs) {
-      if (!line.recipe.loadBalancesInput && !constrained.has(input.resourceId)) continue;
+      if (line.recipe.balanceBy !== "input" && !constrained.has(input.resourceId)) continue;
       const f = getFlow(input.resourceId);
       const available = f.produced - f.consumed;
       const needed = input.quantity * factor;
@@ -168,7 +206,7 @@ export const calculateNet = (
 
     // Explicit load balancers run only enough to cover the largest outstanding
     // co-product deficit; outputs with no downstream consumer remain unrestricted.
-    if (line.recipe.loadBalancesOutput) {
+    if (line.recipe.balanceBy === "output") {
       const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
         const flow = flows.get(output.resourceId);
         const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
@@ -183,7 +221,7 @@ export const calculateNet = (
       }
     }
 
-    flexibleSupplyRatios.set(line.recipe.id, ratio);
+    balancedSupplyRatios.set(line, ratio);
 
     const m = factor * ratio;
 
@@ -198,8 +236,9 @@ export const calculateNet = (
     recipe: line.recipe,
     buildingCount: line.buildingCount,
     totalBuildings: line.totalBuildings,
-    pinned: pinnedIds.has(line.recipe.id),
-    supplyRatio: pinnedIds.has(line.recipe.id) ? 1 : (flexibleSupplyRatios.get(line.recipe.id) ?? 1),
+    operatingMode: line.operatingMode,
+    supplyRatio: line.operatingMode === "fixed" ? 1 : (balancedSupplyRatios.get(line) ?? 1),
+    speedLevel: line.speedLevel,
     appliedRecyclingEfficiencyPercent: getAppliedRecyclingEfficiencyPercent(
       line.recipe,
       recyclingEfficiencyPercent,
@@ -291,7 +330,7 @@ export const calculateNet = (
         0,
       )
       * result.buildingCount
-      * (lines.find((line) => line.recipe.id === result.recipe.id)?.speedLevel ?? 1)
+      * result.speedLevel
       * result.supplyRatio;
 
     return total + physicalQuantity * result.appliedRecyclingEfficiencyPercent / 100;

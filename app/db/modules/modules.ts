@@ -8,10 +8,10 @@ export interface Preset {
   id: string;
   name: string;
   description: string;
-  active: Record<string, number>;
-  pinned: string[];
-  incomingFromModules?: ResourceId[];
-  incomingFromContracts?: ResourceId[];
+  /** Maximum building capacity available to the calculator. Omitted recipes use the installed total. */
+  available: Record<string, number>;
+  /** Recipes forced to run at their available capacity. Every other recipe is automatically balanced. */
+  fixed: string[];
   externalInputs?: Partial<Record<ResourceId, number>>;
   outputTargets?: Partial<Record<ResourceId, number>>;
   buildingTotals?: Record<string, number>;
@@ -25,8 +25,6 @@ export interface Module {
   buildingTotals: Record<string, number>;
   presets: Preset[];
   defaultPresetId: string | null;
-  incomingFromModules?: ResourceId[];
-  incomingFromContracts?: ResourceId[];
   externalInputs?: Partial<Record<ResourceId, number>>;
   /** Resources reported inside this module but intentionally excluded from Factory Total. */
   localResources?: ResourceId[];

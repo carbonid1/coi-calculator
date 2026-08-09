@@ -14,7 +14,7 @@ const plantInfra = {
   "cooling-tower-large-super": 1,
 };
 
-const fuelPinnedYc = ["fbr"];
+const fuelFixedYc = ["fbr"];
 
 export const fbrPowerPlant: Module = {
   id: "fbr-power-plant",
@@ -35,7 +35,7 @@ export const fbrPowerPlant: Module = {
         "shredder-retired-waste": 1,
         ...plantInfra,
       },
-      active: {
+      available: {
         "fbr": 1,
         "nuclear-reprocessing": 1,
         "enrichment-plant": 1,
@@ -43,8 +43,7 @@ export const fbrPowerPlant: Module = {
         "radioactive-waste-storage": 1,
         "shredder-retired-waste": 1,
       },
-      pinned: fuelPinnedYc,
-      incomingFromModules: ["yellowcake"],
+      fixed: fuelFixedYc,
     },
   ],
   defaultPresetId: "1fbr-yc",

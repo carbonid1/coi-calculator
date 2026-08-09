@@ -19,25 +19,25 @@ export const fuelReprocessing: Module = {
       id: "default",
       name: "Default",
       description: "Spent fuel reprocessing active, no MOX",
-      active: {
+      available: {
         "nuclear-reprocessing": 0.25,
         "enrichment-plant": 0.5,
         "nuclear-reprocessing-spent-fuel": 1,
         "nuclear-reprocessing-spent-mox": 0,
       },
-      pinned: ["nuclear-reprocessing", "enrichment-plant", "nuclear-reprocessing-spent-fuel", "nuclear-reprocessing-spent-mox"],
+      fixed: ["nuclear-reprocessing", "enrichment-plant", "nuclear-reprocessing-spent-fuel", "nuclear-reprocessing-spent-mox"],
     },
     {
       id: "with-mox",
       name: "With MOX",
       description: "Both spent fuel and spent MOX reprocessing active",
-      active: {
+      available: {
         "nuclear-reprocessing": 0.25,
         "enrichment-plant": 0.5,
         "nuclear-reprocessing-spent-fuel": 1,
         "nuclear-reprocessing-spent-mox": 1,
       },
-      pinned: ["nuclear-reprocessing", "enrichment-plant", "nuclear-reprocessing-spent-fuel", "nuclear-reprocessing-spent-mox"],
+      fixed: ["nuclear-reprocessing", "enrichment-plant", "nuclear-reprocessing-spent-fuel", "nuclear-reprocessing-spent-mox"],
     },
   ],
   defaultPresetId: "default",

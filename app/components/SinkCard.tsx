@@ -1,6 +1,7 @@
 import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
 import { BuildingCount } from "./BuildingCount";
+import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   result: PassiveResult;
@@ -22,13 +23,7 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
     : 0;
 
   return (
-    <div
-      className={`rounded-lg border border-dashed p-4 ${
-        inactive
-          ? "border-gray-300 opacity-40 dark:border-gray-600"
-          : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
-      }`}
-    >
+    <ProductionCard operatingMode="balanced" inactive={inactive} passive className="p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
@@ -79,6 +74,6 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
           </div>
         </div>
       )}
-    </div>
+    </ProductionCard>
   );
 };

@@ -9,6 +9,7 @@ export interface Ingredient {
 
 export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
 export type OutputModifierId = "maintenanceOutput" | "solarPower";
+export type BalanceBy = "input" | "output";
 
 export interface DecayStorage {
   capacity: number;
@@ -23,8 +24,8 @@ export interface Recipe {
   inputs: Ingredient[];
   outputs: Ingredient[];
   decayStorage?: DecayStorage;
-  loadBalancesInput?: boolean;
-  loadBalancesOutput?: boolean;
+  /** The resource side that determines utilization when this recipe is not fixed by its preset. */
+  balanceBy?: BalanceBy;
   cycleDurationSeconds?: number;
   /**
    * Whether creating Recyclables applies the global recycling-efficiency loss.
@@ -412,7 +413,7 @@ export const recipes: Recipe[] = [
     name: "Chemical Plant (Yellowcake → Blanket Fuel)",
     building: "Chemical Plant II",
     group: "production",
-    loadBalancesOutput: true,
+    balanceBy: "output",
     inputs: [
       { resourceId: "yellowcake", quantity: 6 },
       { resourceId: "salt", quantity: 2 },
@@ -468,7 +469,7 @@ export const recipes: Recipe[] = [
       capacity: radioactiveWasteStorageCapacity,
       decayCycles: fissionProductDecayCycles,
     },
-    loadBalancesInput: true,
+    balanceBy: "input",
   },
   {
     id: "shredder-retired-waste",
@@ -483,10 +484,25 @@ export const recipes: Recipe[] = [
     ],
     // Preserve the recoverable source materials carried by Retired Waste.
     appliesRecyclingEfficiency: false,
-    loadBalancesInput: true,
+    balanceBy: "input",
   },
 
   // Uranium processing
+  {
+    id: "mixer-ii-acid",
+    name: "Mixer II (Acid)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "sulfur", quantity: 12 },
+      { resourceId: "water", quantity: 60 },
+    ],
+    outputs: [
+      { resourceId: "acid", quantity: 72 },
+    ],
+  },
   {
     id: "crusher",
     name: "Crusher (Uranium Ore)",
@@ -504,6 +520,7 @@ export const recipes: Recipe[] = [
     name: "Crusher (Large) — Uranium Ore",
     building: "Crusher (Large)",
     group: "production",
+    balanceBy: "output",
     inputs: [
       { resourceId: "uraniumOre", quantity: 72 },
     ],

@@ -5,8 +5,6 @@ import { typedEntries } from "../helpers/typed-entries/typed-entries";
 interface Props {
   flows: ResourceFlow[];
   externalInputs?: Partial<Record<ResourceId, number>>;
-  incomingFromModules?: ResourceId[];
-  incomingFromContracts?: ResourceId[];
   workers?: number;
   electricityConsumptionKw?: number;
   groupByBalance?: boolean;
@@ -21,18 +19,19 @@ const formatNet = (net: number) => {
   return net > 0 ? `+${rounded}` : `${rounded}`;
 };
 
-export const NetSummary: React.FC<Props> = ({ flows, externalInputs, incomingFromModules = [], incomingFromContracts = [], workers, electricityConsumptionKw, groupByBalance = false }) => {
+export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw, groupByBalance = false }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
-  const moduleIncomingIds = new Set(incomingFromModules);
-  const contractIncomingIds = new Set(incomingFromContracts);
 
   const electricityFlow = flows.find((f) => f.resourceId === "electricity");
-  const moduleIncomingFlows = flows.filter((flow) => flow.net < 0 && moduleIncomingIds.has(flow.resourceId));
-  const contractIncomingFlows = flows.filter((flow) => flow.net < 0 && contractIncomingIds.has(flow.resourceId));
-  const regularFlows = flows.filter(
-    (flow) => flow.resourceId !== "electricity"
-      && !(flow.net < 0 && (moduleIncomingIds.has(flow.resourceId) || contractIncomingIds.has(flow.resourceId))),
-  );
+  const materialFlows = flows.filter((flow) => flow.resourceId !== "electricity");
+  const moduleInputFlows = groupByBalance
+    ? []
+    : materialFlows
+        .filter((flow) => flow.net < -BALANCE_THRESHOLD)
+        .toSorted((a, b) => a.name.localeCompare(b.name));
+  const regularFlows = groupByBalance
+    ? materialFlows
+    : materialFlows.filter((flow) => flow.net >= -BALANCE_THRESHOLD);
   const balanceGroups = [
     {
       label: "Deficit",
@@ -54,7 +53,7 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, incomingFro
     flows: group.flows.toSorted((a, b) => a.name.localeCompare(b.name)),
   }));
 
-  if (regularFlows.length === 0 && moduleIncomingFlows.length === 0 && contractIncomingFlows.length === 0 && externalEntries.length === 0 && !electricityFlow) return null;
+  if (regularFlows.length === 0 && moduleInputFlows.length === 0 && externalEntries.length === 0 && !electricityFlow) return null;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -131,30 +130,12 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, incomingFro
         </div>
       )}
 
-      {moduleIncomingFlows.length > 0 && (
+      {moduleInputFlows.length > 0 && (
         <div className="mb-3 space-y-1 border-b border-border pb-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            From other modules
+            Module inputs
           </p>
-          {moduleIncomingFlows.map((flow) => (
-            <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
-              <span className="text-muted-foreground">
-                {flow.name}
-              </span>
-              <span className="font-mono font-semibold text-foreground">
-                {parseFloat(Math.abs(flow.net).toFixed(2))}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {contractIncomingFlows.length > 0 && (
-        <div className="mb-3 space-y-1 border-b border-border pb-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            From contracts
-          </p>
-          {contractIncomingFlows.map((flow) => (
+          {moduleInputFlows.map((flow) => (
             <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
               <span className="text-muted-foreground">
                 {flow.name}

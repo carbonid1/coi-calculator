@@ -3,26 +3,26 @@ import { type Module } from "./modules";
 export const general: Module = {
   id: "general",
   name: "General",
-  description: "Shared production capacity for yellowcake and future processing chains",
+  description: "Shared production capacity for yellowcake and supporting materials",
   buildingTotals: {
     "crusher-large": 3,
     "settling-tank": 2,
+    "mixer-ii-acid": 1,
   },
   presets: [
     {
       id: "yellowcake",
       name: "Yellowcake",
-      description: "1 of 3 large crushers active + 2 settling tanks — 72 UO in, 12 YC + 72 toxic slurry out",
+      description: "1 of 3 large crushers active + 2 settling tanks with demand-balanced acid",
       buildingTotals: {
         "crusher-large": 3,
         "settling-tank": 2,
+        "mixer-ii-acid": 1,
       },
-      active: {
-        "crusher-large": 1,
+      available: {
         "settling-tank": 2,
       },
-      pinned: ["crusher-large", "settling-tank"],
-      incomingFromContracts: ["uraniumOre"],
+      fixed: ["settling-tank"],
     },
   ],
   defaultPresetId: "yellowcake",

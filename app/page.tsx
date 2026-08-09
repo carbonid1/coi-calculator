@@ -118,8 +118,6 @@ const Page = () => {
     : null;
 
   const resolvedExternalInputs = preset?.externalInputs ?? activeModule?.externalInputs;
-  const incomingFromModules = preset?.incomingFromModules ?? activeModule?.incomingFromModules;
-  const incomingFromContracts = preset?.incomingFromContracts ?? activeModule?.incomingFromContracts;
   const recyclingEfficiencyPercent = calculateRecyclingEfficiency(recyclingIncreaseLevel).effectivePercent;
   const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
   const solarPowerOutput = calculateSolarPower(solarPowerLevel, cleanPanelsLevel);
@@ -130,10 +128,9 @@ const Page = () => {
 
   const moduleResult = activeModule
     ? (() => {
-        const { lines, pinnedIds } = buildModuleLines(activeModule, preset, outputModifiers);
+        const { lines } = buildModuleLines(activeModule, preset, outputModifiers);
         const calc = calculateNet(
           lines,
-          pinnedIds,
           resolvedExternalInputs,
           recyclingEfficiencyPercent,
           outputModifiers,
@@ -232,7 +229,7 @@ const Page = () => {
 
       {moduleResult && activeModule && (
         <>
-          <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} incomingFromModules={incomingFromModules} incomingFromContracts={incomingFromContracts} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
+          <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
 
           {grouped.map(({ group, label, items }) => (
             <div key={group} className="space-y-3">
@@ -265,6 +262,7 @@ const Page = () => {
                         storage={line.recipe.decayStorage}
                         activeCount={line.buildingCount}
                         totalCount={line.totalBuildings}
+                        operatingMode={result?.operatingMode ?? "balanced"}
                       />
                     );
                   }
@@ -276,7 +274,7 @@ const Page = () => {
                       activeCount={line.buildingCount}
                       totalCount={line.totalBuildings}
                       supplyRatio={result?.supplyRatio ?? 1}
-                      pinned={result?.pinned ?? false}
+                      operatingMode={result?.operatingMode ?? "balanced"}
                       speedLevel={line.speedLevel}
                       outputModifiers={outputModifiers}
                     />

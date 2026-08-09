@@ -7,10 +7,10 @@ import { calculateNet } from "./calculate";
 
 it("matches the verified yellowcake game rates", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId)!;
-  const { lines, pinnedIds } = buildModuleLines(general, preset);
+  const { lines } = buildModuleLines(general, preset);
   const settlingTank = lines.find((line) => line.recipe.id === "settling-tank")!;
   const uraniumOrePowder = settlingTank.recipe.inputs.find((input) => input.resourceId === "uraniumOrePowder")!;
-  const { resourceFlows } = calculateNet(lines, pinnedIds);
+  const { resourceFlows } = calculateNet(lines);
   const yellowcake = resourceFlows.find((flow) => flow.resourceId === "yellowcake")!;
 
   expect(uraniumOrePowder.quantity * settlingTank.buildingCount * settlingTank.speedLevel).toBe(72);
@@ -26,7 +26,6 @@ it("matches the verified yellowcake game rates", () => {
   )!;
   const maintenanceResult = calculateNet(
     [maintenanceLine],
-    new Set([maintenanceLine.recipe.id]),
     {},
     50,
     outputModifiers,

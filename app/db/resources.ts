@@ -25,6 +25,7 @@ export const resources = {
   moxRod: { id: "moxRod", name: "MOX Rod", state: "unit" },
   salt: { id: "salt", name: "Salt", state: "loose" },
   plutonium: { id: "plutonium", name: "Plutonium", state: "unit" },
+  sulfur: { id: "sulfur", name: "Sulfur", state: "loose" },
   acid: { id: "acid", name: "Acid", state: "fluid" },
   moltenGlass: { id: "moltenGlass", name: "Molten Glass", state: "fluid" },
   steel: { id: "steel", name: "Steel", state: "unit" },

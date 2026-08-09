@@ -7,15 +7,16 @@ export const buildModuleLines = (
   mod: Module,
   preset: Preset | null,
   outputModifiers: OutputModifierMultipliers = {},
-): { lines: ProductionLine[]; pinnedIds: Set<string> } => {
+): { lines: ProductionLine[] } => {
   const totals = preset?.buildingTotals ?? mod.buildingTotals;
   const visibleRecipes = recipes.filter((r) => r.id in totals);
+  const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
   const lines: ProductionLine[] = visibleRecipes.map((recipe) => {
     const total = totals[recipe.id] ?? 0;
     const speedLevel = preset?.speedLevels?.[recipe.id] ?? 1;
-    const configuredActive = preset && recipe.id in preset.active
-      ? (preset.active[recipe.id] ?? total)
+    const configuredAvailable = preset && recipe.id in preset.available
+      ? (preset.available[recipe.id] ?? total)
       : total;
     const targetRatios = recipe.outputs.flatMap((output) => {
       const target = preset?.outputTargets?.[output.resourceId];
@@ -28,12 +29,16 @@ export const buildModuleLines = (
     });
     const active = targetRatios.length > 0
       ? Math.min(total, Math.max(...targetRatios))
-      : configuredActive;
+      : configuredAvailable;
 
-    return { recipe, buildingCount: active, totalBuildings: total, speedLevel };
+    return {
+      recipe,
+      buildingCount: active,
+      totalBuildings: total,
+      speedLevel,
+      operatingMode: fixedIds.has(recipe.id) ? "fixed" : "balanced",
+    };
   });
 
-  const pinnedIds = preset ? new Set(preset.pinned) : new Set<string>();
-
-  return { lines, pinnedIds };
+  return { lines };
 };

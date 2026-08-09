@@ -2,18 +2,21 @@ import { Card } from "@carbonid1/design-system";
 
 import { type DecayStorage, type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
+import { type OperatingMode } from "../helpers/calculate/calculate";
 import { BuildingCount } from "./BuildingCount";
+import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   recipe: Recipe;
   storage: DecayStorage;
   activeCount: number;
   totalCount: number;
+  operatingMode: OperatingMode;
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2)).toLocaleString();
 
-export const StorageCard: React.FC<Props> = ({ recipe, storage, activeCount, totalCount }) => {
+export const StorageCard: React.FC<Props> = ({ recipe, storage, activeCount, totalCount, operatingMode }) => {
   const input = recipe.inputs[0];
 
   if (!input) return null;
@@ -21,7 +24,7 @@ export const StorageCard: React.FC<Props> = ({ recipe, storage, activeCount, tot
   const maxSustainedInput = storage.capacity / storage.decayCycles * activeCount;
 
   return (
-    <Card.Root>
+    <ProductionCard operatingMode={operatingMode}>
       <Card.Content>
         <Card.Header>
           <Card.Title>{recipe.building}</Card.Title>
@@ -40,6 +43,6 @@ export const StorageCard: React.FC<Props> = ({ recipe, storage, activeCount, tot
           </dd>
         </dl>
       </Card.Content>
-    </Card.Root>
+    </ProductionCard>
   );
 };

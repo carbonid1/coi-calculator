@@ -1,34 +1,28 @@
-import { cn } from "@carbonid1/design-system";
-
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
+import { type OperatingMode } from "../helpers/calculate/calculate";
 import { getRecipeOutputQuantity, type OutputModifierMultipliers } from "../helpers/modifiers/recipe-output";
 import { BuildingCount } from "./BuildingCount";
+import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   recipe: Recipe;
   activeCount: number;
   totalCount: number;
   supplyRatio: number;
-  pinned: boolean;
+  operatingMode: OperatingMode;
   speedLevel: number;
   outputModifiers?: OutputModifierMultipliers;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, pinned, speedLevel, outputModifiers }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, operatingMode, speedLevel, outputModifiers }) => {
   const buildingMultiplier = activeCount * supplyRatio;
   const effective = Math.round(buildingMultiplier * 100) / 100;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = effective === 0;
 
   return (
-    <div
-      className={cn("rounded-lg border p-4", {
-        "border-dashed border-gray-300 opacity-40 dark:border-gray-600": inactive,
-        "border-blue-200 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/30": !inactive && pinned,
-        "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800": !inactive && !pinned,
-      })}
-    >
+    <ProductionCard operatingMode={operatingMode} inactive={inactive} className="p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
@@ -81,6 +75,6 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
           </div>
         </div>
       )}
-    </div>
+    </ProductionCard>
   );
 };

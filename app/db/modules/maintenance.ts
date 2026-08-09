@@ -15,7 +15,7 @@ const activeRecipeIds = {
   maintenanceIII: "maintenance-iii-recycling",
 } as const;
 
-const active = {
+const available = {
   [activeRecipeIds.maintenanceI]: 1,
   [activeRecipeIds.maintenanceII]: 1,
   [activeRecipeIds.maintenanceIII]: 1,
@@ -35,9 +35,8 @@ export const maintenance: Module = {
       id: "current-demand",
       name: "Current demand",
       description: "10-year average: 83% Maintenance I, 29% Maintenance II, and 50% Maintenance III load",
-      active,
-      pinned: Object.values(activeRecipeIds),
-      incomingFromModules: ["mechanicalParts", "electronicsI", "electronicsII", "electronicsIII"],
+      available,
+      fixed: Object.values(activeRecipeIds),
       outputTargets: maintenanceDemandPerMonth,
     },
   ],
