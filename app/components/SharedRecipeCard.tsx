@@ -48,7 +48,7 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="font-semibold text-foreground">
-          {firstLine.recipe.building}
+          {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
         </h3>
         <BuildingCount effective={roundedEffective} total={totalBuildings} />
       </div>

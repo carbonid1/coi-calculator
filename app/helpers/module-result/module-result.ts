@@ -40,13 +40,7 @@ export const extractModuleResult = (
   }
 
   const recyclableSourceValueProduced = regularResults.reduce((total, result) => {
-    if (result.appliedRecyclingEfficiencyPercent == null) return total;
-
-    const recyclables = result.actualOutputs
-      .filter((output) => output.resourceId === "recyclables")
-      .reduce((quantity, output) => quantity + output.quantity, 0);
-
-    return total + recyclables * result.appliedRecyclingEfficiencyPercent / 100;
+    return total + result.recyclableSourceValueProduced;
   }, 0);
 
   const resourceFlows = [...flows].flatMap<ResourceFlow>(([

@@ -15,6 +15,10 @@ export type SharedCapacityAllocation = "primary" | "fallback";
 export interface SharedCapacity {
   /** Recipes with the same ID share one installed building pool inside a module. */
   id: string;
+  /** Optional UI label for distinguishing separate pools of the same building type. */
+  label?: string;
+  /** Optional UI order; larger values render later than ordinary production cards. */
+  displayOrder?: number;
   /** Lower values are allocated first, matching the in-game recipe order. */
   priority: number;
   /** Fallback recipes receive only capacity left after primary recipes. */
@@ -36,6 +40,8 @@ export interface Recipe {
   decayStorage?: DecayStorage;
   /** The resource side that determines utilization when this recipe is not fixed by its preset. */
   balanceBy?: BalanceBy;
+  /** Inputs that set an input-balanced recipe's utilization; defaults to every input. */
+  balanceInputIds?: ResourceId[];
   /** Outputs that create demand for an output-balanced recipe; defaults to every output. */
   balanceOutputIds?: ResourceId[];
   sharedCapacity?: SharedCapacity;
@@ -46,6 +52,8 @@ export interface Recipe {
    * recycling as the only observed built-in bypass.
    */
   appliesRecyclingEfficiency?: boolean;
+  /** Emits the recoverable material composition carried by Recyclables. */
+  sortsRecyclableSources?: boolean;
 }
 
 const radioactiveWasteStorageCapacity = 2400;
@@ -292,7 +300,7 @@ export const recipes: Recipe[] = [
     ],
   },
 
-  // Electronics I chain
+  // Electronics chains
   {
     id: "assembly-v-electronics-i",
     name: "Assembly V (Electronics I)",
@@ -306,6 +314,283 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: "electronicsI", quantity: 96 },
+    ],
+  },
+  {
+    id: "assembly-v-electronics-ii",
+    name: "Assembly V (Electronics II)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "pcb", quantity: 24 },
+      { resourceId: "electronicsI", quantity: 48 },
+      { resourceId: "polySilicon", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "electronicsII", quantity: 24 },
+    ],
+  },
+  {
+    id: "assembly-v-pcb",
+    name: "Assembly V (PCB)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "glass", quantity: 12 },
+      { resourceId: "plastic", quantity: 24 },
+      { resourceId: "copper", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "pcb", quantity: 48 },
+    ],
+  },
+  {
+    id: "silicon-reactor-poly-silicon",
+    name: "Silicon Reactor (Poly Silicon)",
+    building: "Silicon Reactor",
+    group: "production",
+    cycleDurationSeconds: 15,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "moltenSilicon", quantity: 12 },
+      { resourceId: "hydrogen", quantity: 4 },
+    ],
+    outputs: [
+      { resourceId: "polySilicon", quantity: 12 },
+    ],
+  },
+  {
+    id: "crystallizer-silicon-wafer",
+    name: "Crystallizer (Silicon Wafer)",
+    building: "Crystallizer",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "polySilicon", quantity: 24 },
+      { resourceId: "water", quantity: 4 },
+    ],
+    outputs: [
+      { resourceId: "siliconWafer", quantity: 12 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-1a",
+    name: "Microchip Machine II (1A: Acid + water)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 1, displayOrder: 100 },
+    inputs: [
+      { resourceId: "siliconWafer", quantity: 18 },
+      { resourceId: "acid", quantity: 6 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage1A", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-1b",
+    name: "Microchip Machine II (1B: Copper + plastic)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 1, displayOrder: 101 },
+    inputs: [
+      { resourceId: "microchipStage1A", quantity: 18 },
+      { resourceId: "copper", quantity: 6 },
+      { resourceId: "plastic", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage1B", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-1c",
+    name: "Microchip Machine II (1C: Gold)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 1, displayOrder: 102 },
+    inputs: [
+      { resourceId: "microchipStage1B", quantity: 18 },
+      { resourceId: "gold", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage1C", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-2a",
+    name: "Microchip Machine II (2A: Acid + water)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 2, displayOrder: 100 },
+    inputs: [
+      { resourceId: "microchipStage1C", quantity: 18 },
+      { resourceId: "acid", quantity: 6 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage2A", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-2b",
+    name: "Microchip Machine II (2B: Copper + plastic)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 2, displayOrder: 101 },
+    inputs: [
+      { resourceId: "microchipStage2A", quantity: 18 },
+      { resourceId: "copper", quantity: 6 },
+      { resourceId: "plastic", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage2B", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-2c",
+    name: "Microchip Machine II (2C: Gold)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 2, displayOrder: 102 },
+    inputs: [
+      { resourceId: "microchipStage2B", quantity: 18 },
+      { resourceId: "gold", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage2C", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-3a",
+    name: "Microchip Machine II (3A: Acid + water)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 3, displayOrder: 100 },
+    inputs: [
+      { resourceId: "microchipStage2C", quantity: 18 },
+      { resourceId: "acid", quantity: 6 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage3A", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-3b",
+    name: "Microchip Machine II (3B: Copper + plastic)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 3, displayOrder: 101 },
+    inputs: [
+      { resourceId: "microchipStage3A", quantity: 18 },
+      { resourceId: "copper", quantity: 6 },
+      { resourceId: "plastic", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage3B", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-3c",
+    name: "Microchip Machine II (3C: Gold)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 3, displayOrder: 102 },
+    inputs: [
+      { resourceId: "microchipStage3B", quantity: 18 },
+      { resourceId: "gold", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage3C", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-4a",
+    name: "Microchip Machine II (4A: Acid + water)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 4, displayOrder: 100 },
+    inputs: [
+      { resourceId: "microchipStage3C", quantity: 18 },
+      { resourceId: "acid", quantity: 6 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage4A", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-4b",
+    name: "Microchip Machine II (4B: Copper + plastic)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 4, displayOrder: 101 },
+    inputs: [
+      { resourceId: "microchipStage4A", quantity: 18 },
+      { resourceId: "copper", quantity: 6 },
+      { resourceId: "plastic", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchipStage4B", quantity: 18 },
+    ],
+  },
+  {
+    id: "microchip-machine-ii-final",
+    name: "Microchip Machine II (4C: Microchips)",
+    building: "Microchip Machine II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 4, displayOrder: 102 },
+    inputs: [
+      { resourceId: "microchipStage4B", quantity: 18 },
+      { resourceId: "gold", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "microchips", quantity: 36 },
+    ],
+  },
+  {
+    id: "assembly-v-electronics-iii",
+    name: "Assembly V (Electronics III)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "microchips", quantity: 6 },
+      { resourceId: "electronicsII", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "electronicsIII", quantity: 6 },
     ],
   },
   {
@@ -390,6 +675,96 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: "copper", quantity: 24 },
+    ],
+  },
+  {
+    id: "waste-sorting-recyclables",
+    name: "Waste Sorting Plant",
+    building: "Waste Sorting Plant",
+    group: "production",
+    balanceBy: "input",
+    inputs: [
+      { resourceId: "recyclables", quantity: 144 },
+    ],
+    // In v0.8.6 the sorter emits the hidden recoverable-material mix carried by
+    // its Recyclables input. These placeholders are resolved by the calculator.
+    outputs: [
+      { resourceId: "ironScrap", quantity: 0 },
+      { resourceId: "copperScrap", quantity: 0 },
+      { resourceId: "aluminumScrap", quantity: 0 },
+      { resourceId: "goldScrap", quantity: 0 },
+      { resourceId: "brokenGlass", quantity: 0 },
+    ],
+    sortsRecyclableSources: true,
+  },
+  {
+    id: "arc-furnace-ii-copper-scrap",
+    name: "Arc Furnace II (Copper Scrap — priority 1)",
+    building: "Arc Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["copperScrap"],
+    sharedCapacity: { id: "arc-furnace-ii-copper", priority: 1 },
+    inputs: [
+      { resourceId: "copperScrap", quantity: 48 },
+      { resourceId: "graphite", quantity: 3 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "moltenCopper", quantity: 48 },
+      { resourceId: "steamLow", quantity: 6 },
+      { resourceId: "exhaust", quantity: 6 },
+    ],
+  },
+  {
+    id: "arc-furnace-ii-copper-ore",
+    name: "Arc Furnace II (Crushed Ore — priority 2)",
+    building: "Arc Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["moltenCopper"],
+    sharedCapacity: { id: "arc-furnace-ii-copper", priority: 2 },
+    inputs: [
+      { resourceId: "copperOreCrushed", quantity: 48 },
+      { resourceId: "sand", quantity: 6 },
+      { resourceId: "graphite", quantity: 3 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "moltenCopper", quantity: 48 },
+      { resourceId: "slag", quantity: 18 },
+      { resourceId: "steamLow", quantity: 6 },
+      { resourceId: "exhaust", quantity: 12 },
+    ],
+  },
+  {
+    id: "metal-caster-ii-copper",
+    name: "Metal Caster II (Copper)",
+    building: "Metal Caster II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "moltenCopper", quantity: 24 },
+    ],
+    outputs: [
+      { resourceId: "impureCopper", quantity: 24 },
+    ],
+  },
+  {
+    id: "crusher-large-copper",
+    name: "Crusher (Large) — Copper Ore",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "copperOre", quantity: 192 },
+    ],
+    outputs: [
+      { resourceId: "copperOreCrushed", quantity: 192 },
     ],
   },
 

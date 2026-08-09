@@ -37,5 +37,5 @@ it("matches the verified yellowcake game rates", () => {
   expect({
     produced: Number(recyclables.produced.toFixed(5)),
     sourceValue: Number(recyclables.recyclableSourceValueProduced?.toFixed(5)),
-  }).toEqual({ produced: 14.94, sourceValue: 7.47 });
+  }).toEqual({ produced: 14.94, sourceValue: 14.94 });
 });

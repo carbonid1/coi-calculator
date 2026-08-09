@@ -69,7 +69,10 @@ const groupSharedProductionLines = (lines: ProductionLine[]) => {
     groups.push({ key: line.capacityPoolId, lines: sharedLines });
   }
 
-  return groups;
+  return groups.toSorted((a, b) => (
+    (a.lines[0]?.recipe.sharedCapacity?.displayOrder ?? 0)
+    - (b.lines[0]?.recipe.sharedCapacity?.displayOrder ?? 0)
+  ));
 };
 
 const activeModuleIdSchema = z.enum([MODIFIERS_ID, CONTRACTS_ID, FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
@@ -302,6 +305,8 @@ const Page = () => {
                       supplyRatio={result?.supplyRatio ?? 1}
                       operatingMode={result?.operatingMode ?? "balanced"}
                       speedLevel={line.speedLevel}
+                      actualInputs={result?.actualInputs}
+                      actualOutputs={result?.actualOutputs}
                       outputModifiers={outputModifiers}
                     />
                   );

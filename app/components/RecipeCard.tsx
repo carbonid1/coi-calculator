@@ -12,10 +12,12 @@ interface Props {
   supplyRatio: number;
   operatingMode: OperatingMode;
   speedLevel: number;
+  actualInputs?: { resourceId: keyof typeof resources; quantity: number }[];
+  actualOutputs?: { resourceId: keyof typeof resources; quantity: number }[];
   outputModifiers?: OutputModifierMultipliers;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, operatingMode, speedLevel, outputModifiers }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers }) => {
   const buildingMultiplier = activeCount * supplyRatio;
   const effective = Math.round(buildingMultiplier * 100) / 100;
   const ioMultiplier = buildingMultiplier * speedLevel;
@@ -53,7 +55,8 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
                   {resources[input.resourceId].name}
                 </span>
                 <span className="shrink-0 font-mono text-red-600 dark:text-red-400">
-                  {parseFloat((input.quantity * ioMultiplier).toFixed(2))}
+                  {parseFloat((actualInputs?.find((actual) => actual.resourceId === input.resourceId)?.quantity
+                    ?? input.quantity * ioMultiplier).toFixed(2))}
                 </span>
               </div>
             ))}
@@ -68,7 +71,8 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
                   {resources[output.resourceId].name}
                 </span>
                 <span className="shrink-0 font-mono text-green-600 dark:text-green-400">
-                  {parseFloat((getRecipeOutputQuantity(recipe, output, outputModifiers) * ioMultiplier).toFixed(2))}
+                  {parseFloat((actualOutputs?.find((actual) => actual.resourceId === output.resourceId)?.quantity
+                    ?? getRecipeOutputQuantity(recipe, output, outputModifiers) * ioMultiplier).toFixed(2))}
                 </span>
               </div>
             ))}
