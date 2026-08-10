@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { ChickenFarmSettings } from "./components/ChickenFarmSettings";
 import { ContractsView } from "./components/ContractsView";
+import { HousingView } from "./components/HousingView";
 import { MinesView } from "./components/MinesView";
 import { ModifiersView } from "./components/ModifiersView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
@@ -19,7 +20,12 @@ import {
 } from "./db/chicken-farm";
 import { activeContracts } from "./db/contracts";
 import { defaultActiveEdicts } from "./db/edicts";
+import {
+  activeHousingType,
+  defaultHousingCount,
+} from "./db/housing";
 import { createFarmsModule, FARMS_MODULE_ID } from "./db/modules/farms";
+import { HOUSING_MODULE_ID } from "./db/modules/housing";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
 import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
@@ -109,6 +115,7 @@ const chickenFarmSettingsSchema = z.object({
   chickenCount: z.number().int().min(chickenFarm.countStep).max(chickenFarm.capacity).multipleOf(chickenFarm.countStep),
   slaughtering: z.boolean(),
 });
+const housingCountSchema = z.number().int().min(0);
 
 const Page = () => {
   const mounted = useMounted();
@@ -142,6 +149,11 @@ const Page = () => {
     "coi-chicken-farm-settings",
     chickenFarmSettingsSchema,
     defaultChickenFarmSettings,
+  );
+  const [housingCount, setHousingCount] = useLocalStorage(
+    "coi-housing-count",
+    housingCountSchema,
+    defaultHousingCount,
   );
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
@@ -262,7 +274,15 @@ const Page = () => {
         />
       )}
 
-      {moduleResult && activeModule && (
+      {activeModule?.id === HOUSING_MODULE_ID && (
+        <HousingView
+          housing={activeHousingType}
+          buildingCount={housingCount}
+          onBuildingCountChange={setHousingCount}
+        />
+      )}
+
+      {moduleResult && activeModule && activeModule.id !== HOUSING_MODULE_ID && (
         <>
           {activeModule.id === MINES_MODULE_ID ? (
             <MinesView results={moduleResult.sourceResults} />
