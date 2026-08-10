@@ -90,9 +90,7 @@ export const recipes: Recipe[] = [
     building: "Seawater Pump",
     group: "source",
     inputs: [],
-    outputs: [
-      { resourceId: "seaWater", quantity: 216 },
-    ],
+    outputs: [{ resourceId: "seaWater", quantity: 216 }],
   },
   {
     id: "copper-map-mine",
@@ -100,8 +98,28 @@ export const recipes: Recipe[] = [
     building: "Copper Ore Mine",
     group: "source",
     inputs: [],
+    outputs: [{ resourceId: "copperOre", quantity: 0 }],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
+  },
+  {
+    id: "iron-map-mine",
+    name: "Iron Ore (Map Mine)",
+    building: "Iron Ore Mine",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "ironOre", quantity: 0 }],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
+  },
+  {
+    id: "limestone-map-mine",
+    name: "Limestone (Map Mine)",
+    building: "Limestone Mine",
+    group: "source",
+    inputs: [],
     outputs: [
-      { resourceId: "copperOre", quantity: 0 },
+      { resourceId: "limestone", quantity: 0 },
     ],
     sourceMode: "demand",
     sourceKind: "map-mine",
@@ -112,9 +130,7 @@ export const recipes: Recipe[] = [
     building: "Sulfur World Mine",
     group: "source",
     inputs: [],
-    outputs: [
-      { resourceId: "sulfur", quantity: 0 },
-    ],
+    outputs: [{ resourceId: "sulfur", quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "world-mine",
   },
@@ -124,9 +140,7 @@ export const recipes: Recipe[] = [
     building: "Gold Ore Mine",
     group: "source",
     inputs: [],
-    outputs: [
-      { resourceId: "goldOre", quantity: 0 },
-    ],
+    outputs: [{ resourceId: "goldOre", quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "map-mine",
   },
@@ -136,9 +150,7 @@ export const recipes: Recipe[] = [
     building: "Sand Mine",
     group: "source",
     inputs: [],
-    outputs: [
-      { resourceId: "sand", quantity: 0 },
-    ],
+    outputs: [{ resourceId: "sand", quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "map-mine",
   },
@@ -148,9 +160,7 @@ export const recipes: Recipe[] = [
     building: "Rock Mine",
     group: "source",
     inputs: [],
-    outputs: [
-      { resourceId: "rock", quantity: 0 },
-    ],
+    outputs: [{ resourceId: "rock", quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "map-mine",
   },
@@ -207,9 +217,7 @@ export const recipes: Recipe[] = [
     name: "Super-Pressure Turbine",
     building: "Super-Pressure Turbine",
     group: "electricity",
-    inputs: [
-      { resourceId: "steamSuper", quantity: 48 },
-    ],
+    inputs: [{ resourceId: "steamSuper", quantity: 48 }],
     outputs: [
       { resourceId: "steamHigh", quantity: 48 },
       { resourceId: "electricity", quantity: 15 },
@@ -221,9 +229,7 @@ export const recipes: Recipe[] = [
     name: "High-Pressure Turbine II",
     building: "High-Pressure Turbine II",
     group: "electricity",
-    inputs: [
-      { resourceId: "steamHigh", quantity: 48 },
-    ],
+    inputs: [{ resourceId: "steamHigh", quantity: 48 }],
     outputs: [
       { resourceId: "steamLow", quantity: 48 },
       { resourceId: "electricity", quantity: 10 },
@@ -235,9 +241,7 @@ export const recipes: Recipe[] = [
     name: "Low-Pressure Turbine II",
     building: "Low-Pressure Turbine II",
     group: "electricity",
-    inputs: [
-      { resourceId: "steamLow", quantity: 48 },
-    ],
+    inputs: [{ resourceId: "steamLow", quantity: 48 }],
     outputs: [
       { resourceId: "steamDepleted", quantity: 48 },
       { resourceId: "electricity", quantity: 5 },
@@ -379,13 +383,144 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 60,
     balanceBy: "input",
     balanceInputIds: ["sludge"],
-    inputs: [
-      { resourceId: "sludge", quantity: 18 },
-    ],
+    inputs: [{ resourceId: "sludge", quantity: 18 }],
     outputs: [
       { resourceId: "fuelGas", quantity: 8 },
       { resourceId: "compost", quantity: 3 },
     ],
+  },
+  {
+    id: settlementRecipeIds.biomassCompostMixer,
+    name: "Mixer II (Biomass → Compost)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "input",
+    balanceInputIds: ["biomass"],
+    inputs: [{ resourceId: "biomass", quantity: 24 }],
+    outputs: [{ resourceId: "compost", quantity: 16 }],
+  },
+
+  // Settlement food. Each recipe uses its own dedicated building installation.
+  {
+    id: "mill-wheat",
+    name: "Mill (Wheat)",
+    building: "Mill",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    balanceOutputIds: ["flour"],
+    inputs: [{ resourceId: "wheat", quantity: 16 }],
+    outputs: [
+      { resourceId: "flour", quantity: 16 },
+      { resourceId: "animalFeed", quantity: 2 },
+    ],
+  },
+  {
+    id: "mill-canola-cooking-oil",
+    name: "Mill (Canola → Cooking Oil)",
+    building: "Mill",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    balanceOutputIds: ["cookingOil"],
+    inputs: [{ resourceId: "canola", quantity: 16 }],
+    outputs: [
+      { resourceId: "cookingOil", quantity: 12 },
+      { resourceId: "animalFeed", quantity: 4 },
+    ],
+  },
+  {
+    id: "baking-unit-bread",
+    name: "Baking Unit (Bread)",
+    building: "Baking Unit",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "flour", quantity: 16 },
+      { resourceId: "water", quantity: 8 },
+    ],
+    outputs: [{ resourceId: "bread", quantity: 24 }],
+  },
+  {
+    id: "baking-unit-cake",
+    name: "Baking Unit (Cake)",
+    building: "Baking Unit",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "flour", quantity: 10 },
+      { resourceId: "sugar", quantity: 4 },
+      { resourceId: "cookingOil", quantity: 2 },
+      { resourceId: "eggs", quantity: 2 },
+      { resourceId: "fruit", quantity: 2 },
+    ],
+    outputs: [{ resourceId: "cake", quantity: 14 }],
+  },
+  {
+    id: "food-processor-snack",
+    name: "Food Processor (Snack)",
+    building: "Food Processor",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    balanceOutputIds: ["snack"],
+    inputs: [
+      { resourceId: "corn", quantity: 24 },
+      { resourceId: "sugar", quantity: 6 },
+      { resourceId: "cookingOil", quantity: 3 },
+      { resourceId: "salt", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "snack", quantity: 24 },
+      { resourceId: "biomass", quantity: 3 },
+    ],
+  },
+  {
+    id: "food-processor-sugar",
+    name: "Food Processor (Sugar)",
+    building: "Food Processor",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    balanceOutputIds: ["sugar"],
+    inputs: [
+      { resourceId: "sugarCane", quantity: 15 },
+      { resourceId: "water", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "sugar", quantity: 12 },
+      { resourceId: "biomass", quantity: 6 },
+    ],
+  },
+  {
+    id: "mixer-ii-animal-feed-corn",
+    name: "Mixer II (Animal Feed)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    inputs: [{ resourceId: "corn", quantity: 120 }],
+    outputs: [{ resourceId: "animalFeed", quantity: 144 }],
+  },
+  {
+    id: "mixer-ii-biomass-compost",
+    name: "Mixer II (Biomass → Compost)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "input",
+    // This second installation consumes only factory-wide Biomass left after
+    // primary consumers, including byproducts created by General food recipes.
+    sharedCapacity: {
+      id: "mixer-ii-biomass-compost-general",
+      priority: 1,
+      allocation: "fallback",
+    },
+    inputs: [{ resourceId: "biomass", quantity: 24 }],
+    outputs: [{ resourceId: "compost", quantity: 16 }],
   },
 
   // Medical Supplies I. These are the complete single-recipe steps in v0.8.6;
@@ -401,9 +536,7 @@ export const recipes: Recipe[] = [
       { resourceId: "medicalEquipment", quantity: 48 },
       { resourceId: "disinfectant", quantity: 48 },
     ],
-    outputs: [
-      { resourceId: "medicalSupplies", quantity: 96 },
-    ],
+    outputs: [{ resourceId: "medicalSupplies", quantity: 96 }],
   },
   {
     id: "assembly-v-medical-equipment",
@@ -416,9 +549,7 @@ export const recipes: Recipe[] = [
       { resourceId: "steel", quantity: 24 },
       { resourceId: "plastic", quantity: 24 },
     ],
-    outputs: [
-      { resourceId: "medicalEquipment", quantity: 24 },
-    ],
+    outputs: [{ resourceId: "medicalEquipment", quantity: 24 }],
   },
   {
     id: "chemical-plant-ii-disinfectant",
@@ -431,9 +562,7 @@ export const recipes: Recipe[] = [
       { resourceId: "ethanol", quantity: 4.5 },
       { resourceId: "plastic", quantity: 3 },
     ],
-    outputs: [
-      { resourceId: "disinfectant", quantity: 12 },
-    ],
+    outputs: [{ resourceId: "disinfectant", quantity: 12 }],
   },
 
   // Population wastewater support. The selected Filter Media path uses
@@ -450,9 +579,7 @@ export const recipes: Recipe[] = [
       { resourceId: "manufacturedSand", quantity: 24 },
       { resourceId: "coal", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "filterMedia", quantity: 72 },
-    ],
+    outputs: [{ resourceId: "filterMedia", quantity: 72 }],
   },
   {
     id: "crusher-large-rock-to-gravel",
@@ -461,17 +588,8 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: {
-      id: "crusher-large-filter-media",
-      label: "Crusher (Large) — Filter Media",
-      priority: 1,
-    },
-    inputs: [
-      { resourceId: "rock", quantity: 144 },
-    ],
-    outputs: [
-      { resourceId: "gravel", quantity: 144 },
-    ],
+    inputs: [{ resourceId: "rock", quantity: 144 }],
+    outputs: [{ resourceId: "gravel", quantity: 144 }],
   },
   {
     id: "crusher-large-gravel-to-manufactured-sand",
@@ -480,17 +598,8 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 60,
     balanceBy: "output",
-    sharedCapacity: {
-      id: "crusher-large-filter-media",
-      label: "Crusher (Large) — Filter Media",
-      priority: 2,
-    },
-    inputs: [
-      { resourceId: "gravel", quantity: 48 },
-    ],
-    outputs: [
-      { resourceId: "manufacturedSand", quantity: 48 },
-    ],
+    inputs: [{ resourceId: "gravel", quantity: 48 }],
+    outputs: [{ resourceId: "manufacturedSand", quantity: 48 }],
   },
   {
     id: "coal-maker-wood",
@@ -499,9 +608,7 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 40,
     balanceBy: "output",
-    inputs: [
-      { resourceId: "wood", quantity: 18 },
-    ],
+    inputs: [{ resourceId: "wood", quantity: 18 }],
     outputs: [
       { resourceId: "coal", quantity: 7.5 },
       { resourceId: "exhaust", quantity: 6 },
@@ -515,12 +622,8 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 10,
     balanceBy: "output",
-    inputs: [
-      { resourceId: "brine", quantity: 72 },
-    ],
-    outputs: [
-      { resourceId: "chlorine", quantity: 48 },
-    ],
+    inputs: [{ resourceId: "brine", quantity: 72 }],
+    outputs: [{ resourceId: "chlorine", quantity: 48 }],
   },
 
   // Livestock and food processing
@@ -546,10 +649,9 @@ export const recipes: Recipe[] = [
       },
       {
         resourceId: "chickenCarcass",
-        quantity: chickenFarm.capacity
-          * chickenFarm.birthsPer100Chickens
-          / 100
-          * chickenFarm.carcassPerSlaughteredChicken,
+        quantity:
+          ((chickenFarm.capacity * chickenFarm.birthsPer100Chickens) / 100) *
+          chickenFarm.carcassPerSlaughteredChicken,
       },
     ],
     animalPopulationCapacity: chickenFarm.capacity,
@@ -606,9 +708,7 @@ export const recipes: Recipe[] = [
       { resourceId: "enrichedUranium20", quantity: 2 },
       { resourceId: "salt", quantity: 4 },
     ],
-    outputs: [
-      { resourceId: "coreFuel", quantity: 4 },
-    ],
+    outputs: [{ resourceId: "coreFuel", quantity: 4 }],
   },
   {
     id: "chemical-plant-plutonium",
@@ -619,9 +719,7 @@ export const recipes: Recipe[] = [
       { resourceId: "plutonium", quantity: 1 },
       { resourceId: "salt", quantity: 4 },
     ],
-    outputs: [
-      { resourceId: "coreFuel", quantity: 4 },
-    ],
+    outputs: [{ resourceId: "coreFuel", quantity: 4 }],
   },
   {
     id: "nuclear-reprocessing",
@@ -644,9 +742,7 @@ export const recipes: Recipe[] = [
     name: "Enrichment Plant (Core Fuel)",
     building: "Enrichment Plant",
     group: "production",
-    inputs: [
-      { resourceId: "blanketFuelEnriched", quantity: 8 },
-    ],
+    inputs: [{ resourceId: "blanketFuelEnriched", quantity: 8 }],
     outputs: [
       { resourceId: "blanketFuel", quantity: 6 },
       { resourceId: "coreFuel", quantity: 2 },
@@ -657,9 +753,7 @@ export const recipes: Recipe[] = [
     name: "Enrichment Plant (Plutonium)",
     building: "Enrichment Plant",
     group: "production",
-    inputs: [
-      { resourceId: "blanketFuelEnriched", quantity: 16 },
-    ],
+    inputs: [{ resourceId: "blanketFuelEnriched", quantity: 16 }],
     outputs: [
       { resourceId: "blanketFuel", quantity: 12 },
       { resourceId: "plutonium", quantity: 1 },
@@ -670,9 +764,7 @@ export const recipes: Recipe[] = [
     name: "Enrichment Plant (Enriched Uranium)",
     building: "Enrichment Plant",
     group: "production",
-    inputs: [
-      { resourceId: "blanketFuelEnriched", quantity: 16 },
-    ],
+    inputs: [{ resourceId: "blanketFuelEnriched", quantity: 16 }],
     outputs: [
       { resourceId: "blanketFuel", quantity: 12 },
       { resourceId: "enrichedUranium20", quantity: 2 },
@@ -687,9 +779,7 @@ export const recipes: Recipe[] = [
       { resourceId: "plutonium", quantity: 3 },
       { resourceId: "enrichedUranium4", quantity: 3 },
     ],
-    outputs: [
-      { resourceId: "enrichedUranium20", quantity: 3 },
-    ],
+    outputs: [{ resourceId: "enrichedUranium20", quantity: 3 }],
   },
   {
     id: "assembly-v-compact-reactor",
@@ -701,9 +791,7 @@ export const recipes: Recipe[] = [
       { resourceId: "electronicsIv", quantity: 6 },
       { resourceId: "enrichedUranium20", quantity: 2 },
     ],
-    outputs: [
-      { resourceId: "compactReactor", quantity: 4 },
-    ],
+    outputs: [{ resourceId: "compactReactor", quantity: 4 }],
   },
 
   // Electronics chains
@@ -718,9 +806,7 @@ export const recipes: Recipe[] = [
       { resourceId: "rubber", quantity: 16 },
       { resourceId: "copper", quantity: 96 },
     ],
-    outputs: [
-      { resourceId: "electronicsI", quantity: 96 },
-    ],
+    outputs: [{ resourceId: "electronicsI", quantity: 96 }],
   },
   {
     id: "assembly-v-electronics-ii",
@@ -734,9 +820,7 @@ export const recipes: Recipe[] = [
       { resourceId: "electronicsI", quantity: 48 },
       { resourceId: "polySilicon", quantity: 12 },
     ],
-    outputs: [
-      { resourceId: "electronicsII", quantity: 24 },
-    ],
+    outputs: [{ resourceId: "electronicsII", quantity: 24 }],
   },
   {
     id: "assembly-v-pcb",
@@ -750,9 +834,7 @@ export const recipes: Recipe[] = [
       { resourceId: "plastic", quantity: 24 },
       { resourceId: "copper", quantity: 12 },
     ],
-    outputs: [
-      { resourceId: "pcb", quantity: 48 },
-    ],
+    outputs: [{ resourceId: "pcb", quantity: 48 }],
   },
   {
     id: "assembly-v-food-pack-eggs",
@@ -772,9 +854,7 @@ export const recipes: Recipe[] = [
       { resourceId: "eggs", quantity: 24 },
       { resourceId: "bread", quantity: 48 },
     ],
-    outputs: [
-      { resourceId: "foodPack", quantity: 32 },
-    ],
+    outputs: [{ resourceId: "foodPack", quantity: 32 }],
   },
   {
     id: "assembly-v-food-pack-meat",
@@ -794,9 +874,7 @@ export const recipes: Recipe[] = [
       { resourceId: "meat", quantity: 24 },
       { resourceId: "bread", quantity: 48 },
     ],
-    outputs: [
-      { resourceId: "foodPack", quantity: 32 },
-    ],
+    outputs: [{ resourceId: "foodPack", quantity: 32 }],
   },
   {
     id: "silicon-reactor-poly-silicon",
@@ -809,9 +887,7 @@ export const recipes: Recipe[] = [
       { resourceId: "moltenSilicon", quantity: 12 },
       { resourceId: "hydrogen", quantity: 4 },
     ],
-    outputs: [
-      { resourceId: "polySilicon", quantity: 12 },
-    ],
+    outputs: [{ resourceId: "polySilicon", quantity: 12 }],
   },
   {
     id: "crystallizer-silicon-wafer",
@@ -824,9 +900,7 @@ export const recipes: Recipe[] = [
       { resourceId: "polySilicon", quantity: 24 },
       { resourceId: "water", quantity: 4 },
     ],
-    outputs: [
-      { resourceId: "siliconWafer", quantity: 12 },
-    ],
+    outputs: [{ resourceId: "siliconWafer", quantity: 12 }],
   },
   {
     id: "microchip-machine-ii-1a",
@@ -835,15 +909,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 1, displayOrder: 100 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-a",
+      label: "Microchip Machine II — Stage A",
+      priority: 1,
+      displayOrder: 100,
+    },
     inputs: [
       { resourceId: "siliconWafer", quantity: 18 },
       { resourceId: "acid", quantity: 6 },
       { resourceId: "water", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage1A", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage1A", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-1b",
@@ -852,15 +929,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 1, displayOrder: 101 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-b",
+      label: "Microchip Machine II — Stage B",
+      priority: 1,
+      displayOrder: 101,
+    },
     inputs: [
       { resourceId: "microchipStage1A", quantity: 18 },
       { resourceId: "copper", quantity: 6 },
       { resourceId: "plastic", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage1B", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage1B", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-1c",
@@ -869,14 +949,17 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 1, displayOrder: 102 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-c",
+      label: "Microchip Machine II — Stage C",
+      priority: 1,
+      displayOrder: 102,
+    },
     inputs: [
       { resourceId: "microchipStage1B", quantity: 18 },
       { resourceId: "gold", quantity: 3 },
     ],
-    outputs: [
-      { resourceId: "microchipStage1C", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage1C", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-2a",
@@ -885,15 +968,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 2, displayOrder: 100 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-a",
+      label: "Microchip Machine II — Stage A",
+      priority: 2,
+      displayOrder: 100,
+    },
     inputs: [
       { resourceId: "microchipStage1C", quantity: 18 },
       { resourceId: "acid", quantity: 6 },
       { resourceId: "water", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage2A", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage2A", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-2b",
@@ -902,15 +988,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 2, displayOrder: 101 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-b",
+      label: "Microchip Machine II — Stage B",
+      priority: 2,
+      displayOrder: 101,
+    },
     inputs: [
       { resourceId: "microchipStage2A", quantity: 18 },
       { resourceId: "copper", quantity: 6 },
       { resourceId: "plastic", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage2B", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage2B", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-2c",
@@ -919,14 +1008,17 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 2, displayOrder: 102 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-c",
+      label: "Microchip Machine II — Stage C",
+      priority: 2,
+      displayOrder: 102,
+    },
     inputs: [
       { resourceId: "microchipStage2B", quantity: 18 },
       { resourceId: "gold", quantity: 3 },
     ],
-    outputs: [
-      { resourceId: "microchipStage2C", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage2C", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-3a",
@@ -935,15 +1027,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 3, displayOrder: 100 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-a",
+      label: "Microchip Machine II — Stage A",
+      priority: 3,
+      displayOrder: 100,
+    },
     inputs: [
       { resourceId: "microchipStage2C", quantity: 18 },
       { resourceId: "acid", quantity: 6 },
       { resourceId: "water", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage3A", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage3A", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-3b",
@@ -952,15 +1047,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 3, displayOrder: 101 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-b",
+      label: "Microchip Machine II — Stage B",
+      priority: 3,
+      displayOrder: 101,
+    },
     inputs: [
       { resourceId: "microchipStage3A", quantity: 18 },
       { resourceId: "copper", quantity: 6 },
       { resourceId: "plastic", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage3B", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage3B", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-3c",
@@ -969,14 +1067,17 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 3, displayOrder: 102 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-c",
+      label: "Microchip Machine II — Stage C",
+      priority: 3,
+      displayOrder: 102,
+    },
     inputs: [
       { resourceId: "microchipStage3B", quantity: 18 },
       { resourceId: "gold", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage3C", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage3C", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-4a",
@@ -985,15 +1086,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-a", label: "Microchip Machine II — Stage A", priority: 4, displayOrder: 100 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-a",
+      label: "Microchip Machine II — Stage A",
+      priority: 4,
+      displayOrder: 100,
+    },
     inputs: [
       { resourceId: "microchipStage3C", quantity: 18 },
       { resourceId: "acid", quantity: 6 },
       { resourceId: "water", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage4A", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage4A", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-4b",
@@ -1002,15 +1106,18 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-b", label: "Microchip Machine II — Stage B", priority: 4, displayOrder: 101 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-b",
+      label: "Microchip Machine II — Stage B",
+      priority: 4,
+      displayOrder: 101,
+    },
     inputs: [
       { resourceId: "microchipStage4A", quantity: 18 },
       { resourceId: "copper", quantity: 6 },
       { resourceId: "plastic", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchipStage4B", quantity: 18 },
-    ],
+    outputs: [{ resourceId: "microchipStage4B", quantity: 18 }],
   },
   {
     id: "microchip-machine-ii-final",
@@ -1019,14 +1126,17 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: { id: "microchip-machine-ii-c", label: "Microchip Machine II — Stage C", priority: 4, displayOrder: 102 },
+    sharedCapacity: {
+      id: "microchip-machine-ii-c",
+      label: "Microchip Machine II — Stage C",
+      priority: 4,
+      displayOrder: 102,
+    },
     inputs: [
       { resourceId: "microchipStage4B", quantity: 18 },
       { resourceId: "gold", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "microchips", quantity: 36 },
-    ],
+    outputs: [{ resourceId: "microchips", quantity: 36 }],
   },
   {
     id: "assembly-v-electronics-iii",
@@ -1039,9 +1149,7 @@ export const recipes: Recipe[] = [
       { resourceId: "microchips", quantity: 6 },
       { resourceId: "electronicsII", quantity: 12 },
     ],
-    outputs: [
-      { resourceId: "electronicsIII", quantity: 6 },
-    ],
+    outputs: [{ resourceId: "electronicsIII", quantity: 6 }],
   },
   {
     id: "rubber-maker-naphtha",
@@ -1055,9 +1163,7 @@ export const recipes: Recipe[] = [
       { resourceId: "naphtha", quantity: 12 },
       { resourceId: "sulfur", quantity: 3 },
     ],
-    outputs: [
-      { resourceId: "rubber", quantity: 24 },
-    ],
+    outputs: [{ resourceId: "rubber", quantity: 24 }],
   },
   {
     id: "rubber-maker-ethanol",
@@ -1071,9 +1177,7 @@ export const recipes: Recipe[] = [
       { resourceId: "ethanol", quantity: 12 },
       { resourceId: "sulfur", quantity: 3 },
     ],
-    outputs: [
-      { resourceId: "rubber", quantity: 24 },
-    ],
+    outputs: [{ resourceId: "rubber", quantity: 24 }],
   },
   {
     id: "chemical-plant-ii-ethanol",
@@ -1105,12 +1209,8 @@ export const recipes: Recipe[] = [
       priority: 2,
       allocation: "fallback",
     },
-    inputs: [
-      { resourceId: "carbonDioxide", quantity: 144 },
-    ],
-    outputs: [
-      { resourceId: "graphite", quantity: 6 },
-    ],
+    inputs: [{ resourceId: "carbonDioxide", quantity: 144 }],
+    outputs: [{ resourceId: "graphite", quantity: 6 }],
   },
   {
     id: "copper-electrolysis-acid",
@@ -1123,9 +1223,7 @@ export const recipes: Recipe[] = [
       { resourceId: "impureCopper", quantity: 24 },
       { resourceId: "acid", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "copper", quantity: 24 },
-    ],
+    outputs: [{ resourceId: "copper", quantity: 24 }],
   },
   {
     id: "waste-sorting-recyclables",
@@ -1133,9 +1231,7 @@ export const recipes: Recipe[] = [
     building: "Waste Sorting Plant",
     group: "production",
     balanceBy: "input",
-    inputs: [
-      { resourceId: "recyclables", quantity: 144 },
-    ],
+    inputs: [{ resourceId: "recyclables", quantity: 144 }],
     // In v0.8.6 the sorter emits the hidden recoverable-material mix carried by
     // its Recyclables input. These placeholders are resolved by the calculator.
     outputs: [
@@ -1146,6 +1242,99 @@ export const recipes: Recipe[] = [
       { resourceId: "brokenGlass", quantity: 0 },
     ],
     sortsRecyclableSources: true,
+  },
+  {
+    id: "assembly-v-mechanical-parts",
+    name: "Assembly V (Mechanical Parts)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [{ resourceId: "steel", quantity: 48 }],
+    outputs: [{ resourceId: "mechanicalParts", quantity: 96 }],
+  },
+  {
+    id: "cooled-caster-ii-steel",
+    name: "Cooled Caster II (Steel)",
+    building: "Cooled Caster II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "moltenSteel", quantity: 24 },
+      { resourceId: "water", quantity: 12 },
+    ],
+    outputs: [{ resourceId: "steel", quantity: 24 }],
+  },
+  {
+    id: "oxygen-furnace-ii-steel",
+    name: "Oxygen Furnace II",
+    building: "Oxygen Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["moltenSteel"],
+    inputs: [
+      { resourceId: "moltenIron", quantity: 48 },
+      { resourceId: "oxygen", quantity: 18 },
+    ],
+    outputs: [
+      { resourceId: "moltenSteel", quantity: 24 },
+      { resourceId: "exhaust", quantity: 36 },
+    ],
+  },
+  {
+    id: "arc-furnace-ii-iron-scrap",
+    name: "Arc Furnace II (Iron Scrap — priority 1)",
+    building: "Arc Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["ironScrap"],
+    sharedCapacity: { id: "arc-furnace-ii-iron", priority: 1 },
+    inputs: [
+      { resourceId: "ironScrap", quantity: 48 },
+      { resourceId: "graphite", quantity: 3 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "moltenIron", quantity: 48 },
+      { resourceId: "steamLow", quantity: 6 },
+      { resourceId: "exhaust", quantity: 6 },
+    ],
+    electricityMultiplier: 0.6,
+  },
+  {
+    id: "arc-furnace-ii-iron-ore",
+    name: "Arc Furnace II (Crushed Iron Ore — priority 2)",
+    building: "Arc Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["moltenIron"],
+    sharedCapacity: { id: "arc-furnace-ii-iron", priority: 2 },
+    inputs: [
+      { resourceId: "ironOreCrushed", quantity: 48 },
+      { resourceId: "limestone", quantity: 6 },
+      { resourceId: "graphite", quantity: 3 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "moltenIron", quantity: 48 },
+      { resourceId: "slag", quantity: 18 },
+      { resourceId: "steamLow", quantity: 6 },
+      { resourceId: "exhaust", quantity: 12 },
+    ],
+  },
+  {
+    id: "crusher-large-iron",
+    name: "Crusher (Large) — Iron Ore",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    inputs: [{ resourceId: "ironOre", quantity: 192 }],
+    outputs: [{ resourceId: "ironOreCrushed", quantity: 192 }],
   },
   {
     id: "arc-furnace-ii-copper-scrap",
@@ -1166,6 +1355,7 @@ export const recipes: Recipe[] = [
       { resourceId: "steamLow", quantity: 6 },
       { resourceId: "exhaust", quantity: 6 },
     ],
+    electricityMultiplier: 0.6,
   },
   {
     id: "arc-furnace-ii-copper-ore",
@@ -1196,12 +1386,8 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    inputs: [
-      { resourceId: "moltenCopper", quantity: 24 },
-    ],
-    outputs: [
-      { resourceId: "impureCopper", quantity: 24 },
-    ],
+    inputs: [{ resourceId: "moltenCopper", quantity: 24 }],
+    outputs: [{ resourceId: "impureCopper", quantity: 24 }],
   },
   {
     id: "crusher-large-copper",
@@ -1210,12 +1396,8 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 30,
     balanceBy: "output",
-    inputs: [
-      { resourceId: "copperOre", quantity: 192 },
-    ],
-    outputs: [
-      { resourceId: "copperOreCrushed", quantity: 192 },
-    ],
+    inputs: [{ resourceId: "copperOre", quantity: 192 }],
+    outputs: [{ resourceId: "copperOreCrushed", quantity: 192 }],
   },
   {
     id: "gold-furnace-scrap",
@@ -1226,12 +1408,8 @@ export const recipes: Recipe[] = [
     balanceBy: "input",
     balanceInputIds: ["goldScrap"],
     sharedCapacity: { id: "gold-furnace", priority: 1 },
-    inputs: [
-      { resourceId: "goldScrap", quantity: 9 },
-    ],
-    outputs: [
-      { resourceId: "gold", quantity: 9 },
-    ],
+    inputs: [{ resourceId: "goldScrap", quantity: 9 }],
+    outputs: [{ resourceId: "gold", quantity: 9 }],
     electricityMultiplier: 0.6,
   },
   {
@@ -1276,17 +1454,8 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
-    sharedCapacity: {
-      id: "crusher-large-gold",
-      label: "Crusher (Large) — Gold",
-      priority: 1,
-    },
-    inputs: [
-      { resourceId: "goldOre", quantity: 144 },
-    ],
-    outputs: [
-      { resourceId: "goldOreCrushed", quantity: 144 },
-    ],
+    inputs: [{ resourceId: "goldOre", quantity: 144 }],
+    outputs: [{ resourceId: "goldOreCrushed", quantity: 144 }],
   },
   {
     id: "crusher-large-gold-milling",
@@ -1295,17 +1464,8 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 40,
     balanceBy: "output",
-    sharedCapacity: {
-      id: "crusher-large-gold",
-      label: "Crusher (Large) — Gold",
-      priority: 2,
-    },
-    inputs: [
-      { resourceId: "goldOreCrushed", quantity: 72 },
-    ],
-    outputs: [
-      { resourceId: "goldOrePowder", quantity: 72 },
-    ],
+    inputs: [{ resourceId: "goldOreCrushed", quantity: 72 }],
+    outputs: [{ resourceId: "goldOrePowder", quantity: 72 }],
   },
 
   // Maintenance
@@ -1319,9 +1479,7 @@ export const recipes: Recipe[] = [
       { resourceId: "mechanicalParts", quantity: 12 },
       { resourceId: "electronicsI", quantity: 6 },
     ],
-    outputs: [
-      { resourceId: "maintenanceI", quantity: 220, outputModifierId: "maintenanceOutput" },
-    ],
+    outputs: [{ resourceId: "maintenanceI", quantity: 220, outputModifierId: "maintenanceOutput" }],
   },
   {
     id: "maintenance-i",
@@ -1333,9 +1491,7 @@ export const recipes: Recipe[] = [
       { resourceId: "mechanicalParts", quantity: 24 },
       { resourceId: "electronicsI", quantity: 12 },
     ],
-    outputs: [
-      { resourceId: "maintenanceI", quantity: 480, outputModifierId: "maintenanceOutput" },
-    ],
+    outputs: [{ resourceId: "maintenanceI", quantity: 480, outputModifierId: "maintenanceOutput" }],
   },
   {
     id: "maintenance-i-recycling",
@@ -1419,9 +1575,7 @@ export const recipes: Recipe[] = [
       { resourceId: "plutonium", quantity: 1 },
       { resourceId: "depletedUranium", quantity: 4 },
     ],
-    outputs: [
-      { resourceId: "moxRod", quantity: 2 },
-    ],
+    outputs: [{ resourceId: "moxRod", quantity: 2 }],
   },
   {
     id: "chemical-plant-blanket-enriched",
@@ -1433,9 +1587,7 @@ export const recipes: Recipe[] = [
       { resourceId: "depletedUranium", quantity: 10 },
       { resourceId: "salt", quantity: 4 },
     ],
-    outputs: [
-      { resourceId: "blanketFuel", quantity: 4 },
-    ],
+    outputs: [{ resourceId: "blanketFuel", quantity: 4 }],
   },
   {
     id: "chemical-plant-yellowcake",
@@ -1447,9 +1599,7 @@ export const recipes: Recipe[] = [
       { resourceId: "yellowcake", quantity: 6 },
       { resourceId: "salt", quantity: 2 },
     ],
-    outputs: [
-      { resourceId: "blanketFuel", quantity: 2 },
-    ],
+    outputs: [{ resourceId: "blanketFuel", quantity: 2 }],
   },
   {
     id: "nuclear-reprocessing-spent-fuel",
@@ -1488,12 +1638,8 @@ export const recipes: Recipe[] = [
     name: "Radioactive Waste Storage (Fission Product)",
     building: "Radioactive Waste Storage",
     group: "waste",
-    inputs: [
-      { resourceId: "fissionProduct", quantity: radioactiveWasteStorageThroughput },
-    ],
-    outputs: [
-      { resourceId: "retiredWaste", quantity: radioactiveWasteStorageThroughput },
-    ],
+    inputs: [{ resourceId: "fissionProduct", quantity: radioactiveWasteStorageThroughput }],
+    outputs: [{ resourceId: "retiredWaste", quantity: radioactiveWasteStorageThroughput }],
     decayStorage: {
       capacity: radioactiveWasteStorageCapacity,
       decayCycles: fissionProductDecayCycles,
@@ -1505,12 +1651,8 @@ export const recipes: Recipe[] = [
     name: "Shredder (Retired Waste)",
     building: "Shredder",
     group: "waste",
-    inputs: [
-      { resourceId: "retiredWaste", quantity: 6 },
-    ],
-    outputs: [
-      { resourceId: "recyclables", quantity: 6 },
-    ],
+    inputs: [{ resourceId: "retiredWaste", quantity: 6 }],
+    outputs: [{ resourceId: "recyclables", quantity: 6 }],
     // Preserve the recoverable source materials carried by Retired Waste.
     appliesRecyclingEfficiency: false,
     balanceBy: "input",
@@ -1528,21 +1670,15 @@ export const recipes: Recipe[] = [
       { resourceId: "sulfur", quantity: 12 },
       { resourceId: "water", quantity: 60 },
     ],
-    outputs: [
-      { resourceId: "acid", quantity: 72 },
-    ],
+    outputs: [{ resourceId: "acid", quantity: 72 }],
   },
   {
     id: "crusher",
     name: "Crusher (Uranium Ore)",
     building: "Crusher",
     group: "production",
-    inputs: [
-      { resourceId: "uraniumOre", quantity: 12 },
-    ],
-    outputs: [
-      { resourceId: "uraniumOrePowder", quantity: 12 },
-    ],
+    inputs: [{ resourceId: "uraniumOre", quantity: 12 }],
+    outputs: [{ resourceId: "uraniumOrePowder", quantity: 12 }],
   },
   {
     id: "crusher-large",
@@ -1550,12 +1686,8 @@ export const recipes: Recipe[] = [
     building: "Crusher (Large)",
     group: "production",
     balanceBy: "output",
-    inputs: [
-      { resourceId: "uraniumOre", quantity: 72 },
-    ],
-    outputs: [
-      { resourceId: "uraniumOrePowder", quantity: 72 },
-    ],
+    inputs: [{ resourceId: "uraniumOre", quantity: 72 }],
+    outputs: [{ resourceId: "uraniumOrePowder", quantity: 72 }],
   },
   {
     id: "settling-tank",
@@ -1657,23 +1789,15 @@ export const recipes: Recipe[] = [
     name: "Cooling Tower Large (Depleted)",
     building: "Cooling Tower (Large)",
     group: "sink",
-    inputs: [
-      { resourceId: "steamDepleted", quantity: 96 },
-    ],
-    outputs: [
-      { resourceId: "water", quantity: 72 },
-    ],
+    inputs: [{ resourceId: "steamDepleted", quantity: 96 }],
+    outputs: [{ resourceId: "water", quantity: 72 }],
   },
   {
     id: "cooling-tower-large-super",
     name: "Cooling Tower Large (Super)",
     building: "Cooling Tower (Large)",
     group: "sink",
-    inputs: [
-      { resourceId: "steamSuper", quantity: 96 },
-    ],
-    outputs: [
-      { resourceId: "water", quantity: 60 },
-    ],
+    inputs: [{ resourceId: "steamSuper", quantity: 96 }],
+    outputs: [{ resourceId: "water", quantity: 60 }],
   },
 ];

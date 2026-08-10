@@ -282,6 +282,7 @@ const Page = () => {
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
           populationCapacity={populationCapacity}
           groupByBalance
+          regularResults={factoryResult.calculation.regularResults}
         />
       )}
 

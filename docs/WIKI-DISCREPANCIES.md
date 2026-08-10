@@ -45,3 +45,27 @@ Wiki login and submission workflow: to be decided.
 - Verified game behavior: biomass follows the source products retained through the actual production recipes, then the settlement applies a 12% biomass recovery ratio
 - Verification: installed game product-source and settlement waste logic
 - Status: needs recipe-path-aware wording rather than one fixed table
+
+### Snack ingredients
+
+- Game version: 0.8.6
+- Wiki value: the Snack article prose says the recipe uses Plastic
+- Verified game value: the current Corn recipe uses Sugar, Cooking Oil, and Salt; it does not use Plastic
+- Verification: in-game Food Processor recipe panel
+- Status: ready for a future wiki edit
+
+### Arc Furnace II workers and electricity
+
+- Game version: 0.8.6
+- Wiki value: 18 workers and 5.5 MW
+- Verified game value: 14 workers and 6 MW base consumption; scrap recipes use 0.6× power
+- Verification: installed game data and in-game Arc Furnace II panel
+- Status: ready for a future wiki edit
+
+### Cooled Caster II workers
+
+- Game version: 0.8.6
+- Wiki value: 6 workers
+- Verified game value: 2 workers
+- Verification: installed game data and in-game Cooled Caster II panel
+- Status: ready for a future wiki edit

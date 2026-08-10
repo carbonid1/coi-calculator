@@ -46,6 +46,7 @@ export const settlementServiceBuildings = {
   clinic: 1,
   wastewaterTreatment: 1,
   anaerobicDigester: 1,
+  biomassCompostMixer: 1,
 } as const;
 
 export const settlementRecipeIds = {
@@ -60,6 +61,7 @@ export const settlementRecipeIds = {
   clinic: "housing-clinic",
   wastewaterTreatment: "housing-wastewater-treatment",
   anaerobicDigester: "housing-anaerobic-digester",
+  biomassCompostMixer: "housing-mixer-ii-biomass-compost",
 } as const;
 
 export const settlementConfig = {

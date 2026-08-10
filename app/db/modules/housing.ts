@@ -22,6 +22,7 @@ export const createHousingModule = (housingCount: number): Module => {
     [settlementRecipeIds.clinic]: settlementServiceBuildings.clinic * serviceFactor,
     [settlementRecipeIds.wastewaterTreatment]: settlementServiceBuildings.wastewaterTreatment * serviceFactor,
     [settlementRecipeIds.anaerobicDigester]: settlementServiceBuildings.anaerobicDigester * serviceFactor,
+    [settlementRecipeIds.biomassCompostMixer]: settlementServiceBuildings.biomassCompostMixer * serviceFactor,
   };
 
   return {
@@ -38,6 +39,7 @@ export const createHousingModule = (housingCount: number): Module => {
         fixed: Object.keys(buildingTotals).filter((recipeId) => (
           recipeId !== settlementRecipeIds.wastewaterTreatment
           && recipeId !== settlementRecipeIds.anaerobicDigester
+          && recipeId !== settlementRecipeIds.biomassCompostMixer
         )),
       },
     ],

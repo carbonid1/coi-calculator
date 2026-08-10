@@ -1,5 +1,8 @@
 import { type ResourceId, resources } from "../db/resources";
-import { type ResourceFlow } from "../helpers/calculate/calculate";
+import {
+  type RegularResult,
+  type ResourceFlow,
+} from "../helpers/calculate/calculate";
 import { typedEntries } from "../helpers/typed-entries/typed-entries";
 
 interface Props {
@@ -10,6 +13,7 @@ interface Props {
   electricityGenerationCapacityMw?: number;
   populationCapacity?: number;
   groupByBalance?: boolean;
+  regularResults?: RegularResult[];
 }
 
 const BALANCE_THRESHOLD = 0.001;
@@ -27,7 +31,56 @@ const formatPower = (megawatts: number) => {
   return `${parseFloat(megawatts.toFixed(1))} MW`;
 };
 
-export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw, electricityGenerationCapacityMw, populationCapacity, groupByBalance = false }) => {
+const formatCapacity = (value: number) => parseFloat(value.toFixed(2));
+
+const getCapacityLimit = (
+  resourceId: ResourceId,
+  regularResults: RegularResult[],
+) => {
+  const producers = regularResults.filter((result) => (
+    result.buildingCount > 0
+    && result.recipe.outputs.some((output) => output.resourceId === resourceId)
+  ));
+
+  if (producers.length === 0) return null;
+
+  const producersByCapacity = new Map<string, RegularResult>();
+
+  for (const producer of producers) {
+    producersByCapacity.set(
+      producer.capacityPoolId ?? `${producer.moduleId}:${producer.recipe.id}`,
+      producer,
+    );
+  }
+
+  const limits = [...producersByCapacity.values()].map((producer) => {
+    const capacityResults = producer.capacityPoolId
+      ? regularResults.filter((result) => result.capacityPoolId === producer.capacityPoolId)
+      : [producer];
+    const capacity = producer.capacityPoolId
+      ? Math.max(...capacityResults.map((result) => result.buildingCount))
+      : producer.buildingCount;
+    const used = capacityResults.reduce((total, result) => (
+      total + result.buildingCount * result.supplyRatio
+    ), 0);
+
+    return {
+      atCapacity: capacity > 0 && capacity - used <= BALANCE_THRESHOLD,
+      capacity,
+      label: producer.recipe.sharedCapacity?.label ?? producer.recipe.building,
+    };
+  });
+
+  if (limits.some((limit) => !limit.atCapacity)) return null;
+
+  return limits
+    .map((limit) => (
+      `${limit.label} · at capacity ${formatCapacity(limit.capacity)}/${formatCapacity(limit.capacity)}`
+    ))
+    .join(", ");
+};
+
+export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw, electricityGenerationCapacityMw, populationCapacity, groupByBalance = false, regularResults = [] }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
 
   const electricityFlow = flows.find((f) => f.resourceId === "electricity");
@@ -65,6 +118,83 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
   const displayedBalanceGroups = balanceGroups.filter(
     (group) => group.label !== "Equilibrium (target)",
   );
+  const capacityLimitedDeficits = balanceGroups
+    .find((group) => group.label === "Deficit")
+    ?.flows.flatMap((flow) => {
+      const capacityLimit = getCapacityLimit(flow.resourceId, regularResults);
+
+      return capacityLimit ? [{ flow, capacityLimit }] : [];
+    }) ?? [];
+  const capacityLimitedIds = new Set(
+    capacityLimitedDeficits.map(({ flow }) => flow.resourceId),
+  );
+  const renderBalanceGroup = (group: (typeof displayedBalanceGroups)[number]) => {
+    if (group.label === "Deficit" && capacityLimitedDeficits.length > 0) {
+      return (
+        <div className="space-y-4">
+          <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
+            <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground">
+              Capacity limited
+            </h5>
+            <div className="space-y-1">
+              {capacityLimitedDeficits.map(({ flow, capacityLimit }) => (
+                <div key={flow.resourceId} className="-mx-1 flex items-start justify-between gap-3 rounded px-1 py-1 text-sm hover:bg-accent">
+                  <span className="flex flex-col text-foreground">
+                    <span className="font-medium">{flow.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {capacityLimit}
+                    </span>
+                  </span>
+                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                    {formatNet(flow.net)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {group.flows.some((flow) => !capacityLimitedIds.has(flow.resourceId)) && (
+            <div className="space-y-1">
+              <h5 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Other deficits
+              </h5>
+              {group.flows
+                .filter((flow) => !capacityLimitedIds.has(flow.resourceId))
+                .map((flow) => (
+                  <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
+                    <span className="text-foreground">
+                      {flow.name}
+                    </span>
+                    <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                      {formatNet(flow.net)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (group.flows.length === 0) {
+      return <p className="text-sm text-muted-foreground">None</p>;
+    }
+
+    return (
+      <div className="space-y-1">
+        {group.flows.map((flow) => (
+          <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
+            <span className="text-foreground">
+              {flow.name}
+            </span>
+            <span className={`font-mono font-semibold ${group.valueClassName}`}>
+              {formatNet(flow.net)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   if (regularFlows.length === 0 && moduleInputFlows.length === 0 && externalEntries.length === 0 && !electricityFlow) return null;
 
@@ -177,26 +307,11 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
       {groupByBalance ? (
         <div className="grid gap-3 lg:grid-cols-2">
           {displayedBalanceGroups.map((group) => (
-            <section key={group.label} className="rounded-md border border-border p-3">
-              <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <section key={group.label} className="rounded-lg border border-border p-3">
+              <h4 className="mb-3 text-sm font-semibold text-foreground">
                 {group.label}
               </h4>
-              {group.flows.length > 0 ? (
-                <div className="space-y-1">
-                  {group.flows.map((flow) => (
-                    <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
-                      <span className="text-foreground">
-                        {flow.name}
-                      </span>
-                      <span className={`font-mono font-semibold ${group.valueClassName}`}>
-                        {formatNet(flow.net)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">None</p>
-              )}
+              {renderBalanceGroup(group)}
             </section>
           ))}
         </div>

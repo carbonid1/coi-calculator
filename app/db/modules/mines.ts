@@ -8,6 +8,8 @@ export const mines: Module = {
   description: "Demand-balanced extraction after factory production is counted",
   buildingTotals: {
     "copper-map-mine": 1,
+    "iron-map-mine": 1,
+    "limestone-map-mine": 1,
     "gold-map-mine": 1,
     "sand-map-mine": 1,
     "rock-map-mine": 1,
