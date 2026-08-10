@@ -39,7 +39,9 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
           })()}
           {speedLevel !== 1 && (
             <p className="text-xs font-medium text-attention-foreground">
-              Reactor speed ×{speedLevel}
+              {recipe.animalPopulationCapacity
+                ? `${Math.round(recipe.animalPopulationCapacity * speedLevel)} / ${recipe.animalPopulationCapacity} chickens`
+                : `Throughput ×${speedLevel}`}
             </p>
           )}
         </div>

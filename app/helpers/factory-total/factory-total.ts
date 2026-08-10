@@ -30,6 +30,7 @@ const calculateWithElectricityDispatch = (
   externalInputs: Partial<Record<ResourceId, number>>,
   recyclingEfficiencyPercent: number,
   outputModifiers: OutputModifierMultipliers,
+  externalDemands: Partial<Record<ResourceId, number>> = {},
 ) => {
   const groupsById = new Map<string, ElectricityDispatchGroup>();
 
@@ -81,6 +82,7 @@ const calculateWithElectricityDispatch = (
       externalInputs,
       recyclingEfficiencyPercent,
       outputModifiers,
+      externalDemands,
     );
 
     let remainingDemandMw = calculateBuildingStats(
@@ -114,6 +116,7 @@ const calculateWithElectricityDispatch = (
     externalInputs,
     recyclingEfficiencyPercent,
     outputModifiers,
+    externalDemands,
   );
 
   return { lines: dispatchedLines, calculation };
@@ -142,22 +145,45 @@ export const calculateFactoryTotal = (
     }
   }
 
-  const dispatched = calculateWithElectricityDispatch(
+  const withoutContracts = calculateWithElectricityDispatch(
     allLines,
     externalInputs,
     recyclingEfficiencyPercent,
     outputModifiers,
   );
-  const { calculation } = dispatched;
-  const { allResourceFlows } = calculation;
-  const flows = allResourceFlows.filter((flow) => !localResourceIds.has(flow.resourceId));
+  const contractPlan = applyContracts(
+    withoutContracts.calculation.allResourceFlows.filter(
+      (flow) => !localResourceIds.has(flow.resourceId),
+    ),
+    contracts,
+  );
+  const inputsWithContracts = { ...externalInputs };
+  const contractDemands: Partial<Record<ResourceId, number>> = {};
 
-  const withContracts = applyContracts(flows, contracts);
+  for (const result of contractPlan.contractResults) {
+    const importedId = result.contract.exchange.imported.resourceId;
+    const exportedId = result.contract.exchange.exported.resourceId;
+
+    inputsWithContracts[importedId] = (inputsWithContracts[importedId] ?? 0) + result.imported;
+    contractDemands[exportedId] = (contractDemands[exportedId] ?? 0) + result.exported;
+  }
+
+  const dispatched = calculateWithElectricityDispatch(
+    allLines,
+    inputsWithContracts,
+    recyclingEfficiencyPercent,
+    outputModifiers,
+    contractDemands,
+  );
+  const { calculation } = dispatched;
+  const flows = calculation.allResourceFlows.filter(
+    (flow) => !localResourceIds.has(flow.resourceId),
+  );
 
   return {
-    flows: withContracts.flows,
+    flows,
     allLines: dispatched.lines,
-    contractResults: withContracts.contractResults,
+    contractResults: contractPlan.contractResults,
     calculation,
   };
 };

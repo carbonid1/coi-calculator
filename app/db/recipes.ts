@@ -1,3 +1,4 @@
+import { chickenFarm } from "./chicken-farm";
 import { type ResourceId } from "./resources";
 import { solarPanels } from "./solar";
 
@@ -41,7 +42,7 @@ export interface Recipe {
   decayStorage?: DecayStorage;
   /** The resource side that determines utilization when this recipe is not fixed by its preset. */
   balanceBy?: BalanceBy;
-  /** Inputs that set an input-balanced recipe's utilization; defaults to every input. */
+  /** Inputs that cap utilization; input-balanced recipes default to every input. */
   balanceInputIds?: ResourceId[];
   /** Outputs that create demand for an output-balanced recipe; defaults to every output. */
   balanceOutputIds?: ResourceId[];
@@ -65,6 +66,8 @@ export interface Recipe {
     groupId: string;
     priority: number;
   };
+  /** Displays fractional throughput as a livestock count instead of a generic speed. */
+  animalPopulationCapacity?: number;
 }
 
 const radioactiveWasteStorageCapacity = 2400;
@@ -254,6 +257,79 @@ export const recipes: Recipe[] = [
 
   // Production (order = priority)
 
+  // Livestock and food processing
+  {
+    id: "chicken-farm-slaughtering",
+    name: "Chicken Farm (Slaughtering on)",
+    building: "Chicken Farm",
+    group: "production",
+    inputs: [
+      {
+        resourceId: "animalFeed",
+        quantity: chickenFarm.capacity * chickenFarm.feedPerChicken,
+      },
+      {
+        resourceId: "water",
+        quantity: chickenFarm.capacity * chickenFarm.waterPerChicken,
+      },
+    ],
+    outputs: [
+      {
+        resourceId: "eggs",
+        quantity: chickenFarm.capacity * chickenFarm.eggsPerChicken,
+      },
+      {
+        resourceId: "chickenCarcass",
+        quantity: chickenFarm.capacity
+          * chickenFarm.birthsPer100Chickens
+          / 100
+          * chickenFarm.carcassPerSlaughteredChicken,
+      },
+    ],
+    animalPopulationCapacity: chickenFarm.capacity,
+  },
+  {
+    id: "chicken-farm-eggs-only",
+    name: "Chicken Farm (Slaughtering off)",
+    building: "Chicken Farm",
+    group: "production",
+    inputs: [
+      {
+        resourceId: "animalFeed",
+        quantity: chickenFarm.capacity * chickenFarm.feedPerChicken,
+      },
+      {
+        resourceId: "water",
+        quantity: chickenFarm.capacity * chickenFarm.waterPerChicken,
+      },
+    ],
+    outputs: [
+      {
+        resourceId: "eggs",
+        quantity: chickenFarm.capacity * chickenFarm.eggsPerChicken,
+      },
+    ],
+    animalPopulationCapacity: chickenFarm.capacity,
+  },
+  {
+    id: "food-processor-meat",
+    name: "Food Processor (Chicken Carcass → Meat)",
+    building: "Food Processor",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["chickenCarcass"],
+    inputs: [
+      { resourceId: "chickenCarcass", quantity: 30 },
+      { resourceId: "water", quantity: 9 },
+      { resourceId: "salt", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "meat", quantity: 15 },
+      { resourceId: "meatTrimmings", quantity: 6 },
+    ],
+  },
+
   // Nuclear fuel cycle
   {
     id: "chemical-plant-uranium",
@@ -410,6 +486,50 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: "pcb", quantity: 48 },
+    ],
+  },
+  {
+    id: "assembly-v-food-pack-eggs",
+    name: "Assembly V (Eggs + Bread)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    balanceInputIds: ["eggs"],
+    balanceOutputIds: ["foodPack"],
+    sharedCapacity: {
+      id: "assembly-v-food-pack",
+      label: "Assembly V — Food Pack",
+      priority: 1,
+    },
+    inputs: [
+      { resourceId: "eggs", quantity: 24 },
+      { resourceId: "bread", quantity: 48 },
+    ],
+    outputs: [
+      { resourceId: "foodPack", quantity: 32 },
+    ],
+  },
+  {
+    id: "assembly-v-food-pack-meat",
+    name: "Assembly V (Meat + Bread)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    balanceInputIds: ["meat"],
+    balanceOutputIds: ["foodPack"],
+    sharedCapacity: {
+      id: "assembly-v-food-pack",
+      label: "Assembly V — Food Pack",
+      priority: 2,
+    },
+    inputs: [
+      { resourceId: "meat", quantity: 24 },
+      { resourceId: "bread", quantity: 48 },
+    ],
+    outputs: [
+      { resourceId: "foodPack", quantity: 32 },
     ],
   },
   {

@@ -224,6 +224,7 @@ export const calculateNet = (
   externalInputs: Partial<Record<ResourceId, number>> = {},
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
   outputModifiers: OutputModifierMultipliers = {},
+  externalDemands: Partial<Record<ResourceId, number>> = {},
 ) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
@@ -255,6 +256,7 @@ export const calculateNet = (
   );
 
   const externalEntries = typedEntries(externalInputs);
+  const externalDemandEntries = typedEntries(externalDemands);
   const externalIds = new Set(externalEntries.map(([id]) => id));
   const internallyProducedIds = new Set(
     lines.flatMap((line) => line.recipe.outputs.map((output) => output.resourceId)),
@@ -278,6 +280,11 @@ export const calculateNet = (
   // External inputs as virtual sources
   for (const [id, qty] of externalEntries) {
     simGet(id).produced += qty;
+  }
+  // Factory consumers such as contracts participate in the same demand graph
+  // as recipes, allowing upstream modules to balance their production.
+  for (const [id, qty] of externalDemandEntries) {
+    simGet(id).consumed += qty;
   }
 
   for (const line of sourceLines.filter((source) => source.recipe.sourceMode !== "demand")) {
@@ -329,6 +336,9 @@ export const calculateNet = (
   // External inputs as virtual sources
   for (const [id, qty] of externalEntries) {
     getFlow(id).produced += qty;
+  }
+  for (const [id, qty] of externalDemandEntries) {
+    getFlow(id).consumed += qty;
   }
 
   // Sources reserve enough supply for allocation. Unused output is removed
@@ -481,6 +491,14 @@ export const calculateNet = (
     let ratio = capacityTracker.availableRatio(line);
 
     for (const input of line.recipe.inputs) {
+      if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
+        const flow = getFlow(input.resourceId);
+        const available = flow.produced - flow.consumed;
+        const needed = input.quantity * factor;
+
+        if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+        continue;
+      }
       if (!externalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
 
       const flow = getFlow(input.resourceId);

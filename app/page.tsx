@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { ChickenFarmSettings } from "./components/ChickenFarmSettings";
 import { ContractsView } from "./components/ContractsView";
 import { MinesView } from "./components/MinesView";
 import { ModifiersView } from "./components/ModifiersView";
@@ -12,8 +13,13 @@ import { SharedRecipeCard } from "./components/SharedRecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { SolarPowerSettings } from "./components/SolarPowerSettings";
 import { StorageCard } from "./components/StorageCard";
+import {
+  chickenFarm,
+  defaultChickenFarmSettings,
+} from "./db/chicken-farm";
 import { activeContracts } from "./db/contracts";
 import { defaultActiveEdicts } from "./db/edicts";
+import { createFarmsModule, FARMS_MODULE_ID } from "./db/modules/farms";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
 import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
@@ -98,6 +104,11 @@ const solarPanelCountsSchema = z.object({
   standard: z.number().int().min(0),
   mono: z.number().int().min(0),
 });
+const chickenFarmSettingsSchema = z.object({
+  farmCount: z.number().int().min(1).default(defaultChickenFarmSettings.farmCount),
+  chickenCount: z.number().int().min(chickenFarm.countStep).max(chickenFarm.capacity).multipleOf(chickenFarm.countStep),
+  slaughtering: z.boolean(),
+});
 
 const Page = () => {
   const mounted = useMounted();
@@ -127,14 +138,20 @@ const Page = () => {
     solarPanelCountsSchema,
     defaultSolarPanelCounts,
   );
+  const [chickenFarmSettings, setChickenFarmSettings] = useLocalStorage(
+    "coi-chicken-farm-settings",
+    chickenFarmSettingsSchema,
+    defaultChickenFarmSettings,
+  );
 
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
 
-  const configuredModules = modules.map((module) => (
-    module.id === SOLAR_POWER_MODULE_ID
-      ? createSolarPowerModule(solarPanelCounts)
-      : module
-  ));
+  const configuredModules = modules.map((module) => {
+    if (module.id === SOLAR_POWER_MODULE_ID) return createSolarPowerModule(solarPanelCounts);
+    if (module.id === FARMS_MODULE_ID) return createFarmsModule(chickenFarmSettings);
+
+    return module;
+  });
 
   const isModifiers = activeModuleId === MODIFIERS_ID;
   const isContracts = activeModuleId === CONTRACTS_ID;
@@ -235,6 +252,13 @@ const Page = () => {
           onChange={(panel, count) => {
             setSolarPanelCounts((current) => ({ ...current, [panel]: count }));
           }}
+        />
+      )}
+
+      {activeModule?.id === FARMS_MODULE_ID && (
+        <ChickenFarmSettings
+          settings={chickenFarmSettings}
+          onChange={setChickenFarmSettings}
         />
       )}
 

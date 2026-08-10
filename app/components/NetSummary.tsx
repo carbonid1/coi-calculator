@@ -18,6 +18,12 @@ const formatNet = (net: number) => {
 
   return net > 0 ? `+${rounded}` : `${rounded}`;
 };
+const formatPower = (megawatts: number) => {
+  if (Math.abs(megawatts) <= BALANCE_THRESHOLD) return "0 MW";
+  if (Math.abs(megawatts) < 0.1) return `${parseFloat((megawatts * 1000).toFixed(0))} kW`;
+
+  return `${parseFloat(megawatts.toFixed(1))} MW`;
+};
 
 export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw, groupByBalance = false }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
@@ -74,7 +80,7 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
                   ⚡ Generation
                 </span>
                 <span className="font-mono text-green-600 dark:text-green-400">
-                  +{parseFloat(generationMw.toFixed(1))} MW
+                  +{formatPower(generationMw)}
                 </span>
               </div>
             )}
@@ -84,7 +90,7 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
                   ⚡ Consumption
                 </span>
                 <span className="font-mono text-red-600 dark:text-red-400">
-                  -{parseFloat(consumptionMw.toFixed(1))} MW
+                  -{formatPower(consumptionMw)}
                 </span>
               </div>
             )}
@@ -94,7 +100,7 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
                   ⚡ Net
                 </span>
                 <span className={`font-mono font-semibold ${netMw > 0 ? "text-yellow-500 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
-                  {parseFloat(netMw.toFixed(1))} MW
+                  {formatPower(netMw)}
                 </span>
               </div>
             )}
