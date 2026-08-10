@@ -1,9 +1,28 @@
+import { activeHousingType } from "./housing";
+import { settlementConfig } from "./settlement";
+
 interface BuildingData {
   workers: number;
   electricityKw: number;
 }
 
 export const buildings: Record<string, BuildingData> = {
+  "Housing II": {
+    workers: 0,
+    electricityKw: activeHousingType.populationCapacity
+      * settlementConfig.electricityKwPerPop
+      * settlementConfig.housingIIElectricityMultiplier,
+  },
+  "Food Market": { workers: 3, electricityKw: 0 },
+  "Food Market II": { workers: 6, electricityKw: 0 },
+  "Transformer": { workers: 8, electricityKw: 0 },
+  "Water Facility": { workers: 6, electricityKw: 100 },
+  "Waste Collection": { workers: 4, electricityKw: 0 },
+  "Recyclables Collection": { workers: 12, electricityKw: 0 },
+  "Biomass Collection": { workers: 6, electricityKw: 0 },
+  "Clinic I": { workers: 36, electricityKw: 60 },
+  "Wastewater Treatment": { workers: 26, electricityKw: 600 },
+  "Anaerobic Digester": { workers: 4, electricityKw: 50 },
   "Seawater Pump": { workers: 1, electricityKw: 100 },
   "Fast Breeder Reactor": { workers: 200, electricityKw: 0 },
   "Super-Pressure Turbine": { workers: 1, electricityKw: 0 },
@@ -23,6 +42,8 @@ export const buildings: Record<string, BuildingData> = {
   "Crusher (Large)": { workers: 6, electricityKw: 1000 },
   "Settling Tank": { workers: 6, electricityKw: 120 },
   "Mixer II": { workers: 4, electricityKw: 200 },
+  "Coal Maker": { workers: 2, electricityKw: 0 },
+  "Electrolyzer II": { workers: 3, electricityKw: 1100 },
   "Chicken Farm": { workers: 12, electricityKw: 0 },
   "Food Processor": { workers: 8, electricityKw: 100 },
   "Assembly V": { workers: 0, electricityKw: 400 },

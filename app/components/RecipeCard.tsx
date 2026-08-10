@@ -22,6 +22,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
   const effective = Math.round(buildingMultiplier * 100) / 100;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = effective === 0;
+  const hasFlows = recipe.inputs.length > 0 || recipe.outputs.length > 0;
 
   return (
     <ProductionCard operatingMode={operatingMode} inactive={inactive} className="p-4">
@@ -48,7 +49,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
         <BuildingCount effective={effective} total={totalCount} />
       </div>
 
-      {!inactive && (
+      {!inactive && hasFlows && (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="min-w-0 space-y-1">
             {recipe.inputs.map((input) => (

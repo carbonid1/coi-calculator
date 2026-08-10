@@ -29,3 +29,19 @@ Wiki login and submission workflow: to be decided.
 - Verified game value: 400% from year 1, 350% from year 10, and 300% from year 50
 - Verification: installed game data (`DefaultWeatherProvider.NormalDifficulty`)
 - Status: ready for a future wiki edit
+
+### Water Facility population rates
+
+- Game version: 0.8.6
+- Wiki value: 47 Water consumed and 39.2 Waste Water produced per 1,000 population per month
+- Verified game value: 48 Water consumed and 40 Waste Water produced per 1,000 population per month, before housing-tier modifiers
+- Verification: installed game data (`SettlementsData`)
+- Status: ready for a future wiki edit
+
+### Biomass collection from processed food
+
+- Game version: 0.8.6
+- Wiki value: fixed biomass output ratios per consumed food
+- Verified game behavior: biomass follows the source products retained through the actual production recipes, then the settlement applies a 12% biomass recovery ratio
+- Verification: installed game product-source and settlement waste logic
+- Status: needs recipe-path-aware wording rather than one fixed table

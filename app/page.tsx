@@ -25,7 +25,7 @@ import {
   defaultHousingCount,
 } from "./db/housing";
 import { createFarmsModule, FARMS_MODULE_ID } from "./db/modules/farms";
-import { HOUSING_MODULE_ID } from "./db/modules/housing";
+import { createHousingModule, HOUSING_MODULE_ID } from "./db/modules/housing";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
 import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
@@ -42,6 +42,7 @@ import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
+import { getRecipeOutputQuantity } from "./helpers/modifiers/recipe-output";
 import { extractModuleResult } from "./helpers/module-result/module-result";
 import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
 import { useMounted } from "./helpers/use-mounted/use-mounted";
@@ -161,6 +162,7 @@ const Page = () => {
   const configuredModules = modules.map((module) => {
     if (module.id === SOLAR_POWER_MODULE_ID) return createSolarPowerModule(solarPanelCounts);
     if (module.id === FARMS_MODULE_ID) return createFarmsModule(chickenFarmSettings);
+    if (module.id === HOUSING_MODULE_ID) return createHousingModule(housingCount);
 
     return module;
   });
@@ -207,6 +209,17 @@ const Page = () => {
     : { workers: 0, electricityKw: 0 };
 
   const factoryStats = calculateBuildingStats(factoryResult.allLines, factoryResult.calculation);
+  const factoryGenerationCapacityMw = factoryResult.allLines.reduce((total, line) => (
+    total + line.recipe.outputs.reduce((lineTotal, output) => (
+      output.resourceId === "electricity"
+        ? lineTotal
+          + getRecipeOutputQuantity(line.recipe, output, outputModifiers)
+            * line.buildingCount
+            * line.speedLevel
+        : lineTotal
+    ), 0)
+  ), 0);
+  const populationCapacity = housingCount * activeHousingType.populationCapacity;
 
   const grouped = moduleResult
     ? groupOrder
@@ -255,7 +268,14 @@ const Page = () => {
       )}
 
       {isFactoryTotal && factoryResult && (
-        <NetSummary flows={factoryResult.flows} workers={factoryStats.workers} electricityConsumptionKw={factoryStats.electricityKw} groupByBalance />
+        <NetSummary
+          flows={factoryResult.flows}
+          workers={factoryStats.workers}
+          electricityConsumptionKw={factoryStats.electricityKw}
+          electricityGenerationCapacityMw={factoryGenerationCapacityMw}
+          populationCapacity={populationCapacity}
+          groupByBalance
+        />
       )}
 
       {activeModule?.id === SOLAR_POWER_MODULE_ID && (
@@ -282,7 +302,7 @@ const Page = () => {
         />
       )}
 
-      {moduleResult && activeModule && activeModule.id !== HOUSING_MODULE_ID && (
+      {moduleResult && activeModule && (
         <>
           {activeModule.id === MINES_MODULE_ID ? (
             <MinesView results={moduleResult.sourceResults} />

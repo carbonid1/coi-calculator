@@ -26,7 +26,7 @@ export const HousingView: React.FC<Props> = ({
         <Card.Header>
           <Card.Title>{housing.name}</Card.Title>
           <Card.Description>
-            Population cap only · resource requirements are not modeled yet
+            Resource planning assumes every available home is occupied
           </Card.Description>
         </Card.Header>
 
@@ -61,7 +61,7 @@ export const HousingView: React.FC<Props> = ({
             </p>
           </div>
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Population cap</p>
+            <p className="text-xs text-muted-foreground">Planning population</p>
             <p className="font-mono font-semibold text-foreground">
               {formatQuantity(populationCapacity)}
             </p>

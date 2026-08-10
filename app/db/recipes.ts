@@ -1,5 +1,10 @@
 import { chickenFarm } from "./chicken-farm";
+import { activeHousingType } from "./housing";
 import { type ResourceId } from "./resources";
+import {
+  calculateSettlementPopulationFlows,
+  settlementRecipeIds,
+} from "./settlement";
 import { solarPanels } from "./solar";
 
 export interface Ingredient {
@@ -50,8 +55,8 @@ export interface Recipe {
   cycleDurationSeconds?: number;
   /**
    * Whether creating Recyclables applies the global recycling-efficiency loss.
-   * Defaults to true. Captain of Industry v0.8.6 game data identifies Shredder
-   * recycling as the only observed built-in bypass.
+   * Defaults to true. Captain of Industry v0.8.6 bypasses it for Shredder;
+   * settlement collection uses its own source-to-Recyclables conversion.
    */
   appliesRecyclingEfficiency?: boolean;
   /** Emits the recoverable material composition carried by Recyclables. */
@@ -73,6 +78,9 @@ export interface Recipe {
 const radioactiveWasteStorageCapacity = 2400;
 const fissionProductDecayCycles = 100 * 12;
 const radioactiveWasteStorageThroughput = radioactiveWasteStorageCapacity / fissionProductDecayCycles;
+const housingIIPopulationFlows = calculateSettlementPopulationFlows(
+  activeHousingType.populationCapacity,
+);
 
 export const recipes: Recipe[] = [
   // Sources
@@ -130,6 +138,18 @@ export const recipes: Recipe[] = [
     inputs: [],
     outputs: [
       { resourceId: "sand", quantity: 0 },
+    ],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
+  },
+  {
+    id: "rock-map-mine",
+    name: "Rock (Map Mine)",
+    building: "Rock Mine",
+    group: "source",
+    inputs: [],
+    outputs: [
+      { resourceId: "rock", quantity: 0 },
     ],
     sourceMode: "demand",
     sourceKind: "map-mine",
@@ -256,6 +276,252 @@ export const recipes: Recipe[] = [
   },
 
   // Production (order = priority)
+
+  // Settlement demand at full Housing II population capacity
+  {
+    id: settlementRecipeIds.residents,
+    name: "Housing II Residents",
+    building: "Housing II",
+    group: "production",
+    inputs: housingIIPopulationFlows.inputs,
+    outputs: housingIIPopulationFlows.outputs,
+    // v0.8.6 settlement collection converts tracked recyclable sources with
+    // its own 2:1 rule; the global recycling modifier is not applied here.
+    appliesRecyclingEfficiency: false,
+  },
+  {
+    id: settlementRecipeIds.foodMarket,
+    name: "Food Market",
+    building: "Food Market",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.foodMarketII,
+    name: "Food Market II",
+    building: "Food Market II",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.transformer,
+    name: "Transformer",
+    building: "Transformer",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.waterFacility,
+    name: "Water Facility",
+    building: "Water Facility",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.wasteCollection,
+    name: "Waste Collection",
+    building: "Waste Collection",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.recyclablesCollection,
+    name: "Recyclables Collection",
+    building: "Recyclables Collection",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.biomassCollection,
+    name: "Biomass Collection",
+    building: "Biomass Collection",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.clinic,
+    name: "Clinic I",
+    building: "Clinic I",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.wastewaterTreatment,
+    name: "Wastewater Treatment (Filter Media)",
+    building: "Wastewater Treatment",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "input",
+    balanceInputIds: ["wasteWater"],
+    inputs: [
+      { resourceId: "wasteWater", quantity: 160 },
+      { resourceId: "filterMedia", quantity: 8 },
+      { resourceId: "chlorine", quantity: 16 },
+    ],
+    outputs: [
+      { resourceId: "water", quantity: 120 },
+      { resourceId: "sludge", quantity: 36 },
+    ],
+  },
+  {
+    id: settlementRecipeIds.anaerobicDigester,
+    name: "Anaerobic Digester (Sludge)",
+    building: "Anaerobic Digester",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "input",
+    balanceInputIds: ["sludge"],
+    inputs: [
+      { resourceId: "sludge", quantity: 18 },
+    ],
+    outputs: [
+      { resourceId: "fuelGas", quantity: 8 },
+      { resourceId: "compost", quantity: 3 },
+    ],
+  },
+
+  // Medical Supplies I. These are the complete single-recipe steps in v0.8.6;
+  // Steel, Plastic, and Ethanol each have multiple production paths.
+  {
+    id: "assembly-v-medical-supplies-i",
+    name: "Assembly V (Medical Supplies I)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "medicalEquipment", quantity: 48 },
+      { resourceId: "disinfectant", quantity: 48 },
+    ],
+    outputs: [
+      { resourceId: "medicalSupplies", quantity: 96 },
+    ],
+  },
+  {
+    id: "assembly-v-medical-equipment",
+    name: "Assembly V (Medical Equipment)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "steel", quantity: 24 },
+      { resourceId: "plastic", quantity: 24 },
+    ],
+    outputs: [
+      { resourceId: "medicalEquipment", quantity: 24 },
+    ],
+  },
+  {
+    id: "chemical-plant-ii-disinfectant",
+    name: "Chemical Plant II (Disinfectant)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 40,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "ethanol", quantity: 4.5 },
+      { resourceId: "plastic", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "disinfectant", quantity: 12 },
+    ],
+  },
+
+  // Population wastewater support. The selected Filter Media path uses
+  // Manufactured Sand; Chlorine comes from Brine electrolysis.
+  {
+    id: "mixer-ii-filter-media-manufactured-sand",
+    name: "Mixer II (Filter Media)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "gravel", quantity: 48 },
+      { resourceId: "manufacturedSand", quantity: 24 },
+      { resourceId: "coal", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "filterMedia", quantity: 72 },
+    ],
+  },
+  {
+    id: "crusher-large-rock-to-gravel",
+    name: "Rock → Gravel",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    sharedCapacity: {
+      id: "crusher-large-filter-media",
+      label: "Crusher (Large) — Filter Media",
+      priority: 1,
+    },
+    inputs: [
+      { resourceId: "rock", quantity: 144 },
+    ],
+    outputs: [
+      { resourceId: "gravel", quantity: 144 },
+    ],
+  },
+  {
+    id: "crusher-large-gravel-to-manufactured-sand",
+    name: "Gravel → Manufactured Sand",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    sharedCapacity: {
+      id: "crusher-large-filter-media",
+      label: "Crusher (Large) — Filter Media",
+      priority: 2,
+    },
+    inputs: [
+      { resourceId: "gravel", quantity: 48 },
+    ],
+    outputs: [
+      { resourceId: "manufacturedSand", quantity: 48 },
+    ],
+  },
+  {
+    id: "coal-maker-wood",
+    name: "Coal Maker (Wood)",
+    building: "Coal Maker",
+    group: "production",
+    cycleDurationSeconds: 40,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "wood", quantity: 18 },
+    ],
+    outputs: [
+      { resourceId: "coal", quantity: 7.5 },
+      { resourceId: "exhaust", quantity: 6 },
+    ],
+    balanceOutputIds: ["coal"],
+  },
+  {
+    id: "electrolyzer-ii-chlorine",
+    name: "Electrolyzer II (Chlorine)",
+    building: "Electrolyzer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "brine", quantity: 72 },
+    ],
+    outputs: [
+      { resourceId: "chlorine", quantity: 48 },
+    ],
+  },
 
   // Livestock and food processing
   {

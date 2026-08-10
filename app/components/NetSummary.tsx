@@ -7,6 +7,8 @@ interface Props {
   externalInputs?: Partial<Record<ResourceId, number>>;
   workers?: number;
   electricityConsumptionKw?: number;
+  electricityGenerationCapacityMw?: number;
+  populationCapacity?: number;
   groupByBalance?: boolean;
 }
 
@@ -25,7 +27,7 @@ const formatPower = (megawatts: number) => {
   return `${parseFloat(megawatts.toFixed(1))} MW`;
 };
 
-export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw, groupByBalance = false }) => {
+export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw, electricityGenerationCapacityMw, populationCapacity, groupByBalance = false }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
 
   const electricityFlow = flows.find((f) => f.resourceId === "electricity");
@@ -58,23 +60,39 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
     ...group,
     flows: group.flows.toSorted((a, b) => a.name.localeCompare(b.name)),
   }));
+  // Keep calculating equilibrium flows for diagnostics, but omit the large
+  // group from the current Factory Total presentation.
+  const displayedBalanceGroups = balanceGroups.filter(
+    (group) => group.label !== "Equilibrium (target)",
+  );
 
   if (regularFlows.length === 0 && moduleInputFlows.length === 0 && externalEntries.length === 0 && !electricityFlow) return null;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
       <h3 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">
-        Net Summary <span className="text-sm font-normal text-gray-500">(per 60s)</span>
+        {groupByBalance ? "Factory Summary" : "Net Summary"}{" "}
+        <span className="text-sm font-normal text-gray-500">(per 60s)</span>
       </h3>
 
-      {(electricityFlow || (electricityConsumptionKw && electricityConsumptionKw > 0) || (workers && workers > 0)) && (() => {
+      {(electricityFlow || electricityGenerationCapacityMw != null || (electricityConsumptionKw && electricityConsumptionKw > 0) || (workers && workers > 0)) && (() => {
         const generationMw = electricityFlow ? electricityFlow.net : 0;
         const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
         const netMw = generationMw - consumptionMw;
+        const showsCapacity = electricityGenerationCapacityMw != null;
 
         return (
           <div className="mb-3 border-b border-gray-200 pb-3 dark:border-gray-700 space-y-1">
-            {electricityFlow && (
+            {showsCapacity ? (
+              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  ⚡ Consumption / generation cap
+                </span>
+                <span className="font-mono font-semibold text-foreground">
+                  {formatPower(consumptionMw)} / {formatPower(electricityGenerationCapacityMw)}
+                </span>
+              </div>
+            ) : electricityFlow && (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   ⚡ Generation
@@ -84,17 +102,17 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
                 </span>
               </div>
             )}
-            {consumptionMw > 0 && (
+            {!showsCapacity && consumptionMw > 0 && (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   ⚡ Consumption
                 </span>
                 <span className="font-mono text-red-600 dark:text-red-400">
-                  -{formatPower(consumptionMw)}
+                  {showsCapacity ? formatPower(consumptionMw) : `-${formatPower(consumptionMw)}`}
                 </span>
               </div>
             )}
-            {electricityFlow && (
+            {!showsCapacity && electricityFlow && (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
                   ⚡ Net
@@ -107,10 +125,12 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
             {workers != null && workers > 0 && (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                  👷 Workers
+                  👷 {populationCapacity != null ? "Workers / population cap" : "Workers"}
                 </span>
                 <span className="font-mono font-semibold text-gray-500 dark:text-gray-400">
-                  {workers}
+                  {populationCapacity != null
+                    ? `${workers.toLocaleString("en-US")} / ${populationCapacity.toLocaleString("en-US")}`
+                    : workers.toLocaleString("en-US")}
                 </span>
               </div>
             )}
@@ -155,8 +175,8 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
       )}
 
       {groupByBalance ? (
-        <div className="grid gap-3 lg:grid-cols-3">
-          {balanceGroups.map((group) => (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {displayedBalanceGroups.map((group) => (
             <section key={group.label} className="rounded-md border border-border p-3">
               <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {group.label}
