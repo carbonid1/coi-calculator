@@ -209,16 +209,23 @@ const Page = () => {
     : { workers: 0, electricityKw: 0 };
 
   const factoryStats = calculateBuildingStats(factoryResult.allLines, factoryResult.calculation);
-  const factoryGenerationCapacityMw = factoryResult.allLines.reduce((total, line) => (
-    total + line.recipe.outputs.reduce((lineTotal, output) => (
-      output.resourceId === "electricity"
-        ? lineTotal
-          + getRecipeOutputQuantity(line.recipe, output, outputModifiers)
-            * line.buildingCount
-            * line.speedLevel
-        : lineTotal
-    ), 0)
-  ), 0);
+  const calculateGenerationCapacityMw = (lines: ProductionLine[]) => lines.reduce(
+    (total, line) => (
+      total + line.recipe.outputs.reduce((lineTotal, output) => (
+        output.resourceId === "electricity"
+          ? lineTotal
+            + getRecipeOutputQuantity(line.recipe, output, outputModifiers)
+              * line.buildingCount
+              * line.speedLevel
+          : lineTotal
+      ), 0)
+    ),
+    0,
+  );
+  const factoryGenerationCapacityMw = calculateGenerationCapacityMw(factoryResult.allLines);
+  const solarGenerationCapacityMw = calculateGenerationCapacityMw(
+    factoryResult.allLines.filter((line) => line.moduleId === SOLAR_POWER_MODULE_ID),
+  );
   const populationCapacity = housingCount * activeHousingType.populationCapacity;
 
   const grouped = moduleResult
@@ -244,7 +251,7 @@ const Page = () => {
 
       <ModuleSwitcher modules={configuredModules} active={activeModuleId} modifiersId={MODIFIERS_ID} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
 
-      {activeModule && (
+      {activeModule && activeModule.id !== SOLAR_POWER_MODULE_ID && (
         <p className="text-sm text-muted-foreground">
           {activeModule.description}
         </p>
@@ -281,6 +288,7 @@ const Page = () => {
       {activeModule?.id === SOLAR_POWER_MODULE_ID && (
         <SolarPowerSettings
           counts={solarPanelCounts}
+          averageGenerationMw={solarGenerationCapacityMw}
           onChange={(panel, count) => {
             setSolarPanelCounts((current) => ({ ...current, [panel]: count }));
           }}
@@ -302,7 +310,7 @@ const Page = () => {
         />
       )}
 
-      {moduleResult && activeModule && (
+      {moduleResult && activeModule && activeModule.id !== SOLAR_POWER_MODULE_ID && (
         <>
           {activeModule.id === MINES_MODULE_ID ? (
             <MinesView results={moduleResult.sourceResults} />
