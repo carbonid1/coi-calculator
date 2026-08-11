@@ -1,4 +1,10 @@
 import { chickenFarm } from "./chicken-farm";
+import {
+  activeCropFarmGroups,
+  calculateCropFarmGroupRates,
+  cropFarmTiers,
+  fertilizers,
+} from "./crop-farming";
 import { activeHousingType } from "./housing";
 import { type ResourceId } from "./resources";
 import {
@@ -10,11 +16,15 @@ import { solarPanels } from "./solar";
 export interface Ingredient {
   resourceId: ResourceId;
   quantity: number; // per 60 seconds
+  inputModifierId?: InputModifierId;
   outputModifierId?: OutputModifierId;
+  /** Applies the configured seed's finite-buffer farm rainfall simulation. */
+  weatherAdjustedFarmId?: string;
 }
 
 export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
-export type OutputModifierId = "maintenanceOutput" | "solarPower";
+export type InputModifierId = "cropWater";
+export type OutputModifierId = "maintenanceOutput" | "solarPower" | "cropYield";
 export type BalanceBy = "input" | "output";
 export type SharedCapacityAllocation = "primary" | "fallback";
 export type SourceKind = "map-mine" | "world-mine";
@@ -49,6 +59,8 @@ export interface Recipe {
   balanceBy?: BalanceBy;
   /** Inputs that cap utilization; input-balanced recipes default to every input. */
   balanceInputIds?: ResourceId[];
+  /** Lower values consume a shared constrained resource first across buildings. */
+  inputPriorities?: Partial<Record<ResourceId, number>>;
   /** Outputs that create demand for an output-balanced recipe; defaults to every output. */
   balanceOutputIds?: ResourceId[];
   sharedCapacity?: SharedCapacity;
@@ -81,6 +93,41 @@ const radioactiveWasteStorageThroughput = radioactiveWasteStorageCapacity / fiss
 const housingIIPopulationFlows = calculateSettlementPopulationFlows(
   activeHousingType.populationCapacity,
 );
+
+export const cropFarmRecipes: Recipe[] = activeCropFarmGroups.map((group) => {
+  const rates = calculateCropFarmGroupRates(group);
+  const fertilizerDefinition = group.fertilizer
+    ? fertilizers[group.fertilizer.id]
+    : null;
+  const fertilizerInput = fertilizerDefinition
+    ? [{
+        resourceId: fertilizerDefinition.resourceId,
+        quantity: rates.fertilizerPerMonth,
+      }]
+    : [];
+
+  return {
+    id: group.id,
+    name: `${cropFarmTiers[group.tierId].name} (${group.name})`,
+    building: cropFarmTiers[group.tierId].name,
+    group: "production",
+    cycleDurationSeconds: 60,
+    inputs: [
+      {
+        resourceId: "water",
+        quantity: rates.waterPerMonth,
+        inputModifierId: "cropWater",
+        weatherAdjustedFarmId: group.id,
+      },
+      ...fertilizerInput,
+    ],
+    outputs: [...rates.outputsPerMonth].map(([resourceId, quantity]) => ({
+      resourceId,
+      quantity,
+      outputModifierId: "cropYield",
+    })),
+  };
+});
 
 export const recipes: Recipe[] = [
   // Sources
@@ -161,6 +208,16 @@ export const recipes: Recipe[] = [
     group: "source",
     inputs: [],
     outputs: [{ resourceId: "rock", quantity: 0 }],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
+  },
+  {
+    id: "dirt-map-mine",
+    name: "Dirt (Map Mine)",
+    building: "Dirt Mine",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "dirt", quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "map-mine",
   },
@@ -496,6 +553,42 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    id: "food-processor-sausage",
+    // Captain of Industry v0.8.6 game-data rate, normalized to 60 seconds.
+    name: "Food Processor (Sausage)",
+    building: "Food Processor",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["sausage"],
+    inputs: [
+      { resourceId: "meatTrimmings", quantity: 24 },
+      { resourceId: "flour", quantity: 6 },
+      { resourceId: "salt", quantity: 9 },
+    ],
+    outputs: [{ resourceId: "sausage", quantity: 24 }],
+  },
+  {
+    id: "food-processor-tofu",
+    // Captain of Industry v0.8.6 game-data rate, normalized to 60 seconds.
+    name: "Food Processor (Tofu)",
+    building: "Food Processor",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["tofu"],
+    inputs: [
+      { resourceId: "soybean", quantity: 9 },
+      { resourceId: "water", quantity: 6 },
+      { resourceId: "sulfur", quantity: 1.5 },
+      { resourceId: "limestone", quantity: 1.5 },
+    ],
+    outputs: [
+      { resourceId: "tofu", quantity: 12 },
+      { resourceId: "animalFeed", quantity: 4.5 },
+    ],
+  },
+  {
     id: "mixer-ii-animal-feed-corn",
     name: "Mixer II (Animal Feed)",
     building: "Mixer II",
@@ -521,6 +614,152 @@ export const recipes: Recipe[] = [
     },
     inputs: [{ resourceId: "biomass", quantity: 24 }],
     outputs: [{ resourceId: "compost", quantity: 16 }],
+  },
+
+  // Fertilizer and Plastic production paths recorded from v0.8.6 game data.
+  // Alternative recipes remain available in the database without being active.
+  {
+    id: "air-separator-nitrogen",
+    name: "Air Separator",
+    building: "Air Separator",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["nitrogen"],
+    inputs: [],
+    outputs: [
+      { resourceId: "oxygen", quantity: 36 },
+      { resourceId: "nitrogen", quantity: 36 },
+    ],
+  },
+  {
+    id: "chemical-plant-ii-ammonia",
+    name: "Chemical Plant II (Ammonia)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 40,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "hydrogen", quantity: 12 },
+      { resourceId: "nitrogen", quantity: 24 },
+    ],
+    outputs: [{ resourceId: "ammonia", quantity: 12 }],
+    electricityMultiplier: 2,
+  },
+  {
+    id: "mixer-ii-organic-fertilizer-compost",
+    name: "Mixer II (Organic Fertilizer — Compost)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "compost", quantity: 72 },
+      { resourceId: "water", quantity: 24 },
+    ],
+    outputs: [{ resourceId: "fertilizerOrganic", quantity: 96 }],
+  },
+  {
+    id: "mixer-ii-organic-fertilizer-dirt",
+    name: "Mixer II (Organic Fertilizer — Dirt)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "compost", quantity: 24 },
+      { resourceId: "dirt", quantity: 48 },
+      { resourceId: "water", quantity: 24 },
+    ],
+    outputs: [{ resourceId: "fertilizerOrganic", quantity: 96 }],
+  },
+  {
+    id: "chemical-plant-ii-fertilizer-i",
+    name: "Chemical Plant II (Fertilizer I)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "ammonia", quantity: 24 },
+      { resourceId: "oxygen", quantity: 36 },
+    ],
+    outputs: [{ resourceId: "fertilizerI", quantity: 60 }],
+  },
+  {
+    id: "chemical-plant-ii-fertilizer-i-organic",
+    name: "Chemical Plant II (Fertilizer I — Organic)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "fertilizerOrganic", quantity: 60 },
+      { resourceId: "ammonia", quantity: 24 },
+      { resourceId: "oxygen", quantity: 36 },
+    ],
+    outputs: [{ resourceId: "fertilizerI", quantity: 90 }],
+  },
+  {
+    id: "mixer-ii-fertilizer-ii",
+    name: "Mixer II (Fertilizer II)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 15,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "fertilizerI", quantity: 60 },
+      { resourceId: "limestone", quantity: 12 },
+      { resourceId: "sulfur", quantity: 12 },
+    ],
+    outputs: [{ resourceId: "fertilizerII", quantity: 72 }],
+  },
+  {
+    id: "mixer-ii-dirt-from-compost",
+    name: "Mixer II (Dirt from Compost)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "gravel", quantity: 48 },
+      { resourceId: "compost", quantity: 48 },
+    ],
+    outputs: [{ resourceId: "dirt", quantity: 96 }],
+  },
+  {
+    id: "polymerization-plant-plastic-naphtha",
+    name: "Polymerization Plant (Plastic — Naphtha)",
+    building: "Polymerization Plant",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "naphtha", quantity: 12 },
+      { resourceId: "chlorine", quantity: 8 },
+    ],
+    outputs: [
+      { resourceId: "plastic", quantity: 36 },
+      { resourceId: "exhaust", quantity: 24 },
+    ],
+    balanceOutputIds: ["plastic"],
+  },
+  {
+    id: "polymerization-plant-plastic-ethanol",
+    name: "Polymerization Plant (Plastic — Ethanol)",
+    building: "Polymerization Plant",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "ethanol", quantity: 12 },
+      { resourceId: "chlorine", quantity: 8 },
+    ],
+    outputs: [
+      { resourceId: "plastic", quantity: 36 },
+      { resourceId: "exhaust", quantity: 24 },
+    ],
+    balanceOutputIds: ["plastic"],
   },
 
   // Medical Supplies I. These are the complete single-recipe steps in v0.8.6;
@@ -616,17 +855,55 @@ export const recipes: Recipe[] = [
     balanceOutputIds: ["coal"],
   },
   {
+    id: "wastewater-treatment-toxic-slurry",
+    // Captain of Industry v0.8.6 game-data rate, normalized to 60 seconds.
+    name: "Wastewater Treatment (Toxic Slurry)",
+    building: "Wastewater Treatment",
+    group: "waste",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["toxicSlurry", "brine"],
+    inputPriorities: { brine: 1 },
+    inputs: [
+      { resourceId: "toxicSlurry", quantity: 108 },
+      { resourceId: "filterMedia", quantity: 6 },
+      { resourceId: "brine", quantity: 18 },
+    ],
+    outputs: [
+      { resourceId: "water", quantity: 36 },
+      { resourceId: "slag", quantity: 60 },
+    ],
+  },
+  {
     id: "electrolyzer-ii-chlorine",
     name: "Electrolyzer II (Chlorine)",
     building: "Electrolyzer II",
     group: "production",
     cycleDurationSeconds: 10,
     balanceBy: "output",
+    balanceInputIds: ["brine"],
+    balanceOutputIds: ["chlorine"],
+    inputPriorities: { brine: 2 },
     inputs: [{ resourceId: "brine", quantity: 72 }],
     outputs: [{ resourceId: "chlorine", quantity: 48 }],
   },
+  {
+    id: "evaporation-pond-heated-salt-brine",
+    // Captain of Industry v0.8.6 heated-pond rate, normalized to 60 seconds.
+    name: "Evaporation Pond (Brine → Salt)",
+    building: "Evaporation Pond (Heated)",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceInputIds: ["brine"],
+    balanceOutputIds: ["salt"],
+    inputPriorities: { brine: 3 },
+    inputs: [{ resourceId: "brine", quantity: 96 }],
+    outputs: [{ resourceId: "salt", quantity: 12 }],
+  },
 
-  // Livestock and food processing
+  // Fixed crop rotations and livestock
+  ...cropFarmRecipes,
   {
     id: "chicken-farm-slaughtering",
     name: "Chicken Farm (Slaughtering on)",

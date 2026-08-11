@@ -6,8 +6,9 @@ import {
   type RegularResult,
 } from "../helpers/calculate/calculate";
 import {
+  getRecipeInputQuantity,
   getRecipeOutputQuantity,
-  type OutputModifierMultipliers,
+  type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
@@ -15,7 +16,7 @@ import { ProductionCard } from "./ProductionCard";
 interface Props {
   lines: ProductionLine[];
   results: (RegularResult | undefined)[];
-  outputModifiers?: OutputModifierMultipliers;
+  outputModifiers?: RecipeModifierMultipliers;
 }
 
 const getRecipeLabel = (line: ProductionLine) => {
@@ -92,7 +93,9 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
                         {resources[input.resourceId].name}
                       </span>
                       <span className="shrink-0 font-mono text-destructive">
-                        {formatQuantity(input.quantity * ioMultiplier)}
+                        {formatQuantity(
+                          getRecipeInputQuantity(input, outputModifiers) * ioMultiplier,
+                        )}
                       </span>
                     </div>
                   ))}

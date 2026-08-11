@@ -23,5 +23,18 @@ export const planningWeather = {
   gameSeed: "ywaruuxpx8oo",
   difficulty: "Standard",
   horizonYears: 100,
-  averageSunIntensityPercent: 83.1,
+  weatherPeriodDays: 15,
+  /**
+   * MD5-derived xoroshiro128+ state for
+   * `ywaruuxpx8ooWeatherDefaultWeatherProvider`, before the game's 100-step
+   * RNG warm-up. Recorded from Captain of Industry v0.8.6 game files.
+   */
+  weatherRngInitialState: {
+    state0: "0x7277e8ad6570007d",
+    state1: "0xeb4586d79675008d",
+    warmupSteps: 100,
+  },
+  averageSunIntensityPercent: 81.6,
+  /** Potential rainfall before a farm's finite soil buffer and dry spells are simulated. */
+  averageRainIntensityPercent: 13.6,
 } as const;

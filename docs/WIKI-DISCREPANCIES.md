@@ -6,6 +6,30 @@ Wiki login and submission workflow: to be decided.
 
 ## Pending
 
+### Crop farm workers
+
+- Game version: 0.8.6
+- Wiki value: Farm 10, Irrigated Farm 12, Greenhouse 18, and Greenhouse II 24 workers
+- Verified game value: Farm 8, Irrigated Farm 10, Greenhouse 16, and Greenhouse II 20 workers
+- Verification: installed game data (`Costs.Buildings`)
+- Status: ready for a future wiki edit
+
+### Greenhouse yield multiplier
+
+- Game version: 0.8.6
+- Wiki value: 20% increased crop yield compared with the basic Farm
+- Verified game value: 25% increased crop yield; Greenhouse II remains 50%
+- Verification: installed game data (`FarmsData.RegisterData`)
+- Status: ready for a future wiki edit
+
+### Sunlight and crop growth
+
+- Game version: 0.8.6
+- Wiki value: weather sunlight affects crop growth
+- Verified game behavior: crop growth reads daily fertility and water availability; the farm reads weather rain intensity but not simulated sun intensity
+- Verification: installed game runtime (`Farm.onNewDay`, `Crop.RecordGrowthDay`)
+- Status: ready for a future wiki edit
+
 ### Hydrogen Reformer workers and electricity
 
 - Game version: 0.8.6

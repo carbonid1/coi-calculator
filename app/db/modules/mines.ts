@@ -13,6 +13,7 @@ export const mines: Module = {
     "gold-map-mine": 1,
     "sand-map-mine": 1,
     "rock-map-mine": 1,
+    "dirt-map-mine": 1,
     "sulfur-world-mine": 1,
   },
   presets: [],

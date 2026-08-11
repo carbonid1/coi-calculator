@@ -1,6 +1,16 @@
-import { type Ingredient, type OutputModifierId, type Recipe } from "../../db/recipes";
+import { activeCropFarmGroups } from "../../db/crop-farming";
+import {
+  type Ingredient,
+  type InputModifierId,
+  type OutputModifierId,
+  type Recipe,
+} from "../../db/recipes";
+import { calculateFarmIrrigationRates } from "../weather/calculate-farm-irrigation";
 
-export type OutputModifierMultipliers = Partial<Record<OutputModifierId, number>>;
+export type RecipeModifierMultipliers = Partial<Record<
+  InputModifierId | OutputModifierId,
+  number
+>>;
 
 const GAME_PERCENT_SCALE = 100_000;
 
@@ -27,7 +37,7 @@ const scaleGameQuantity = (quantity: number, multiplier: number) => {
 export const getRecipeOutputQuantity = (
   recipe: Recipe,
   output: Ingredient,
-  modifiers: OutputModifierMultipliers = {},
+  modifiers: RecipeModifierMultipliers = {},
 ) => {
   if (!output.outputModifierId) return output.quantity;
 
@@ -35,7 +45,12 @@ export const getRecipeOutputQuantity = (
 
   // SolarPanelsManager scales Electricity directly. Unlike material Quantity,
   // Electricity is not rounded to a whole material unit per recipe cycle.
-  if (output.outputModifierId === "solarPower") return output.quantity * multiplier;
+  if (
+    output.outputModifierId === "solarPower"
+    || output.outputModifierId === "cropYield"
+  ) {
+    return output.quantity * multiplier;
+  }
 
   const cyclesPer60Seconds = recipe.cycleDurationSeconds
     ? 60 / recipe.cycleDurationSeconds
@@ -44,4 +59,52 @@ export const getRecipeOutputQuantity = (
 
   // The game scales each recipe-cycle output before reporting its /60 rate.
   return scaleGameQuantity(quantityPerCycle, multiplier) * cyclesPer60Seconds;
+};
+
+export const getRecipeInputQuantity = (
+  input: Ingredient,
+  modifiers: RecipeModifierMultipliers = {},
+) => {
+  const multiplier = input.inputModifierId
+    ? modifiers[input.inputModifierId] ?? 1
+    : 1;
+
+  if (input.weatherAdjustedFarmId) {
+    const farmGroup = activeCropFarmGroups.find(
+      (group) => group.id === input.weatherAdjustedFarmId,
+    );
+
+    if (!farmGroup) {
+      throw new Error(`Unknown weather-adjusted farm: ${input.weatherAdjustedFarmId}`);
+    }
+
+    return calculateFarmIrrigationRates(farmGroup, multiplier).importedWaterPerMonth;
+  }
+
+  return input.quantity * multiplier;
+};
+
+export const getRecipeGrossInputQuantity = (
+  input: Ingredient,
+  modifiers: RecipeModifierMultipliers = {},
+) => {
+  const multiplier = input.inputModifierId
+    ? modifiers[input.inputModifierId] ?? 1
+    : 1;
+
+  if (input.weatherAdjustedFarmId) {
+    const farmGroup = activeCropFarmGroups.find(
+      (group) => group.id === input.weatherAdjustedFarmId,
+    );
+
+    if (!farmGroup) {
+      throw new Error(`Unknown weather-adjusted farm: ${input.weatherAdjustedFarmId}`);
+    }
+
+    return calculateFarmIrrigationRates(farmGroup, multiplier).grossWaterPerMonth;
+  }
+
+  if (!input.inputModifierId) return input.quantity;
+
+  return input.quantity * multiplier;
 };

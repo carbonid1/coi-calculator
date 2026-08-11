@@ -1,7 +1,11 @@
 import { baseConfig } from "../../db/config";
 import { type Recipe } from "../../db/recipes";
 import { type Resource, type ResourceId, resources } from "../../db/resources";
-import { getRecipeOutputQuantity, type OutputModifierMultipliers } from "../modifiers/recipe-output";
+import {
+  getRecipeInputQuantity,
+  getRecipeOutputQuantity,
+  type RecipeModifierMultipliers,
+} from "../modifiers/recipe-output";
 import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface ProductionLine {
@@ -86,6 +90,27 @@ const orderSharedCapacity = (lines: ProductionLine[]) => {
   return ordered;
 };
 
+const orderInputPriorities = (lines: ProductionLine[]) => orderSharedCapacity(lines)
+  .toSorted((a, b) => {
+    const aInputIds = new Set(a.recipe.inputs.map((input) => input.resourceId));
+
+    for (const input of b.recipe.inputs) {
+      if (!aInputIds.has(input.resourceId)) continue;
+
+      const aPriority = a.recipe.inputPriorities?.[input.resourceId];
+      const bPriority = b.recipe.inputPriorities?.[input.resourceId];
+
+      if (aPriority == null && bPriority == null) continue;
+
+      const difference = (aPriority ?? Number.MAX_SAFE_INTEGER)
+        - (bPriority ?? Number.MAX_SAFE_INTEGER);
+
+      if (difference !== 0) return difference;
+    }
+
+    return 0;
+  });
+
 const createCapacityTracker = (lines: ProductionLine[]) => {
   const remainingByPool = new Map<string, number>();
 
@@ -122,7 +147,7 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
 };
 
 const orderDemandBalancedLines = (lines: ProductionLine[]) => {
-  const priorityOrderedLines = orderSharedCapacity(lines);
+  const priorityOrderedLines = orderInputPriorities(lines);
   const ordered: ProductionLine[] = [];
   const visiting = new Set<ProductionLine>();
   const visited = new Set<ProductionLine>();
@@ -153,7 +178,7 @@ const orderDemandBalancedLines = (lines: ProductionLine[]) => {
 };
 
 const orderSupplyBalancedLines = (lines: ProductionLine[]) => {
-  const priorityOrderedLines = orderSharedCapacity(lines);
+  const priorityOrderedLines = orderInputPriorities(lines);
   const ordered: ProductionLine[] = [];
   const visiting = new Set<ProductionLine>();
   const visited = new Set<ProductionLine>();
@@ -223,7 +248,7 @@ export const calculateNet = (
   lines: ProductionLine[],
   externalInputs: Partial<Record<ResourceId, number>> = {},
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
-  outputModifiers: OutputModifierMultipliers = {},
+  outputModifiers: RecipeModifierMultipliers = {},
   externalDemands: Partial<Record<ResourceId, number>> = {},
 ) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
@@ -300,7 +325,9 @@ export const calculateNet = (
   for (const line of regularLines) {
     const m = lineFactor(line);
 
-    for (const input of line.recipe.inputs) simGet(input.resourceId).consumed += input.quantity * m;
+    for (const input of line.recipe.inputs) {
+      simGet(input.resourceId).consumed += getRecipeInputQuantity(input, outputModifiers) * m;
+    }
     for (const output of line.recipe.outputs) {
       simGet(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
     }
@@ -368,7 +395,8 @@ export const calculateNet = (
 
     for (const input of line.recipe.inputs) {
       const flow = getFlow(input.resourceId);
-      const actualQuantity = input.quantity * multiplier;
+      const inputQuantity = getRecipeInputQuantity(input, outputModifiers);
+      const actualQuantity = inputQuantity * multiplier;
 
       if (input === recyclableInput) {
         const physicalAvailable = Math.max(0, flow.produced - flow.consumed);
@@ -407,11 +435,12 @@ export const calculateNet = (
 
         for (const input of line.recipe.inputs) {
           const inputResource: Resource = resources[input.resourceId];
+          const inputQuantity = getRecipeInputQuantity(input, outputModifiers);
 
           for (const [resourceId, sourceQuantity] of typedEntries(
             inputResource.recyclableSources ?? {},
           )) {
-            const quantity = sourceQuantity * input.quantity * multiplier * efficiency / 100;
+            const quantity = sourceQuantity * inputQuantity * multiplier * efficiency / 100;
 
             sourceComposition.set(
               resourceId,
@@ -469,7 +498,7 @@ export const calculateNet = (
 
       const flow = getFlow(input.resourceId);
       const available = flow.produced - flow.consumed;
-      const needed = input.quantity * factor;
+      const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
       if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
     }
@@ -494,7 +523,7 @@ export const calculateNet = (
       if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
         const flow = getFlow(input.resourceId);
         const available = flow.produced - flow.consumed;
-        const needed = input.quantity * factor;
+        const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
         if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
         continue;
@@ -503,7 +532,7 @@ export const calculateNet = (
 
       const flow = getFlow(input.resourceId);
       const available = flow.produced - flow.consumed;
-      const needed = input.quantity * factor;
+      const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
       if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
     }
@@ -545,7 +574,7 @@ export const calculateNet = (
     for (const input of line.recipe.inputs) {
       const flow = getFlow(input.resourceId);
       const available = flow.produced - flow.consumed;
-      const needed = input.quantity * factor;
+      const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
       if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
     }
@@ -565,7 +594,9 @@ export const calculateNet = (
     speedLevel: line.speedLevel,
     actualInputs: line.recipe.inputs.map((input) => ({
       resourceId: input.resourceId,
-      quantity: input.quantity * lineFactor(line) * (allocationRatios.get(line) ?? 0),
+      quantity: getRecipeInputQuantity(input, outputModifiers)
+        * lineFactor(line)
+        * (allocationRatios.get(line) ?? 0),
     })),
     actualOutputs: line.recipe.outputs.map((output) => {
       const recyclableInput = line.recipe.sortsRecyclableSources
@@ -649,7 +680,10 @@ export const calculateNet = (
       const excess = f.produced - f.consumed;
 
       if (excess <= 0) { utilizationRatio = 0; break; }
-      utilizationRatio = Math.min(utilizationRatio, excess / (input.quantity * capacity));
+      utilizationRatio = Math.min(
+        utilizationRatio,
+        excess / (getRecipeInputQuantity(input, outputModifiers) * capacity),
+      );
     }
 
     const actualInputs: PassiveResult["actualInputs"] = [];
@@ -657,7 +691,9 @@ export const calculateNet = (
 
     if (utilizationRatio > 0) {
       for (const input of line.recipe.inputs) {
-        const actual = Math.round(input.quantity * capacity * utilizationRatio);
+        const actual = Math.round(
+          getRecipeInputQuantity(input, outputModifiers) * capacity * utilizationRatio,
+        );
 
         getFlow(input.resourceId).consumed += actual;
         actualInputs.push({ resourceId: input.resourceId, quantity: actual });

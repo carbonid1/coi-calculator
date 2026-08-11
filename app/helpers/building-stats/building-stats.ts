@@ -4,6 +4,10 @@ import {
   type ProductionLine,
   type RegularResult,
 } from "../calculate/calculate";
+import {
+  getRecipeInputQuantity,
+  type RecipeModifierMultipliers,
+} from "../modifiers/recipe-output";
 
 interface BuildingStats {
   workers: number;
@@ -19,6 +23,7 @@ interface CalculationResults {
 export const calculateBuildingStats = (
   lines: ProductionLine[],
   results: CalculationResults,
+  recipeModifiers: RecipeModifierMultipliers = {},
 ): BuildingStats => {
   const standaloneLines: ProductionLine[] = [];
   const pooledLines = new Map<string, ProductionLine>();
@@ -70,7 +75,9 @@ export const calculateBuildingStats = (
       const utilizationRatios = [
         ...result.actualInputs.flatMap((actual) => {
           const declared = result.recipe.inputs.find((input) => input.resourceId === actual.resourceId);
-          const capacity = (declared?.quantity ?? 0) * factor;
+          const capacity = declared
+            ? getRecipeInputQuantity(declared, recipeModifiers) * factor
+            : 0;
 
           return capacity > 0 ? [actual.quantity / capacity] : [];
         }),

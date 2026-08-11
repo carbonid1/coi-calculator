@@ -3,6 +3,7 @@ import {
   type ChickenFarmSettings,
   defaultChickenFarmSettings,
 } from "../chicken-farm";
+import { activeCropFarmGroups } from "../crop-farming";
 import { type Module } from "./modules";
 
 export const FARMS_MODULE_ID = "farms";
@@ -12,7 +13,16 @@ const eggsOnlyRecipeId = "chicken-farm-eggs-only";
 
 export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
   const farmRecipeId = settings.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
+  const cropFarmTotals = Object.fromEntries(
+    activeCropFarmGroups.map((group) => [group.id, group.farmCount]),
+  );
+  const fixedCropFarmIds = activeCropFarmGroups.map((group) => group.id);
+  const cropFarmCount = activeCropFarmGroups.reduce(
+    (total, group) => total + group.farmCount,
+    0,
+  );
   const buildingTotals = {
+    ...cropFarmTotals,
     [farmRecipeId]: settings.farmCount,
     "food-processor-meat": 1,
   };
@@ -20,21 +30,21 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
   return {
     id: FARMS_MODULE_ID,
     name: "Farms",
-    description: "Steady-state livestock production and food processing",
+    description: `${cropFarmCount} fixed Greenhouse II rotations plus livestock. Crop cards show imported water after weather and gross demand.`,
     buildingTotals,
     presets: [
       {
-        id: "chicken-farm",
-        name: "Chicken Farms",
-        description: `${settings.farmCount} Chicken Farms and one Food Processor`,
+        id: "current-farm-plan",
+        name: "Current Farm Plan",
+        description: `${cropFarmCount} Greenhouse IIs, ${settings.farmCount} Chicken Farms, and one Food Processor`,
         available: buildingTotals,
-        fixed: [farmRecipeId],
+        fixed: [...fixedCropFarmIds, farmRecipeId],
         speedLevels: {
           [farmRecipeId]: settings.chickenCount / chickenFarm.capacity,
         },
       },
     ],
-    defaultPresetId: "chicken-farm",
+    defaultPresetId: "current-farm-plan",
   };
 };
 

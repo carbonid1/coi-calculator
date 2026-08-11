@@ -19,7 +19,10 @@ import {
   defaultChickenFarmSettings,
 } from "./db/chicken-farm";
 import { activeContracts } from "./db/contracts";
-import { defaultActiveEdicts } from "./db/edicts";
+import {
+  defaultActiveEdicts,
+  type FarmingBoostLevel,
+} from "./db/edicts";
 import {
   activeHousingType,
   defaultHousingCount,
@@ -31,6 +34,7 @@ import { modules } from "./db/modules/modules";
 import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
 import { type RecipeGroup } from "./db/recipes";
 import {
+  cropYieldResearch,
   defaultInfiniteResearchLevels,
   maintenanceOutputResearch,
   solarPowerResearch,
@@ -39,6 +43,7 @@ import { defaultSolarPanelCounts } from "./db/solar";
 import { calculateBuildingStats } from "./helpers/building-stats/building-stats";
 import { type ProductionLine } from "./helpers/calculate/calculate";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
+import { calculateCropFarmingModifiers } from "./helpers/modifiers/calculate-crop-farming";
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
@@ -105,8 +110,15 @@ const cleanPanelsLevelSchema = z.union([
   z.literal(2),
   z.literal(3),
 ]);
+const farmingBoostLevelSchema = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+]);
 const maintenanceOutputLevelSchema = z.number().int().min(0).max(maintenanceOutputResearch.maxLevel);
 const solarPowerLevelSchema = z.number().int().min(0).max(solarPowerResearch.maxLevel);
+const cropYieldLevelSchema = z.number().int().min(0).max(cropYieldResearch.maxLevel);
 const solarPanelCountsSchema = z.object({
   standard: z.number().int().min(0),
   mono: z.number().int().min(0),
@@ -131,6 +143,11 @@ const Page = () => {
     cleanPanelsLevelSchema,
     defaultActiveEdicts.cleanPanels,
   );
+  const [farmingBoostLevel, setFarmingBoostLevel] = useLocalStorage(
+    "coi-farming-boost-level",
+    farmingBoostLevelSchema,
+    defaultActiveEdicts.farmingBoost,
+  );
   const [maintenanceOutputLevel, setMaintenanceOutputLevel] = useLocalStorage(
     "coi-maintenance-output-level",
     maintenanceOutputLevelSchema,
@@ -140,6 +157,11 @@ const Page = () => {
     "coi-solar-power-level",
     solarPowerLevelSchema,
     defaultInfiniteResearchLevels.solarPower,
+  );
+  const [cropYieldLevel, setCropYieldLevel] = useLocalStorage(
+    "coi-crop-yield-level",
+    cropYieldLevelSchema,
+    defaultInfiniteResearchLevels.cropYield,
   );
   const [solarPanelCounts, setSolarPanelCounts] = useLocalStorage(
     "coi-solar-panel-counts",
@@ -184,9 +206,15 @@ const Page = () => {
   const recyclingEfficiencyPercent = calculateRecyclingEfficiency(recyclingIncreaseLevel).effectivePercent;
   const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
   const solarPowerOutput = calculateSolarPower(solarPowerLevel, cleanPanelsLevel);
+  const cropFarming = calculateCropFarmingModifiers(
+    cropYieldLevel,
+    farmingBoostLevel,
+  );
   const outputModifiers = {
     maintenanceOutput: maintenanceOutput.multiplier,
     solarPower: solarPowerOutput.multiplier,
+    cropYield: cropFarming.yieldMultiplier,
+    cropWater: cropFarming.waterDemandMultiplier,
   };
   const factoryResult = calculateFactoryTotal(
     configuredModules,
@@ -205,10 +233,14 @@ const Page = () => {
     : null;
 
   const buildingStats = activeModule && moduleResult
-    ? calculateBuildingStats(moduleResult.lines, moduleResult)
+    ? calculateBuildingStats(moduleResult.lines, moduleResult, outputModifiers)
     : { workers: 0, electricityKw: 0 };
 
-  const factoryStats = calculateBuildingStats(factoryResult.allLines, factoryResult.calculation);
+  const factoryStats = calculateBuildingStats(
+    factoryResult.allLines,
+    factoryResult.calculation,
+    outputModifiers,
+  );
   const calculateGenerationCapacityMw = (lines: ProductionLine[]) => lines.reduce(
     (total, line) => (
       total + line.recipe.outputs.reduce((lineTotal, output) => (
@@ -263,10 +295,16 @@ const Page = () => {
           onRecyclingIncreaseLevelChange={setRecyclingIncreaseLevel}
           cleanPanelsLevel={cleanPanelsLevel}
           onCleanPanelsLevelChange={setCleanPanelsLevel}
+          farmingBoostLevel={farmingBoostLevel}
+          onFarmingBoostLevelChange={(level: FarmingBoostLevel) => {
+            setFarmingBoostLevel(level);
+          }}
           maintenanceOutputLevel={maintenanceOutputLevel}
           onMaintenanceOutputLevelChange={setMaintenanceOutputLevel}
           solarPowerLevel={solarPowerLevel}
           onSolarPowerLevelChange={setSolarPowerLevel}
+          cropYieldLevel={cropYieldLevel}
+          onCropYieldLevelChange={setCropYieldLevel}
         />
       )}
 

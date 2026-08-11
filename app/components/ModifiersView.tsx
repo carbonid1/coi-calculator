@@ -5,12 +5,20 @@ import {
   cleanPanelsEdict,
   cleanPanelsLevelOrder,
   edictLevelOrder,
+  farmingBoostEdict,
+  farmingBoostLevelOrder,
   recyclingIncreaseEdict,
   type CleanPanelsLevel,
   type EdictLevel,
+  type FarmingBoostLevel,
 } from "../db/edicts";
-import { maintenanceOutputResearch, solarPowerResearch } from "../db/research";
+import {
+  cropYieldResearch,
+  maintenanceOutputResearch,
+  solarPowerResearch,
+} from "../db/research";
 import { planningWeather } from "../db/weather";
+import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
 import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "../helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
@@ -20,10 +28,14 @@ interface Props {
   onRecyclingIncreaseLevelChange: (level: EdictLevel) => void;
   cleanPanelsLevel: CleanPanelsLevel;
   onCleanPanelsLevelChange: (level: CleanPanelsLevel) => void;
+  farmingBoostLevel: FarmingBoostLevel;
+  onFarmingBoostLevelChange: (level: FarmingBoostLevel) => void;
   maintenanceOutputLevel: number;
   onMaintenanceOutputLevelChange: (level: number) => void;
   solarPowerLevel: number;
   onSolarPowerLevelChange: (level: number) => void;
+  cropYieldLevel: number;
+  onCropYieldLevelChange: (level: number) => void;
 }
 
 export const ModifiersView: React.FC<Props> = ({
@@ -31,19 +43,25 @@ export const ModifiersView: React.FC<Props> = ({
   onRecyclingIncreaseLevelChange,
   cleanPanelsLevel,
   onCleanPanelsLevelChange,
+  farmingBoostLevel,
+  onFarmingBoostLevelChange,
   maintenanceOutputLevel,
   onMaintenanceOutputLevelChange,
   solarPowerLevel,
   onSolarPowerLevelChange,
+  cropYieldLevel,
+  onCropYieldLevelChange,
 }) => {
   const activeRecyclingLevel = recyclingIncreaseEdict.levels[recyclingIncreaseLevel];
   const activeCleanPanelsLevel = cleanPanelsEdict.levels[cleanPanelsLevel];
+  const activeFarmingBoostLevel = farmingBoostEdict.levels[farmingBoostLevel];
   const recyclingEfficiency = calculateRecyclingEfficiency(recyclingIncreaseLevel);
   const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
   const solarPower = calculateSolarPower(solarPowerLevel, cleanPanelsLevel);
+  const cropFarming = calculateCropFarmingModifiers(cropYieldLevel, farmingBoostLevel);
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="space-y-6">
       <h2 className="text-xl font-semibold text-foreground">Modifiers</h2>
 
       <section className="space-y-2">
@@ -51,60 +69,73 @@ export const ModifiersView: React.FC<Props> = ({
           Effective values
         </h3>
         <Card.Root>
-          <Card.Content className="space-y-2">
-            <div className="flex items-baseline justify-between gap-4">
+          <Card.Content className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="space-y-1">
               <span className="font-medium text-foreground">Recycling efficiency</span>
-              <span className="font-mono text-xl font-semibold text-foreground">
+              <span className="block font-mono text-xl font-semibold text-foreground">
                 {recyclingEfficiency.effectivePercent}%
               </span>
             </div>
-            <div className="flex items-baseline justify-between gap-4">
+            <div className="space-y-1">
               <span className="font-medium text-foreground">Maintenance output</span>
-              <span className="font-mono text-xl font-semibold text-foreground">
+              <span className="block font-mono text-xl font-semibold text-foreground">
                 +{maintenanceOutput.bonusPercent}%
               </span>
             </div>
-            <div className="flex items-baseline justify-between gap-4">
+            <div className="space-y-1">
               <span className="font-medium text-foreground">Solar power</span>
-              <span className="font-mono text-xl font-semibold text-foreground">
+              <span className="block font-mono text-xl font-semibold text-foreground">
                 +{solarPower.bonusPercent}%
+              </span>
+            </div>
+            <div className="space-y-1">
+              <span className="font-medium text-foreground">Crop yield</span>
+              <span className="block font-mono text-xl font-semibold text-foreground">
+                +{cropFarming.yieldBonusPercent}%
+              </span>
+            </div>
+            <div className="space-y-1">
+              <span className="font-medium text-foreground">Crop water demand</span>
+              <span className="block font-mono text-xl font-semibold text-foreground">
+                +{cropFarming.waterDemandBonusPercent}%
               </span>
             </div>
           </Card.Content>
         </Card.Root>
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Repeatable research
-        </h3>
-        <Card.Root>
-          <Card.Content>
-            <Card.Header>
-              <Card.Title>{maintenanceOutputResearch.name}</Card.Title>
-              <Card.Description>
-                +{maintenanceOutputResearch.percentPerLevel}% maintenance production per level
-              </Card.Description>
-            </Card.Header>
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Repeatable research
+          </h3>
+          <Card.Root>
+            <Card.Content>
+              <Card.Header>
+                <Card.Title>{maintenanceOutputResearch.name}</Card.Title>
+                <Card.Description>
+                  +{maintenanceOutputResearch.percentPerLevel}% maintenance production per level
+                </Card.Description>
+              </Card.Header>
 
-            <Field.Root className="max-w-28">
-              <Field.Label>Level</Field.Label>
-              <Field.Control
-                aria-label="Maintenance Output level"
-                type="number"
-                min={0}
-                max={maintenanceOutputResearch.maxLevel}
-                step={1}
-                value={maintenanceOutput.level}
-                onChange={(event) => {
-                  const nextLevel = event.currentTarget.valueAsNumber;
+              <Field.Root className="max-w-28">
+                <Field.Label>Level</Field.Label>
+                <Field.Control
+                  aria-label="Maintenance Output level"
+                  type="number"
+                  min={0}
+                  max={maintenanceOutputResearch.maxLevel}
+                  step={1}
+                  value={maintenanceOutput.level}
+                  onChange={(event) => {
+                    const nextLevel = event.currentTarget.valueAsNumber;
 
-                  if (Number.isFinite(nextLevel)) onMaintenanceOutputLevelChange(nextLevel);
-                }}
-              />
-            </Field.Root>
-          </Card.Content>
-        </Card.Root>
+                    if (Number.isFinite(nextLevel)) onMaintenanceOutputLevelChange(nextLevel);
+                  }}
+                />
+              </Field.Root>
+            </Card.Content>
+          </Card.Root>
 
         <Card.Root>
           <Card.Content>
@@ -133,13 +164,42 @@ export const ModifiersView: React.FC<Props> = ({
             </Field.Root>
           </Card.Content>
         </Card.Root>
-      </section>
 
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Edicts
-        </h3>
         <Card.Root>
+          <Card.Content>
+            <Card.Header>
+              <Card.Title>{cropYieldResearch.name}</Card.Title>
+              <Card.Description>
+                +{cropYieldResearch.percentPerLevel}% crop yield and +
+                {cropYieldResearch.waterDemandPercentPerLevel}% crop water demand per level
+              </Card.Description>
+            </Card.Header>
+
+            <Field.Root className="max-w-28">
+              <Field.Label>Level</Field.Label>
+              <Field.Control
+                aria-label="Crop Yield level"
+                type="number"
+                min={0}
+                max={cropYieldResearch.maxLevel}
+                step={1}
+                value={cropFarming.researchLevel}
+                onChange={(event) => {
+                  const nextLevel = event.currentTarget.valueAsNumber;
+
+                  if (Number.isFinite(nextLevel)) onCropYieldLevelChange(nextLevel);
+                }}
+              />
+            </Field.Root>
+          </Card.Content>
+          </Card.Root>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Edicts
+          </h3>
+          <Card.Root>
           <Card.Content>
             <Card.Header>
               <Card.Title>{recyclingIncreaseEdict.name}</Card.Title>
@@ -200,14 +260,47 @@ export const ModifiersView: React.FC<Props> = ({
             </div>
           </Card.Content>
         </Card.Root>
-      </section>
+
+        <Card.Root>
+          <Card.Content>
+            <Card.Header>
+              <Card.Title>{farmingBoostEdict.name}</Card.Title>
+              <Card.Description>
+                +{activeFarmingBoostLevel.yieldIncreasePercent}% crop yield · +
+                {activeFarmingBoostLevel.waterDemandIncreasePercent}% crop water demand
+              </Card.Description>
+            </Card.Header>
+
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Farming Boost level">
+              {farmingBoostLevelOrder.map((level) => {
+                const definition = farmingBoostEdict.levels[level];
+                const selected = level === farmingBoostLevel;
+
+                return (
+                  <Button
+                    key={level}
+                    variant="ghost"
+                    size="small"
+                    selected={selected}
+                    aria-pressed={selected}
+                    onClick={() => onFarmingBoostLevelChange(level)}
+                  >
+                    {definition.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </Card.Content>
+          </Card.Root>
+        </section>
+      </div>
 
       <section className="space-y-2">
         <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Base values
         </h3>
         <Card.Root>
-          <Card.Content>
+          <Card.Content className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
             <div className="flex items-baseline justify-between gap-4">
               <span className="font-medium text-foreground">Recycling efficiency</span>
               <span className="font-mono font-semibold text-foreground">
@@ -222,7 +315,7 @@ export const ModifiersView: React.FC<Props> = ({
                 {planningWeather.averageSunIntensityPercent}%
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground sm:col-span-2">
               {planningWeather.difficulty} weather · seed{" "}
               <span className="font-mono">{planningWeather.gameSeed}</span> · {planningWeather.gameVersion}
             </p>

@@ -1,7 +1,12 @@
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type OperatingMode } from "../helpers/calculate/calculate";
-import { getRecipeOutputQuantity, type OutputModifierMultipliers } from "../helpers/modifiers/recipe-output";
+import {
+  getRecipeGrossInputQuantity,
+  getRecipeInputQuantity,
+  getRecipeOutputQuantity,
+  type RecipeModifierMultipliers,
+} from "../helpers/modifiers/recipe-output";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
 
@@ -14,7 +19,7 @@ interface Props {
   speedLevel: number;
   actualInputs?: { resourceId: keyof typeof resources; quantity: number }[];
   actualOutputs?: { resourceId: keyof typeof resources; quantity: number }[];
-  outputModifiers?: OutputModifierMultipliers;
+  outputModifiers?: RecipeModifierMultipliers;
 }
 
 export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers }) => {
@@ -52,17 +57,49 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
       {!inactive && hasFlows && (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="min-w-0 space-y-1">
-            {recipe.inputs.map((input) => (
-              <div key={input.resourceId} className="flex justify-between text-sm gap-2">
-                <span className="truncate text-gray-600 dark:text-gray-300">
-                  {resources[input.resourceId].name}
-                </span>
-                <span className="shrink-0 font-mono text-red-600 dark:text-red-400">
-                  {parseFloat((actualInputs?.find((actual) => actual.resourceId === input.resourceId)?.quantity
-                    ?? input.quantity * ioMultiplier).toFixed(2))}
-                </span>
-              </div>
-            ))}
+            {recipe.inputs.map((input) => {
+              const actualQuantity = actualInputs?.find(
+                (actual) => actual.resourceId === input.resourceId,
+              )?.quantity ?? getRecipeInputQuantity(input, outputModifiers) * ioMultiplier;
+              const grossQuantity = getRecipeGrossInputQuantity(input, outputModifiers)
+                * ioMultiplier;
+              const weatherAdjusted = Boolean(input.weatherAdjustedFarmId);
+
+              if (weatherAdjusted) {
+                return (
+                  <div key={input.resourceId} className="space-y-1 text-sm">
+                    <span className="block truncate text-muted-foreground">
+                      {resources[input.resourceId].name}
+                    </span>
+                    <dl className="space-y-1 rounded-lg bg-surface-inset px-2 py-1.5 inset-shadow-surface">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <dt className="min-w-0 text-xs text-muted-foreground">Import after rain</dt>
+                        <dd className="shrink-0 font-mono text-destructive">
+                          {parseFloat(actualQuantity.toFixed(2))}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                        <dt className="min-w-0">Gross demand</dt>
+                        <dd className="shrink-0 font-mono">
+                          {parseFloat(grossQuantity.toFixed(2))}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={input.resourceId} className="flex items-start justify-between gap-2 text-sm">
+                  <span className="min-w-0 truncate text-gray-600 dark:text-gray-300">
+                    {resources[input.resourceId].name}
+                  </span>
+                  <span className="shrink-0 font-mono text-red-600 dark:text-red-400">
+                    {parseFloat(actualQuantity.toFixed(2))}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="text-xl text-gray-400">&rarr;</div>

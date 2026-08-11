@@ -1,12 +1,12 @@
 import { type Module, type Preset } from "../../db/modules/modules";
 import { recipes } from "../../db/recipes";
 import { type ProductionLine } from "../calculate/calculate";
-import { getRecipeOutputQuantity, type OutputModifierMultipliers } from "../modifiers/recipe-output";
+import { getRecipeOutputQuantity, type RecipeModifierMultipliers } from "../modifiers/recipe-output";
 
 export const buildModuleLines = (
   mod: Module,
   preset: Preset | null,
-  outputModifiers: OutputModifierMultipliers = {},
+  outputModifiers: RecipeModifierMultipliers = {},
 ): { lines: ProductionLine[] } => {
   const totals = preset?.buildingTotals ?? mod.buildingTotals;
   const visibleRecipes = recipes.filter((r) => r.id in totals);
