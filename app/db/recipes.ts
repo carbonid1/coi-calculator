@@ -6,6 +6,7 @@ import {
   fertilizers,
 } from "./crop-farming";
 import { activeHousingType } from "./housing";
+import { maintenanceStatue } from "./maintenance-statue";
 import { type ResourceId } from "./resources";
 import {
   calculateSettlementPopulationFlows,
@@ -721,6 +722,15 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 10,
     balanceBy: "output",
+    // Fertilizer takes Compost first; this recipe can replace mined Dirt only
+    // with the Compost that remains available afterward.
+    balanceInputIds: ["compost"],
+    balanceOutputIds: ["dirt"],
+    sharedCapacity: {
+      id: "mixer-ii-dirt-from-compost",
+      priority: 1,
+      allocation: "fallback",
+    },
     inputs: [
       { resourceId: "gravel", quantity: 48 },
       { resourceId: "compost", quantity: 48 },
@@ -1154,6 +1164,27 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "foodPack", quantity: 32 }],
   },
   {
+    id: "arc-furnace-ii-silicon",
+    name: "Arc Furnace II (Molten Silicon)",
+    building: "Arc Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["moltenSilicon"],
+    inputs: [
+      { resourceId: "sand", quantity: 60 },
+      { resourceId: "coal", quantity: 12 },
+      { resourceId: "graphite", quantity: 3 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "moltenSilicon", quantity: 48 },
+      { resourceId: "slag", quantity: 24 },
+      { resourceId: "steamLow", quantity: 6 },
+      { resourceId: "exhaust", quantity: 36 },
+    ],
+  },
+  {
     id: "silicon-reactor-poly-silicon",
     name: "Silicon Reactor (Poly Silicon)",
     building: "Silicon Reactor",
@@ -1521,6 +1552,114 @@ export const recipes: Recipe[] = [
     sortsRecyclableSources: true,
   },
   {
+    id: "exhaust-scrubber-limestone",
+    name: "Exhaust Scrubber (Limestone)",
+    building: "Exhaust Scrubber",
+    group: "waste",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["exhaust"],
+    // Dispatch iteratively against factory-wide Exhaust so downstream
+    // byproducts remain available to ordinary demand-balanced recipes.
+    inputPriorities: { exhaust: 1 },
+    inputs: [
+      { resourceId: "exhaust", quantity: 480 },
+      { resourceId: "water", quantity: 48 },
+      { resourceId: "limestone", quantity: 9 },
+    ],
+    outputs: [
+      { resourceId: "sulfur", quantity: 12 },
+      { resourceId: "carbonDioxide", quantity: 192 },
+      { resourceId: "steamLow", quantity: 48 },
+      { resourceId: "slag", quantity: 9 },
+    ],
+  },
+  {
+    id: "glass-maker-ii",
+    name: "Glass Maker II",
+    building: "Glass Maker II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["glass"],
+    inputs: [{ resourceId: "moltenGlass", quantity: 24 }],
+    outputs: [{ resourceId: "glass", quantity: 24 }],
+  },
+  {
+    id: "arc-furnace-ii-glass-broken",
+    name: "Arc Furnace II (Broken Glass - priority 1)",
+    building: "Arc Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceInputIds: ["brokenGlass"],
+    balanceOutputIds: ["moltenGlass"],
+    sharedCapacity: { id: "arc-furnace-ii-glass", priority: 1 },
+    inputs: [
+      { resourceId: "brokenGlass", quantity: 72 },
+      { resourceId: "graphite", quantity: 3 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "moltenGlass", quantity: 48 },
+      { resourceId: "steamLow", quantity: 6 },
+      { resourceId: "exhaust", quantity: 6 },
+    ],
+    electricityMultiplier: 0.6,
+  },
+  {
+    id: "arc-furnace-ii-glass-mix",
+    name: "Arc Furnace II (Glass Mix - priority 2)",
+    building: "Arc Furnace II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["moltenGlass"],
+    sharedCapacity: { id: "arc-furnace-ii-glass", priority: 2 },
+    inputs: [
+      { resourceId: "glassMix", quantity: 60 },
+      { resourceId: "graphite", quantity: 3 },
+      { resourceId: "water", quantity: 6 },
+    ],
+    outputs: [
+      { resourceId: "moltenGlass", quantity: 48 },
+      { resourceId: "slag", quantity: 24 },
+      { resourceId: "steamLow", quantity: 6 },
+      { resourceId: "exhaust", quantity: 12 },
+    ],
+  },
+  {
+    id: "mixer-ii-glass-mix-acid",
+    name: "Mixer II (Glass Mix with Acid)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    balanceOutputIds: ["glassMix"],
+    inputs: [
+      { resourceId: "sand", quantity: 96 },
+      { resourceId: "limestone", quantity: 24 },
+      { resourceId: "salt", quantity: 12 },
+      { resourceId: "acid", quantity: 24 },
+    ],
+    outputs: [{ resourceId: "glassMix", quantity: 120 }],
+  },
+  {
+    id: "mixer-ii-glass-mix-regular",
+    name: "Mixer II (Glass Mix)",
+    building: "Mixer II",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    balanceOutputIds: ["glassMix"],
+    inputs: [
+      { resourceId: "sand", quantity: 120 },
+      { resourceId: "limestone", quantity: 30 },
+      { resourceId: "salt", quantity: 12 },
+    ],
+    outputs: [{ resourceId: "glassMix", quantity: 120 }],
+  },
+  {
     id: "assembly-v-mechanical-parts",
     name: "Assembly V (Mechanical Parts)",
     building: "Assembly V",
@@ -1746,6 +1885,15 @@ export const recipes: Recipe[] = [
   },
 
   // Maintenance
+  {
+    id: maintenanceStatue.id,
+    name: maintenanceStatue.name,
+    building: maintenanceStatue.name,
+    group: "production",
+    cycleDurationSeconds: 30,
+    inputs: [{ resourceId: "fuelGas", quantity: maintenanceStatue.fuelGasPerCycle }],
+    outputs: [],
+  },
   {
     id: "maintenance-i-basic",
     name: "Maintenance I (Basic)",

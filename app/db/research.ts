@@ -35,7 +35,7 @@ export const cropYieldResearch = {
 } as const satisfies InfiniteResearchDefinition;
 
 export const defaultInfiniteResearchLevels = {
-  maintenanceOutput: 3,
+  maintenanceOutput: 4,
   solarPower: 7,
   cropYield: 11,
 } as const satisfies Record<InfiniteResearchId, number>;

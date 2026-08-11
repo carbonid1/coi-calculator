@@ -287,6 +287,7 @@ export const calculateNet = (
     lines.flatMap((line) => line.recipe.outputs.map((output) => output.resourceId)),
   );
   const sourceOutputCapacities = new Map<ProductionLine, Map<ResourceId, number>>();
+  const totalSourceCapacityByResource = new Map<ResourceId, number>();
   const setSourceOutputCapacity = (
     line: ProductionLine,
     resourceId: ResourceId,
@@ -296,6 +297,10 @@ export const calculateNet = (
 
     capacities.set(resourceId, quantity);
     sourceOutputCapacities.set(line, capacities);
+    totalSourceCapacityByResource.set(
+      resourceId,
+      (totalSourceCapacityByResource.get(resourceId) ?? 0) + quantity,
+    );
   };
 
   // ── Pass 1: full-capacity simulation to find truly constrained resources ──
@@ -382,8 +387,11 @@ export const calculateNet = (
   const createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const sortedRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const capacityTracker = createCapacityTracker(regularLines);
-  const applyRegularLine = (line: ProductionLine, ratio: number) => {
-    allocationRatios.set(line, ratio);
+  const applyRegularLine = (line: ProductionLine, ratio: number, additive = false) => {
+    allocationRatios.set(
+      line,
+      (additive ? (allocationRatios.get(line) ?? 0) : 0) + ratio,
+    );
     capacityTracker.use(line, ratio);
 
     const multiplier = lineFactor(line) * ratio;
@@ -550,7 +558,13 @@ export const calculateNet = (
 
       if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
 
-      return [Math.max(0, flow.consumed - flow.produced) / capacity];
+      // Source recipes (map/world mines) are fallback streams. Their reserved
+      // capacity must not hide demand from internal producers; unused source
+      // capacity is removed after regular production has been allocated.
+      const internallyProduced = flow.produced
+        - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+
+      return [Math.max(0, flow.consumed - internallyProduced) / capacity];
     });
 
     ratio = outputDemandRatios.length > 0
@@ -560,8 +574,8 @@ export const calculateNet = (
     applyRegularLine(line, ratio);
   }
 
-  // Fallback recipes model the game's lower-priority recipe slots: they can use
-  // only real surplus inputs and physical capacity left by primary recipes.
+  // Fallback recipes model lower-priority processing. Explicit balance inputs
+  // must be real surplus; supporting materials may be produced afterward.
   for (const line of fallbackLines) {
     if (line.buildingCount === 0) {
       applyRegularLine(line, 0);
@@ -572,6 +586,16 @@ export const calculateNet = (
     let ratio = capacityTracker.availableRatio(line);
 
     for (const input of line.recipe.inputs) {
+      const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(input.resourceId) ?? false;
+
+      if (
+        line.recipe.balanceInputIds
+        && !explicitlyInputBalanced
+        && internallyProducedIds.has(input.resourceId)
+      ) {
+        continue;
+      }
+
       const flow = getFlow(input.resourceId);
       const available = flow.produced - flow.consumed;
       const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
@@ -579,7 +603,101 @@ export const calculateNet = (
       if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
     }
 
+    if (line.recipe.balanceBy === "output") {
+      const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
+        if (
+          line.recipe.balanceOutputIds
+          && !line.recipe.balanceOutputIds.includes(output.resourceId)
+        ) {
+          return [];
+        }
+
+        const flow = flows.get(output.resourceId);
+        const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+
+        if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
+
+        const internallyProduced = flow.produced
+          - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+
+        return [Math.max(0, flow.consumed - internallyProduced) / capacity];
+      });
+
+      ratio = outputDemandRatios.length > 0
+        ? Math.min(ratio, Math.max(...outputDemandRatios))
+        : 0;
+    }
+
     applyRegularLine(line, ratio);
+  }
+
+  // A fallback can introduce demand for an ordinary upstream producer (for
+  // example Gravel after surplus Compost is assigned to Dirt). Incrementally
+  // propagate that new demand without changing prior allocations.
+  for (let iteration = 0; iteration < demandBalancedLines.length; iteration += 1) {
+    let changed = false;
+
+    for (const line of demandBalancedLines) {
+      if (line.buildingCount === 0) continue;
+
+      const factor = lineFactor(line);
+      const remainingLineRatio = Math.max(
+        0,
+        1 - (allocationRatios.get(line) ?? 0),
+      );
+      let ratio = Math.min(
+        remainingLineRatio,
+        capacityTracker.availableRatio(line),
+      );
+
+      for (const input of line.recipe.inputs) {
+        if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
+          const flow = getFlow(input.resourceId);
+          const available = flow.produced - flow.consumed;
+          const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+          if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+          continue;
+        }
+        if (!externalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
+
+        const flow = getFlow(input.resourceId);
+        const available = flow.produced - flow.consumed;
+        const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+        if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+      }
+
+      const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
+        if (
+          line.recipe.balanceOutputIds
+          && !line.recipe.balanceOutputIds.includes(output.resourceId)
+        ) {
+          return [];
+        }
+
+        const flow = flows.get(output.resourceId);
+        const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+
+        if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
+
+        const internallyProduced = flow.produced
+          - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+
+        return [Math.max(0, flow.consumed - internallyProduced) / capacity];
+      });
+
+      ratio = outputDemandRatios.length > 0
+        ? Math.min(ratio, Math.max(...outputDemandRatios))
+        : 0;
+
+      if (ratio <= 1e-9) continue;
+
+      applyRegularLine(line, ratio, true);
+      changed = true;
+    }
+
+    if (!changed) break;
   }
 
   // Regular results

@@ -19,6 +19,10 @@ export interface Preset {
   outputTargets?: Partial<Record<ResourceId, number>>;
   buildingTotals?: Record<string, number>;
   speedLevels?: Record<string, number>;
+  /** Manually measured resource use outside the currently modeled recipes. */
+  fixedDemands?: Partial<Record<ResourceId, number>>;
+  /** Minimum average output for a named electricity dispatch group. */
+  electricityDispatchTargets?: Record<string, number>;
 }
 
 export interface Module {

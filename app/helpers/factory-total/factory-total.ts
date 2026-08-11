@@ -18,12 +18,14 @@ export interface FactoryTotalResult {
   allLines: ProductionLine[];
   contractResults: ContractResult[];
   calculation: ReturnType<typeof calculateNet>;
+  electricityDemandMw: number;
 }
 
 interface ElectricityDispatchGroup {
   id: string;
   priority: number;
   capacityMw: number;
+  minimumGenerationMw: number;
 }
 
 const MAX_DISPATCH_ITERATIONS = 32;
@@ -35,6 +37,7 @@ const calculateWithDispatch = (
   recyclingEfficiencyPercent: number,
   outputModifiers: RecipeModifierMultipliers,
   externalDemands: Partial<Record<ResourceId, number>> = {},
+  electricityDispatchTargets: Record<string, number> = {},
 ) => {
   const groupsById = new Map<string, ElectricityDispatchGroup>();
   const prioritizedLines = lines.filter((line) => (
@@ -60,12 +63,29 @@ const calculateWithDispatch = (
       id: dispatch.groupId,
       priority: dispatch.priority,
       capacityMw: (existing?.capacityMw ?? 0) + electricityCapacityMw,
+      minimumGenerationMw: Math.max(
+        existing?.minimumGenerationMw ?? 0,
+        electricityDispatchTargets[dispatch.groupId] ?? 0,
+      ),
     });
   }
 
   const groups = [...groupsById.values()].toSorted((a, b) => (
     a.priority - b.priority || a.id.localeCompare(b.id)
   ));
+  const minimumElectricityDemandMw = groups.reduce(
+    (state, group) => ({
+      priorCapacityMw: state.priorCapacityMw + group.capacityMw,
+      demandMw: group.minimumGenerationMw > 0 && group.capacityMw > 0
+        ? Math.max(
+            state.demandMw,
+            state.priorCapacityMw
+              + Math.min(group.capacityMw, group.minimumGenerationMw),
+          )
+        : state.demandMw,
+    }),
+    { priorCapacityMw: 0, demandMw: 0 },
+  ).demandMw;
   const applyDispatchRatios = (
     electricityRatios: Map<string, number>,
     resourceRatios: Map<string, number>,
@@ -105,11 +125,15 @@ const calculateWithDispatch = (
       externalDemands,
     );
 
-    let remainingDemandMw = calculateBuildingStats(
+    const modeledDemandMw = calculateBuildingStats(
       dispatchedLines,
       calculation,
       outputModifiers,
     ).electricityKw / 1000;
+    let remainingDemandMw = Math.max(
+      modeledDemandMw,
+      minimumElectricityDemandMw,
+    );
     const nextElectricityRatios = new Map<string, number>();
 
     for (const group of groups) {
@@ -159,8 +183,11 @@ const calculateWithDispatch = (
           (!balanceInputIds || balanceInputIds.has(input.resourceId))
           && line.recipe.inputPriorities?.[input.resourceId] == null
         ));
+        const hasPrioritizedInput = line.recipe.inputs.some((input) => (
+          line.recipe.inputPriorities?.[input.resourceId] != null
+        ));
 
-        desiredRatio = drivingInputs.length > 0 ? 1 : 0;
+        desiredRatio = drivingInputs.length > 0 || hasPrioritizedInput ? 1 : 0;
 
         for (const input of drivingInputs) {
           const flow = calculation.allResourceFlows.find(
@@ -265,7 +292,17 @@ const calculateWithDispatch = (
     externalDemands,
   );
 
-  return { lines: dispatchedLines, calculation };
+  const modeledDemandMw = calculateBuildingStats(
+    dispatchedLines,
+    calculation,
+    outputModifiers,
+  ).electricityKw / 1000;
+
+  return {
+    lines: dispatchedLines,
+    calculation,
+    electricityDemandMw: Math.max(modeledDemandMw, minimumElectricityDemandMw),
+  };
 };
 
 export const calculateFactoryTotal = (
@@ -277,6 +314,8 @@ export const calculateFactoryTotal = (
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
   const externalInputs: Partial<Record<ResourceId, number>> = {};
+  const fixedDemands: Partial<Record<ResourceId, number>> = {};
+  const electricityDispatchTargets: Record<string, number> = {};
 
   for (const mod of modules) {
     const preset = mod.defaultPresetId
@@ -289,6 +328,15 @@ export const calculateFactoryTotal = (
     for (const [resourceId, quantity] of typedEntries(preset?.externalInputs ?? mod.externalInputs ?? {})) {
       externalInputs[resourceId] = (externalInputs[resourceId] ?? 0) + quantity;
     }
+    for (const [resourceId, quantity] of typedEntries(preset?.fixedDemands ?? {})) {
+      fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
+    }
+    for (const [groupId, quantity] of Object.entries(preset?.electricityDispatchTargets ?? {})) {
+      electricityDispatchTargets[groupId] = Math.max(
+        electricityDispatchTargets[groupId] ?? 0,
+        quantity,
+      );
+    }
   }
 
   const withoutContracts = calculateWithDispatch(
@@ -296,6 +344,8 @@ export const calculateFactoryTotal = (
     externalInputs,
     recyclingEfficiencyPercent,
     outputModifiers,
+    fixedDemands,
+    electricityDispatchTargets,
   );
   const contractPlan = applyContracts(
     withoutContracts.calculation.allResourceFlows.filter(
@@ -304,7 +354,7 @@ export const calculateFactoryTotal = (
     contracts,
   );
   const inputsWithContracts = { ...externalInputs };
-  const contractDemands: Partial<Record<ResourceId, number>> = {};
+  const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
 
   for (const result of contractPlan.contractResults) {
     const importedId = result.contract.exchange.imported.resourceId;
@@ -320,6 +370,7 @@ export const calculateFactoryTotal = (
     recyclingEfficiencyPercent,
     outputModifiers,
     contractDemands,
+    electricityDispatchTargets,
   );
   const { calculation } = dispatched;
   const flows = calculation.allResourceFlows.filter(
@@ -331,5 +382,6 @@ export const calculateFactoryTotal = (
     allLines: dispatched.lines,
     contractResults: contractPlan.contractResults,
     calculation,
+    electricityDemandMw: dispatched.electricityDemandMw,
   };
 };

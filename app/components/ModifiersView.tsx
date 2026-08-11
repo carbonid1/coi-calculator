@@ -7,11 +7,15 @@ import {
   edictLevelOrder,
   farmingBoostEdict,
   farmingBoostLevelOrder,
+  maintenanceReducerEdict,
+  maintenanceReducerLevelOrder,
   recyclingIncreaseEdict,
   type CleanPanelsLevel,
   type EdictLevel,
   type FarmingBoostLevel,
+  type MaintenanceReducerLevel,
 } from "../db/edicts";
+import { maintenanceStatue } from "../db/maintenance-statue";
 import {
   cropYieldResearch,
   maintenanceOutputResearch,
@@ -19,6 +23,7 @@ import {
 } from "../db/research";
 import { planningWeather } from "../db/weather";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
+import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
 import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "../helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
@@ -30,6 +35,10 @@ interface Props {
   onCleanPanelsLevelChange: (level: CleanPanelsLevel) => void;
   farmingBoostLevel: FarmingBoostLevel;
   onFarmingBoostLevelChange: (level: FarmingBoostLevel) => void;
+  maintenanceReducerLevel: MaintenanceReducerLevel;
+  onMaintenanceReducerLevelChange: (level: MaintenanceReducerLevel) => void;
+  maintenanceStatueCount: number;
+  onMaintenanceStatueCountChange: (count: number) => void;
   maintenanceOutputLevel: number;
   onMaintenanceOutputLevelChange: (level: number) => void;
   solarPowerLevel: number;
@@ -45,6 +54,10 @@ export const ModifiersView: React.FC<Props> = ({
   onCleanPanelsLevelChange,
   farmingBoostLevel,
   onFarmingBoostLevelChange,
+  maintenanceReducerLevel,
+  onMaintenanceReducerLevelChange,
+  maintenanceStatueCount,
+  onMaintenanceStatueCountChange,
   maintenanceOutputLevel,
   onMaintenanceOutputLevelChange,
   solarPowerLevel,
@@ -55,10 +68,15 @@ export const ModifiersView: React.FC<Props> = ({
   const activeRecyclingLevel = recyclingIncreaseEdict.levels[recyclingIncreaseLevel];
   const activeCleanPanelsLevel = cleanPanelsEdict.levels[cleanPanelsLevel];
   const activeFarmingBoostLevel = farmingBoostEdict.levels[farmingBoostLevel];
+  const activeMaintenanceReducerLevel = maintenanceReducerEdict.levels[maintenanceReducerLevel];
   const recyclingEfficiency = calculateRecyclingEfficiency(recyclingIncreaseLevel);
   const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
   const solarPower = calculateSolarPower(solarPowerLevel, cleanPanelsLevel);
   const cropFarming = calculateCropFarmingModifiers(cropYieldLevel, farmingBoostLevel);
+  const maintenanceDemand = calculateMaintenanceDemandReduction(
+    maintenanceReducerLevel,
+    maintenanceStatueCount,
+  );
 
   return (
     <div className="space-y-6">
@@ -69,7 +87,7 @@ export const ModifiersView: React.FC<Props> = ({
           Effective values
         </h3>
         <Card.Root>
-          <Card.Content className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-5">
+          <Card.Content className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
               <span className="font-medium text-foreground">Recycling efficiency</span>
               <span className="block font-mono text-xl font-semibold text-foreground">
@@ -98,6 +116,15 @@ export const ModifiersView: React.FC<Props> = ({
               <span className="font-medium text-foreground">Crop water demand</span>
               <span className="block font-mono text-xl font-semibold text-foreground">
                 +{cropFarming.waterDemandBonusPercent}%
+              </span>
+            </div>
+            <div className="space-y-1">
+              <span className="font-medium text-foreground">Maintenance demand</span>
+              <span className="block font-mono text-xl font-semibold text-foreground">
+                −{maintenanceDemand.totalReductionPercent}%
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                Informational only
               </span>
             </div>
           </Card.Content>
@@ -292,8 +319,76 @@ export const ModifiersView: React.FC<Props> = ({
             </div>
           </Card.Content>
           </Card.Root>
+
+        <Card.Root>
+          <Card.Content>
+            <Card.Header>
+              <Card.Title>{maintenanceReducerEdict.name}</Card.Title>
+              <Card.Description>
+                −{activeMaintenanceReducerLevel.maintenanceReductionPercent}% maintenance demand
+              </Card.Description>
+            </Card.Header>
+
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Maintenance Reducer level">
+              {maintenanceReducerLevelOrder.map((level) => {
+                const definition = maintenanceReducerEdict.levels[level];
+                const selected = level === maintenanceReducerLevel;
+
+                return (
+                  <Button
+                    key={level}
+                    variant="ghost"
+                    size="small"
+                    selected={selected}
+                    aria-pressed={selected}
+                    onClick={() => onMaintenanceReducerLevelChange(level)}
+                  >
+                    {definition.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </Card.Content>
+        </Card.Root>
         </section>
       </div>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Global buildings
+        </h3>
+        <Card.Root>
+          <Card.Content className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-end">
+            <Card.Header>
+              <Card.Title>{maintenanceStatue.name}</Card.Title>
+              <Card.Description>
+                −{maintenanceDemand.statueReductionPercent}% maintenance demand · {maintenanceDemand.statueFuelGasPerCycle} Fuel Gas / 60s
+              </Card.Description>
+              <p className="text-xs text-muted-foreground">
+                Maintained statues; each additional effect is halved. Demand reduction is informational only.
+              </p>
+            </Card.Header>
+
+            <Field.Root>
+              <Field.Label>Count</Field.Label>
+              <Field.Control
+                aria-label="Maintenance statue count"
+                type="number"
+                min={0}
+                step={1}
+                value={maintenanceStatueCount}
+                onChange={(event) => {
+                  const nextCount = event.currentTarget.valueAsNumber;
+
+                  if (Number.isFinite(nextCount)) {
+                    onMaintenanceStatueCountChange(Math.max(0, Math.trunc(nextCount)));
+                  }
+                }}
+              />
+            </Field.Root>
+          </Card.Content>
+        </Card.Root>
+      </section>
 
       <section className="space-y-2">
         <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">

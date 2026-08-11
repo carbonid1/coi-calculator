@@ -1,7 +1,13 @@
+import {
+  defaultMaintenanceStatueCount,
+  maintenanceStatue,
+} from "../maintenance-statue";
 import { type Module } from "./modules";
 
+export const GENERAL_MODULE_ID = "general";
+
 export const general: Module = {
-  id: "general",
+  id: GENERAL_MODULE_ID,
   name: "General",
   description: "Shared production for yellowcake, electronics, and supporting materials",
   buildingTotals: {
@@ -13,6 +19,7 @@ export const general: Module = {
     "assembly-v-pcb": 1,
     "assembly-v-food-pack-eggs": 2,
     "assembly-v-food-pack-meat": 2,
+    "arc-furnace-ii-silicon": 1,
     "silicon-reactor-poly-silicon": 4,
     "crystallizer-silicon-wafer": 1,
     "microchip-machine-ii-1a": 1,
@@ -33,6 +40,11 @@ export const general: Module = {
     "chemical-plant-ii-graphite": 1,
     "copper-electrolysis-acid": 2,
     "waste-sorting-recyclables": 1,
+    "exhaust-scrubber-limestone": 1,
+    "glass-maker-ii": 1,
+    "arc-furnace-ii-glass-broken": 1,
+    "arc-furnace-ii-glass-mix": 1,
+    "mixer-ii-glass-mix-acid": 1,
     "arc-furnace-ii-copper-scrap": 1,
     "arc-furnace-ii-copper-ore": 1,
     "metal-caster-ii-copper": 2,
@@ -65,6 +77,7 @@ export const general: Module = {
     "mixer-ii-organic-fertilizer-dirt": 1,
     "chemical-plant-ii-fertilizer-i-organic": 1,
     "mixer-ii-fertilizer-ii": 1,
+    "mixer-ii-dirt-from-compost": 1,
     "polymerization-plant-plastic-ethanol": 1,
     "assembly-v-mechanical-parts": 1,
     "cooled-caster-ii-steel": 2,
@@ -74,6 +87,7 @@ export const general: Module = {
     "crusher-large-iron": 1,
     "wastewater-treatment-toxic-slurry": 1,
     "evaporation-pond-heated-salt-brine": 1,
+    [maintenanceStatue.id]: defaultMaintenanceStatueCount,
   },
   presets: [
     {
@@ -89,6 +103,7 @@ export const general: Module = {
         "assembly-v-pcb": 1,
         "assembly-v-food-pack-eggs": 2,
         "assembly-v-food-pack-meat": 2,
+        "arc-furnace-ii-silicon": 1,
         "silicon-reactor-poly-silicon": 4,
         "crystallizer-silicon-wafer": 1,
         "microchip-machine-ii-1a": 1,
@@ -109,6 +124,11 @@ export const general: Module = {
         "chemical-plant-ii-graphite": 1,
         "copper-electrolysis-acid": 2,
         "waste-sorting-recyclables": 1,
+        "exhaust-scrubber-limestone": 1,
+        "glass-maker-ii": 1,
+        "arc-furnace-ii-glass-broken": 1,
+        "arc-furnace-ii-glass-mix": 1,
+        "mixer-ii-glass-mix-acid": 1,
         "arc-furnace-ii-copper-scrap": 1,
         "arc-furnace-ii-copper-ore": 1,
         "metal-caster-ii-copper": 2,
@@ -141,6 +161,7 @@ export const general: Module = {
         "mixer-ii-organic-fertilizer-dirt": 1,
         "chemical-plant-ii-fertilizer-i-organic": 1,
         "mixer-ii-fertilizer-ii": 1,
+        "mixer-ii-dirt-from-compost": 1,
         "polymerization-plant-plastic-ethanol": 1,
         "assembly-v-mechanical-parts": 1,
         "cooled-caster-ii-steel": 2,
@@ -150,12 +171,32 @@ export const general: Module = {
         "crusher-large-iron": 1,
         "wastewater-treatment-toxic-slurry": 1,
         "evaporation-pond-heated-salt-brine": 1,
+        [maintenanceStatue.id]: defaultMaintenanceStatueCount,
       },
       available: {
         "settling-tank": 2,
       },
-      fixed: ["settling-tank"],
+      fixed: ["settling-tank", maintenanceStatue.id],
     },
   ],
   defaultPresetId: "yellowcake",
+};
+
+export const createGeneralModule = (maintenanceStatueCount: number): Module => {
+  const normalizedCount = Math.max(0, Math.trunc(maintenanceStatueCount));
+
+  return {
+    ...general,
+    buildingTotals: {
+      ...general.buildingTotals,
+      [maintenanceStatue.id]: normalizedCount,
+    },
+    presets: general.presets.map((preset) => ({
+      ...preset,
+      buildingTotals: {
+        ...preset.buildingTotals,
+        [maintenanceStatue.id]: normalizedCount,
+      },
+    })),
+  };
 };

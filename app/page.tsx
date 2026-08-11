@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { ChickenFarmSettings } from "./components/ChickenFarmSettings";
 import { ContractsView } from "./components/ContractsView";
+import { FbrPlanningSettings } from "./components/FbrPlanningSettings";
 import { HousingView } from "./components/HousingView";
 import { MinesView } from "./components/MinesView";
 import { ModifiersView } from "./components/ModifiersView";
@@ -22,16 +23,24 @@ import { activeContracts } from "./db/contracts";
 import {
   defaultActiveEdicts,
   type FarmingBoostLevel,
+  type MaintenanceReducerLevel,
 } from "./db/edicts";
 import {
   activeHousingType,
   defaultHousingCount,
 } from "./db/housing";
+import { defaultMaintenanceStatueCount } from "./db/maintenance-statue";
 import { createFarmsModule, FARMS_MODULE_ID } from "./db/modules/farms";
+import {
+  createFbrPowerPlantModule,
+  FBR_POWER_PLANT_MODULE_ID,
+} from "./db/modules/fbr-power-plant";
+import { createGeneralModule, GENERAL_MODULE_ID } from "./db/modules/general";
 import { createHousingModule, HOUSING_MODULE_ID } from "./db/modules/housing";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
 import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
+import { defaultPlanningBaselines } from "./db/planning-baselines";
 import { type RecipeGroup } from "./db/recipes";
 import {
   cropYieldResearch,
@@ -116,6 +125,12 @@ const farmingBoostLevelSchema = z.union([
   z.literal(2),
   z.literal(3),
 ]);
+const maintenanceReducerLevelSchema = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+]);
 const maintenanceOutputLevelSchema = z.number().int().min(0).max(maintenanceOutputResearch.maxLevel);
 const solarPowerLevelSchema = z.number().int().min(0).max(solarPowerResearch.maxLevel);
 const cropYieldLevelSchema = z.number().int().min(0).max(cropYieldResearch.maxLevel);
@@ -129,6 +144,11 @@ const chickenFarmSettingsSchema = z.object({
   slaughtering: z.boolean(),
 });
 const housingCountSchema = z.number().int().min(0);
+const maintenanceStatueCountSchema = z.number().int().min(0);
+const planningBaselinesSchema = z.object({
+  fbrAverageGenerationMw: z.number().min(0).max(60),
+  hydrogenFuelDemandPerCycle: z.number().min(0),
+});
 
 const Page = () => {
   const mounted = useMounted();
@@ -147,6 +167,21 @@ const Page = () => {
     "coi-farming-boost-level",
     farmingBoostLevelSchema,
     defaultActiveEdicts.farmingBoost,
+  );
+  const [maintenanceReducerLevel, setMaintenanceReducerLevel] = useLocalStorage(
+    "coi-maintenance-reducer-level",
+    maintenanceReducerLevelSchema,
+    defaultActiveEdicts.maintenanceReducer,
+  );
+  const [maintenanceStatueCount, setMaintenanceStatueCount] = useLocalStorage(
+    "coi-maintenance-statue-count",
+    maintenanceStatueCountSchema,
+    defaultMaintenanceStatueCount,
+  );
+  const [planningBaselines, setPlanningBaselines] = useLocalStorage(
+    "coi-planning-baselines",
+    planningBaselinesSchema,
+    defaultPlanningBaselines,
   );
   const [maintenanceOutputLevel, setMaintenanceOutputLevel] = useLocalStorage(
     "coi-maintenance-output-level",
@@ -182,6 +217,10 @@ const Page = () => {
   if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
 
   const configuredModules = modules.map((module) => {
+    if (module.id === GENERAL_MODULE_ID) return createGeneralModule(maintenanceStatueCount);
+    if (module.id === FBR_POWER_PLANT_MODULE_ID) {
+      return createFbrPowerPlantModule(planningBaselines);
+    }
     if (module.id === SOLAR_POWER_MODULE_ID) return createSolarPowerModule(solarPanelCounts);
     if (module.id === FARMS_MODULE_ID) return createFarmsModule(chickenFarmSettings);
     if (module.id === HOUSING_MODULE_ID) return createHousingModule(housingCount);
@@ -299,6 +338,12 @@ const Page = () => {
           onFarmingBoostLevelChange={(level: FarmingBoostLevel) => {
             setFarmingBoostLevel(level);
           }}
+          maintenanceReducerLevel={maintenanceReducerLevel}
+          onMaintenanceReducerLevelChange={(level: MaintenanceReducerLevel) => {
+            setMaintenanceReducerLevel(level);
+          }}
+          maintenanceStatueCount={maintenanceStatueCount}
+          onMaintenanceStatueCountChange={setMaintenanceStatueCount}
           maintenanceOutputLevel={maintenanceOutputLevel}
           onMaintenanceOutputLevelChange={setMaintenanceOutputLevel}
           solarPowerLevel={solarPowerLevel}
@@ -316,7 +361,7 @@ const Page = () => {
         <NetSummary
           flows={factoryResult.flows}
           workers={factoryStats.workers}
-          electricityConsumptionKw={factoryStats.electricityKw}
+          electricityConsumptionKw={factoryResult.electricityDemandMw * 1000}
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
           populationCapacity={populationCapacity}
           groupByBalance
@@ -331,6 +376,13 @@ const Page = () => {
           onChange={(panel, count) => {
             setSolarPanelCounts((current) => ({ ...current, [panel]: count }));
           }}
+        />
+      )}
+
+      {activeModule?.id === FBR_POWER_PLANT_MODULE_ID && (
+        <FbrPlanningSettings
+          values={planningBaselines}
+          onChange={setPlanningBaselines}
         />
       )}
 

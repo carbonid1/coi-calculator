@@ -44,6 +44,7 @@ export const resources = {
   carbonDioxide: { id: "carbonDioxide", name: "Carbon Dioxide", state: "fluid" },
   graphite: { id: "graphite", name: "Graphite", state: "loose" },
   rubber: { id: "rubber", name: "Rubber", state: "unit" },
+  glassMix: { id: "glassMix", name: "Glass Mix", state: "loose" },
   glass: {
     id: "glass",
     name: "Glass",

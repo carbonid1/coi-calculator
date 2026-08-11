@@ -61,8 +61,10 @@ export const buildings: Record<string, BuildingData> = {
   "Microchip Machine II": { workers: 6, electricityKw: 500 },
   "Rubber Maker I": { workers: 6, electricityKw: 300 },
   "Waste Sorting Plant": { workers: 32, electricityKw: 300 },
+  "Exhaust Scrubber": { workers: 8, electricityKw: 200 },
   "Gold Furnace": { workers: 6, electricityKw: 800 },
   "Arc Furnace II": { workers: 14, electricityKw: 6000 },
+  "Glass Maker II": { workers: 8, electricityKw: 500 },
   "Oxygen Furnace II": { workers: 6, electricityKw: 200 },
   "Cooled Caster II": { workers: 2, electricityKw: 0 },
   "Metal Caster II": { workers: 2, electricityKw: 0 },
@@ -71,5 +73,6 @@ export const buildings: Record<string, BuildingData> = {
   "Maintenance Depot": { workers: 12, electricityKw: 200 },
   "Maintenance II Depot": { workers: 16, electricityKw: 400 },
   "Maintenance III Depot": { workers: 20, electricityKw: 600 },
+  "The Statue of Maintenance (Golden)": { workers: 0, electricityKw: 0 },
   "Cooling Tower (Large)": { workers: 0, electricityKw: 0 },
 };

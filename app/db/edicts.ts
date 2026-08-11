@@ -1,10 +1,12 @@
 export const edictLevelOrder = [0, 1, 2, 3, 4, 5] as const;
 export const cleanPanelsLevelOrder = [0, 1, 2, 3] as const;
 export const farmingBoostLevelOrder = [0, 1, 2, 3] as const;
+export const maintenanceReducerLevelOrder = [0, 1, 2, 3] as const;
 
 export type EdictLevel = typeof edictLevelOrder[number];
 export type CleanPanelsLevel = typeof cleanPanelsLevelOrder[number];
 export type FarmingBoostLevel = typeof farmingBoostLevelOrder[number];
+export type MaintenanceReducerLevel = typeof maintenanceReducerLevelOrder[number];
 
 export interface EdictLevelDefinition {
   level: EdictLevel;
@@ -82,12 +84,39 @@ export const farmingBoostEdict = {
   },
 } as const satisfies FarmingBoostEdict;
 
+interface MaintenanceReducerLevelDefinition {
+  level: MaintenanceReducerLevel;
+  label: string;
+  maintenanceReductionPercent: number;
+  unityCostPerCycle: number;
+}
+
+interface MaintenanceReducerEdict {
+  id: "maintenanceReducer";
+  name: string;
+  levels: Record<MaintenanceReducerLevel, MaintenanceReducerLevelDefinition>;
+}
+
+export const maintenanceReducerEdict = {
+  id: "maintenanceReducer",
+  name: "Maintenance Reducer",
+  // Edict tiers stack. Values here are the effective cumulative totals.
+  levels: {
+    0: { level: 0, label: "0", maintenanceReductionPercent: 0, unityCostPerCycle: 0 },
+    1: { level: 1, label: "I", maintenanceReductionPercent: 15, unityCostPerCycle: 1 },
+    2: { level: 2, label: "II", maintenanceReductionPercent: 25, unityCostPerCycle: 2 },
+    3: { level: 3, label: "III", maintenanceReductionPercent: 30, unityCostPerCycle: 3 },
+  },
+} as const satisfies MaintenanceReducerEdict;
+
 export const defaultActiveEdicts = {
   recyclingIncrease: 3,
   cleanPanels: 0,
   farmingBoost: 1,
+  maintenanceReducer: 3,
 } as const satisfies {
   recyclingIncrease: EdictLevel;
   cleanPanels: CleanPanelsLevel;
   farmingBoost: FarmingBoostLevel;
+  maintenanceReducer: MaintenanceReducerLevel;
 };
