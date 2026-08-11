@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rebalance Farms"
+  short_description: "Recompute optimal COI crop farm rotations"
+  default_prompt: "Use $rebalance-farms to update crop rotations for the current factory demand."

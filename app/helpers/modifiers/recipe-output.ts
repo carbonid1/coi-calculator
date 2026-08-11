@@ -14,6 +14,20 @@ export type RecipeModifierMultipliers = Partial<Record<
 
 const GAME_PERCENT_SCALE = 100_000;
 
+const getWeatherAdjustedFarm = (input: Ingredient) => {
+  if (!input.weatherAdjustedFarmId) return null;
+
+  const farmGroup = activeCropFarmGroups.find(
+    (group) => group.id === input.weatherAdjustedFarmId,
+  );
+
+  if (!farmGroup) {
+    throw new Error(`Unknown weather-adjusted farm: ${input.weatherAdjustedFarmId}`);
+  }
+
+  return farmGroup;
+};
+
 const scaleGameQuantity = (quantity: number, multiplier: number) => {
   const rawPercent = Math.round(multiplier * GAME_PERCENT_SCALE);
   const product = quantity * rawPercent;
@@ -70,15 +84,9 @@ export const getRecipeInputQuantity = (
     ? modifiers[input.inputModifierId] ?? 1
     : 1;
 
-  if (input.weatherAdjustedFarmId) {
-    const farmGroup = activeCropFarmGroups.find(
-      (group) => group.id === input.weatherAdjustedFarmId,
-    );
+  const farmGroup = getWeatherAdjustedFarm(input);
 
-    if (!farmGroup) {
-      throw new Error(`Unknown weather-adjusted farm: ${input.weatherAdjustedFarmId}`);
-    }
-
+  if (farmGroup) {
     return calculateFarmIrrigationRates(farmGroup, multiplier).importedWaterPerMonth;
   }
 
@@ -93,15 +101,9 @@ export const getRecipeGrossInputQuantity = (
     ? modifiers[input.inputModifierId] ?? 1
     : 1;
 
-  if (input.weatherAdjustedFarmId) {
-    const farmGroup = activeCropFarmGroups.find(
-      (group) => group.id === input.weatherAdjustedFarmId,
-    );
+  const farmGroup = getWeatherAdjustedFarm(input);
 
-    if (!farmGroup) {
-      throw new Error(`Unknown weather-adjusted farm: ${input.weatherAdjustedFarmId}`);
-    }
-
+  if (farmGroup) {
     return calculateFarmIrrigationRates(farmGroup, multiplier).grossWaterPerMonth;
   }
 

@@ -1,3 +1,4 @@
+import { cropProductResourceIds } from "../db/crop-farming";
 import { type ResourceId, resources } from "../db/resources";
 import {
   type RegularResult,
@@ -178,6 +179,50 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
 
     if (group.flows.length === 0) {
       return <p className="text-sm text-muted-foreground">None</p>;
+    }
+
+    if (group.label === "Surplus") {
+      const farmFlows = group.flows.filter(
+        (flow) => cropProductResourceIds.has(flow.resourceId),
+      );
+      const otherFlows = group.flows.filter(
+        (flow) => !cropProductResourceIds.has(flow.resourceId),
+      );
+
+      if (farmFlows.length > 0) {
+        return (
+          <div className="space-y-4">
+            {otherFlows.length > 0 && (
+              <div className="space-y-1">
+                {otherFlows.map((flow) => (
+                  <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
+                    <span className="text-foreground">{flow.name}</span>
+                    <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                      {formatNet(flow.net)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
+              <h5 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Farm surplus
+              </h5>
+              <div className="space-y-1">
+                {farmFlows.map((flow) => (
+                  <div key={flow.resourceId} className="-mx-1 flex justify-between rounded px-1 py-0.5 text-sm hover:bg-accent">
+                    <span className="text-muted-foreground">{flow.name}</span>
+                    <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                      {formatNet(flow.net)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
     }
 
     return (

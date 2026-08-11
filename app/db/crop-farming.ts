@@ -323,6 +323,10 @@ export const crops = {
   },
 } as const satisfies Record<CropId, CropDefinition>;
 
+export const cropProductResourceIds: ReadonlySet<ResourceId> = new Set(
+  Object.values(crops).flatMap((crop) => crop.productId ? [crop.productId] : []),
+);
+
 export interface NominalCropRates {
   quantityPerHarvest: number;
   quantityPerMonth: number;
@@ -337,50 +341,46 @@ export interface CropFarmGroupRates {
   outputsPerMonth: ReadonlyMap<ResourceId, number>;
 }
 
-/**
- * Draft fixed end-game layout sized for the current factory snapshot.
- * These farms intentionally do not auto-balance: later demand changes must
- * remain visible as crop deficits or surpluses in Factory Total.
- */
+/** Fixed end-game layout sized for the current factory snapshot. */
 export const activeCropFarmGroups: readonly CropFarmGroup[] = [
   {
-    id: "greenhouse-ii-corn-wheat-a",
-    name: "Corn / Wheat / Corn / Wheat",
+    id: "greenhouse-ii-canola-wheat-wheat-soybean",
+    name: "Canola / Wheat / Wheat / Soybean",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["corn", "wheat", "corn", "wheat"],
+    schedule: ["canola", "wheat", "wheat", "soybean"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-potato-wheat-corn",
-    name: "Potato / Wheat / Potato / Corn",
+    id: "greenhouse-ii-corn-corn-corn-wheat",
+    name: "Corn / Corn / Corn / Wheat",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["potato", "wheat", "potato", "corn"],
+    schedule: ["corn", "corn", "corn", "wheat"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-fruit-wheat-sugar-cane",
-    name: "Fruit / Wheat / Sugar Cane / Wheat",
+    id: "greenhouse-ii-corn-fruit-corn-vegetables",
+    name: "Corn / Fruit / Corn / Vegetables",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["fruit", "wheat", "sugarCane", "wheat"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    schedule: ["corn", "fruit", "corn", "vegetables"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 130 },
   },
   {
-    id: "greenhouse-ii-corn-wheat-vegetables",
-    name: "Corn / Wheat / Corn / Vegetables",
+    id: "greenhouse-ii-sugar-cane-tree-sapling-wheat-wheat",
+    name: "Sugar Cane / Tree Sapling / Wheat / Wheat",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["corn", "wheat", "corn", "vegetables"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    schedule: ["sugarCane", "treeSapling", "wheat", "wheat"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 130 },
   },
   {
-    id: "greenhouse-ii-wheat-fruit-vegetables-canola",
-    name: "Wheat / Fruit / Vegetables / Canola",
+    id: "greenhouse-ii-potato-wheat-vegetables-wheat",
+    name: "Potato / Wheat / Vegetables / Wheat",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["wheat", "fruit", "vegetables", "canola"],
+    schedule: ["potato", "wheat", "vegetables", "wheat"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
 ] as const;
@@ -408,7 +408,7 @@ export const calculateCropFarmGroupRates = (
   );
   const outputsPerCycle = new Map<ResourceId, number>();
   let waterPerCycle = 0;
-  let fertilizerPerCycle = 0;
+  let fertilityDemandPerCycle = 0;
 
   group.schedule.forEach((cropId, index) => {
     const crop = crops[cropId];
@@ -446,17 +446,19 @@ export const calculateCropFarmGroupRates = (
       const aboveNaturalDemandMultiplier = 1
         + aboveNaturalFertility / 100
         * cropFarmSimulation.aboveNaturalFertilityDemandMultiplier;
-      const cropFertilityDemandPerDay = Math.max(0, crop.fertilityPercentPerDay)
-        * tier.demandMultiplier
-        * aboveNaturalDemandMultiplier
-        * repeatedCropPenalty;
+      const cropFertilityDemandPerDay = crop.fertilityPercentPerDay >= 0
+        ? crop.fertilityPercentPerDay
+          * tier.demandMultiplier
+          * aboveNaturalDemandMultiplier
+          * repeatedCropPenalty
+        : crop.fertilityPercentPerDay * tier.yieldMultiplier;
       const naturalFertilityLossPerDay = aboveNaturalFertility
         * cropFarmSimulation.naturalFertilityReplenishRate
         * cropFarmSimulation.aboveNaturalFertilityReplenishMultiplier;
 
-      fertilizerPerCycle += (
+      fertilityDemandPerCycle += (
         cropFertilityDemandPerDay + naturalFertilityLossPerDay
-      ) / fertilizer.fertilityPercentPerUnit * cropDays;
+      ) * cropDays;
     }
   });
 
@@ -470,7 +472,11 @@ export const calculateCropFarmGroupRates = (
 
   return {
     waterPerMonth: waterPerCycle * cyclesPerMonth,
-    fertilizerPerMonth: fertilizerPerCycle * cyclesPerMonth,
+    fertilizerPerMonth: fertilizer
+      ? Math.max(0, fertilityDemandPerCycle)
+        / fertilizer.fertilityPercentPerUnit
+        * cyclesPerMonth
+      : 0,
     outputsPerMonth,
   };
 };
