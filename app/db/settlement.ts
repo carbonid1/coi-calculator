@@ -45,7 +45,7 @@ export const settlementServiceBuildings = {
   biomassCollection: 1,
   clinic: 1,
   wastewaterTreatment: 1,
-  anaerobicDigester: 1,
+  anaerobicDigester: 2,
   biomassCompostMixer: 1,
 } as const;
 
