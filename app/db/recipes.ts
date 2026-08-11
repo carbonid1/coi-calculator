@@ -2499,8 +2499,10 @@ export const recipes: Recipe[] = [
       { resourceId: "water", quantity: 16 },
       { resourceId: "steamSuper", quantity: 12 },
     ],
-    balanceBy: "input",
-    balanceInputIds: ["steamSuper"],
+    // Produce the factory's requested Hydrogen, then leave remaining reactor
+    // steam for desalination instead of manufacturing an unused H2 surplus.
+    balanceBy: "output",
+    balanceOutputIds: ["hydrogen"],
     outputs: [
       { resourceId: "hydrogen", quantity: 32 },
       { resourceId: "oxygen", quantity: 32 },
@@ -2532,8 +2534,14 @@ export const recipes: Recipe[] = [
       { resourceId: "seaWater", quantity: 108 },
       { resourceId: "steamSuper", quantity: 6 },
     ],
-    balanceBy: "input",
+    // Cover Water demand with reactor steam left after electricity and H2;
+    // the resulting Brine then feeds wastewater, Chlorine, and Salt in order.
+    // The explicit steam balance prevents desalination from overdrawing the
+    // single FBR when both output-balanced consumers run in the same pass.
+    balanceBy: "output",
     balanceInputIds: ["steamSuper"],
+    balanceOutputIds: ["water"],
+    inputPriorities: { steamSuper: 1 },
     outputs: [
       { resourceId: "water", quantity: 72 },
       { resourceId: "brine", quantity: 42 },

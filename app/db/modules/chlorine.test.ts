@@ -20,11 +20,11 @@ const balancedLine = (recipe: Recipe): ProductionLine => ({
   operatingMode: "balanced",
 });
 
-it("models the two installed Electrolyzer II buildings", () => {
+it("models the installed Electrolyzer II building", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId);
 
-  expect(general.buildingTotals["electrolyzer-ii-chlorine"]).toBe(2);
-  expect(preset?.buildingTotals?.["electrolyzer-ii-chlorine"]).toBe(2);
+  expect(general.buildingTotals["electrolyzer-ii-chlorine"]).toBe(1);
+  expect(preset?.buildingTotals?.["electrolyzer-ii-chlorine"]).toBe(1);
 });
 
 it("uses Titanium reduction Chlorine before running Electrolyzer II", () => {

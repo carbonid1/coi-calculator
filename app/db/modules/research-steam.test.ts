@@ -102,9 +102,9 @@ it("autobalances fully grown trees and exposes their sapling demand", () => {
     (input) => input.resourceId === "treeSapling",
   )!.quantity;
 
-  expect(harvestedWood).toBeCloseTo(23.3375, 4);
+  expect(harvestedWood).toBeCloseTo(27.496429, 5);
   expect(saplingDemand).toBeCloseTo(harvestedWood / 20);
-  expect(saplingDemand).toBeCloseTo(1.166875, 6);
+  expect(saplingDemand).toBeCloseTo(1.374821, 6);
 });
 
 it("models repeatable tree growth research from a level-zero factory baseline", () => {
@@ -141,5 +141,5 @@ it("models repeatable tree growth research from a level-zero factory baseline", 
     growthYears: 8,
   });
   // Growth speed changes the forest area needed, not saplings per Wood.
-  expect(acceleratedSaplings).toBeCloseTo(1.166875, 6);
+  expect(acceleratedSaplings).toBeCloseTo(1.374821, 6);
 });
