@@ -240,9 +240,17 @@ const calculateWithDispatch = (
           (actual) => actual.resourceId === resourceId,
         )?.quantity ?? 0);
       }, 0);
+      const consumedByFallbackSinks = calculation.sinkResults.reduce(
+        (total, result) => total + (result.actualInputs.find(
+          (actual) => actual.resourceId === resourceId,
+        )?.quantity ?? 0),
+        0,
+      );
       let remaining = Math.max(
         0,
-        (flow?.produced ?? 0) - ((flow?.consumed ?? 0) - currentlyConsumed),
+        (flow?.produced ?? 0) - (
+          (flow?.consumed ?? 0) - currentlyConsumed - consumedByFallbackSinks
+        ),
       );
 
       for (const line of consumers) {
