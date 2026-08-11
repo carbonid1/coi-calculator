@@ -895,6 +895,77 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    // Captain of Industry v0.8.6c process-steam cluster, normalized to 60 seconds.
+    id: "shredder-woodchips",
+    name: "Shredder (Woodchips)",
+    building: "Shredder",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "output",
+    balanceOutputIds: ["woodchips"],
+    inputs: [{ resourceId: "wood", quantity: 24 }],
+    outputs: [{ resourceId: "woodchips", quantity: 24 }],
+  },
+  {
+    id: "chemical-plant-ii-paper",
+    name: "Chemical Plant II (Paper)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceOutputIds: ["paper"],
+    inputs: [
+      { resourceId: "woodchips", quantity: 12 },
+      { resourceId: "limestone", quantity: 3 },
+      { resourceId: "steamHigh", quantity: 3 },
+    ],
+    outputs: [{ resourceId: "paper", quantity: 24 }],
+  },
+  {
+    id: "sour-water-stripper",
+    name: "Sour Water Stripper",
+    building: "Sour Water Stripper",
+    group: "waste",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["sourWater"],
+    // Graphite's coal route is allocated in the fallback pass and creates the
+    // Sour Water this line consumes, so defer stripping to the same phase.
+    sharedCapacity: {
+      id: "sour-water-stripper",
+      priority: 1,
+      allocation: "fallback",
+    },
+    inputs: [
+      { resourceId: "sourWater", quantity: 36 },
+      { resourceId: "steamHigh", quantity: 3 },
+    ],
+    outputs: [
+      { resourceId: "sulfur", quantity: 9 },
+      { resourceId: "ammonia", quantity: 9 },
+      { resourceId: "water", quantity: 21 },
+    ],
+  },
+  {
+    id: "incineration-plant-waste",
+    name: "Incineration Plant (Waste)",
+    building: "Incineration Plant",
+    group: "waste",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    balanceInputIds: ["waste"],
+    balanceOutputIds: ["steamHigh"],
+    inputs: [
+      { resourceId: "waste", quantity: 144 },
+      { resourceId: "fuelGas", quantity: 6 },
+      { resourceId: "water", quantity: 18 },
+    ],
+    outputs: [
+      { resourceId: "exhaust", quantity: 72 },
+      { resourceId: "steamHigh", quantity: 18 },
+    ],
+  },
+  {
     // Captain of Industry v0.8.6c titanium chain, normalized to 60 seconds.
     // Keep this chain before Brine electrolysis so reduction Chlorine is used
     // before the Electrolyzer II covers any remaining Chlorine demand.
@@ -950,7 +1021,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: "distillation-stage-iii-titanium-purification",
-    name: "Distillation (Stage III) (Titanium Purification)",
+    name: "Distillation Stage III (Titanium Purification)",
     building: "Distillation (Stage III)",
     group: "production",
     cycleDurationSeconds: 20,
@@ -1226,6 +1297,65 @@ export const recipes: Recipe[] = [
       { resourceId: "enrichedUranium20", quantity: 2 },
     ],
     outputs: [{ resourceId: "compactReactor", quantity: 4 }],
+  },
+
+  // Lab Equipment chain on Assembly V, normalized to 60 seconds from v0.8.6c.
+  {
+    id: "assembly-v-lab-equipment-i",
+    name: "Assembly V (Lab Equipment I)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    balanceOutputIds: ["labEquipmentI"],
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 64 },
+      { resourceId: "electronicsI", quantity: 32 },
+    ],
+    outputs: [{ resourceId: "labEquipmentI", quantity: 96 }],
+  },
+  {
+    id: "assembly-v-lab-equipment-ii",
+    name: "Assembly V (Lab Equipment II)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    balanceOutputIds: ["labEquipmentII"],
+    inputs: [
+      { resourceId: "labEquipmentI", quantity: 48 },
+      { resourceId: "paper", quantity: 16 },
+      { resourceId: "glass", quantity: 16 },
+    ],
+    outputs: [{ resourceId: "labEquipmentII", quantity: 48 }],
+  },
+  {
+    id: "assembly-v-lab-equipment-iii",
+    name: "Assembly V (Lab Equipment III)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    balanceOutputIds: ["labEquipmentIII"],
+    inputs: [
+      { resourceId: "labEquipmentII", quantity: 48 },
+      { resourceId: "electronicsII", quantity: 8 },
+    ],
+    outputs: [{ resourceId: "labEquipmentIII", quantity: 48 }],
+  },
+  {
+    id: "assembly-v-lab-equipment-iv",
+    name: "Assembly V (Lab Equipment IV)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 15,
+    balanceBy: "output",
+    balanceOutputIds: ["labEquipmentIv"],
+    inputs: [
+      { resourceId: "labEquipmentIII", quantity: 32 },
+      { resourceId: "electronicsIII", quantity: 4 },
+    ],
+    outputs: [{ resourceId: "labEquipmentIv", quantity: 32 }],
   },
 
   // Electronics chains

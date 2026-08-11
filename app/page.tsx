@@ -265,7 +265,11 @@ const Page = () => {
   const moduleResult = activeModule
     ? (() => {
         const lines = factoryResult.allLines.filter((line) => line.moduleId === activeModule.id);
-        const calc = extractModuleResult(activeModule.id, factoryResult.calculation);
+        const calc = extractModuleResult(
+          activeModule.id,
+          factoryResult.calculation,
+          preset?.fixedDemands,
+        );
 
         return { lines, ...calc };
       })()

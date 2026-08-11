@@ -5,6 +5,7 @@ import type {
   RegularResult,
   ResourceFlow,
 } from "../calculate/calculate";
+import { typedEntries } from "../typed-entries/typed-entries";
 
 type CalculationResult = ReturnType<typeof calculateNet>;
 
@@ -18,6 +19,7 @@ export interface ModuleResult {
 export const extractModuleResult = (
   moduleId: string,
   calculation: CalculationResult,
+  fixedDemands: Partial<Record<ResourceId, number>> = {},
 ): ModuleResult => {
   const regularResults = calculation.regularResults.filter((result) => result.moduleId === moduleId);
   const sourceResults = calculation.sourceResults.filter((result) => result.moduleId === moduleId);
@@ -37,6 +39,9 @@ export const extractModuleResult = (
   for (const result of [...sourceResults, ...sinkResults]) {
     for (const input of result.actualInputs) getFlow(input.resourceId).consumed += input.quantity;
     for (const output of result.actualOutputs) getFlow(output.resourceId).produced += output.quantity;
+  }
+  for (const [resourceId, quantity] of typedEntries(fixedDemands)) {
+    getFlow(resourceId).consumed += quantity;
   }
 
   const recyclableSourceValueProduced = regularResults.reduce((total, result) => {
