@@ -8,6 +8,8 @@ interface Props {
   role: "source" | "sink";
 }
 
+const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
+
 export const SinkCard: React.FC<Props> = ({ result }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.buildingCount === 0 || !hasWork;
@@ -15,6 +17,8 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
   // Effective building count based on actual vs max output
   const effectiveCount = hasWork && result.recipe.outputs.length > 0
     ? (() => {
+        if (result.recipe.sourceMode === "demand") return result.buildingCount;
+
         const maxOutput = (result.recipe.outputs[0]?.quantity ?? 0) * result.buildingCount;
         const actualOutput = result.actualOutputs[0]?.quantity ?? 0;
 
@@ -49,7 +53,7 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
                   {resources[input.resourceId].name}
                 </span>
                 <span className="font-mono text-red-600 dark:text-red-400">
-                  {Math.round(input.quantity)}
+                  {formatQuantity(input.quantity)}
                 </span>
               </div>
             ))}
@@ -67,7 +71,7 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
                   {resources[output.resourceId].name}
                 </span>
                 <span className="font-mono text-green-600 dark:text-green-400">
-                  {Math.round(output.quantity)}
+                  {formatQuantity(output.quantity)}
                 </span>
               </div>
             ))}

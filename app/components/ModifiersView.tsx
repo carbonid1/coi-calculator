@@ -20,6 +20,7 @@ import {
   cropYieldResearch,
   maintenanceOutputResearch,
   solarPowerResearch,
+  treeGrowthSpeedResearch,
 } from "../db/research";
 import { planningWeather } from "../db/weather";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
@@ -27,6 +28,7 @@ import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calcul
 import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "../helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
+import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 
 interface Props {
   recyclingIncreaseLevel: EdictLevel;
@@ -45,6 +47,8 @@ interface Props {
   onSolarPowerLevelChange: (level: number) => void;
   cropYieldLevel: number;
   onCropYieldLevelChange: (level: number) => void;
+  treeGrowthSpeedLevel: number;
+  onTreeGrowthSpeedLevelChange: (level: number) => void;
 }
 
 export const ModifiersView: React.FC<Props> = ({
@@ -64,6 +68,8 @@ export const ModifiersView: React.FC<Props> = ({
   onSolarPowerLevelChange,
   cropYieldLevel,
   onCropYieldLevelChange,
+  treeGrowthSpeedLevel,
+  onTreeGrowthSpeedLevelChange,
 }) => {
   const activeRecyclingLevel = recyclingIncreaseEdict.levels[recyclingIncreaseLevel];
   const activeCleanPanelsLevel = cleanPanelsEdict.levels[cleanPanelsLevel];
@@ -73,6 +79,7 @@ export const ModifiersView: React.FC<Props> = ({
   const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
   const solarPower = calculateSolarPower(solarPowerLevel, cleanPanelsLevel);
   const cropFarming = calculateCropFarmingModifiers(cropYieldLevel, farmingBoostLevel);
+  const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const maintenanceDemand = calculateMaintenanceDemandReduction(
     maintenanceReducerLevel,
     maintenanceStatueCount,
@@ -116,6 +123,15 @@ export const ModifiersView: React.FC<Props> = ({
               <span className="font-medium text-foreground">Crop water demand</span>
               <span className="block font-mono text-xl font-semibold text-foreground">
                 +{cropFarming.waterDemandBonusPercent}%
+              </span>
+            </div>
+            <div className="space-y-1">
+              <span className="font-medium text-foreground">Tree growth speed</span>
+              <span className="block font-mono text-xl font-semibold text-foreground">
+                +{treeGrowthSpeed.bonusPercent}%
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {parseFloat(treeGrowthSpeed.growthCycles.toFixed(2))} cycles / {parseFloat(treeGrowthSpeed.growthYears.toFixed(2))} years
               </span>
             </div>
             <div className="space-y-1">
@@ -220,6 +236,34 @@ export const ModifiersView: React.FC<Props> = ({
             </Field.Root>
           </Card.Content>
           </Card.Root>
+
+        <Card.Root>
+          <Card.Content>
+            <Card.Header>
+              <Card.Title>{treeGrowthSpeedResearch.name}</Card.Title>
+              <Card.Description>
+                +{treeGrowthSpeedResearch.percentPerLevel}% tree growth speed per level
+              </Card.Description>
+            </Card.Header>
+
+            <Field.Root className="max-w-28">
+              <Field.Label>Level</Field.Label>
+              <Field.Control
+                aria-label="Tree Growth Speed level"
+                type="number"
+                min={0}
+                max={treeGrowthSpeedResearch.maxLevel}
+                step={1}
+                value={treeGrowthSpeed.level}
+                onChange={(event) => {
+                  const nextLevel = event.currentTarget.valueAsNumber;
+
+                  if (Number.isFinite(nextLevel)) onTreeGrowthSpeedLevelChange(nextLevel);
+                }}
+              />
+            </Field.Root>
+          </Card.Content>
+        </Card.Root>
         </section>
 
         <section className="space-y-3">

@@ -47,6 +47,7 @@ import {
   defaultInfiniteResearchLevels,
   maintenanceOutputResearch,
   solarPowerResearch,
+  treeGrowthSpeedResearch,
 } from "./db/research";
 import { defaultSolarPanelCounts } from "./db/solar";
 import { calculateBuildingStats } from "./helpers/building-stats/building-stats";
@@ -56,6 +57,7 @@ import { calculateCropFarmingModifiers } from "./helpers/modifiers/calculate-cro
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
+import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-growth-speed";
 import { getRecipeOutputQuantity } from "./helpers/modifiers/recipe-output";
 import { extractModuleResult } from "./helpers/module-result/module-result";
 import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
@@ -134,6 +136,7 @@ const maintenanceReducerLevelSchema = z.union([
 const maintenanceOutputLevelSchema = z.number().int().min(0).max(maintenanceOutputResearch.maxLevel);
 const solarPowerLevelSchema = z.number().int().min(0).max(solarPowerResearch.maxLevel);
 const cropYieldLevelSchema = z.number().int().min(0).max(cropYieldResearch.maxLevel);
+const treeGrowthSpeedLevelSchema = z.number().int().min(0).max(treeGrowthSpeedResearch.maxLevel);
 const solarPanelCountsSchema = z.object({
   standard: z.number().int().min(0),
   mono: z.number().int().min(0),
@@ -198,6 +201,11 @@ const Page = () => {
     cropYieldLevelSchema,
     defaultInfiniteResearchLevels.cropYield,
   );
+  const [treeGrowthSpeedLevel, setTreeGrowthSpeedLevel] = useLocalStorage(
+    "coi-tree-growth-speed-level",
+    treeGrowthSpeedLevelSchema,
+    defaultInfiniteResearchLevels.treeGrowthSpeed,
+  );
   const [solarPanelCounts, setSolarPanelCounts] = useLocalStorage(
     "coi-solar-panel-counts",
     solarPanelCountsSchema,
@@ -249,11 +257,13 @@ const Page = () => {
     cropYieldLevel,
     farmingBoostLevel,
   );
+  const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const outputModifiers = {
     maintenanceOutput: maintenanceOutput.multiplier,
     solarPower: solarPowerOutput.multiplier,
     cropYield: cropFarming.yieldMultiplier,
     cropWater: cropFarming.waterDemandMultiplier,
+    treeGrowthSpeed: treeGrowthSpeed.multiplier,
   };
   const factoryResult = calculateFactoryTotal(
     configuredModules,
@@ -354,6 +364,8 @@ const Page = () => {
           onSolarPowerLevelChange={setSolarPowerLevel}
           cropYieldLevel={cropYieldLevel}
           onCropYieldLevelChange={setCropYieldLevel}
+          treeGrowthSpeedLevel={treeGrowthSpeedLevel}
+          onTreeGrowthSpeedLevelChange={setTreeGrowthSpeedLevel}
         />
       )}
 

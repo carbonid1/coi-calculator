@@ -48,6 +48,7 @@ export const getRecipeOutputQuantity = (
   if (
     output.outputModifierId === "solarPower"
     || output.outputModifierId === "cropYield"
+    || output.outputModifierId === "treeGrowthSpeed"
   ) {
     return output.quantity * multiplier;
   }

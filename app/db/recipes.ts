@@ -7,6 +7,7 @@ import {
 } from "./crop-farming";
 import { activeHousingType } from "./housing";
 import { maintenanceStatue } from "./maintenance-statue";
+import { TREE_FULL_GROWTH_CYCLES } from "./research";
 import { type ResourceId } from "./resources";
 import {
   calculateSettlementPopulationFlows,
@@ -24,8 +25,12 @@ export interface Ingredient {
 }
 
 export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
-export type InputModifierId = "cropWater";
-export type OutputModifierId = "maintenanceOutput" | "solarPower" | "cropYield";
+export type InputModifierId = "cropWater" | "treeGrowthSpeed";
+export type OutputModifierId =
+  | "maintenanceOutput"
+  | "solarPower"
+  | "cropYield"
+  | "treeGrowthSpeed";
 export type BalanceBy = "input" | "output";
 export type SharedCapacityAllocation = "primary" | "fallback";
 export type SourceKind = "map-mine" | "world-mine";
@@ -132,6 +137,27 @@ export const cropFarmRecipes: Recipe[] = activeCropFarmGroups.map((group) => {
 
 export const recipes: Recipe[] = [
   // Sources
+  {
+    // Captain of Industry v0.8.6c: one sapling becomes 20 Wood when harvested
+    // at 100% growth after 12 in-game years. Forest area is intentionally
+    // unbounded, so this demand source scales the number of growing trees.
+    id: "forestry-trees-100-growth",
+    name: "Forestry Control Tower (Trees at 100% growth)",
+    building: "Forestry Control Tower",
+    group: "source",
+    cycleDurationSeconds: TREE_FULL_GROWTH_CYCLES * 60,
+    inputs: [{
+      resourceId: "treeSapling",
+      quantity: 1 / TREE_FULL_GROWTH_CYCLES,
+      inputModifierId: "treeGrowthSpeed",
+    }],
+    outputs: [{
+      resourceId: "wood",
+      quantity: 20 / TREE_FULL_GROWTH_CYCLES,
+      outputModifierId: "treeGrowthSpeed",
+    }],
+    sourceMode: "demand",
+  },
   {
     id: "seawater-pump",
     name: "Seawater Pump (Fast)",

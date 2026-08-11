@@ -770,13 +770,32 @@ export const calculateNet = (
 
       return { resourceId: output.resourceId, quantity: actualUsed };
     });
+    const sourceScale = actualOutputs.reduce((maximum, actual) => {
+      const declared = line.recipe.outputs.find(
+        (output) => output.resourceId === actual.resourceId,
+      );
+      const declaredQuantity = declared
+        ? getRecipeOutputQuantity(line.recipe, declared, outputModifiers)
+        : 0;
+
+      return declaredQuantity > 0
+        ? Math.max(maximum, actual.quantity / declaredQuantity)
+        : maximum;
+    }, 0);
+    const actualInputs = line.recipe.inputs.map((input) => {
+      const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
+
+      getFlow(input.resourceId).consumed += quantity;
+
+      return { resourceId: input.resourceId, quantity };
+    });
 
     return {
       recipe: line.recipe,
       moduleId: line.moduleId,
       buildingCount: line.buildingCount,
       totalBuildings: line.totalBuildings,
-      actualInputs: [],
+      actualInputs,
       actualOutputs,
     };
   });

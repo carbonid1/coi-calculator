@@ -7,6 +7,7 @@ export const forestry: Module = {
   name: "Forestry",
   description: "Wood processing for downstream production chains",
   buildingTotals: {
+    "forestry-trees-100-growth": 1,
     "shredder-woodchips": 1,
   },
   presets: [],
