@@ -11,8 +11,7 @@ export const processSteam: Module = {
   name: "Process Steam",
   description: "Incinerator-backed steam for paper, titanium purification, and sour-water recovery",
   buildingTotals: {
-    "shredder-woodchips": 1,
-    "chemical-plant-ii-paper": 2,
+    "chemical-plant-ii-paper": 1,
     "distillation-stage-iii-titanium-purification": 1,
     "sour-water-stripper": 1,
     "incineration-plant-waste": 1,

@@ -1,6 +1,7 @@
 import { type ResourceId } from "../resources";
 import { farms } from "./farms";
 import { fbrPowerPlant } from "./fbr-power-plant";
+import { forestry } from "./forestry";
 import { general } from "./general";
 import { housing } from "./housing";
 import { maintenance } from "./maintenance";
@@ -41,6 +42,7 @@ export interface Module {
 
 export const modules: [Module, ...Module[]] = [
   general,
+  forestry,
   processSteam,
   research,
   farms,

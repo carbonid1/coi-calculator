@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { extractModuleResult } from "../../helpers/module-result/module-result";
 import { activeContracts } from "../contracts";
+import { forestry } from "./forestry";
 import { modules } from "./modules";
 import { processSteam } from "./process-steam";
 import {
@@ -71,11 +72,13 @@ it("routes process steam to every active consumer", () => {
   )!;
 
   expect(processSteam.buildingTotals).toEqual({
-    "shredder-woodchips": 1,
-    "chemical-plant-ii-paper": 2,
+    "chemical-plant-ii-paper": 1,
     "distillation-stage-iii-titanium-purification": 1,
     "sour-water-stripper": 1,
     "incineration-plant-waste": 1,
+  });
+  expect(forestry.buildingTotals).toEqual({
+    "shredder-woodchips": 1,
   });
   expect(actualOutput(result, "incineration-plant-waste", "steamHigh")).toBeGreaterThan(0);
   expect(titaniumPurification.supplyRatio).toBe(0);
