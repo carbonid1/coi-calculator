@@ -1507,18 +1507,47 @@ export const recipes: Recipe[] = [
   },
   {
     id: "chemical-plant-ii-graphite",
-    name: "Chemical Plant II (Graphite)",
+    name: "Chemical Plant II (Graphite from CO2)",
     building: "Chemical Plant II",
     group: "production",
     cycleDurationSeconds: 10,
     balanceBy: "input",
+    balanceInputIds: ["carbonDioxide"],
     sharedCapacity: {
-      id: "chemical-plant-ii-electronics",
-      priority: 2,
+      id: "chemical-plant-ii-graphite",
+      label: "Chemical Plant II — Graphite",
+      priority: 1,
       allocation: "fallback",
     },
     inputs: [{ resourceId: "carbonDioxide", quantity: 144 }],
     outputs: [{ resourceId: "graphite", quantity: 6 }],
+  },
+  {
+    id: "chemical-plant-ii-graphite-coal",
+    name: "Chemical Plant II (Graphite from Coal)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    // Coal and Chlorine are demand-produced after fallback allocation; neither
+    // is a surplus constraint on this demand-balanced recipe.
+    balanceInputIds: [],
+    balanceOutputIds: ["graphite"],
+    sharedCapacity: {
+      id: "chemical-plant-ii-graphite",
+      label: "Chemical Plant II — Graphite",
+      priority: 2,
+      allocation: "fallback",
+    },
+    inputs: [
+      { resourceId: "coal", quantity: 4 },
+      { resourceId: "chlorine", quantity: 12 },
+    ],
+    outputs: [
+      { resourceId: "graphite", quantity: 12 },
+      { resourceId: "sourWater", quantity: 4 },
+    ],
+    electricityMultiplier: 2,
   },
   {
     id: "copper-electrolysis-acid",

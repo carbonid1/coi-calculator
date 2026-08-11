@@ -5,6 +5,8 @@ import {
 import { type Module } from "./modules";
 
 export const GENERAL_MODULE_ID = "general";
+/** 6.77 coal-route + 1.88 CO2-route effective plants require nine installed plants. */
+const graphiteChemicalPlantCount = 9;
 
 export const general: Module = {
   id: GENERAL_MODULE_ID,
@@ -37,7 +39,8 @@ export const general: Module = {
     "assembly-v-electronics-iii": 1,
     "rubber-maker-ethanol": 1,
     "chemical-plant-ii-ethanol": 1,
-    "chemical-plant-ii-graphite": 1,
+    "chemical-plant-ii-graphite": graphiteChemicalPlantCount,
+    "chemical-plant-ii-graphite-coal": graphiteChemicalPlantCount,
     "copper-electrolysis-acid": 2,
     "waste-sorting-recyclables": 1,
     "exhaust-scrubber-limestone": 1,
@@ -121,7 +124,8 @@ export const general: Module = {
         "assembly-v-electronics-iii": 1,
         "rubber-maker-ethanol": 1,
         "chemical-plant-ii-ethanol": 1,
-        "chemical-plant-ii-graphite": 1,
+        "chemical-plant-ii-graphite": graphiteChemicalPlantCount,
+        "chemical-plant-ii-graphite-coal": graphiteChemicalPlantCount,
         "copper-electrolysis-acid": 2,
         "waste-sorting-recyclables": 1,
         "exhaust-scrubber-limestone": 1,

@@ -17,6 +17,7 @@ export interface Resource {
 export const resources = {
   seaWater: { id: "seaWater", name: "Sea Water", state: "fluid" },
   water: { id: "water", name: "Water", state: "fluid" },
+  sourWater: { id: "sourWater", name: "Sour Water", state: "fluid" },
   brine: { id: "brine", name: "Brine", state: "fluid" },
   chlorine: { id: "chlorine", name: "Chlorine", state: "fluid" },
   fuelGas: { id: "fuelGas", name: "Fuel Gas", state: "fluid" },
