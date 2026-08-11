@@ -171,6 +171,31 @@ export const resources = {
   labEquipmentIv: { id: "labEquipmentIv", name: "Lab Equipment IV", state: "unit" },
   toxicSlurry: { id: "toxicSlurry", name: "Toxic Slurry", state: "fluid" },
   hydrogenFluoride: { id: "hydrogenFluoride", name: "Hydrogen Fluoride", state: "fluid" },
+  titaniumOre: { id: "titaniumOre", name: "Titanium Ore", state: "loose" },
+  titaniumOreCrushed: {
+    id: "titaniumOreCrushed",
+    name: "Titanium Ore Crushed",
+    state: "loose",
+  },
+  titaniumSlag: { id: "titaniumSlag", name: "Titanium Slag", state: "loose" },
+  titaniumChloride: {
+    id: "titaniumChloride",
+    name: "Titanium Chloride",
+    state: "fluid",
+  },
+  titaniumChloridePure: {
+    id: "titaniumChloridePure",
+    name: "Titanium Chloride (Pure)",
+    state: "fluid",
+  },
+  titaniumSponge: { id: "titaniumSponge", name: "Titanium Sponge", state: "loose" },
+  moltenTitanium: { id: "moltenTitanium", name: "Molten Titanium", state: "fluid" },
+  moltenAluminum: { id: "moltenAluminum", name: "Molten Aluminum", state: "fluid" },
+  moltenTitaniumAlloy: {
+    id: "moltenTitaniumAlloy",
+    name: "Molten Titanium Alloy",
+    state: "fluid",
+  },
   titaniumAlloy: { id: "titaniumAlloy", name: "Titanium Alloy", state: "unit" },
   // Mechanical Parts use the Steel recipe in the current factory path. The
   // game tracks this provenance dynamically; one part carries one Iron Scrap.
