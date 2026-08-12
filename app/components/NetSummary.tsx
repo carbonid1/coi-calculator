@@ -3,11 +3,14 @@ import { Cpu, Sparkles } from "lucide-react";
 import { cropProductResourceIds } from "../db/crop-farming";
 import { type ResourceId, resources } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
+import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
   type RegularResult,
   type ResourceFlow,
 } from "../helpers/calculate/calculate";
+import { getSurplusCapacityLimit } from "../helpers/capacity-limit/capacity-limit";
 import { typedEntries } from "../helpers/typed-entries/typed-entries";
+import { BuildingAttentionView } from "./BuildingAttentionView";
 
 interface Props {
   flows: ResourceFlow[];
@@ -21,6 +24,8 @@ interface Props {
   unityBudget?: UnityBudget;
   groupByBalance?: boolean;
   regularResults?: RegularResult[];
+  buildingDiagnostics?: BuildingDiagnostic[];
+  onOpenModule?: (moduleId: string) => void;
 }
 
 const BALANCE_THRESHOLD = 0.001;
@@ -46,7 +51,7 @@ const getCapacityLimit = (
   regularResults: RegularResult[],
 ) => {
   const producers = regularResults.filter((result) => (
-    result.buildingCount > 0
+    result.activeBuildings > 0
     && result.recipe.outputs.some((output) => output.resourceId === resourceId)
   ));
 
@@ -66,69 +71,16 @@ const getCapacityLimit = (
       ? regularResults.filter((result) => result.capacityPoolId === producer.capacityPoolId)
       : [producer];
     const capacity = producer.capacityPoolId
-      ? Math.max(...capacityResults.map((result) => result.buildingCount))
-      : producer.buildingCount;
+      ? Math.max(...capacityResults.map((result) => result.activeBuildings))
+      : producer.activeBuildings;
     const used = capacityResults.reduce((total, result) => (
-      total + result.buildingCount * result.supplyRatio
+      total + result.activeBuildings * result.supplyRatio
     ), 0);
 
     return {
       atCapacity: capacity > 0 && capacity - used <= BALANCE_THRESHOLD,
       capacity,
       label: producer.recipe.sharedCapacity?.label ?? producer.recipe.building,
-      used,
-    };
-  });
-
-  if (limits.some((limit) => !limit.atCapacity)) return null;
-
-  return limits
-    .map((limit) => (
-      `${limit.label} · at capacity ${formatBuildingCapacity(limit.used)}/${formatBuildingCapacity(limit.capacity)}`
-    ))
-    .join(", ");
-};
-
-export const getSurplusCapacityLimit = (
-  resourceId: ResourceId,
-  regularResults: RegularResult[],
-) => {
-  const surplusConsumers = regularResults.filter((result) => (
-    result.buildingCount > 0
-    && (
-      result.recipe.allocation === "fallback"
-      || result.recipe.allocation === "surplus"
-    )
-    && result.recipe.balanceBy === "input"
-    && result.recipe.balanceInputIds?.includes(resourceId)
-  ));
-
-  if (surplusConsumers.length === 0) return null;
-
-  const consumersByCapacity = new Map<string, RegularResult>();
-
-  for (const consumer of surplusConsumers) {
-    consumersByCapacity.set(
-      consumer.capacityPoolId ?? `${consumer.moduleId}:${consumer.recipe.id}`,
-      consumer,
-    );
-  }
-
-  const limits = [...consumersByCapacity.values()].map((consumer) => {
-    const capacityResults = consumer.capacityPoolId
-      ? regularResults.filter((result) => result.capacityPoolId === consumer.capacityPoolId)
-      : [consumer];
-    const capacity = consumer.capacityPoolId
-      ? Math.max(...capacityResults.map((result) => result.buildingCount))
-      : consumer.buildingCount;
-    const used = capacityResults.reduce((total, result) => (
-      total + result.buildingCount * result.supplyRatio
-    ), 0);
-
-    return {
-      atCapacity: capacity > 0 && capacity - used <= BALANCE_THRESHOLD,
-      capacity,
-      label: consumer.recipe.sharedCapacity?.label ?? consumer.recipe.building,
       used,
     };
   });
@@ -154,6 +106,8 @@ export const NetSummary: React.FC<Props> = ({
   unityBudget,
   groupByBalance = false,
   regularResults = [],
+  buildingDiagnostics = [],
+  onOpenModule,
 }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
 
@@ -369,8 +323,8 @@ export const NetSummary: React.FC<Props> = ({
   ) return null;
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h3 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">
+    <div className="space-y-3 rounded-lg bg-card p-3 shadow-card">
+      <h3 className="font-semibold text-gray-900 dark:text-gray-100">
         {groupByBalance ? "Factory Summary" : "Net Summary"}{" "}
         <span className="text-sm font-normal text-gray-500">(per 60s)</span>
       </h3>
@@ -391,7 +345,7 @@ export const NetSummary: React.FC<Props> = ({
           ?? 0;
 
         return (
-          <div className="mb-3 border-b border-gray-200 pb-3 dark:border-gray-700 space-y-1">
+          <div className="space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
             {showsCapacity ? (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -475,7 +429,7 @@ export const NetSummary: React.FC<Props> = ({
       })()}
 
       {externalEntries.length > 0 && (
-        <div className="mb-3 space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
+        <div className="space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
           <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
             External Inputs
           </p>
@@ -493,7 +447,7 @@ export const NetSummary: React.FC<Props> = ({
       )}
 
       {moduleInputFlows.length > 0 && (
-        <div className="mb-3 space-y-1 border-b border-border pb-3">
+        <div className="space-y-1 border-b border-border pb-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Module inputs
           </p>
@@ -511,16 +465,24 @@ export const NetSummary: React.FC<Props> = ({
       )}
 
       {groupByBalance ? (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {displayedBalanceGroups.map((group) => (
-            <section key={group.label} className="rounded-lg border border-border p-3">
-              <h4 className="mb-3 text-sm font-semibold text-foreground">
-                {group.label}
-              </h4>
-              {renderBalanceGroup(group)}
-            </section>
-          ))}
-        </div>
+        <>
+          {onOpenModule && (
+            <BuildingAttentionView
+              diagnostics={buildingDiagnostics}
+              onOpenModule={onOpenModule}
+            />
+          )}
+          <div className="grid gap-2 lg:grid-cols-2">
+            {displayedBalanceGroups.map((group) => (
+              <section key={group.label} className="rounded-lg border border-border p-3">
+                <h4 className="mb-3 text-sm font-semibold text-foreground">
+                  {group.label}
+                </h4>
+                {renderBalanceGroup(group)}
+              </section>
+            ))}
+          </div>
+        </>
       ) : (
         <div className="space-y-1">
           {regularFlows.map((flow) => (

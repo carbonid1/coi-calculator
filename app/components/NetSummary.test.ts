@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { recipes } from "../db/recipes";
 import { type RegularResult } from "../helpers/calculate/calculate";
-import { getSurplusCapacityLimit } from "./NetSummary";
+import { getSurplusCapacityLimit } from "../helpers/capacity-limit/capacity-limit";
 
 describe("NetSummary capacity diagnostics", () => {
   it("identifies a full surplus converter as the limit on an input surplus", () => {
@@ -16,8 +16,8 @@ describe("NetSummary capacity diagnostics", () => {
     const result: RegularResult = {
       recipe,
       moduleId: "general",
-      buildingCount: 1,
-      totalBuildings: 1,
+      activeBuildings: 1,
+      builtBuildings: 1,
       operatingMode: "balanced",
       supplyRatio: 1,
       speedLevel: 1,

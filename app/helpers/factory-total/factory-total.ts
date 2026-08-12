@@ -54,7 +54,7 @@ const calculateWithDispatch = (
     const electricityCapacityMw = line.recipe.outputs.reduce((total, output) => (
       output.resourceId === "electricity"
         ? total + getRecipeOutputQuantity(line.recipe, output, outputModifiers)
-          * line.buildingCount
+          * line.activeBuildings
           * line.speedLevel
         : total
     ), 0);
@@ -152,7 +152,7 @@ const calculateWithDispatch = (
       const result = calculation.regularResults.find((candidate) => (
         candidate.moduleId === line.moduleId && candidate.recipe.id === line.recipe.id
       ));
-      const factor = line.buildingCount * line.speedLevel;
+      const factor = line.activeBuildings * line.speedLevel;
       let desiredRatio = 0;
 
       if (line.recipe.balanceBy === "output") {
@@ -227,7 +227,7 @@ const calculateWithDispatch = (
       const result = calculation.regularResults.find((candidate) => (
         candidate.moduleId === line.moduleId && candidate.recipe.id === line.recipe.id
       ));
-      const factor = line.buildingCount * line.speedLevel;
+      const factor = line.activeBuildings * line.speedLevel;
       let desiredRatio = desiredResourceRatios.get(prioritizedLineId(line)) ?? 0;
 
       for (const output of line.recipe.outputs) {
@@ -273,7 +273,7 @@ const calculateWithDispatch = (
           if (!input) return total;
 
           return total + getRecipeInputQuantity(input, outputModifiers)
-            * consumer.buildingCount
+            * consumer.activeBuildings
             * consumer.speedLevel
             * (desiredResourceRatios.get(prioritizedLineId(consumer)) ?? 0);
         }, 0);
@@ -339,7 +339,7 @@ const calculateWithDispatch = (
           (candidate) => candidate.resourceId === resourceId,
         );
         const capacity = input
-          ? getRecipeInputQuantity(input, outputModifiers) * line.buildingCount * line.speedLevel
+          ? getRecipeInputQuantity(input, outputModifiers) * line.activeBuildings * line.speedLevel
           : 0;
         const allocatedRatio = capacity > 0
           ? Math.min(desiredRatio, remaining / capacity)

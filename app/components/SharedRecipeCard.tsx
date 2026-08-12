@@ -1,7 +1,7 @@
 import { cn } from "@carbonid1/design-system";
 
-import { buildings } from "../db/buildings";
 import { resources } from "../db/resources";
+import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
   type ProductionLine,
   type RegularResult,
@@ -18,6 +18,7 @@ interface Props {
   lines: ProductionLine[];
   results: (RegularResult | undefined)[];
   outputModifiers?: RecipeModifierMultipliers;
+  diagnostic?: BuildingDiagnostic;
 }
 
 const getRecipeLabel = (line: ProductionLine) => {
@@ -28,46 +29,44 @@ const getRecipeLabel = (line: ProductionLine) => {
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
-export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifiers }) => {
+export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifiers, diagnostic }) => {
   const firstLine = lines[0];
 
   if (!firstLine) return null;
 
   const effective = lines.reduce((total, line, index) => (
-    total + line.buildingCount * (results[index]?.supplyRatio ?? 0)
+    total + line.activeBuildings * (results[index]?.supplyRatio ?? 0)
   ), 0);
   const roundedEffective = Math.round(effective * 100) / 100;
-  const totalBuildings = Math.max(...lines.map((line) => line.totalBuildings));
+  const totalBuildings = Math.max(...lines.map((line) => line.builtBuildings));
   const operatingMode = results.every((result) => result?.operatingMode === "fixed")
     ? "fixed"
     : "balanced";
-  const computingTflops = buildings[firstLine.recipe.building]?.computingTflops ?? 0;
 
   return (
     <ProductionCard
       operatingMode={operatingMode}
       inactive={roundedEffective === 0}
-      className="p-4"
+      className="p-3"
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-foreground">
-            {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
-          </h3>
-          {computingTflops > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Computing {formatQuantity(computingTflops)} TFLOPS / active building
-            </p>
-          )}
-        </div>
-        <BuildingCount effective={roundedEffective} total={totalBuildings} />
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <h3 className="font-semibold text-foreground">
+          {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
+        </h3>
+        <BuildingCount
+          load={roundedEffective}
+          active={Math.max(...lines.map((line) => line.activeBuildings))}
+          built={totalBuildings}
+          attention={diagnostic?.attention}
+          attentionCount={diagnostic?.attentionCount}
+        />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1">
         {lines.map((line, index) => {
           const result = results[index];
           const supplyRatio = result?.supplyRatio ?? 0;
-          const buildingMultiplier = line.buildingCount * supplyRatio;
+          const buildingMultiplier = line.activeBuildings * supplyRatio;
           const ioMultiplier = buildingMultiplier * line.speedLevel;
           const inactive = buildingMultiplier === 0;
 
@@ -75,7 +74,7 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
             <section
               key={line.recipe.id}
               className={cn(
-                "rounded-lg p-3",
+                "rounded-lg p-2.5",
                 inactive
                   ? "border border-dashed border-border"
                   : "bg-surface-inset inset-shadow-surface",

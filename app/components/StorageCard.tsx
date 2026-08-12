@@ -9,19 +9,19 @@ import { ProductionCard } from "./ProductionCard";
 interface Props {
   recipe: Recipe;
   storage: DecayStorage;
-  activeCount: number;
-  totalCount: number;
+  activeBuildings: number;
+  builtBuildings: number;
   operatingMode: OperatingMode;
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2)).toLocaleString();
 
-export const StorageCard: React.FC<Props> = ({ recipe, storage, activeCount, totalCount, operatingMode }) => {
+export const StorageCard: React.FC<Props> = ({ recipe, storage, activeBuildings, builtBuildings, operatingMode }) => {
   const input = recipe.inputs[0];
 
   if (!input) return null;
 
-  const maxSustainedInput = storage.capacity / storage.decayCycles * activeCount;
+  const maxSustainedInput = storage.capacity / storage.decayCycles * activeBuildings;
 
   return (
     <ProductionCard operatingMode={operatingMode}>
@@ -32,7 +32,7 @@ export const StorageCard: React.FC<Props> = ({ recipe, storage, activeCount, tot
             {resources[input.resourceId].name}
           </Card.Description>
           <Card.Action>
-            <BuildingCount effective={activeCount} total={totalCount} />
+            <BuildingCount load={activeBuildings} active={activeBuildings} built={builtBuildings} />
           </Card.Action>
         </Card.Header>
 

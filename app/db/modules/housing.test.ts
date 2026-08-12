@@ -19,8 +19,8 @@ it("uses two anaerobic digesters to consume the population sludge surplus", () =
     (flow) => flow.resourceId === "sludge",
   )!;
 
-  expect(digester.totalBuildings).toBe(2);
-  expect(digester.buildingCount).toBe(2);
+  expect(digester.builtBuildings).toBe(2);
+  expect(digester.activeBuildings).toBe(2);
   expect(sludge.produced).toBeCloseTo(21.168);
   expect(sludge.consumed).toBeCloseTo(sludge.produced);
   expect(sludge.net).toBeCloseTo(0);

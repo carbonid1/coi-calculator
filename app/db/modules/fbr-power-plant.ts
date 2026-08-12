@@ -29,13 +29,13 @@ export const createFbrPowerPlantModule = (baselines: PlanningBaselines): Module 
   id: FBR_POWER_PLANT_MODULE_ID,
   name: "FBR Power Plant",
   description: "YC-fed no-breed mode; turbines follow factory demand after solar",
-  buildingTotals: {}, // presets define their own
+  builtBuildings: {}, // presets define their own
   presets: [
     {
       id: "1fbr-yc",
       name: "1 FBR — YC, no breed",
       description: "60 MW — 3 YC/60s (18 UO), power level I, no EU20",
-      buildingTotals: {
+      builtBuildings: {
         "fbr": 1,
         "nuclear-reprocessing": 1,
         "enrichment-plant": 1,
@@ -44,7 +44,7 @@ export const createFbrPowerPlantModule = (baselines: PlanningBaselines): Module 
         "shredder-retired-waste": 1,
         ...plantInfra,
       },
-      available: {
+      activeBuildings: {
         "fbr": 1,
         "nuclear-reprocessing": 1,
         "enrichment-plant": 1,

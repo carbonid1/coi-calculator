@@ -30,7 +30,7 @@ it("caps demand-balanced Groundwater Pumps and leaves Water at equilibrium", () 
   const pumped = groundwater?.actualOutputs[0]?.quantity ?? 0;
 
   expect([
-    groundwater?.buildingCount,
+    groundwater?.activeBuildings,
     pumped > 0,
     pumped <= 4 * 48,
     Number((water?.net ?? NaN).toFixed(10)),

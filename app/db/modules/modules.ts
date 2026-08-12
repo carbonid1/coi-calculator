@@ -15,13 +15,13 @@ export interface Preset {
   id: string;
   name: string;
   description: string;
-  /** Maximum building capacity available to the calculator. Omitted recipes use the installed total. */
-  available: Record<string, number>;
-  /** Recipes forced to run at their available capacity. Every other recipe is automatically balanced. */
+  /** Buildings that are switched on. Omitted recipes use every built building. */
+  activeBuildings: Record<string, number>;
+  /** Recipes forced to run at active capacity. Every other recipe is automatically balanced. */
   fixed: string[];
   externalInputs?: Partial<Record<ResourceId, number>>;
   outputTargets?: Partial<Record<ResourceId, number>>;
-  buildingTotals?: Record<string, number>;
+  builtBuildings?: Record<string, number>;
   speedLevels?: Record<string, number>;
   /** Manually measured resource use outside the currently modeled recipes. */
   fixedDemands?: Partial<Record<ResourceId, number>>;
@@ -33,7 +33,8 @@ export interface Module {
   id: string;
   name: string;
   description: string;
-  buildingTotals: Record<string, number>;
+  /** Physical buildings present in the factory, including paused buildings. */
+  builtBuildings: Record<string, number>;
   presets: Preset[];
   defaultPresetId: string | null;
   externalInputs?: Partial<Record<ResourceId, number>>;

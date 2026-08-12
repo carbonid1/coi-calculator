@@ -44,7 +44,7 @@ it("uses surplus Super Steam to cover Brine, Chlorine, and Salt demand", () => {
     (candidate) => candidate.recipe.id === "thermal-desalinator-super",
   );
 
-  expect(superDesalination?.buildingCount).toBe(2);
+  expect(superDesalination?.activeBuildings).toBe(2);
   expect(superDesalination?.supplyRatio ?? 0).toBeGreaterThan(0);
   expect(superDesalination?.actualOutputs.find(
     (output) => output.resourceId === "brine",

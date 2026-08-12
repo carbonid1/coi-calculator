@@ -6,7 +6,7 @@ export const mines: Module = {
   id: MINES_MODULE_ID,
   name: "Mines",
   description: "",
-  buildingTotals: {
+  builtBuildings: {
     "copper-map-mine": 1,
     "iron-map-mine": 1,
     "limestone-map-mine": 1,

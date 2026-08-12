@@ -14,8 +14,8 @@ const recipeById = (id: string): Recipe => {
 const balancedLine = (recipe: Recipe): ProductionLine => ({
   recipe,
   moduleId: "chlorine-test",
-  buildingCount: 1,
-  totalBuildings: 1,
+  activeBuildings: 1,
+  builtBuildings: 1,
   speedLevel: 1,
   operatingMode: "balanced",
 });
@@ -23,8 +23,8 @@ const balancedLine = (recipe: Recipe): ProductionLine => ({
 it("models the installed Electrolyzer II building", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId);
 
-  expect(general.buildingTotals["electrolyzer-ii-chlorine"]).toBe(1);
-  expect(preset?.buildingTotals?.["electrolyzer-ii-chlorine"]).toBe(1);
+  expect(general.builtBuildings["electrolyzer-ii-chlorine"]).toBe(1);
+  expect(preset?.builtBuildings?.["electrolyzer-ii-chlorine"]).toBe(1);
 });
 
 it("uses Titanium reduction Chlorine before running Electrolyzer II", () => {

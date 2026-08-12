@@ -12,23 +12,23 @@ const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
 export const SinkCard: React.FC<Props> = ({ result }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
-  const inactive = result.buildingCount === 0 || !hasWork;
+  const inactive = result.activeBuildings === 0 || !hasWork;
 
   // Effective building count based on actual vs max output
   const effectiveCount = hasWork && result.recipe.outputs.length > 0
     ? (() => {
-        if (result.recipe.sourceMode === "demand") return result.buildingCount;
+        if (result.recipe.sourceMode === "demand") return result.activeBuildings;
 
-        const maxOutput = (result.recipe.outputs[0]?.quantity ?? 0) * result.buildingCount;
+        const maxOutput = (result.recipe.outputs[0]?.quantity ?? 0) * result.activeBuildings;
         const actualOutput = result.actualOutputs[0]?.quantity ?? 0;
 
-        return maxOutput > 0 ? parseFloat((result.buildingCount * actualOutput / maxOutput).toFixed(2)) : result.buildingCount;
+        return maxOutput > 0 ? parseFloat((result.activeBuildings * actualOutput / maxOutput).toFixed(2)) : result.activeBuildings;
       })()
     : 0;
 
   return (
-    <ProductionCard operatingMode="balanced" inactive={inactive} passive className="p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <ProductionCard operatingMode="balanced" inactive={inactive} passive className="p-3">
+      <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             {result.recipe.building}
@@ -41,7 +41,11 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
             ) : null;
           })()}
         </div>
-        <BuildingCount effective={effectiveCount} total={result.totalBuildings} />
+        <BuildingCount
+          load={effectiveCount}
+          active={result.activeBuildings}
+          built={result.builtBuildings}
+        />
       </div>
 
       {!inactive && (

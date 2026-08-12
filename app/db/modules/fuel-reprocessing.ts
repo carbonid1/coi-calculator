@@ -4,7 +4,7 @@ export const fuelReprocessing: Module = {
   id: "fuel-reprocessing",
   name: "Nuclear Fuel",
   description: "Nuclear fuel cycle — reprocess spent fuel into usable core fuel",
-  buildingTotals: {
+  builtBuildings: {
     "nuclear-reprocessing": 1,
     "enrichment-plant": 1,
     "nuclear-reprocessing-spent-fuel": 1,
@@ -19,7 +19,7 @@ export const fuelReprocessing: Module = {
       id: "default",
       name: "Default",
       description: "Spent fuel reprocessing active, no MOX",
-      available: {
+      activeBuildings: {
         "nuclear-reprocessing": 0.25,
         "enrichment-plant": 0.5,
         "nuclear-reprocessing-spent-fuel": 1,
@@ -31,7 +31,7 @@ export const fuelReprocessing: Module = {
       id: "with-mox",
       name: "With MOX",
       description: "Both spent fuel and spent MOX reprocessing active",
-      available: {
+      activeBuildings: {
         "nuclear-reprocessing": 0.25,
         "enrichment-plant": 0.5,
         "nuclear-reprocessing-spent-fuel": 1,

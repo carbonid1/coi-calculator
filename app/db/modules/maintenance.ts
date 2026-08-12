@@ -15,7 +15,7 @@ const activeRecipeIds = {
   maintenanceIII: "maintenance-iii-recycling",
 } as const;
 
-const available = {
+const activeBuildings = {
   [activeRecipeIds.maintenanceI]: 1,
   [activeRecipeIds.maintenanceII]: 1,
   [activeRecipeIds.maintenanceIII]: 1,
@@ -25,7 +25,7 @@ export const maintenance: Module = {
   id: "maintenance",
   name: "Maintenance",
   description: "Manual factory demand using the highest-tier recycling recipes",
-  buildingTotals: {
+  builtBuildings: {
     [activeRecipeIds.maintenanceI]: 1,
     [activeRecipeIds.maintenanceII]: 1,
     [activeRecipeIds.maintenanceIII]: 1,
@@ -35,7 +35,7 @@ export const maintenance: Module = {
       id: "current-demand",
       name: "Current demand",
       description: "10-year average: 83% Maintenance I, 29% Maintenance II, and 50% Maintenance III load",
-      available,
+      activeBuildings,
       fixed: Object.values(activeRecipeIds),
       outputTargets: maintenanceDemandPerMonth,
     },

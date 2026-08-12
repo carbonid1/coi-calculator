@@ -36,7 +36,7 @@ describe("active crop farm plan", () => {
     const farmsModule = createFarmsModule({ totalChickenCount: 0, slaughtering: true });
     const preset = farmsModule.presets.at(0);
 
-    expect(farmsModule.buildingTotals?.["chicken-farm-slaughtering"]).toBe(0);
+    expect(farmsModule.builtBuildings?.["chicken-farm-slaughtering"]).toBe(0);
     expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0);
   });
 

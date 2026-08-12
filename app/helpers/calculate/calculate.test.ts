@@ -12,9 +12,9 @@ it("matches the verified yellowcake production capacity", () => {
   const uraniumOrePowder = settlingTank.recipe.inputs.find((input) => input.resourceId === "uraniumOrePowder")!;
   const yellowcakeCapacity = settlingTank.recipe.outputs.find(
     (output) => output.resourceId === "yellowcake",
-  )!.quantity * settlingTank.buildingCount * settlingTank.speedLevel;
+  )!.quantity * settlingTank.activeBuildings * settlingTank.speedLevel;
 
-  expect(uraniumOrePowder.quantity * settlingTank.buildingCount * settlingTank.speedLevel).toBe(36);
+  expect(uraniumOrePowder.quantity * settlingTank.activeBuildings * settlingTank.speedLevel).toBe(36);
   expect(yellowcakeCapacity).toBe(6);
 
   const maintenancePreset = maintenance.presets.find(

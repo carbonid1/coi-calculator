@@ -23,7 +23,7 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
     (total, group) => total + group.farmCount,
     0,
   );
-  const buildingTotals = {
+  const builtBuildings = {
     ...cropFarmTotals,
     [farmRecipeId]: chickenLayout.farmCount,
     "food-processor-meat": 1,
@@ -34,13 +34,13 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
     id: FARMS_MODULE_ID,
     name: "Farms",
     description: `${cropFarmCount} fixed Greenhouse II rotations plus livestock. Crop cards show imported water after weather and gross demand.`,
-    buildingTotals,
+    builtBuildings,
     presets: [
       {
         id: "current-farm-plan",
         name: "Current Farm Plan",
         description: `${cropFarmCount} Greenhouse IIs, ${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens, and one Food Processor`,
-        available: buildingTotals,
+        activeBuildings: builtBuildings,
         fixed: [...fixedCropFarmIds, farmRecipeId],
         speedLevels: {
           [farmRecipeId]: chickenLayout.farmCount > 0

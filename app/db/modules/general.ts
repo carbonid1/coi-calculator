@@ -10,7 +10,7 @@ export const general: Module = {
   id: GENERAL_MODULE_ID,
   name: "General",
   description: "Shared production for yellowcake, electronics, and supporting materials",
-  buildingTotals: {
+  builtBuildings: {
     "crusher-large": 1,
     "settling-tank": 1,
     "mixer-ii-acid": 1,
@@ -70,9 +70,9 @@ export const general: Module = {
     "alloy-mixer-titanium": 1,
     "cooled-caster-ii-titanium-alloy": 1,
     "electrolyzer-ii-chlorine": 1,
-    "mill-wheat": 2,
+    "mill-wheat": 4,
     "mill-canola-cooking-oil": 1,
-    "baking-unit-bread": 1,
+    "baking-unit-bread": 3,
     "baking-unit-cake": 1,
     "food-processor-snack": 1,
     "food-processor-sugar": 1,
@@ -104,7 +104,7 @@ export const general: Module = {
       id: "yellowcake",
       name: "Yellowcake",
       description: "Yellowcake production balanced against factory demand",
-      buildingTotals: {
+      builtBuildings: {
         "crusher-large": 1,
         "settling-tank": 1,
         "mixer-ii-acid": 1,
@@ -164,9 +164,9 @@ export const general: Module = {
         "alloy-mixer-titanium": 1,
         "cooled-caster-ii-titanium-alloy": 1,
         "electrolyzer-ii-chlorine": 1,
-        "mill-wheat": 2,
+        "mill-wheat": 4,
         "mill-canola-cooking-oil": 1,
-        "baking-unit-bread": 1,
+        "baking-unit-bread": 3,
         "baking-unit-cake": 1,
         "food-processor-snack": 1,
         "food-processor-sugar": 1,
@@ -193,8 +193,10 @@ export const general: Module = {
         "evaporation-pond-heated-salt-brine": 1,
         [maintenanceStatue.id]: defaultMaintenanceStatueCount,
       },
-      available: {
+      activeBuildings: {
         "settling-tank": 1,
+        "mill-wheat": 2,
+        "baking-unit-bread": 1,
       },
       fixed: [maintenanceStatue.id],
     },
@@ -207,14 +209,14 @@ export const createGeneralModule = (maintenanceStatueCount: number): Module => {
 
   return {
     ...general,
-    buildingTotals: {
-      ...general.buildingTotals,
+    builtBuildings: {
+      ...general.builtBuildings,
       [maintenanceStatue.id]: normalizedCount,
     },
     presets: general.presets.map((preset) => ({
       ...preset,
-      buildingTotals: {
-        ...preset.buildingTotals,
+      builtBuildings: {
+        ...preset.builtBuildings,
         [maintenanceStatue.id]: normalizedCount,
       },
     })),

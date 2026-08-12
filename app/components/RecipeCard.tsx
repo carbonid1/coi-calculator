@@ -1,6 +1,7 @@
 import { buildings } from "../db/buildings";
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
+import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import { type OperatingMode } from "../helpers/calculate/calculate";
 import {
   getRecipeGrossInputQuantity,
@@ -13,18 +14,19 @@ import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   recipe: Recipe;
-  activeCount: number;
-  totalCount: number;
+  activeBuildings: number;
+  builtBuildings: number;
   supplyRatio: number;
   operatingMode: OperatingMode;
   speedLevel: number;
   actualInputs?: { resourceId: keyof typeof resources; quantity: number }[];
   actualOutputs?: { resourceId: keyof typeof resources; quantity: number }[];
   outputModifiers?: RecipeModifierMultipliers;
+  diagnostic?: BuildingDiagnostic;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers }) => {
-  const buildingMultiplier = activeCount * supplyRatio;
+export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic }) => {
+  const buildingMultiplier = activeBuildings * supplyRatio;
   const effective = Math.round(buildingMultiplier * 100) / 100;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = effective === 0;
@@ -35,8 +37,8 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
     : tflopsPerMachine;
 
   return (
-    <ProductionCard operatingMode={operatingMode} inactive={inactive} className="p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <ProductionCard operatingMode={operatingMode} inactive={inactive} className="p-3">
+      <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             {recipe.building}
@@ -63,21 +65,23 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
           {speedLevel !== 1 && !recipe.computingScalesWithSpeed && (
             <p className="text-xs font-medium text-attention-foreground">
               {recipe.animalPopulationCapacity
-                ? `${Math.round(recipe.animalPopulationCapacity * activeCount * speedLevel)} / ${recipe.animalPopulationCapacity * totalCount} chickens`
+                ? `${Math.round(recipe.animalPopulationCapacity * activeBuildings * speedLevel)} / ${recipe.animalPopulationCapacity * builtBuildings} chickens`
                 : `Throughput ×${speedLevel}`}
             </p>
           )}
-          {computingTflops > 0 && (
+          {recipe.computingScalesWithSpeed && computingTflops > 0 && (
             <p className="text-xs text-muted-foreground">
-              {recipe.computingScalesWithSpeed
-                ? `${Math.round(speedLevel * 100).toLocaleString("en-US")} population cap · `
-                : ""}
-              Computing {parseFloat(computingTflops.toFixed(2))} TFLOPS
-              {!recipe.computingScalesWithSpeed ? " / active building" : ""}
+              {Math.round(speedLevel * 100).toLocaleString("en-US")} population cap · Computing {parseFloat(computingTflops.toFixed(2))} TFLOPS
             </p>
           )}
         </div>
-        <BuildingCount effective={effective} total={totalCount} />
+        <BuildingCount
+          load={effective}
+          active={activeBuildings}
+          built={builtBuildings}
+          attention={diagnostic?.attention}
+          attentionCount={diagnostic?.attentionCount}
+        />
       </div>
 
       {!inactive && hasFlows && (

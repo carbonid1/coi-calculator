@@ -53,8 +53,8 @@ it("balances graphite production", () => {
     (candidate) => candidate.recipe.id === "chemical-plant-ii-graphite-coal",
   )!;
 
-  expect(carbonDioxideResult.totalBuildings).toBe(1);
-  expect(coalResult.totalBuildings).toBe(1);
+  expect(carbonDioxideResult.builtBuildings).toBe(1);
+  expect(coalResult.builtBuildings).toBe(1);
   expect(carbonDioxideResult.capacityPoolId).toBe("general:chemical-plant-ii-electronics");
   expect(coalResult.capacityPoolId).toBe("general:chemical-plant-ii-electronics");
   expect(carbonDioxideResult.supplyRatio).toBeGreaterThan(0);

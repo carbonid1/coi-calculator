@@ -37,7 +37,7 @@ export const calculateBuildingStats = (
 
     const current = pooledLines.get(line.capacityPoolId);
 
-    if (!current || line.buildingCount > current.buildingCount) {
+    if (!current || line.activeBuildings > current.activeBuildings) {
       pooledLines.set(line.capacityPoolId, line);
     }
   }
@@ -45,9 +45,9 @@ export const calculateBuildingStats = (
   const workers = [...standaloneLines, ...pooledLines.values()].reduce((total, line) => {
     const building = buildings[line.recipe.building];
 
-    if (!building || line.buildingCount <= 0) return total;
+    if (!building || line.activeBuildings <= 0) return total;
 
-    return total + building.workers * Math.ceil(line.buildingCount);
+    return total + building.workers * Math.ceil(line.activeBuildings);
   }, 0);
 
   const regularElectricityKw = results.regularResults.reduce((total, result) => {
@@ -57,7 +57,7 @@ export const calculateBuildingStats = (
 
     return total
       + building.electricityKw
-      * result.buildingCount
+      * result.activeBuildings
       * result.supplyRatio
       * (result.recipe.electricityMultiplier ?? 1);
   }, 0);
@@ -70,9 +70,9 @@ export const calculateBuildingStats = (
         && candidate.recipe.id === result.recipe.id
       ));
 
-      if (!building || !line || result.buildingCount <= 0) return total;
+      if (!building || !line || result.activeBuildings <= 0) return total;
 
-      const factor = result.buildingCount * line.speedLevel;
+      const factor = result.activeBuildings * line.speedLevel;
       const utilizationRatios = [
         ...result.actualInputs.flatMap((actual) => {
           const declared = result.recipe.inputs.find((input) => input.resourceId === actual.resourceId);
@@ -95,7 +95,7 @@ export const calculateBuildingStats = (
 
       return total
         + building.electricityKw
-        * result.buildingCount
+        * result.activeBuildings
         * utilization
         * (result.recipe.electricityMultiplier ?? 1);
     }, 0);
@@ -110,8 +110,8 @@ export const calculateBuildingStats = (
     if (tflopsPerMachine <= 0 || result.supplyRatio <= 0) continue;
 
     const effectiveMachines = result.recipe.computingScalesWithSpeed
-      ? result.buildingCount * result.supplyRatio * result.speedLevel
-      : result.buildingCount * result.supplyRatio;
+      ? result.activeBuildings * result.supplyRatio * result.speedLevel
+      : result.activeBuildings * result.supplyRatio;
 
     if (result.recipe.computingScalesWithSpeed) {
       populationComputingTflops += tflopsPerMachine * effectiveMachines;

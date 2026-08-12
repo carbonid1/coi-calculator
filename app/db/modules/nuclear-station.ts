@@ -4,7 +4,7 @@ export const nuclearStation: Module = {
   id: "nuclear-station",
   name: "Nuclear Station",
   description: "FBR power generation with hydrogen production and desalination",
-  buildingTotals: {
+  builtBuildings: {
     "seawater-pump": 4,
     "fbr": 1,
     "turbine-super": 2,
@@ -21,7 +21,7 @@ export const nuclearStation: Module = {
       id: "hydrogen",
       name: "Hydrogen Mode",
       description: "1 turbine active per tier, super steam → hydrogen + desalination",
-      available: {
+      activeBuildings: {
         "turbine-super": 1,
         "turbine-high": 1,
         "turbine-low": 1,
@@ -32,7 +32,7 @@ export const nuclearStation: Module = {
       id: "hydrogen-full",
       name: "Hydrogen Full",
       description: "Turbines idle, H2 full, excess super steam → cooling tower",
-      available: {
+      activeBuildings: {
         "turbine-super": 1,
         "turbine-high": 1,
         "turbine-low": 1,
@@ -44,7 +44,7 @@ export const nuclearStation: Module = {
       id: "max-electricity",
       name: "Max Electricity",
       description: "Turbines full, all super steam → shaft → depleted",
-      available: {
+      activeBuildings: {
         "thermal-desalinator-super": 0,
         "hydrogen-reformer-super": 0,
       },

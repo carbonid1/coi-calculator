@@ -13,8 +13,10 @@ export interface ProductionLine {
   moduleId: string;
   /** Module-scoped identity for recipes sharing the same installed buildings. */
   capacityPoolId?: string;
-  buildingCount: number;
-  totalBuildings: number;
+  /** Unpaused physical buildings available to this recipe or shared pool. */
+  activeBuildings: number;
+  /** Physical buildings present, including paused buildings. */
+  builtBuildings: number;
   speedLevel: number;
   operatingMode: OperatingMode;
   /** Factory-wide dispatch can assign a utilization without changing installed capacity. */
@@ -37,8 +39,8 @@ export interface RegularResult {
   recipe: Recipe;
   moduleId: string;
   capacityPoolId?: string;
-  buildingCount: number;
-  totalBuildings: number;
+  activeBuildings: number;
+  builtBuildings: number;
   operatingMode: OperatingMode;
   supplyRatio: number;
   speedLevel: number;
@@ -51,13 +53,14 @@ export interface RegularResult {
 export interface PassiveResult {
   recipe: Recipe;
   moduleId: string;
-  buildingCount: number;
-  totalBuildings: number;
+  activeBuildings: number;
+  builtBuildings: number;
+  supplyRatio: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
   actualOutputs: { resourceId: ResourceId; quantity: number }[];
 }
 
-const lineFactor = (line: ProductionLine) => line.buildingCount * line.speedLevel;
+const lineFactor = (line: ProductionLine) => line.activeBuildings * line.speedLevel;
 
 const sharedCapacityPriority = (line: ProductionLine) => line.recipe.sharedCapacity?.priority ?? 0;
 
@@ -124,16 +127,16 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
 
     remainingByPool.set(
       line.capacityPoolId,
-      Math.max(remainingByPool.get(line.capacityPoolId) ?? 0, line.buildingCount),
+      Math.max(remainingByPool.get(line.capacityPoolId) ?? 0, line.activeBuildings),
     );
   }
 
   const availableRatio = (line: ProductionLine) => {
-    if (!line.capacityPoolId || line.buildingCount <= 0) return 1;
+    if (!line.capacityPoolId || line.activeBuildings <= 0) return 1;
 
     return Math.min(
       1,
-      Math.max(0, (remainingByPool.get(line.capacityPoolId) ?? 0) / line.buildingCount),
+      Math.max(0, (remainingByPool.get(line.capacityPoolId) ?? 0) / line.activeBuildings),
     );
   };
 
@@ -144,7 +147,7 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
 
     remainingByPool.set(
       line.capacityPoolId,
-      Math.max(0, remaining - line.buildingCount * ratio),
+      Math.max(0, remaining - line.activeBuildings * ratio),
     );
   };
 
@@ -351,7 +354,7 @@ export const calculateNet = (
   for (const line of sourceLines.filter((source) => source.recipe.sourceMode === "demand")) {
     for (const output of line.recipe.outputs) {
       const flow = simGet(output.resourceId);
-      const capacity = line.buildingCount > 0 ? flow.consumed : 0;
+      const capacity = line.activeBuildings > 0 ? flow.consumed : 0;
 
       flow.produced += capacity;
       setSourceOutputCapacity(line, output.resourceId, capacity);
@@ -499,7 +502,7 @@ export const calculateNet = (
   // Ordinary supply-balanced recipes retain the existing constrained-resource
   // behavior. Shared fallback recipes are deferred until primary demand is known.
   for (const line of supplyBalancedLines) {
-    if (line.buildingCount === 0) {
+    if (line.activeBuildings === 0) {
       applyRegularLine(line, 0);
       continue;
     }
@@ -537,7 +540,7 @@ export const calculateNet = (
   // recipes run later in this downstream-to-upstream pass. An explicit external
   // supply with no internal producer (including zero) remains a hard limit.
   for (const line of demandBalancedLines) {
-    if (line.buildingCount === 0) {
+    if (line.activeBuildings === 0) {
       applyRegularLine(line, 0);
       continue;
     }
@@ -594,7 +597,7 @@ export const calculateNet = (
 
   const applyLowerPriorityLines = (linesToApply: ProductionLine[]) => {
     for (const line of linesToApply) {
-      if (line.buildingCount === 0) {
+      if (line.activeBuildings === 0) {
         applyRegularLine(line, 0);
         continue;
       }
@@ -653,7 +656,7 @@ export const calculateNet = (
       let changed = false;
 
       for (const line of demandBalancedLines) {
-        if (line.buildingCount === 0) continue;
+        if (line.activeBuildings === 0) continue;
 
         const factor = lineFactor(line);
         const remainingLineRatio = Math.max(
@@ -728,8 +731,8 @@ export const calculateNet = (
     recipe: line.recipe,
     moduleId: line.moduleId,
     capacityPoolId: line.capacityPoolId,
-    buildingCount: line.buildingCount,
-    totalBuildings: line.totalBuildings,
+    activeBuildings: line.activeBuildings,
+    builtBuildings: line.builtBuildings,
     operatingMode: line.operatingMode,
     supplyRatio: allocationRatios.get(line) ?? 0,
     speedLevel: line.speedLevel,
@@ -816,8 +819,11 @@ export const calculateNet = (
     return {
       recipe: line.recipe,
       moduleId: line.moduleId,
-      buildingCount: line.buildingCount,
-      totalBuildings: line.totalBuildings,
+      activeBuildings: line.activeBuildings,
+      builtBuildings: line.builtBuildings,
+      supplyRatio: line.activeBuildings > 0
+        ? Math.min(1, sourceScale / line.activeBuildings)
+        : 0,
       actualInputs,
       actualOutputs,
     };
@@ -827,8 +833,8 @@ export const calculateNet = (
   const sinkResults: PassiveResult[] = [];
 
   for (const line of sinkLines) {
-    if (line.buildingCount === 0) {
-      sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, buildingCount: 0, totalBuildings: line.totalBuildings, actualInputs: [], actualOutputs: [] });
+    if (line.activeBuildings === 0) {
+      sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, activeBuildings: 0, builtBuildings: line.builtBuildings, supplyRatio: 0, actualInputs: [], actualOutputs: [] });
       continue;
     }
 
@@ -872,7 +878,7 @@ export const calculateNet = (
       }
     }
 
-    sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, buildingCount: line.buildingCount, totalBuildings: line.totalBuildings, actualInputs, actualOutputs });
+    sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, activeBuildings: line.activeBuildings, builtBuildings: line.builtBuildings, supplyRatio: utilizationRatio, actualInputs, actualOutputs });
   }
 
   // Excess-processing recipes can create useful byproducts after sources were

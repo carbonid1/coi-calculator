@@ -8,16 +8,19 @@ export const buildModuleLines = (
   preset: Preset | null,
   outputModifiers: RecipeModifierMultipliers = {},
 ): { lines: ProductionLine[] } => {
-  const totals = preset?.buildingTotals ?? mod.buildingTotals;
-  const visibleRecipes = recipes.filter((r) => r.id in totals);
+  const builtBuildings = preset?.builtBuildings ?? mod.builtBuildings;
+  const visibleRecipes = recipes.filter((recipe) => recipe.id in builtBuildings);
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
   const lines: ProductionLine[] = visibleRecipes.map((recipe) => {
-    const total = totals[recipe.id] ?? 0;
+    const built = builtBuildings[recipe.id] ?? 0;
     const speedLevel = preset?.speedLevels?.[recipe.id] ?? 1;
-    const configuredAvailable = preset && recipe.id in preset.available
-      ? (preset.available[recipe.id] ?? total)
-      : total;
+    const active = Math.min(
+      built,
+      preset && recipe.id in preset.activeBuildings
+        ? (preset.activeBuildings[recipe.id] ?? built)
+        : built,
+    );
     const targetRatios = recipe.outputs.flatMap((output) => {
       const target = preset?.outputTargets?.[output.resourceId];
 
@@ -27,9 +30,9 @@ export const buildModuleLines = (
 
       return outputCapacity > 0 ? [target / outputCapacity] : [];
     });
-    const active = targetRatios.length > 0
-      ? Math.min(total, Math.max(...targetRatios))
-      : configuredAvailable;
+    const allocationRatio = targetRatios.length > 0 && active > 0
+      ? Math.min(1, Math.max(...targetRatios) / active)
+      : undefined;
 
     return {
       recipe,
@@ -37,10 +40,11 @@ export const buildModuleLines = (
       capacityPoolId: recipe.sharedCapacity
         ? `${mod.id}:${recipe.sharedCapacity.id}`
         : undefined,
-      buildingCount: active,
-      totalBuildings: total,
+      activeBuildings: active,
+      builtBuildings: built,
       speedLevel,
       operatingMode: fixedIds.has(recipe.id) ? "fixed" : "balanced",
+      allocationRatio,
     };
   });
 

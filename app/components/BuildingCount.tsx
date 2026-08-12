@@ -1,23 +1,59 @@
-import { cn } from "@carbonid1/design-system";
+import { Tooltip } from "@carbonid1/design-system";
+
+import {
+  type BuildingAttention,
+} from "../helpers/building-diagnostics/building-diagnostics";
 
 interface Props {
-  effective: number;
-  total: number;
+  load: number;
+  active: number;
+  built: number;
+  attention?: BuildingAttention | null;
+  attentionCount?: number;
 }
 
-export const BuildingCount: React.FC<Props> = ({ effective, total }) => {
-  const full = effective === total;
-  const inactive = effective === 0 && total > 0;
+const formatCount = (value: number) => parseFloat(value.toFixed(2));
+
+const attentionLabel = (attention: BuildingAttention, count: number) => {
+  if (attention === "can-pause") return `Can pause ${count}`;
+  if (attention === "unpause") return `Unpause ${count}`;
+
+  return "Build capacity";
+};
+
+export const BuildingCount: React.FC<Props> = ({
+  load,
+  active,
+  built,
+  attention,
+  attentionCount = 0,
+}) => {
+  const paused = Math.max(0, built - active);
 
   return (
-    <span
-      className={cn("text-sm font-medium", {
-        "text-gray-400": inactive,
-        "text-green-600 dark:text-green-400": !inactive && full,
-        "text-yellow-600 dark:text-yellow-400": !inactive && !full,
-      })}
-    >
-      {effective}/{total}
-    </span>
+    <div className="shrink-0 text-right tabular-nums">
+      <Tooltip
+        label="Average load / active buildings. Paused buildings are shown separately."
+        maxWidth={280}
+      >
+        <span className="inline-flex gap-1 text-sm font-medium text-foreground">
+          <span className="text-muted-foreground">Load</span>
+          <span className="font-mono">{formatCount(load)} / {formatCount(active)}</span>
+        </span>
+      </Tooltip>
+      {paused > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {formatCount(active)} active · {formatCount(paused)} paused
+        </p>
+      )}
+      {attention && (
+        <p className={attention === "can-pause"
+          ? "text-xs font-medium text-attention-foreground"
+          : "text-xs font-medium text-destructive"}
+        >
+          {attentionLabel(attention, attentionCount)}
+        </p>
+      )}
+    </div>
   );
 };

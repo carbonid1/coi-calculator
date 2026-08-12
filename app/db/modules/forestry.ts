@@ -6,7 +6,7 @@ export const forestry: Module = {
   id: FORESTRY_MODULE_ID,
   name: "Forestry",
   description: "Wood processing for downstream production chains",
-  buildingTotals: {
+  builtBuildings: {
     "forestry-trees-100-growth": 1,
     "shredder-woodchips": 1,
   },

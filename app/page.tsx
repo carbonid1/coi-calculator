@@ -53,6 +53,7 @@ import {
 } from "./db/research";
 import { defaultSolarPanelCounts } from "./db/solar";
 import { calculateUnityBudget } from "./db/unity";
+import { calculateBuildingDiagnostics } from "./helpers/building-diagnostics/building-diagnostics";
 import { calculateBuildingStats } from "./helpers/building-stats/building-stats";
 import { type ProductionLine } from "./helpers/calculate/calculate";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
@@ -251,13 +252,20 @@ const Page = () => {
     factoryResult.calculation,
     outputModifiers,
   );
+  const factoryBuildingDiagnostics = calculateBuildingDiagnostics(
+    configuredModules,
+    factoryResult.flows,
+    factoryResult.calculation.regularResults,
+    factoryResult.calculation.sourceResults,
+    factoryResult.calculation.sinkResults,
+  );
   const calculateGenerationCapacityMw = (lines: ProductionLine[]) => lines.reduce(
     (total, line) => (
       total + line.recipe.outputs.reduce((lineTotal, output) => (
         output.resourceId === "electricity"
           ? lineTotal
             + getRecipeOutputQuantity(line.recipe, output, outputModifiers)
-              * line.buildingCount
+              * line.activeBuildings
               * line.speedLevel
           : lineTotal
       ), 0)
@@ -268,7 +276,7 @@ const Page = () => {
   const calculateComputingCapacityTflops = (lines: ProductionLine[]) => lines.reduce(
     (total, line) => total + line.recipe.outputs.reduce((lineTotal, output) => (
       output.resourceId === "computing"
-        ? lineTotal + output.quantity * line.buildingCount * line.speedLevel
+        ? lineTotal + output.quantity * line.activeBuildings * line.speedLevel
         : lineTotal
     ), 0),
     0,
@@ -293,7 +301,7 @@ const Page = () => {
     : [];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
+    <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           Captain of Industry
@@ -344,6 +352,8 @@ const Page = () => {
           unityBudget={unityBudget}
           groupByBalance
           regularResults={factoryResult.calculation.regularResults}
+          buildingDiagnostics={factoryBuildingDiagnostics}
+          onOpenModule={setActiveModuleId}
         />
       )}
 
@@ -401,11 +411,11 @@ const Page = () => {
           )}
 
           {activeModule.id !== MINES_MODULE_ID && grouped.map(({ group, label, items }) => (
-            <div key={group} className="space-y-3">
+            <div key={group} className="space-y-2">
               <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 {label}
               </h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {groupSharedProductionLines(items).map(({ key, lines }) => {
                   const line = lines[0];
 
@@ -437,6 +447,9 @@ const Page = () => {
                           )
                         ))}
                         outputModifiers={outputModifiers}
+                        diagnostic={factoryBuildingDiagnostics.find(
+                          (diagnostic) => diagnostic.key === key,
+                        )}
                       />
                     );
                   }
@@ -449,8 +462,8 @@ const Page = () => {
                         key={line.recipe.id}
                         recipe={line.recipe}
                         storage={line.recipe.decayStorage}
-                        activeCount={line.buildingCount}
-                        totalCount={line.totalBuildings}
+                        activeBuildings={line.activeBuildings}
+                        builtBuildings={line.builtBuildings}
                         operatingMode={result?.operatingMode ?? "balanced"}
                       />
                     );
@@ -460,8 +473,11 @@ const Page = () => {
                     <RecipeCard
                       key={line.recipe.id}
                       recipe={line.recipe}
-                      activeCount={line.buildingCount}
-                      totalCount={line.totalBuildings}
+                      activeBuildings={line.activeBuildings}
+                      builtBuildings={line.builtBuildings}
+                      diagnostic={factoryBuildingDiagnostics.find(
+                        (diagnostic) => diagnostic.key === key,
+                      )}
                       supplyRatio={result?.supplyRatio ?? 1}
                       operatingMode={result?.operatingMode ?? "balanced"}
                       speedLevel={line.speedLevel}
