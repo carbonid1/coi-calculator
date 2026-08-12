@@ -5,7 +5,7 @@ export const MINES_MODULE_ID = "mines";
 export const mines: Module = {
   id: MINES_MODULE_ID,
   name: "Mines",
-  description: "Demand-balanced extraction after factory production is counted",
+  description: "",
   buildingTotals: {
     "copper-map-mine": 1,
     "iron-map-mine": 1,
@@ -15,7 +15,11 @@ export const mines: Module = {
     "sand-map-mine": 1,
     "rock-map-mine": 1,
     "dirt-map-mine": 1,
+    "groundwater-pump": 4,
     "sulfur-world-mine": 1,
+    "slag-terrain-dump": 1,
+    "waste-terrain-dump": 1,
+    "dirt-terrain-dump": 1,
   },
   presets: [],
   defaultPresetId: null,

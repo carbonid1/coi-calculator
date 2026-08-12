@@ -1,5 +1,6 @@
 import { cn } from "@carbonid1/design-system";
 
+import { buildings } from "../db/buildings";
 import { resources } from "../db/resources";
 import {
   type ProductionLine,
@@ -40,6 +41,7 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
   const operatingMode = results.every((result) => result?.operatingMode === "fixed")
     ? "fixed"
     : "balanced";
+  const computingTflops = buildings[firstLine.recipe.building]?.computingTflops ?? 0;
 
   return (
     <ProductionCard
@@ -48,9 +50,16 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
       className="p-4"
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="font-semibold text-foreground">
-          {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
-        </h3>
+        <div>
+          <h3 className="font-semibold text-foreground">
+            {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
+          </h3>
+          {computingTflops > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Computing {formatQuantity(computingTflops)} TFLOPS / active building
+            </p>
+          )}
+        </div>
         <BuildingCount effective={roundedEffective} total={totalBuildings} />
       </div>
 

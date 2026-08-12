@@ -6,7 +6,6 @@ export interface ContractResult {
   contract: Contract;
   exported: number;
   imported: number;
-  productionCyclesPerShipment: number | null;
 }
 
 const getFlow = (
@@ -44,7 +43,6 @@ export const applyContracts = (
       contract,
       exported,
       imported,
-      productionCyclesPerShipment: imported > 0 ? contract.shipment.imported / imported : null,
     });
   }
 

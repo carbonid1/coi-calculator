@@ -19,6 +19,7 @@ export interface FactoryTotalResult {
   contractResults: ContractResult[];
   calculation: ReturnType<typeof calculateNet>;
   electricityDemandMw: number;
+  computingDemandTflops: number;
 }
 
 interface ElectricityDispatchGroup {
@@ -215,6 +216,84 @@ const calculateWithDispatch = (
       );
     }
 
+    // A prioritized consumer can be starved by its input allocation even when
+    // its output still has unmet demand. Preserve that latent input request for
+    // prioritized upstream producers. Without this pass, Brine consumers make
+    // the available Brine look perfectly balanced and Super-Steam desalination
+    // cannot see the Chlorine and Salt demand waiting behind them.
+    for (const line of prioritizedLines) {
+      if (line.recipe.balanceBy !== "output") continue;
+
+      const result = calculation.regularResults.find((candidate) => (
+        candidate.moduleId === line.moduleId && candidate.recipe.id === line.recipe.id
+      ));
+      const factor = line.buildingCount * line.speedLevel;
+      let desiredRatio = desiredResourceRatios.get(prioritizedLineId(line)) ?? 0;
+
+      for (const output of line.recipe.outputs) {
+        if (
+          line.recipe.balanceOutputIds
+          && !line.recipe.balanceOutputIds.includes(output.resourceId)
+        ) {
+          continue;
+        }
+
+        const downstreamConsumers = prioritizedLines.filter((candidate) => (
+          candidate !== line
+          && candidate.recipe.inputPriorities?.[output.resourceId] != null
+        ));
+
+        if (downstreamConsumers.length === 0) continue;
+
+        const flow = calculation.allResourceFlows.find(
+          (candidate) => candidate.resourceId === output.resourceId,
+        );
+        const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+
+        if (!flow || capacity <= 0) continue;
+
+        const currentProduced = result?.actualOutputs.find(
+          (actual) => actual.resourceId === output.resourceId,
+        )?.quantity ?? 0;
+        const currentPrioritizedConsumption = downstreamConsumers.reduce((total, consumer) => {
+          const consumerResult = calculation.regularResults.find((candidate) => (
+            candidate.moduleId === consumer.moduleId
+            && candidate.recipe.id === consumer.recipe.id
+          ));
+
+          return total + (consumerResult?.actualInputs.find(
+            (actual) => actual.resourceId === output.resourceId,
+          )?.quantity ?? 0);
+        }, 0);
+        const desiredPrioritizedConsumption = downstreamConsumers.reduce((total, consumer) => {
+          const input = consumer.recipe.inputs.find(
+            (candidate) => candidate.resourceId === output.resourceId,
+          );
+
+          if (!input) return total;
+
+          return total + getRecipeInputQuantity(input, outputModifiers)
+            * consumer.buildingCount
+            * consumer.speedLevel
+            * (desiredResourceRatios.get(prioritizedLineId(consumer)) ?? 0);
+        }, 0);
+        const effectiveConsumption = flow.consumed
+          - currentPrioritizedConsumption
+          + desiredPrioritizedConsumption;
+        const producedByOtherLines = flow.produced - currentProduced;
+
+        desiredRatio = Math.max(
+          desiredRatio,
+          Math.max(0, effectiveConsumption - producedByOtherLines) / capacity,
+        );
+      }
+
+      desiredResourceRatios.set(
+        prioritizedLineId(line),
+        Math.min(1, Math.max(0, desiredRatio)),
+      );
+    }
+
     const prioritizedResourceIds = new Set(
       prioritizedLines.flatMap((line) => (
         typedEntries(line.recipe.inputPriorities ?? {}).map(([resourceId]) => resourceId)
@@ -300,16 +379,18 @@ const calculateWithDispatch = (
     externalDemands,
   );
 
-  const modeledDemandMw = calculateBuildingStats(
+  const buildingStats = calculateBuildingStats(
     dispatchedLines,
     calculation,
     outputModifiers,
-  ).electricityKw / 1000;
+  );
+  const modeledDemandMw = buildingStats.electricityKw / 1000;
 
   return {
     lines: dispatchedLines,
     calculation,
     electricityDemandMw: Math.max(modeledDemandMw, minimumElectricityDemandMw),
+    computingDemandTflops: buildingStats.computingTflops,
   };
 };
 
@@ -355,8 +436,37 @@ export const calculateFactoryTotal = (
     fixedDemands,
     electricityDispatchTargets,
   );
+  const demandSourceProduction = new Map<ResourceId, number>();
+
+  for (const result of withoutContracts.calculation.sourceResults) {
+    if (result.recipe.sourceMode !== "demand") continue;
+
+    for (const output of result.actualOutputs) {
+      demandSourceProduction.set(
+        output.resourceId,
+        (demandSourceProduction.get(output.resourceId) ?? 0) + output.quantity,
+      );
+    }
+  }
+
+  // Demand sources (map mines, world mines, and forestry) backfill deficits in
+  // calculateNet. Hide that fallback production while sizing enabled contracts
+  // so an import can replace extraction, then let the final calculation reduce
+  // the source to whatever demand remains after the contract input is applied.
+  const contractPlanningFlows = withoutContracts.calculation.allResourceFlows.map((flow) => {
+    const produced = Math.max(
+      0,
+      flow.produced - (demandSourceProduction.get(flow.resourceId) ?? 0),
+    );
+
+    return {
+      ...flow,
+      produced,
+      net: produced - flow.consumed,
+    };
+  });
   const contractPlan = applyContracts(
-    withoutContracts.calculation.allResourceFlows.filter(
+    contractPlanningFlows.filter(
       (flow) => !localResourceIds.has(flow.resourceId),
     ),
     contracts,
@@ -391,5 +501,6 @@ export const calculateFactoryTotal = (
     contractResults: contractPlan.contractResults,
     calculation,
     electricityDemandMw: dispatched.electricityDemandMw,
+    computingDemandTflops: dispatched.computingDemandTflops,
   };
 };

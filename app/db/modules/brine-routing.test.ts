@@ -12,7 +12,7 @@ import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
 import { modules } from "./modules";
 
-it("balances graphite production", () => {
+it("uses surplus Super Steam to cover Brine, Chlorine, and Salt demand", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -37,32 +37,19 @@ it("balances graphite production", () => {
       ).multiplier,
     },
   );
-  const graphite = result.calculation.allResourceFlows.find(
-    (flow) => flow.resourceId === "graphite",
-  )!;
-  const carbonDioxide = result.calculation.allResourceFlows.find(
-    (flow) => flow.resourceId === "carbonDioxide",
-  )!;
-  const graphiteResults = result.calculation.regularResults.filter(
-    (candidate) => candidate.recipe.id.startsWith("chemical-plant-ii-graphite"),
+  const net = (resourceId: "brine" | "chlorine" | "salt") => (
+    result.flows.find((flow) => flow.resourceId === resourceId)?.net ?? 0
   );
-  const carbonDioxideResult = graphiteResults.find(
-    (candidate) => candidate.recipe.id === "chemical-plant-ii-graphite",
-  )!;
-  const coalResult = graphiteResults.find(
-    (candidate) => candidate.recipe.id === "chemical-plant-ii-graphite-coal",
-  )!;
+  const superDesalination = result.calculation.regularResults.find(
+    (candidate) => candidate.recipe.id === "thermal-desalinator-super",
+  );
 
-  expect(carbonDioxideResult.totalBuildings).toBe(1);
-  expect(coalResult.totalBuildings).toBe(1);
-  expect(carbonDioxideResult.capacityPoolId).toBe("general:chemical-plant-ii-electronics");
-  expect(coalResult.capacityPoolId).toBe("general:chemical-plant-ii-electronics");
-  expect(carbonDioxideResult.supplyRatio).toBeGreaterThan(0);
-  expect(coalResult.supplyRatio).toBeGreaterThan(0);
-  expect(carbonDioxideResult.recipe.sharedCapacity?.priority).toBe(2);
-  expect(coalResult.recipe.sharedCapacity?.priority).toBe(3);
-  expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(carbonDioxide.net).toBeCloseTo(0);
-  expect(graphite.produced).toBeCloseTo(graphite.consumed);
-  expect(graphite.net).toBeCloseTo(0);
+  expect(superDesalination?.buildingCount).toBe(2);
+  expect(superDesalination?.supplyRatio ?? 0).toBeGreaterThan(0);
+  expect(superDesalination?.actualOutputs.find(
+    (output) => output.resourceId === "brine",
+  )?.quantity ?? 0).toBeGreaterThan(0);
+  expect(net("brine")).toBeGreaterThanOrEqual(-0.001);
+  expect(net("chlorine")).toBeGreaterThanOrEqual(-0.001);
+  expect(net("salt")).toBeGreaterThanOrEqual(-0.001);
 });

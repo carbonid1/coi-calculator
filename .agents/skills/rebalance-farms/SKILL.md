@@ -10,9 +10,15 @@ runtime optimizer.
 
 When rebalancing:
 
-1. Keep every active crop out of deficit.
-2. Use the fewest Greenhouse II buildings and workers.
-3. Minimize total crop surplus, then Fertilizer II and gross water.
-4. Prefer no more than 5 surplus per crop per 60s; allow up to 10 when crop
+1. Never place the same fertility-consuming crop in consecutive rotation slots,
+   including the last-to-first boundary. Rebalance crops across farms rather
+   than accepting the repeated-crop fertility penalty.
+2. Keep every active crop out of deficit.
+3. Use the fewest Greenhouse II buildings and workers.
+4. When surplus is unavoidable, minimize each crop's surplus relative to its
+   Factory Total consumption and prefer overproduction of high-consumption
+   crops over low-consumption crops.
+5. Minimize total absolute crop surplus, then Fertilizer II and gross water.
+6. Prefer no more than 5 surplus per crop per 60s; allow up to 10 when crop
    rotation granularity requires it.
-5. Verify the resulting balances in Factory Total.
+7. Verify the resulting balances in Factory Total.

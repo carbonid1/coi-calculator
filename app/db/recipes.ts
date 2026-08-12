@@ -1,4 +1,5 @@
 import { chickenFarm } from "./chicken-farm";
+import { computingRecipeIds, dataCenter } from "./computing";
 import {
   activeCropFarmGroups,
   calculateCropFarmGroupRates,
@@ -25,15 +26,20 @@ export interface Ingredient {
 }
 
 export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "sink";
-export type InputModifierId = "cropWater" | "treeGrowthSpeed";
+export type InputModifierId =
+  | "cropWater"
+  | "foodConsumption"
+  | "settlementWater"
+  | "treeGrowthSpeed";
 export type OutputModifierId =
+  | "foodConsumption"
   | "maintenanceOutput"
   | "solarPower"
   | "cropYield"
   | "treeGrowthSpeed";
 export type BalanceBy = "input" | "output";
-export type SharedCapacityAllocation = "primary" | "fallback";
-export type SourceKind = "map-mine" | "world-mine";
+export type RecipeAllocation = "primary" | "fallback" | "surplus";
+export type SourceKind = "groundwater" | "map-mine" | "world-mine";
 
 export interface SharedCapacity {
   /** Recipes with the same ID share one installed building pool inside a module. */
@@ -44,8 +50,6 @@ export interface SharedCapacity {
   displayOrder?: number;
   /** Lower values are allocated first, matching the in-game recipe order. */
   priority: number;
-  /** Fallback recipes receive only capacity left after primary recipes. */
-  allocation?: SharedCapacityAllocation;
 }
 
 export interface DecayStorage {
@@ -69,6 +73,10 @@ export interface Recipe {
   inputPriorities?: Partial<Record<ResourceId, number>>;
   /** Outputs that create demand for an output-balanced recipe; defaults to every output. */
   balanceOutputIds?: ResourceId[];
+  /** Fallback recipes run after ordinary production; surplus recipes run last. */
+  allocation?: RecipeAllocation;
+  /** Lower values run first within the same non-primary allocation pass. */
+  allocationPriority?: number;
   sharedCapacity?: SharedCapacity;
   cycleDurationSeconds?: number;
   /**
@@ -79,11 +87,15 @@ export interface Recipe {
   appliesRecyclingEfficiency?: boolean;
   /** Emits the recoverable material composition carried by Recyclables. */
   sortsRecyclableSources?: boolean;
-  /** Demand sources ignore declared capacity and supply only the remaining deficit. */
-  sourceMode?: "demand";
+  /** Demand sources supply only the remaining deficit; capped sources respect installed throughput. */
+  sourceMode?: "demand" | "demand-capped";
   sourceKind?: SourceKind;
+  /** Unbounded sinks remove every available unit of their declared excess inputs. */
+  sinkMode?: "unbounded";
   /** Recipe-specific multiplier applied to the building's base electricity draw. */
   electricityMultiplier?: number;
+  /** Scale the building's computing demand by speedLevel (used for per-100-population services). */
+  computingScalesWithSpeed?: boolean;
   /** Generators in one group share utilization; lower priorities serve demand first. */
   electricityDispatch?: {
     groupId: string;
@@ -91,6 +103,11 @@ export interface Recipe {
   };
   /** Displays fractional throughput as a livestock count instead of a generic speed. */
   animalPopulationCapacity?: number;
+  /** In-game fertilizer control shown on crop-farm production cards. */
+  farmFertilizer?: {
+    targetFertilityPercent: number;
+    maximumFertilityPercent: number;
+  };
 }
 
 const radioactiveWasteStorageCapacity = 2400;
@@ -118,6 +135,12 @@ export const cropFarmRecipes: Recipe[] = activeCropFarmGroups.map((group) => {
     building: cropFarmTiers[group.tierId].name,
     group: "production",
     cycleDurationSeconds: 60,
+    farmFertilizer: group.fertilizer && fertilizerDefinition
+      ? {
+          targetFertilityPercent: group.fertilizer.targetFertilityPercent,
+          maximumFertilityPercent: fertilizerDefinition.maximumFertilityPercent,
+        }
+      : undefined,
     inputs: [
       {
         resourceId: "water",
@@ -258,6 +281,45 @@ export const recipes: Recipe[] = [
     sourceMode: "demand",
     sourceKind: "map-mine",
   },
+  {
+    // Captain of Industry v0.8.7: 8 Water every 10 seconds.
+    id: "groundwater-pump",
+    name: "Groundwater Pump",
+    building: "Groundwater Pump",
+    group: "source",
+    cycleDurationSeconds: 10,
+    inputs: [],
+    outputs: [{ resourceId: "water", quantity: 48 }],
+    sourceMode: "demand-capped",
+    sourceKind: "groundwater",
+  },
+  {
+    id: "slag-terrain-dump",
+    name: "Terrain Dump (Slag)",
+    building: "Terrain Dump",
+    group: "sink",
+    inputs: [{ resourceId: "slag", quantity: 1 }],
+    outputs: [],
+    sinkMode: "unbounded",
+  },
+  {
+    id: "waste-terrain-dump",
+    name: "Terrain Dump (Waste)",
+    building: "Terrain Dump",
+    group: "sink",
+    inputs: [{ resourceId: "waste", quantity: 1 }],
+    outputs: [],
+    sinkMode: "unbounded",
+  },
+  {
+    id: "dirt-terrain-dump",
+    name: "Terrain Dump (Dirt)",
+    building: "Terrain Dump",
+    group: "sink",
+    inputs: [{ resourceId: "dirt", quantity: 1 }],
+    outputs: [],
+    sinkMode: "unbounded",
+  },
 
   // Electricity
   {
@@ -386,6 +448,45 @@ export const recipes: Recipe[] = [
     // v0.8.6 settlement collection converts tracked recyclable sources with
     // its own 2:1 rule; the global recycling modifier is not applied here.
     appliesRecyclingEfficiency: false,
+  },
+  {
+    id: settlementRecipeIds.internetModule,
+    name: "Internet Module",
+    building: "Internet Module",
+    group: "production",
+    inputs: [],
+    outputs: [],
+    computingScalesWithSpeed: true,
+  },
+  {
+    id: computingRecipeIds.dataCenter,
+    name: "Data Center",
+    building: "Data Center",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    // v0.8.6 Basic rack: 4 TFLOPS, 0.5 chilled water, 0.5 returned water per month.
+    id: computingRecipeIds.basicRack,
+    name: "Basic Rack",
+    building: "Basic Rack",
+    group: "production",
+    inputs: [{ resourceId: "chilledWater", quantity: dataCenter.chilledWaterPerRack }],
+    outputs: [
+      { resourceId: "water", quantity: dataCenter.chilledWaterPerRack },
+      { resourceId: "computing", quantity: dataCenter.computingTflopsPerRack },
+    ],
+  },
+  {
+    // v0.8.6 Water Chiller: 10 Water -> 8 Chilled Water every 20 seconds.
+    id: computingRecipeIds.waterChiller,
+    name: "Water Chiller",
+    building: "Water Chiller",
+    group: "production",
+    inputs: [{ resourceId: "water", quantity: 30 }],
+    outputs: [{ resourceId: "chilledWater", quantity: 24 }],
+    balanceBy: "output",
   },
   {
     id: settlementRecipeIds.foodMarket,
@@ -647,8 +748,9 @@ export const recipes: Recipe[] = [
     sharedCapacity: {
       id: "mixer-ii-biomass-compost-general",
       priority: 1,
-      allocation: "fallback",
     },
+    allocation: "fallback",
+    allocationPriority: 10,
     inputs: [{ resourceId: "biomass", quantity: 24 }],
     outputs: [{ resourceId: "compost", quantity: 16 }],
   },
@@ -676,6 +778,11 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 40,
     balanceBy: "output",
+    // Hydrogen and Nitrogen are supporting inputs produced after the remaining
+    // Ammonia deficit is known; Sour Water recovery is the only prior supply.
+    balanceInputIds: [],
+    allocation: "fallback",
+    allocationPriority: 50,
     inputs: [
       { resourceId: "hydrogen", quantity: 12 },
       { resourceId: "nitrogen", quantity: 24 },
@@ -757,16 +864,16 @@ export const recipes: Recipe[] = [
     building: "Mixer II",
     group: "production",
     cycleDurationSeconds: 10,
-    balanceBy: "output",
-    // Fertilizer takes Compost first; this recipe can replace mined Dirt only
-    // with the Compost that remains available afterward.
+    balanceBy: "input",
+    // Fertilizer takes Compost first. The remaining Compost is converted to
+    // dumpable Dirt instead of accumulating, even after Dirt demand is met.
     balanceInputIds: ["compost"],
-    balanceOutputIds: ["dirt"],
     sharedCapacity: {
       id: "mixer-ii-dirt-from-compost",
       priority: 1,
-      allocation: "fallback",
     },
+    allocation: "fallback",
+    allocationPriority: 20,
     inputs: [
       { resourceId: "gravel", quantity: 48 },
       { resourceId: "compost", quantity: 48 },
@@ -960,8 +1067,9 @@ export const recipes: Recipe[] = [
     sharedCapacity: {
       id: "sour-water-stripper",
       priority: 1,
-      allocation: "fallback",
     },
+    allocation: "fallback",
+    allocationPriority: 40,
     inputs: [
       { resourceId: "sourWater", quantity: 36 },
       { resourceId: "steamHigh", quantity: 3 },
@@ -970,6 +1078,47 @@ export const recipes: Recipe[] = [
       { resourceId: "sulfur", quantity: 9 },
       { resourceId: "ammonia", quantity: 9 },
       { resourceId: "water", quantity: 21 },
+    ],
+  },
+  {
+    // Captain of Industry v0.8.7 game-data rate. Primary food production has
+    // already consumed its Meat Trimmings before this fallback runs. Keep it
+    // immediately before Compost -> Dirt so both byproducts can continue into
+    // their lower-priority routes.
+    id: "anaerobic-digester-meat-trimmings",
+    name: "Anaerobic Digester (Meat Trimmings)",
+    building: "Anaerobic Digester",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "input",
+    balanceInputIds: ["meatTrimmings"],
+    allocation: "fallback",
+    allocationPriority: 15,
+    inputs: [{ resourceId: "meatTrimmings", quantity: 8 }],
+    outputs: [
+      { resourceId: "fuelGas", quantity: 4 },
+      { resourceId: "compost", quantity: 2 },
+    ],
+  },
+  {
+    // Captain of Industry v0.8.6 game-data rate, normalized from 20 to 60 seconds.
+    // This route intentionally consumes only Fuel Gas left after every modeled demand.
+    id: "cracking-unit-fuel-gas-diesel",
+    name: "Cracking Unit (Fuel Gas → Diesel)",
+    building: "Cracking Unit",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["fuelGas"],
+    allocation: "surplus",
+    allocationPriority: 100,
+    inputs: [
+      { resourceId: "fuelGas", quantity: 36 },
+      { resourceId: "oxygen", quantity: 18 },
+    ],
+    outputs: [
+      { resourceId: "diesel", quantity: 24 },
+      { resourceId: "water", quantity: 6 },
     ],
   },
   {
@@ -1212,12 +1361,18 @@ export const recipes: Recipe[] = [
   },
   {
     id: "food-processor-meat",
-    name: "Food Processor (Chicken Carcass → Meat)",
+    // Captain of Industry v0.8.7 game-data rate, normalized to 60 seconds.
+    name: "Food Processor (Meat + Trimmings)",
     building: "Food Processor",
     group: "production",
     cycleDurationSeconds: 20,
-    balanceBy: "input",
-    balanceInputIds: ["chickenCarcass"],
+    balanceBy: "output",
+    balanceOutputIds: ["meat"],
+    sharedCapacity: {
+      id: "food-processor-chicken-carcass",
+      label: "Food Processor — Chicken Carcass",
+      priority: 1,
+    },
     inputs: [
       { resourceId: "chickenCarcass", quantity: 30 },
       { resourceId: "water", quantity: 9 },
@@ -1227,6 +1382,28 @@ export const recipes: Recipe[] = [
       { resourceId: "meat", quantity: 15 },
       { resourceId: "meatTrimmings", quantity: 6 },
     ],
+  },
+  {
+    id: "food-processor-meat-trimmings",
+    // Captain of Industry v0.8.7 game-data rate, normalized to 60 seconds.
+    name: "Food Processor (Trimmings only)",
+    building: "Food Processor",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "input",
+    balanceInputIds: ["chickenCarcass"],
+    // Meat is satisfied by the primary shared recipe first. This fallback then
+    // consumes every remaining carcass; downstream fallbacks route excess
+    // Trimmings to Fuel Gas and excess Fuel Gas to Diesel.
+    allocation: "fallback",
+    allocationPriority: 10,
+    sharedCapacity: {
+      id: "food-processor-chicken-carcass",
+      label: "Food Processor — Chicken Carcass",
+      priority: 2,
+    },
+    inputs: [{ resourceId: "chickenCarcass", quantity: 30 }],
+    outputs: [{ resourceId: "meatTrimmings", quantity: 27 }],
   },
 
   // Nuclear fuel cycle
@@ -1326,6 +1503,14 @@ export const recipes: Recipe[] = [
   },
 
   // Lab Equipment chain on Assembly V, normalized to 60 seconds from v0.8.6c.
+  {
+    id: "research-lab-iv",
+    name: "Research Lab IV",
+    building: "Research Lab IV",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
   {
     id: "assembly-v-lab-equipment-i",
     name: "Assembly V (Lab Equipment I)",
@@ -1817,11 +2002,12 @@ export const recipes: Recipe[] = [
     balanceBy: "input",
     balanceInputIds: ["carbonDioxide"],
     sharedCapacity: {
-      id: "chemical-plant-ii-graphite",
-      label: "Chemical Plant II — Graphite",
-      priority: 1,
-      allocation: "fallback",
+      id: "chemical-plant-ii-electronics",
+      label: "Chemical Plant II",
+      priority: 2,
     },
+    allocation: "fallback",
+    allocationPriority: 20,
     inputs: [{ resourceId: "carbonDioxide", quantity: 144 }],
     outputs: [{ resourceId: "graphite", quantity: 6 }],
   },
@@ -1837,11 +2023,12 @@ export const recipes: Recipe[] = [
     balanceInputIds: [],
     balanceOutputIds: ["graphite"],
     sharedCapacity: {
-      id: "chemical-plant-ii-graphite",
-      label: "Chemical Plant II — Graphite",
-      priority: 2,
-      allocation: "fallback",
+      id: "chemical-plant-ii-electronics",
+      label: "Chemical Plant II",
+      priority: 3,
     },
+    allocation: "fallback",
+    allocationPriority: 30,
     inputs: [
       { resourceId: "coal", quantity: 4 },
       { resourceId: "chlorine", quantity: 12 },
@@ -2451,6 +2638,8 @@ export const recipes: Recipe[] = [
     name: "Settling Tank (Yellowcake)",
     building: "Settling Tank",
     group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["yellowcake"],
     inputs: [
       { resourceId: "uraniumOrePowder", quantity: 36 },
       { resourceId: "acid", quantity: 12 },
@@ -2526,6 +2715,27 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    // Captain of Industry v0.8.7 game-data rate, normalized from 10 to 60 seconds.
+    // Consume only Steam (Low) left after every modeled production use.
+    id: "thermal-desalinator-low",
+    name: "Thermal Desalinator (Low Steam)",
+    building: "Thermal Desalinator",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "input",
+    balanceInputIds: ["steamLow"],
+    allocation: "surplus",
+    allocationPriority: 80,
+    inputs: [
+      { resourceId: "seaWater", quantity: 72 },
+      { resourceId: "steamLow", quantity: 24 },
+    ],
+    outputs: [
+      { resourceId: "water", quantity: 72 },
+      { resourceId: "brine", quantity: 24 },
+    ],
+  },
+  {
     id: "thermal-desalinator-super",
     name: "Thermal Desalinator (Super Steam)",
     building: "Thermal Desalinator",
@@ -2540,7 +2750,7 @@ export const recipes: Recipe[] = [
     // single FBR when both output-balanced consumers run in the same pass.
     balanceBy: "output",
     balanceInputIds: ["steamSuper"],
-    balanceOutputIds: ["water"],
+    balanceOutputIds: ["water", "brine"],
     inputPriorities: { steamSuper: 1 },
     outputs: [
       { resourceId: "water", quantity: 72 },

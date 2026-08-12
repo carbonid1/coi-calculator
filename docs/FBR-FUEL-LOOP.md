@@ -28,7 +28,7 @@ The core-fuel and blanket-fuel loops balance. The yellowcake chemical plant is l
 - 0.5 molten glass
 - 0.25 steel
 
-The General module produces 12 yellowcake per production cycle. After this FBR consumes 3, the factory has a surplus of 9 yellowcake per production cycle.
+The General module balances Yellowcake production against factory demand. With this FBR configuration, it produces and supplies 3 Yellowcake per production cycle with no planned surplus.
 
 ## Key recipes
 

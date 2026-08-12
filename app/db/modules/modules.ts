@@ -1,4 +1,5 @@
 import { type ResourceId } from "../resources";
+import { computing } from "./computing";
 import { farms } from "./farms";
 import { fbrPowerPlant } from "./fbr-power-plant";
 import { forestry } from "./forestry";
@@ -50,5 +51,6 @@ export const modules: [Module, ...Module[]] = [
   mines,
   fbrPowerPlant,
   solarPower,
+  computing,
   maintenance,
 ];

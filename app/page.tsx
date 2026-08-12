@@ -1,8 +1,9 @@
 "use client";
 
-import { z } from "zod";
+import { useEffect, useState } from "react";
 
 import { ChickenFarmSettings } from "./components/ChickenFarmSettings";
+import { ComputingSettings } from "./components/ComputingSettings";
 import { ContractsView } from "./components/ContractsView";
 import { FbrPlanningSettings } from "./components/FbrPlanningSettings";
 import { HousingView } from "./components/HousingView";
@@ -11,57 +12,58 @@ import { ModifiersView } from "./components/ModifiersView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { RecipeCard } from "./components/RecipeCard";
+import { ResearchSettings } from "./components/ResearchSettings";
 import { SharedRecipeCard } from "./components/SharedRecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { SolarPowerSettings } from "./components/SolarPowerSettings";
 import { StorageCard } from "./components/StorageCard";
+import { buildings } from "./db/buildings";
+import { defaultChickenFarmSettings } from "./db/chicken-farm";
+import { defaultComputingConfig } from "./db/computing";
 import {
-  chickenFarm,
-  defaultChickenFarmSettings,
-} from "./db/chicken-farm";
-import { activeContracts } from "./db/contracts";
+  contracts,
+  defaultActiveContractIds,
+  defaultContractModes,
+} from "./db/contracts";
 import {
-  defaultActiveEdicts,
-  type FarmingBoostLevel,
-  type MaintenanceReducerLevel,
+  defaultEdictLevels,
+  getEdict,
+  type EdictId,
+  type EdictLevel,
+  normalizeCleanPanelsLevel,
+  normalizeFarmingBoostLevel,
 } from "./db/edicts";
 import {
   activeHousingType,
   defaultHousingCount,
 } from "./db/housing";
 import { defaultMaintenanceStatueCount } from "./db/maintenance-statue";
-import { createFarmsModule, FARMS_MODULE_ID } from "./db/modules/farms";
-import {
-  createFbrPowerPlantModule,
-  FBR_POWER_PLANT_MODULE_ID,
-} from "./db/modules/fbr-power-plant";
-import { createGeneralModule, GENERAL_MODULE_ID } from "./db/modules/general";
-import { createHousingModule, HOUSING_MODULE_ID } from "./db/modules/housing";
+import { COMPUTING_MODULE_ID } from "./db/modules/computing";
+import { FARMS_MODULE_ID } from "./db/modules/farms";
+import { FBR_POWER_PLANT_MODULE_ID } from "./db/modules/fbr-power-plant";
+import { HOUSING_MODULE_ID } from "./db/modules/housing";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
-import { createSolarPowerModule, SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
+import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from "./db/modules/research";
+import { SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
 import { defaultPlanningBaselines } from "./db/planning-baselines";
 import { type RecipeGroup } from "./db/recipes";
 import {
-  cropYieldResearch,
   defaultInfiniteResearchLevels,
-  maintenanceOutputResearch,
-  solarPowerResearch,
-  treeGrowthSpeedResearch,
 } from "./db/research";
 import { defaultSolarPanelCounts } from "./db/solar";
+import { calculateUnityBudget } from "./db/unity";
 import { calculateBuildingStats } from "./helpers/building-stats/building-stats";
 import { type ProductionLine } from "./helpers/calculate/calculate";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "./helpers/modifiers/calculate-crop-farming";
+import { calculateFoodConsumption } from "./helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-growth-speed";
 import { getRecipeOutputQuantity } from "./helpers/modifiers/recipe-output";
 import { extractModuleResult } from "./helpers/module-result/module-result";
-import { useLocalStorage } from "./helpers/use-local-storage/use-local-storage";
-import { useMounted } from "./helpers/use-mounted/use-mounted";
 
 const groupLabels: Record<RecipeGroup, string> = {
   source: "Sources",
@@ -106,135 +108,53 @@ const groupSharedProductionLines = (lines: ProductionLine[]) => {
   ));
 };
 
-const activeModuleIdSchema = z.enum([MODIFIERS_ID, CONTRACTS_ID, FACTORY_TOTAL_ID, ...modules.map((m) => m.id)]);
-const edictLevelSchema = z.union([
-  z.literal(0),
-  z.literal(1),
-  z.literal(2),
-  z.literal(3),
-  z.literal(4),
-  z.literal(5),
-]);
-const cleanPanelsLevelSchema = z.union([
-  z.literal(0),
-  z.literal(1),
-  z.literal(2),
-  z.literal(3),
-]);
-const farmingBoostLevelSchema = z.union([
-  z.literal(0),
-  z.literal(1),
-  z.literal(2),
-  z.literal(3),
-]);
-const maintenanceReducerLevelSchema = z.union([
-  z.literal(0),
-  z.literal(1),
-  z.literal(2),
-  z.literal(3),
-]);
-const maintenanceOutputLevelSchema = z.number().int().min(0).max(maintenanceOutputResearch.maxLevel);
-const solarPowerLevelSchema = z.number().int().min(0).max(solarPowerResearch.maxLevel);
-const cropYieldLevelSchema = z.number().int().min(0).max(cropYieldResearch.maxLevel);
-const treeGrowthSpeedLevelSchema = z.number().int().min(0).max(treeGrowthSpeedResearch.maxLevel);
-const solarPanelCountsSchema = z.object({
-  standard: z.number().int().min(0),
-  mono: z.number().int().min(0),
-});
-const chickenFarmSettingsSchema = z.object({
-  farmCount: z.number().int().min(1).default(defaultChickenFarmSettings.farmCount),
-  chickenCount: z.number().int().min(chickenFarm.countStep).max(chickenFarm.capacity).multipleOf(chickenFarm.countStep),
-  slaughtering: z.boolean(),
-});
-const housingCountSchema = z.number().int().min(0);
-const maintenanceStatueCountSchema = z.number().int().min(0);
-const planningBaselinesSchema = z.object({
-  fbrAverageGenerationMw: z.number().min(0).max(60),
-  hydrogenFuelDemandPerCycle: z.number().min(0),
-});
+const legacySettingKeys = [
+  "coi-active-contract-ids",
+  "coi-additional-edict-levels",
+  "coi-chicken-farm-settings",
+  "coi-chicken-farm-settings-v3",
+  "coi-clean-panels-level",
+  "coi-computing-config",
+  "coi-contract-modes",
+  "coi-crop-yield-level",
+  "coi-farming-boost-level",
+  "coi-housing-count",
+  "coi-maintenance-output-level",
+  "coi-maintenance-reducer-level",
+  "coi-maintenance-statue-count",
+  "coi-module",
+  "coi-planning-baselines",
+  "coi-planning-baselines-v2",
+  "coi-presets",
+  "coi-recycling-increase-level",
+  "coi-research-module-config",
+  "coi-solar-panel-counts",
+  "coi-solar-power-level",
+  "coi-tree-growth-speed-level",
+] as const;
 
 const Page = () => {
-  const mounted = useMounted();
-  const [activeModuleId, setActiveModuleId] = useLocalStorage("coi-module", activeModuleIdSchema, modules[0].id);
-  const [recyclingIncreaseLevel, setRecyclingIncreaseLevel] = useLocalStorage(
-    "coi-recycling-increase-level",
-    edictLevelSchema,
-    defaultActiveEdicts.recyclingIncrease,
-  );
-  const [cleanPanelsLevel, setCleanPanelsLevel] = useLocalStorage(
-    "coi-clean-panels-level",
-    cleanPanelsLevelSchema,
-    defaultActiveEdicts.cleanPanels,
-  );
-  const [farmingBoostLevel, setFarmingBoostLevel] = useLocalStorage(
-    "coi-farming-boost-level",
-    farmingBoostLevelSchema,
-    defaultActiveEdicts.farmingBoost,
-  );
-  const [maintenanceReducerLevel, setMaintenanceReducerLevel] = useLocalStorage(
-    "coi-maintenance-reducer-level",
-    maintenanceReducerLevelSchema,
-    defaultActiveEdicts.maintenanceReducer,
-  );
-  const [maintenanceStatueCount, setMaintenanceStatueCount] = useLocalStorage(
-    "coi-maintenance-statue-count",
-    maintenanceStatueCountSchema,
-    defaultMaintenanceStatueCount,
-  );
-  const [planningBaselines, setPlanningBaselines] = useLocalStorage(
-    "coi-planning-baselines",
-    planningBaselinesSchema,
-    defaultPlanningBaselines,
-  );
-  const [maintenanceOutputLevel, setMaintenanceOutputLevel] = useLocalStorage(
-    "coi-maintenance-output-level",
-    maintenanceOutputLevelSchema,
-    defaultInfiniteResearchLevels.maintenanceOutput,
-  );
-  const [solarPowerLevel, setSolarPowerLevel] = useLocalStorage(
-    "coi-solar-power-level",
-    solarPowerLevelSchema,
-    defaultInfiniteResearchLevels.solarPower,
-  );
-  const [cropYieldLevel, setCropYieldLevel] = useLocalStorage(
-    "coi-crop-yield-level",
-    cropYieldLevelSchema,
-    defaultInfiniteResearchLevels.cropYield,
-  );
-  const [treeGrowthSpeedLevel, setTreeGrowthSpeedLevel] = useLocalStorage(
-    "coi-tree-growth-speed-level",
-    treeGrowthSpeedLevelSchema,
-    defaultInfiniteResearchLevels.treeGrowthSpeed,
-  );
-  const [solarPanelCounts, setSolarPanelCounts] = useLocalStorage(
-    "coi-solar-panel-counts",
-    solarPanelCountsSchema,
-    defaultSolarPanelCounts,
-  );
-  const [chickenFarmSettings, setChickenFarmSettings] = useLocalStorage(
-    "coi-chicken-farm-settings",
-    chickenFarmSettingsSchema,
-    defaultChickenFarmSettings,
-  );
-  const [housingCount, setHousingCount] = useLocalStorage(
-    "coi-housing-count",
-    housingCountSchema,
-    defaultHousingCount,
-  );
+  const [activeModuleId, setActiveModuleId] = useState(modules[0].id);
 
-  if (!mounted) return <div className="mx-auto max-w-7xl space-y-6 p-6" />;
+  useEffect(() => {
+    legacySettingKeys.forEach((key) => window.localStorage.removeItem(key));
+  }, []);
 
-  const configuredModules = modules.map((module) => {
-    if (module.id === GENERAL_MODULE_ID) return createGeneralModule(maintenanceStatueCount);
-    if (module.id === FBR_POWER_PLANT_MODULE_ID) {
-      return createFbrPowerPlantModule(planningBaselines);
-    }
-    if (module.id === SOLAR_POWER_MODULE_ID) return createSolarPowerModule(solarPanelCounts);
-    if (module.id === FARMS_MODULE_ID) return createFarmsModule(chickenFarmSettings);
-    if (module.id === HOUSING_MODULE_ID) return createHousingModule(housingCount);
-
-    return module;
-  });
+  const configuredModules = modules;
+  const edictLevels: Record<EdictId, EdictLevel> = defaultEdictLevels;
+  const contractModes = defaultContractModes;
+  const activeContractIds = defaultActiveContractIds;
+  const researchModuleConfig = defaultResearchModuleConfig;
+  const maintenanceStatueCount = defaultMaintenanceStatueCount;
+  const planningBaselines = defaultPlanningBaselines;
+  const maintenanceOutputLevel = defaultInfiniteResearchLevels.maintenanceOutput;
+  const solarPowerLevel = defaultInfiniteResearchLevels.solarPower;
+  const cropYieldLevel = defaultInfiniteResearchLevels.cropYield;
+  const treeGrowthSpeedLevel = defaultInfiniteResearchLevels.treeGrowthSpeed;
+  const solarPanelCounts = defaultSolarPanelCounts;
+  const computingConfig = defaultComputingConfig;
+  const chickenFarmSettings = defaultChickenFarmSettings;
+  const housingCount = defaultHousingCount;
 
   const isModifiers = activeModuleId === MODIFIERS_ID;
   const isContracts = activeModuleId === CONTRACTS_ID;
@@ -250,28 +170,65 @@ const Page = () => {
     : null;
 
   const resolvedExternalInputs = preset?.externalInputs ?? activeModule?.externalInputs;
-  const recyclingEfficiencyPercent = calculateRecyclingEfficiency(recyclingIncreaseLevel).effectivePercent;
+  const recyclingEfficiencyPercent = calculateRecyclingEfficiency(
+    edictLevels.recyclingIncrease,
+  ).effectivePercent;
+  const foodConsumption = calculateFoodConsumption(
+    edictLevels.foodSaver,
+    edictLevels.plentyOfFood,
+  );
   const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
-  const solarPowerOutput = calculateSolarPower(solarPowerLevel, cleanPanelsLevel);
+  const solarPowerOutput = calculateSolarPower(
+    solarPowerLevel,
+    normalizeCleanPanelsLevel(edictLevels.cleanPanels),
+  );
   const cropFarming = calculateCropFarmingModifiers(
     cropYieldLevel,
-    farmingBoostLevel,
+    normalizeFarmingBoostLevel(edictLevels.farmingBoost),
   );
+  const waterSaverLevel = getEdict("waterSaver").levels.find(
+    (level) => level.level === edictLevels.waterSaver,
+  );
+  const waterSaverMultiplier = 1 - (
+    waterSaverLevel?.modeledEffects?.waterDemandReductionPercent ?? 0
+  ) / 100;
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const outputModifiers = {
+    foodConsumption: foodConsumption.multiplier,
     maintenanceOutput: maintenanceOutput.multiplier,
     solarPower: solarPowerOutput.multiplier,
     cropYield: cropFarming.yieldMultiplier,
-    cropWater: cropFarming.waterDemandMultiplier,
+    cropWater: cropFarming.waterDemandMultiplier * waterSaverMultiplier,
+    settlementWater: waterSaverMultiplier,
     treeGrowthSpeed: treeGrowthSpeed.multiplier,
   };
+  const activeContractIdSet = new Set(activeContractIds);
+  const enabledContracts = contracts.filter((contract) => activeContractIdSet.has(contract.id));
   const factoryResult = calculateFactoryTotal(
     configuredModules,
-    activeContracts,
+    enabledContracts,
     recyclingEfficiencyPercent,
     outputModifiers,
   );
-
+  const unityBudget = calculateUnityBudget({
+    housing: activeHousingType,
+    housingCount,
+    edictLevels,
+    buildingConsumption: researchModuleConfig.activeResearchLabIvCount > 0
+      ? [{
+          id: "research-lab-iv",
+          name: "Research Lab IV",
+          amount: researchModuleConfig.activeResearchLabIvCount
+            * (buildings["Research Lab IV"]?.unityPerCycle ?? 0),
+        }]
+      : [],
+    contracts: factoryResult.contractResults.map((result) => ({
+      importedPerCycle: result.imported,
+      fixedUnityPerCycle: result.contract.unity.perProductionCycle,
+      unityPer100Imported: result.contract.unity.per100Imported,
+      mode: contractModes[result.contract.id] ?? "temporary",
+    })),
+  });
   const moduleResult = activeModule
     ? (() => {
         const lines = factoryResult.allLines.filter((line) => line.moduleId === activeModule.id);
@@ -287,7 +244,7 @@ const Page = () => {
 
   const buildingStats = activeModule && moduleResult
     ? calculateBuildingStats(moduleResult.lines, moduleResult, outputModifiers)
-    : { workers: 0, electricityKw: 0 };
+    : { workers: 0, electricityKw: 0, computingTflops: 0 };
 
   const factoryStats = calculateBuildingStats(
     factoryResult.allLines,
@@ -308,6 +265,18 @@ const Page = () => {
     0,
   );
   const factoryGenerationCapacityMw = calculateGenerationCapacityMw(factoryResult.allLines);
+  const calculateComputingCapacityTflops = (lines: ProductionLine[]) => lines.reduce(
+    (total, line) => total + line.recipe.outputs.reduce((lineTotal, output) => (
+      output.resourceId === "computing"
+        ? lineTotal + output.quantity * line.buildingCount * line.speedLevel
+        : lineTotal
+    ), 0),
+    0,
+  );
+  const factoryComputingCapacityTflops = calculateComputingCapacityTflops(factoryResult.allLines);
+  const computingCapacityTflops = calculateComputingCapacityTflops(
+    factoryResult.allLines.filter((line) => line.moduleId === COMPUTING_MODULE_ID),
+  );
   const solarGenerationCapacityMw = calculateGenerationCapacityMw(
     factoryResult.allLines.filter((line) => line.moduleId === SOLAR_POWER_MODULE_ID),
   );
@@ -336,7 +305,7 @@ const Page = () => {
 
       <ModuleSwitcher modules={configuredModules} active={activeModuleId} modifiersId={MODIFIERS_ID} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
 
-      {activeModule && activeModule.id !== SOLAR_POWER_MODULE_ID && (
+      {activeModule?.description && activeModule.id !== SOLAR_POWER_MODULE_ID && (
         <p className="text-sm text-muted-foreground">
           {activeModule.description}
         </p>
@@ -344,33 +313,23 @@ const Page = () => {
 
       {isModifiers && (
         <ModifiersView
-          recyclingIncreaseLevel={recyclingIncreaseLevel}
-          onRecyclingIncreaseLevelChange={setRecyclingIncreaseLevel}
-          cleanPanelsLevel={cleanPanelsLevel}
-          onCleanPanelsLevelChange={setCleanPanelsLevel}
-          farmingBoostLevel={farmingBoostLevel}
-          onFarmingBoostLevelChange={(level: FarmingBoostLevel) => {
-            setFarmingBoostLevel(level);
-          }}
-          maintenanceReducerLevel={maintenanceReducerLevel}
-          onMaintenanceReducerLevelChange={(level: MaintenanceReducerLevel) => {
-            setMaintenanceReducerLevel(level);
-          }}
+          edictLevels={edictLevels}
+          unityBudget={unityBudget}
           maintenanceStatueCount={maintenanceStatueCount}
-          onMaintenanceStatueCountChange={setMaintenanceStatueCount}
           maintenanceOutputLevel={maintenanceOutputLevel}
-          onMaintenanceOutputLevelChange={setMaintenanceOutputLevel}
           solarPowerLevel={solarPowerLevel}
-          onSolarPowerLevelChange={setSolarPowerLevel}
           cropYieldLevel={cropYieldLevel}
-          onCropYieldLevelChange={setCropYieldLevel}
           treeGrowthSpeedLevel={treeGrowthSpeedLevel}
-          onTreeGrowthSpeedLevelChange={setTreeGrowthSpeedLevel}
         />
       )}
 
       {isContracts && factoryResult && (
-        <ContractsView results={factoryResult.contractResults} />
+        <ContractsView
+          activeContractIds={activeContractIds}
+          contracts={contracts}
+          results={factoryResult.contractResults}
+          modes={contractModes}
+        />
       )}
 
       {isFactoryTotal && factoryResult && (
@@ -379,7 +338,10 @@ const Page = () => {
           workers={factoryStats.workers}
           electricityConsumptionKw={factoryResult.electricityDemandMw * 1000}
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
+          computingConsumptionTflops={factoryResult.computingDemandTflops}
+          computingGenerationCapacityTflops={factoryComputingCapacityTflops}
           populationCapacity={populationCapacity}
+          unityBudget={unityBudget}
           groupByBalance
           regularResults={factoryResult.calculation.regularResults}
         />
@@ -389,40 +351,53 @@ const Page = () => {
         <SolarPowerSettings
           counts={solarPanelCounts}
           averageGenerationMw={solarGenerationCapacityMw}
-          onChange={(panel, count) => {
-            setSolarPanelCounts((current) => ({ ...current, [panel]: count }));
-          }}
         />
       )}
 
       {activeModule?.id === FBR_POWER_PLANT_MODULE_ID && (
-        <FbrPlanningSettings
-          values={planningBaselines}
-          onChange={setPlanningBaselines}
+        <FbrPlanningSettings values={planningBaselines} />
+      )}
+
+      {activeModule?.id === COMPUTING_MODULE_ID && (
+        <ComputingSettings
+          config={computingConfig}
+          computingCapacityTflops={computingCapacityTflops}
         />
       )}
 
+      {activeModule?.id === RESEARCH_MODULE_ID && (
+        <ResearchSettings config={researchModuleConfig} />
+      )}
+
       {activeModule?.id === FARMS_MODULE_ID && (
-        <ChickenFarmSettings
-          settings={chickenFarmSettings}
-          onChange={setChickenFarmSettings}
-        />
+        <ChickenFarmSettings settings={chickenFarmSettings} />
       )}
 
       {activeModule?.id === HOUSING_MODULE_ID && (
         <HousingView
           housing={activeHousingType}
           buildingCount={housingCount}
-          onBuildingCountChange={setHousingCount}
         />
       )}
 
       {moduleResult && activeModule && activeModule.id !== SOLAR_POWER_MODULE_ID && (
         <>
           {activeModule.id === MINES_MODULE_ID ? (
-            <MinesView results={moduleResult.sourceResults} />
+            <MinesView
+              sourceResults={moduleResult.sourceResults}
+              sinkResults={moduleResult.sinkResults}
+            />
           ) : (
-            <NetSummary flows={moduleResult.resourceFlows} externalInputs={resolvedExternalInputs} workers={buildingStats.workers} electricityConsumptionKw={buildingStats.electricityKw} />
+            <NetSummary
+              flows={moduleResult.resourceFlows}
+              externalInputs={resolvedExternalInputs}
+              workers={buildingStats.workers}
+              electricityConsumptionKw={buildingStats.electricityKw}
+              computingConsumptionTflops={buildingStats.computingTflops}
+              computingGenerationCapacityTflops={activeModule.id === COMPUTING_MODULE_ID
+                ? computingCapacityTflops
+                : undefined}
+            />
           )}
 
           {activeModule.id !== MINES_MODULE_ID && grouped.map(({ group, label, items }) => (

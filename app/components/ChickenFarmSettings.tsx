@@ -1,19 +1,19 @@
-import { Card, Field, Slider, Switch } from "@carbonid1/design-system";
+import { Card } from "@carbonid1/design-system";
 
 import {
-  chickenFarm,
   type ChickenFarmSettings as ChickenFarmSettingsValue,
+  getChickenFarmLayout,
   getChickenFarmRates,
 } from "../db/chicken-farm";
 
 interface Props {
   settings: ChickenFarmSettingsValue;
-  onChange: (settings: ChickenFarmSettingsValue) => void;
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
-export const ChickenFarmSettings: React.FC<Props> = ({ settings, onChange }) => {
+export const ChickenFarmSettings: React.FC<Props> = ({ settings }) => {
+  const layout = getChickenFarmLayout(settings.totalChickenCount);
   const rates = getChickenFarmRates(settings);
 
   return (
@@ -21,26 +21,21 @@ export const ChickenFarmSettings: React.FC<Props> = ({ settings, onChange }) => 
       <Card.Content className="space-y-5">
         <Card.Header>
           <Card.Title>Chicken Farms</Card.Title>
-          <Card.Description>Shared settings · aggregate rates per 60s</Card.Description>
+          <Card.Description>Aggregate rates per cycle</Card.Description>
         </Card.Header>
 
-        <Field.Root className="max-w-32">
-          <Field.Label>Farm count</Field.Label>
-          <Field.Control
-            aria-label="Chicken farm count"
-            type="number"
-            min={1}
-            step={1}
-            value={settings.farmCount}
-            onChange={(event) => {
-              const farmCount = event.currentTarget.valueAsNumber;
-
-              if (Number.isFinite(farmCount)) {
-                onChange({ ...settings, farmCount: Math.max(1, Math.trunc(farmCount)) });
-              }
-            }}
-          />
-        </Field.Root>
+        <div className="max-w-xs rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
+          <p className="text-sm text-muted-foreground">Total chickens</p>
+          <p className="font-mono font-semibold text-foreground">
+            {settings.totalChickenCount.toLocaleString()}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {layout.farmCount} farms · {layout.fullFarmCount} full
+            {layout.partialFarmChickenCount > 0
+              ? ` + 1 with ${layout.partialFarmChickenCount} chickens`
+              : ""}
+          </p>
+        </div>
 
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -49,35 +44,8 @@ export const ChickenFarmSettings: React.FC<Props> = ({ settings, onChange }) => 
               Converts replacement chickens into carcasses
             </p>
           </div>
-          <Switch.Root
-            aria-label="Enable chicken slaughtering"
-            checked={settings.slaughtering}
-            onCheckedChange={(slaughtering) => onChange({ ...settings, slaughtering })}
-          >
-            <Switch.Thumb />
-          </Switch.Root>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-baseline justify-between gap-4">
-            <span className="font-medium text-foreground">
-              Chicken count
-            </span>
-            <span className="font-mono font-semibold text-foreground">
-              {settings.chickenCount} / {chickenFarm.capacity}
-            </span>
-          </div>
-          <Slider
-            aria-label="Chicken count"
-            className="w-full"
-            min={chickenFarm.countStep}
-            max={chickenFarm.capacity}
-            step={chickenFarm.countStep}
-            value={settings.chickenCount}
-            onChange={(chickenCount) => onChange({ ...settings, chickenCount })}
-          />
-          <p className="text-xs text-muted-foreground">
-            50-chicken steps. Below 500 with slaughtering off assumes growth is paused.
+          <p className="font-mono font-semibold text-foreground">
+            {settings.slaughtering ? "On" : "Off"}
           </p>
         </div>
 

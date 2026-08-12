@@ -1,3 +1,4 @@
+import { buildings } from "../db/buildings";
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type OperatingMode } from "../helpers/calculate/calculate";
@@ -28,6 +29,10 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = effective === 0;
   const hasFlows = recipe.inputs.length > 0 || recipe.outputs.length > 0;
+  const tflopsPerMachine = buildings[recipe.building]?.computingTflops ?? 0;
+  const computingTflops = recipe.computingScalesWithSpeed
+    ? tflopsPerMachine * buildingMultiplier * speedLevel
+    : tflopsPerMachine;
 
   return (
     <ProductionCard operatingMode={operatingMode} inactive={inactive} className="p-4">
@@ -43,11 +48,32 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeCount, totalCount, s
               <p className="text-sm text-gray-500 dark:text-gray-400">{match[1]}</p>
             ) : null;
           })()}
-          {speedLevel !== 1 && (
+          {recipe.farmFertilizer && (
+            <p className="text-xs text-muted-foreground">
+              Fertility target{" "}
+              <span className="font-mono font-medium text-foreground">
+                {recipe.farmFertilizer.targetFertilityPercent}%
+              </span>
+              {recipe.farmFertilizer.targetFertilityPercent
+                === recipe.farmFertilizer.maximumFertilityPercent
+                ? " (maximum)"
+                : ""}
+            </p>
+          )}
+          {speedLevel !== 1 && !recipe.computingScalesWithSpeed && (
             <p className="text-xs font-medium text-attention-foreground">
               {recipe.animalPopulationCapacity
-                ? `${Math.round(recipe.animalPopulationCapacity * speedLevel)} / ${recipe.animalPopulationCapacity} chickens`
+                ? `${Math.round(recipe.animalPopulationCapacity * activeCount * speedLevel)} / ${recipe.animalPopulationCapacity * totalCount} chickens`
                 : `Throughput ×${speedLevel}`}
+            </p>
+          )}
+          {computingTflops > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {recipe.computingScalesWithSpeed
+                ? `${Math.round(speedLevel * 100).toLocaleString("en-US")} population cap · `
+                : ""}
+              Computing {parseFloat(computingTflops.toFixed(2))} TFLOPS
+              {!recipe.computingScalesWithSpeed ? " / active building" : ""}
             </p>
           )}
         </div>

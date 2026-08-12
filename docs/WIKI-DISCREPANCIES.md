@@ -6,6 +6,14 @@ Wiki login and submission workflow: to be decided.
 
 ## Pending
 
+### Settlement service Unity
+
+- Game version: 0.8.7
+- Wiki value: Consumer Electronics grants 1.8 Unity and Medical Supplies III grants 1.2 Unity per month
+- Verified game value: Consumer Electronics grants 1.4 Unity and Medical Supplies III grants 1.0 Unity per month
+- Verification: installed game data (`SettlementsData`)
+- Status: ready for a future wiki edit
+
 ### Crop farm workers
 
 - Game version: 0.8.6

@@ -1,6 +1,5 @@
 export interface ChickenFarmSettings {
-  farmCount: number;
-  chickenCount: number;
+  totalChickenCount: number;
   slaughtering: boolean;
 }
 
@@ -19,25 +18,36 @@ export const chickenFarm = {
 } as const;
 
 export const defaultChickenFarmSettings: ChickenFarmSettings = {
-  farmCount: 3,
-  chickenCount: chickenFarm.capacity,
+  totalChickenCount: 1_100,
   slaughtering: true,
 };
 
+export const getChickenFarmLayout = (totalChickenCount: number) => {
+  const roundedChickenCount = Math.round(
+    totalChickenCount / chickenFarm.countStep,
+  ) * chickenFarm.countStep;
+  const normalizedChickenCount = Math.max(0, roundedChickenCount);
+  const fullFarmCount = Math.floor(normalizedChickenCount / chickenFarm.capacity);
+  const partialFarmChickenCount = normalizedChickenCount % chickenFarm.capacity;
+
+  return {
+    totalChickenCount: normalizedChickenCount,
+    farmCount: fullFarmCount + (partialFarmChickenCount > 0 ? 1 : 0),
+    fullFarmCount,
+    partialFarmChickenCount,
+  };
+};
+
 export const getChickenFarmRates = (settings: ChickenFarmSettings) => {
-  const farmCount = Math.max(1, Math.trunc(settings.farmCount));
-  const chickenCount = Math.min(
-    chickenFarm.capacity,
-    Math.max(chickenFarm.countStep, settings.chickenCount),
-  );
+  const { totalChickenCount } = getChickenFarmLayout(settings.totalChickenCount);
   const slaughteredChickens = settings.slaughtering
-    ? chickenCount * chickenFarm.birthsPer100Chickens / 100
+    ? totalChickenCount * chickenFarm.birthsPer100Chickens / 100
     : 0;
 
   return {
-    animalFeed: farmCount * chickenCount * chickenFarm.feedPerChicken,
-    water: farmCount * chickenCount * chickenFarm.waterPerChicken,
-    eggs: farmCount * chickenCount * chickenFarm.eggsPerChicken,
-    chickenCarcass: farmCount * slaughteredChickens * chickenFarm.carcassPerSlaughteredChicken,
+    animalFeed: totalChickenCount * chickenFarm.feedPerChicken,
+    water: totalChickenCount * chickenFarm.waterPerChicken,
+    eggs: totalChickenCount * chickenFarm.eggsPerChicken,
+    chickenCarcass: slaughteredChickens * chickenFarm.carcassPerSlaughteredChicken,
   };
 };

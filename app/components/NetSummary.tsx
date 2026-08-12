@@ -1,5 +1,8 @@
+import { Cpu, Sparkles } from "lucide-react";
+
 import { cropProductResourceIds } from "../db/crop-farming";
 import { type ResourceId, resources } from "../db/resources";
+import { type UnityBudget } from "../db/unity";
 import {
   type RegularResult,
   type ResourceFlow,
@@ -12,7 +15,10 @@ interface Props {
   workers?: number;
   electricityConsumptionKw?: number;
   electricityGenerationCapacityMw?: number;
+  computingConsumptionTflops?: number;
+  computingGenerationCapacityTflops?: number;
   populationCapacity?: number;
+  unityBudget?: UnityBudget;
   groupByBalance?: boolean;
   regularResults?: RegularResult[];
 }
@@ -33,6 +39,7 @@ const formatPower = (megawatts: number) => {
 };
 
 const formatCapacity = (value: number) => parseFloat(value.toFixed(2));
+const formatBuildingCapacity = (value: number) => parseFloat(value.toFixed(3));
 
 const getCapacityLimit = (
   resourceId: ResourceId,
@@ -69,6 +76,7 @@ const getCapacityLimit = (
       atCapacity: capacity > 0 && capacity - used <= BALANCE_THRESHOLD,
       capacity,
       label: producer.recipe.sharedCapacity?.label ?? producer.recipe.building,
+      used,
     };
   });
 
@@ -76,16 +84,84 @@ const getCapacityLimit = (
 
   return limits
     .map((limit) => (
-      `${limit.label} · at capacity ${formatCapacity(limit.capacity)}/${formatCapacity(limit.capacity)}`
+      `${limit.label} · at capacity ${formatBuildingCapacity(limit.used)}/${formatBuildingCapacity(limit.capacity)}`
     ))
     .join(", ");
 };
 
-export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, electricityConsumptionKw, electricityGenerationCapacityMw, populationCapacity, groupByBalance = false, regularResults = [] }) => {
+export const getSurplusCapacityLimit = (
+  resourceId: ResourceId,
+  regularResults: RegularResult[],
+) => {
+  const surplusConsumers = regularResults.filter((result) => (
+    result.buildingCount > 0
+    && (
+      result.recipe.allocation === "fallback"
+      || result.recipe.allocation === "surplus"
+    )
+    && result.recipe.balanceBy === "input"
+    && result.recipe.balanceInputIds?.includes(resourceId)
+  ));
+
+  if (surplusConsumers.length === 0) return null;
+
+  const consumersByCapacity = new Map<string, RegularResult>();
+
+  for (const consumer of surplusConsumers) {
+    consumersByCapacity.set(
+      consumer.capacityPoolId ?? `${consumer.moduleId}:${consumer.recipe.id}`,
+      consumer,
+    );
+  }
+
+  const limits = [...consumersByCapacity.values()].map((consumer) => {
+    const capacityResults = consumer.capacityPoolId
+      ? regularResults.filter((result) => result.capacityPoolId === consumer.capacityPoolId)
+      : [consumer];
+    const capacity = consumer.capacityPoolId
+      ? Math.max(...capacityResults.map((result) => result.buildingCount))
+      : consumer.buildingCount;
+    const used = capacityResults.reduce((total, result) => (
+      total + result.buildingCount * result.supplyRatio
+    ), 0);
+
+    return {
+      atCapacity: capacity > 0 && capacity - used <= BALANCE_THRESHOLD,
+      capacity,
+      label: consumer.recipe.sharedCapacity?.label ?? consumer.recipe.building,
+      used,
+    };
+  });
+
+  if (limits.some((limit) => !limit.atCapacity)) return null;
+
+  return limits
+    .map((limit) => (
+      `${limit.label} · at capacity ${formatBuildingCapacity(limit.used)}/${formatBuildingCapacity(limit.capacity)}`
+    ))
+    .join(", ");
+};
+
+export const NetSummary: React.FC<Props> = ({
+  flows,
+  externalInputs,
+  workers,
+  electricityConsumptionKw,
+  electricityGenerationCapacityMw,
+  computingConsumptionTflops,
+  computingGenerationCapacityTflops,
+  populationCapacity,
+  unityBudget,
+  groupByBalance = false,
+  regularResults = [],
+}) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
 
   const electricityFlow = flows.find((f) => f.resourceId === "electricity");
-  const materialFlows = flows.filter((flow) => flow.resourceId !== "electricity");
+  const computingFlow = flows.find((flow) => flow.resourceId === "computing");
+  const materialFlows = flows.filter((flow) => (
+    flow.resourceId !== "electricity" && flow.resourceId !== "computing"
+  ));
   const moduleInputFlows = groupByBalance
     ? []
     : materialFlows
@@ -128,6 +204,16 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
     }) ?? [];
   const capacityLimitedIds = new Set(
     capacityLimitedDeficits.map(({ flow }) => flow.resourceId),
+  );
+  const capacityLimitedSurpluses = balanceGroups
+    .find((group) => group.label === "Surplus")
+    ?.flows.flatMap((flow) => {
+      const capacityLimit = getSurplusCapacityLimit(flow.resourceId, regularResults);
+
+      return capacityLimit ? [{ flow, capacityLimit }] : [];
+    }) ?? [];
+  const capacityLimitedSurplusIds = new Set(
+    capacityLimitedSurpluses.map(({ flow }) => flow.resourceId),
   );
   const renderBalanceGroup = (group: (typeof displayedBalanceGroups)[number]) => {
     if (group.label === "Deficit" && capacityLimitedDeficits.length > 0) {
@@ -183,15 +269,44 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
 
     if (group.label === "Surplus") {
       const farmFlows = group.flows.filter(
-        (flow) => cropProductResourceIds.has(flow.resourceId),
+        (flow) => (
+          cropProductResourceIds.has(flow.resourceId)
+          && !capacityLimitedSurplusIds.has(flow.resourceId)
+        ),
       );
       const otherFlows = group.flows.filter(
-        (flow) => !cropProductResourceIds.has(flow.resourceId),
+        (flow) => (
+          !cropProductResourceIds.has(flow.resourceId)
+          && !capacityLimitedSurplusIds.has(flow.resourceId)
+        ),
       );
 
-      if (farmFlows.length > 0) {
+      if (capacityLimitedSurpluses.length > 0 || farmFlows.length > 0) {
         return (
           <div className="space-y-4">
+            {capacityLimitedSurpluses.length > 0 && (
+              <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
+                <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground">
+                  Capacity limited
+                </h5>
+                <div className="space-y-1">
+                  {capacityLimitedSurpluses.map(({ flow, capacityLimit }) => (
+                    <div key={flow.resourceId} className="-mx-1 flex items-start justify-between gap-3 rounded px-1 py-1 text-sm hover:bg-accent">
+                      <span className="flex flex-col text-foreground">
+                        <span className="font-medium">{flow.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {capacityLimit}
+                        </span>
+                      </span>
+                      <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                        {formatNet(flow.net)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {otherFlows.length > 0 && (
               <div className="space-y-1">
                 {otherFlows.map((flow) => (
@@ -205,21 +320,23 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
               </div>
             )}
 
-            <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
-              <h5 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Farm surplus
-              </h5>
-              <div className="space-y-1">
-                {farmFlows.map((flow) => (
-                  <div key={flow.resourceId} className="-mx-1 flex justify-between rounded px-1 py-0.5 text-sm hover:bg-accent">
-                    <span className="text-muted-foreground">{flow.name}</span>
-                    <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                      {formatNet(flow.net)}
-                    </span>
-                  </div>
-                ))}
+            {farmFlows.length > 0 && (
+              <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
+                <h5 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Farm surplus
+                </h5>
+                <div className="space-y-1">
+                  {farmFlows.map((flow) => (
+                    <div key={flow.resourceId} className="-mx-1 flex justify-between rounded px-1 py-0.5 text-sm hover:bg-accent">
+                      <span className="text-muted-foreground">{flow.name}</span>
+                      <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                        {formatNet(flow.net)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         );
       }
@@ -241,7 +358,15 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
     );
   };
 
-  if (regularFlows.length === 0 && moduleInputFlows.length === 0 && externalEntries.length === 0 && !electricityFlow) return null;
+  if (
+    regularFlows.length === 0
+    && moduleInputFlows.length === 0
+    && externalEntries.length === 0
+    && !electricityFlow
+    && !computingFlow
+    && !computingConsumptionTflops
+    && computingGenerationCapacityTflops == null
+  ) return null;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -250,11 +375,20 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
         <span className="text-sm font-normal text-gray-500">(per 60s)</span>
       </h3>
 
-      {(electricityFlow || electricityGenerationCapacityMw != null || (electricityConsumptionKw && electricityConsumptionKw > 0) || (workers && workers > 0)) && (() => {
+      {(electricityFlow
+        || electricityGenerationCapacityMw != null
+        || (electricityConsumptionKw && electricityConsumptionKw > 0)
+        || computingFlow
+        || computingGenerationCapacityTflops != null
+        || (computingConsumptionTflops && computingConsumptionTflops > 0)
+        || (workers && workers > 0)) && (() => {
         const generationMw = electricityFlow ? electricityFlow.net : 0;
         const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
         const netMw = generationMw - consumptionMw;
         const showsCapacity = electricityGenerationCapacityMw != null;
+        const computingCapacity = computingGenerationCapacityTflops
+          ?? computingFlow?.produced
+          ?? 0;
 
         return (
           <div className="mb-3 border-b border-gray-200 pb-3 dark:border-gray-700 space-y-1">
@@ -294,6 +428,33 @@ export const NetSummary: React.FC<Props> = ({ flows, externalInputs, workers, el
                 </span>
                 <span className={`font-mono font-semibold ${netMw > 0 ? "text-yellow-500 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
                   {formatPower(netMw)}
+                </span>
+              </div>
+            )}
+            {(computingCapacity > 0 || (computingConsumptionTflops ?? 0) > 0) && (
+              <div className="-mx-2 flex items-center justify-between rounded px-2 py-1 hover:bg-accent">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Cpu aria-hidden="true" className="size-3.5 shrink-0" />
+                  {(computingConsumptionTflops ?? 0) > 0
+                    ? "Computing demand / capacity"
+                    : "Computing capacity"}
+                </span>
+                <span className="font-mono font-semibold tabular-nums text-foreground">
+                  {(computingConsumptionTflops ?? 0) > 0
+                    ? `${formatCapacity(computingConsumptionTflops ?? 0)} / `
+                    : ""}
+                  {formatCapacity(computingCapacity)} TFLOPS
+                </span>
+              </div>
+            )}
+            {unityBudget && (
+              <div className="-mx-2 flex items-center justify-between rounded px-2 py-1 hover:bg-accent">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Sparkles aria-hidden="true" className="size-3.5 shrink-0" />
+                  Unity demand / generation
+                </span>
+                <span className="font-mono font-semibold tabular-nums text-foreground">
+                  {formatCapacity(unityBudget.consumptionPerCycle)} / {formatCapacity(unityBudget.generationPerCycle)}
                 </span>
               </div>
             )}

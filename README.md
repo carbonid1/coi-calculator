@@ -10,7 +10,7 @@ Pick a module, plug in building counts, see net resource flows and where to plac
 - **Tailwind CSS v4** via `@carbonid1/design-system/themes/dashboard`
 - **Configs** from [`@carbonid1/packages`](https://github.com/carbonid1/packages): `tsconfig`, `eslint-config`, `prettier-config`
 
-State lives in `localStorage` — no backend, no login.
+Factory configuration lives in the version-controlled domain files under `app/db` — no backend or login.
 
 ## Develop
 

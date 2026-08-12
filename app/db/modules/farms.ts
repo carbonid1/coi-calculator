@@ -2,6 +2,7 @@ import {
   chickenFarm,
   type ChickenFarmSettings,
   defaultChickenFarmSettings,
+  getChickenFarmLayout,
 } from "../chicken-farm";
 import { activeCropFarmGroups } from "../crop-farming";
 import { type Module } from "./modules";
@@ -13,6 +14,7 @@ const eggsOnlyRecipeId = "chicken-farm-eggs-only";
 
 export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
   const farmRecipeId = settings.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
+  const chickenLayout = getChickenFarmLayout(settings.totalChickenCount);
   const cropFarmTotals = Object.fromEntries(
     activeCropFarmGroups.map((group) => [group.id, group.farmCount]),
   );
@@ -23,8 +25,9 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
   );
   const buildingTotals = {
     ...cropFarmTotals,
-    [farmRecipeId]: settings.farmCount,
+    [farmRecipeId]: chickenLayout.farmCount,
     "food-processor-meat": 1,
+    "food-processor-meat-trimmings": 1,
   };
 
   return {
@@ -36,11 +39,14 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
       {
         id: "current-farm-plan",
         name: "Current Farm Plan",
-        description: `${cropFarmCount} Greenhouse IIs, ${settings.farmCount} Chicken Farms, and one Food Processor`,
+        description: `${cropFarmCount} Greenhouse IIs, ${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens, and one Food Processor`,
         available: buildingTotals,
         fixed: [...fixedCropFarmIds, farmRecipeId],
         speedLevels: {
-          [farmRecipeId]: settings.chickenCount / chickenFarm.capacity,
+          [farmRecipeId]: chickenLayout.farmCount > 0
+            ? chickenLayout.totalChickenCount
+              / (chickenLayout.farmCount * chickenFarm.capacity)
+            : 0,
         },
       },
     ],

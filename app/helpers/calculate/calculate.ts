@@ -90,6 +90,11 @@ const orderSharedCapacity = (lines: ProductionLine[]) => {
   return ordered;
 };
 
+const orderAllocatedLines = (lines: ProductionLine[]) => orderSharedCapacity(lines)
+  .toSorted((a, b) => (
+    (a.recipe.allocationPriority ?? 0) - (b.recipe.allocationPriority ?? 0)
+  ));
+
 const orderInputPriorities = (lines: ProductionLine[]) => orderSharedCapacity(lines)
   .toSorted((a, b) => {
     const aInputIds = new Set(a.recipe.inputs.map((input) => input.resourceId));
@@ -262,11 +267,14 @@ export const calculateNet = (
   const balancedLines = regularLines.filter((line) => (
     line.operatingMode === "balanced" && line.allocationRatio == null
   ));
-  const fallbackLines = orderSharedCapacity(
-    balancedLines.filter((line) => line.recipe.sharedCapacity?.allocation === "fallback"),
+  const fallbackLines = orderAllocatedLines(
+    balancedLines.filter((line) => line.recipe.allocation === "fallback"),
+  );
+  const surplusLines = orderAllocatedLines(
+    balancedLines.filter((line) => line.recipe.allocation === "surplus"),
   );
   const primaryBalancedLines = balancedLines.filter(
-    (line) => line.recipe.sharedCapacity?.allocation !== "fallback",
+    (line) => line.recipe.allocation !== "fallback" && line.recipe.allocation !== "surplus",
   );
   const supplyBalancedLines = orderSupplyBalancedLines(
     primaryBalancedLines.filter((line) => line.recipe.balanceBy !== "output"),
@@ -317,7 +325,7 @@ export const calculateNet = (
     simGet(id).consumed += qty;
   }
 
-  for (const line of sourceLines.filter((source) => source.recipe.sourceMode !== "demand")) {
+  for (const line of sourceLines.filter((source) => source.recipe.sourceMode == null)) {
     const m = lineFactor(line);
 
     for (const output of line.recipe.outputs) {
@@ -346,6 +354,16 @@ export const calculateNet = (
       const capacity = line.buildingCount > 0 ? flow.consumed : 0;
 
       flow.produced += capacity;
+      setSourceOutputCapacity(line, output.resourceId, capacity);
+    }
+  }
+  for (const line of sourceLines.filter((source) => source.recipe.sourceMode === "demand-capped")) {
+    const m = lineFactor(line);
+
+    for (const output of line.recipe.outputs) {
+      const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+
+      simGet(output.resourceId).produced += capacity;
       setSourceOutputCapacity(line, output.resourceId, capacity);
     }
   }
@@ -574,92 +592,26 @@ export const calculateNet = (
     applyRegularLine(line, ratio);
   }
 
-  // Fallback recipes model lower-priority processing. Explicit balance inputs
-  // must be real surplus; supporting materials may be produced afterward.
-  for (const line of fallbackLines) {
-    if (line.buildingCount === 0) {
-      applyRegularLine(line, 0);
-      continue;
-    }
-
-    const factor = lineFactor(line);
-    let ratio = capacityTracker.availableRatio(line);
-
-    for (const input of line.recipe.inputs) {
-      const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(input.resourceId) ?? false;
-
-      if (
-        line.recipe.balanceInputIds
-        && !explicitlyInputBalanced
-        && internallyProducedIds.has(input.resourceId)
-      ) {
+  const applyLowerPriorityLines = (linesToApply: ProductionLine[]) => {
+    for (const line of linesToApply) {
+      if (line.buildingCount === 0) {
+        applyRegularLine(line, 0);
         continue;
       }
 
-      const flow = getFlow(input.resourceId);
-      const available = flow.produced - flow.consumed;
-      const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
-
-      if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
-    }
-
-    if (line.recipe.balanceBy === "output") {
-      const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
-        if (
-          line.recipe.balanceOutputIds
-          && !line.recipe.balanceOutputIds.includes(output.resourceId)
-        ) {
-          return [];
-        }
-
-        const flow = flows.get(output.resourceId);
-        const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
-
-        if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
-
-        const internallyProduced = flow.produced
-          - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
-
-        return [Math.max(0, flow.consumed - internallyProduced) / capacity];
-      });
-
-      ratio = outputDemandRatios.length > 0
-        ? Math.min(ratio, Math.max(...outputDemandRatios))
-        : 0;
-    }
-
-    applyRegularLine(line, ratio);
-  }
-
-  // A fallback can introduce demand for an ordinary upstream producer (for
-  // example Gravel after surplus Compost is assigned to Dirt). Incrementally
-  // propagate that new demand without changing prior allocations.
-  for (let iteration = 0; iteration < demandBalancedLines.length; iteration += 1) {
-    let changed = false;
-
-    for (const line of demandBalancedLines) {
-      if (line.buildingCount === 0) continue;
-
       const factor = lineFactor(line);
-      const remainingLineRatio = Math.max(
-        0,
-        1 - (allocationRatios.get(line) ?? 0),
-      );
-      let ratio = Math.min(
-        remainingLineRatio,
-        capacityTracker.availableRatio(line),
-      );
+      let ratio = capacityTracker.availableRatio(line);
 
       for (const input of line.recipe.inputs) {
-        if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
-          const flow = getFlow(input.resourceId);
-          const available = flow.produced - flow.consumed;
-          const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+        const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(input.resourceId) ?? false;
 
-          if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+        if (
+          line.recipe.balanceInputIds
+          && !explicitlyInputBalanced
+          && internallyProducedIds.has(input.resourceId)
+        ) {
           continue;
         }
-        if (!externalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
 
         const flow = getFlow(input.resourceId);
         const available = flow.produced - flow.consumed;
@@ -668,37 +620,108 @@ export const calculateNet = (
         if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
       }
 
-      const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
-        if (
-          line.recipe.balanceOutputIds
-          && !line.recipe.balanceOutputIds.includes(output.resourceId)
-        ) {
-          return [];
+      if (line.recipe.balanceBy === "output") {
+        const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
+          if (
+            line.recipe.balanceOutputIds
+            && !line.recipe.balanceOutputIds.includes(output.resourceId)
+          ) {
+            return [];
+          }
+
+          const flow = flows.get(output.resourceId);
+          const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+
+          if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
+
+          const internallyProduced = flow.produced
+            - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+
+          return [Math.max(0, flow.consumed - internallyProduced) / capacity];
+        });
+
+        ratio = outputDemandRatios.length > 0
+          ? Math.min(ratio, Math.max(...outputDemandRatios))
+          : 0;
+      }
+
+      applyRegularLine(line, ratio);
+    }
+  };
+  const propagateAdditionalDemand = () => {
+    for (let iteration = 0; iteration < demandBalancedLines.length; iteration += 1) {
+      let changed = false;
+
+      for (const line of demandBalancedLines) {
+        if (line.buildingCount === 0) continue;
+
+        const factor = lineFactor(line);
+        const remainingLineRatio = Math.max(
+          0,
+          1 - (allocationRatios.get(line) ?? 0),
+        );
+        let ratio = Math.min(
+          remainingLineRatio,
+          capacityTracker.availableRatio(line),
+        );
+
+        for (const input of line.recipe.inputs) {
+          if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
+            const flow = getFlow(input.resourceId);
+            const available = flow.produced - flow.consumed;
+            const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+            if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+            continue;
+          }
+          if (!externalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
+
+          const flow = getFlow(input.resourceId);
+          const available = flow.produced - flow.consumed;
+          const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+          if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
         }
 
-        const flow = flows.get(output.resourceId);
-        const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+        const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
+          if (
+            line.recipe.balanceOutputIds
+            && !line.recipe.balanceOutputIds.includes(output.resourceId)
+          ) {
+            return [];
+          }
 
-        if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
+          const flow = flows.get(output.resourceId);
+          const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
 
-        const internallyProduced = flow.produced
-          - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+          if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
 
-        return [Math.max(0, flow.consumed - internallyProduced) / capacity];
-      });
+          const internallyProduced = flow.produced
+            - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
 
-      ratio = outputDemandRatios.length > 0
-        ? Math.min(ratio, Math.max(...outputDemandRatios))
-        : 0;
+          return [Math.max(0, flow.consumed - internallyProduced) / capacity];
+        });
 
-      if (ratio <= 1e-9) continue;
+        ratio = outputDemandRatios.length > 0
+          ? Math.min(ratio, Math.max(...outputDemandRatios))
+          : 0;
 
-      applyRegularLine(line, ratio, true);
-      changed = true;
+        if (ratio <= 1e-9) continue;
+
+        applyRegularLine(line, ratio, true);
+        changed = true;
+      }
+
+      if (!changed) break;
     }
+  };
 
-    if (!changed) break;
-  }
+  // Fallbacks may create supporting demand (for example Sour Water recovery
+  // needs Steam). Resolve that demand before final surplus converters run.
+  applyLowerPriorityLines(fallbackLines);
+  propagateAdditionalDemand();
+  applyLowerPriorityLines(surplusLines);
+  propagateAdditionalDemand();
 
   // Regular results
   const regularResults: RegularResult[] = regularLines.map((line) => ({
@@ -810,7 +833,9 @@ export const calculateNet = (
     }
 
     const capacity = lineFactor(line);
-    let utilizationRatio = 1;
+    let utilizationRatio = line.recipe.sinkMode === "unbounded"
+      ? Number.POSITIVE_INFINITY
+      : 1;
 
     for (const input of line.recipe.inputs) {
       const f = getFlow(input.resourceId);
@@ -823,22 +848,24 @@ export const calculateNet = (
       );
     }
 
+    if (utilizationRatio <= 1e-9) utilizationRatio = 0;
+
     const actualInputs: PassiveResult["actualInputs"] = [];
     const actualOutputs: PassiveResult["actualOutputs"] = [];
 
     if (utilizationRatio > 0) {
       for (const input of line.recipe.inputs) {
-        const actual = Math.round(
-          getRecipeInputQuantity(input, outputModifiers) * capacity * utilizationRatio,
-        );
+        const actual = getRecipeInputQuantity(input, outputModifiers)
+          * capacity
+          * utilizationRatio;
 
         getFlow(input.resourceId).consumed += actual;
         actualInputs.push({ resourceId: input.resourceId, quantity: actual });
       }
       for (const output of line.recipe.outputs) {
-        const actual = Math.round(
-          getRecipeOutputQuantity(line.recipe, output, outputModifiers) * capacity * utilizationRatio,
-        );
+        const actual = getRecipeOutputQuantity(line.recipe, output, outputModifiers)
+          * capacity
+          * utilizationRatio;
 
         getFlow(output.resourceId).produced += actual;
         actualOutputs.push({ resourceId: output.resourceId, quantity: actual });
@@ -846,6 +873,72 @@ export const calculateNet = (
     }
 
     sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, buildingCount: line.buildingCount, totalBuildings: line.totalBuildings, actualInputs, actualOutputs });
+  }
+
+  // Excess-processing recipes can create useful byproducts after sources were
+  // allocated (for example, cooling towers return Water). Let those late
+  // outputs displace demand sources instead of leaving artificial surplus.
+  // Reverse order preserves the source declaration priority used above.
+  for (const [resourceId, flow] of flows) {
+    let excess = Math.max(0, flow.produced - flow.consumed);
+
+    if (excess <= 1e-9) continue;
+
+    for (const result of sourceResults.toReversed()) {
+      if (!result.recipe.sourceMode || excess <= 1e-9) continue;
+
+      const actualOutput = result.actualOutputs.find(
+        (output) => output.resourceId === resourceId,
+      );
+
+      if (!actualOutput || actualOutput.quantity <= 0) continue;
+
+      const previousScale = result.actualOutputs.reduce((maximum, actual) => {
+        const declared = result.recipe.outputs.find(
+          (output) => output.resourceId === actual.resourceId,
+        );
+        const declaredQuantity = declared
+          ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
+          : 0;
+
+        return declaredQuantity > 0
+          ? Math.max(maximum, actual.quantity / declaredQuantity)
+          : maximum;
+      }, 0);
+      const reduction = Math.min(actualOutput.quantity, excess);
+
+      actualOutput.quantity -= reduction;
+      flow.produced -= reduction;
+      excess -= reduction;
+
+      const nextScale = result.actualOutputs.reduce((maximum, actual) => {
+        const declared = result.recipe.outputs.find(
+          (output) => output.resourceId === actual.resourceId,
+        );
+        const declaredQuantity = declared
+          ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
+          : 0;
+
+        return declaredQuantity > 0
+          ? Math.max(maximum, actual.quantity / declaredQuantity)
+          : maximum;
+      }, 0);
+
+      if (nextScale >= previousScale) continue;
+
+      for (const actualInput of result.actualInputs) {
+        const declared = result.recipe.inputs.find(
+          (input) => input.resourceId === actualInput.resourceId,
+        );
+
+        if (!declared) continue;
+
+        const nextQuantity = getRecipeInputQuantity(declared, outputModifiers) * nextScale;
+
+        getFlow(actualInput.resourceId).consumed -= actualInput.quantity - nextQuantity;
+        actualInput.quantity = nextQuantity;
+      }
+    }
   }
 
   // Identify source-produced resources

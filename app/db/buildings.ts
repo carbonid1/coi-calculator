@@ -4,6 +4,10 @@ import { settlementConfig } from "./settlement";
 interface BuildingData {
   workers: number;
   electricityKw: number;
+  /** Full-load computing demand. Capacity providers leave this at zero. */
+  computingTflops?: number;
+  /** Recurring Unity demand while the building is operating. */
+  unityPerCycle?: number;
 }
 
 export const buildings: Record<string, BuildingData> = {
@@ -12,6 +16,11 @@ export const buildings: Record<string, BuildingData> = {
     electricityKw: activeHousingType.populationCapacity
       * settlementConfig.electricityKwPerPop
       * settlementConfig.housingIIElectricityMultiplier,
+  },
+  "Internet Module": {
+    workers: 12,
+    electricityKw: 500,
+    computingTflops: settlementConfig.computingTflopsPerHundredPops,
   },
   "Food Market": { workers: 3, electricityKw: 0 },
   "Food Market II": { workers: 6, electricityKw: 0 },
@@ -25,8 +34,10 @@ export const buildings: Record<string, BuildingData> = {
   "Anaerobic Digester": { workers: 4, electricityKw: 50 },
   "Incineration Plant": { workers: 16, electricityKw: 500 },
   "Sour Water Stripper": { workers: 8, electricityKw: 160 },
+  "Cracking Unit": { workers: 12, electricityKw: 160 },
   "Forestry Control Tower": { workers: 0, electricityKw: 0 },
   "Seawater Pump": { workers: 1, electricityKw: 100 },
+  "Groundwater Pump": { workers: 2, electricityKw: 120 },
   "Fast Breeder Reactor": { workers: 200, electricityKw: 0 },
   "Super-Pressure Turbine": { workers: 1, electricityKw: 0 },
   "High-Pressure Turbine II": { workers: 2, electricityKw: 0 },
@@ -39,7 +50,8 @@ export const buildings: Record<string, BuildingData> = {
   "Chemical Plant II": { workers: 14, electricityKw: 400 },
   "Air Separator": { workers: 6, electricityKw: 400 },
   "Polymerization Plant": { workers: 12, electricityKw: 400 },
-  "Nuclear Reprocessing Plant": { workers: 30, electricityKw: 2000 },
+  "Nuclear Reprocessing Plant": { workers: 30, electricityKw: 2000, computingTflops: 24 },
+  "Research Lab IV": { workers: 80, electricityKw: 1000, computingTflops: 12, unityPerCycle: 0.5 },
   "Radioactive Waste Storage": { workers: 10, electricityKw: 120 },
   "Shredder": { workers: 1, electricityKw: 100 },
   "Enrichment Plant": { workers: 14, electricityKw: 4000 },
@@ -58,10 +70,10 @@ export const buildings: Record<string, BuildingData> = {
   "Food Processor": { workers: 8, electricityKw: 100 },
   "Mill": { workers: 5, electricityKw: 120 },
   "Baking Unit": { workers: 8, electricityKw: 200 },
-  "Assembly V": { workers: 0, electricityKw: 400 },
+  "Assembly V": { workers: 0, electricityKw: 400, computingTflops: 6 },
   "Silicon Reactor": { workers: 2, electricityKw: 80 },
-  "Crystallizer": { workers: 8, electricityKw: 500 },
-  "Microchip Machine II": { workers: 6, electricityKw: 500 },
+  "Crystallizer": { workers: 8, electricityKw: 500, computingTflops: 4 },
+  "Microchip Machine II": { workers: 6, electricityKw: 500, computingTflops: 12 },
   "Rubber Maker I": { workers: 6, electricityKw: 300 },
   "Waste Sorting Plant": { workers: 32, electricityKw: 300 },
   "Exhaust Scrubber": { workers: 8, electricityKw: 200 },
@@ -80,4 +92,7 @@ export const buildings: Record<string, BuildingData> = {
   "Maintenance III Depot": { workers: 20, electricityKw: 600 },
   "The Statue of Maintenance (Golden)": { workers: 0, electricityKw: 0 },
   "Cooling Tower (Large)": { workers: 0, electricityKw: 0 },
+  "Data Center": { workers: 6, electricityKw: 0 },
+  "Basic Rack": { workers: 0, electricityKw: 85 },
+  "Water Chiller": { workers: 3, electricityKw: 1000 },
 };

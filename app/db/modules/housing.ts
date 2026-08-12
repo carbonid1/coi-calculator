@@ -1,4 +1,4 @@
-import { defaultHousingCount } from "../housing";
+import { activeHousingType, defaultHousingCount } from "../housing";
 import {
   settlementRecipeIds,
   settlementServiceBuildings,
@@ -20,6 +20,7 @@ export const createHousingModule = (housingCount: number): Module => {
     [settlementRecipeIds.recyclablesCollection]: settlementServiceBuildings.recyclablesCollection * serviceFactor,
     [settlementRecipeIds.biomassCollection]: settlementServiceBuildings.biomassCollection * serviceFactor,
     [settlementRecipeIds.clinic]: settlementServiceBuildings.clinic * serviceFactor,
+    [settlementRecipeIds.internetModule]: settlementServiceBuildings.internetModule * serviceFactor,
     [settlementRecipeIds.wastewaterTreatment]: settlementServiceBuildings.wastewaterTreatment * serviceFactor,
     [settlementRecipeIds.anaerobicDigester]: settlementServiceBuildings.anaerobicDigester * serviceFactor,
     [settlementRecipeIds.biomassCompostMixer]: settlementServiceBuildings.biomassCompostMixer * serviceFactor,
@@ -41,6 +42,11 @@ export const createHousingModule = (housingCount: number): Module => {
           && recipeId !== settlementRecipeIds.anaerobicDigester
           && recipeId !== settlementRecipeIds.biomassCompostMixer
         )),
+        speedLevels: {
+          [settlementRecipeIds.internetModule]: housingCount
+            * activeHousingType.populationCapacity
+            / 100,
+        },
       },
     ],
     defaultPresetId: "housing-ii-full-capacity",

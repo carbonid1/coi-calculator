@@ -11,13 +11,14 @@ export const FBR_ELECTRICITY_DISPATCH_GROUP_ID = "fbr-turbines";
 // demand gets turbine priority; surplus steam then goes to reforming,
 // desalination, and finally cooling.
 const plantInfra = {
-  "seawater-pump": 4,
+  "seawater-pump": 2,
   "turbine-super": 2,
   "turbine-high": 2,
   "turbine-low": 2,
   "thermal-desalinator-depleted": 2,
-  "thermal-desalinator-super": 6,
-  "hydrogen-reformer-super": 4,
+  "thermal-desalinator-low": 1,
+  "thermal-desalinator-super": 2,
+  "hydrogen-reformer-super": 3,
   "cooling-tower-large-depleted": 1,
   "cooling-tower-large-super": 1,
 };

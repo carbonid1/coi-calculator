@@ -12,6 +12,7 @@ import {
 interface BuildingStats {
   workers: number;
   electricityKw: number;
+  computingTflops: number;
 }
 
 interface CalculationResults {
@@ -99,8 +100,46 @@ export const calculateBuildingStats = (
         * (result.recipe.electricityMultiplier ?? 1);
     }, 0);
 
+  let populationComputingTflops = 0;
+  const machineComputing = new Map<string, { effectiveMachines: number; tflopsPerMachine: number }>();
+
+  for (const result of results.regularResults) {
+    const building = buildings[result.recipe.building];
+    const tflopsPerMachine = building?.computingTflops ?? 0;
+
+    if (tflopsPerMachine <= 0 || result.supplyRatio <= 0) continue;
+
+    const effectiveMachines = result.recipe.computingScalesWithSpeed
+      ? result.buildingCount * result.supplyRatio * result.speedLevel
+      : result.buildingCount * result.supplyRatio;
+
+    if (result.recipe.computingScalesWithSpeed) {
+      populationComputingTflops += tflopsPerMachine * effectiveMachines;
+      continue;
+    }
+
+    const current = machineComputing.get(result.recipe.building);
+
+    machineComputing.set(result.recipe.building, {
+      effectiveMachines: (current?.effectiveMachines ?? 0) + effectiveMachines,
+      tflopsPerMachine,
+    });
+  }
+
+  // Computing is reserved per working machine, not proportional to a recipe's
+  // instantaneous progress. Pack steady-state utilization across identical
+  // machines, then round to whole concurrently active machines. This matches
+  // v0.8.6 statistics: one intermittent reprocessing plant still needs its
+  // full 24 TFLOPS, while partial Assembly V loads combine before rounding.
+  const machineComputingTflops = [...machineComputing.values()].reduce(
+    (total, pool) => total
+      + Math.ceil(pool.effectiveMachines - 0.000001) * pool.tflopsPerMachine,
+    0,
+  );
+
   return {
     workers,
     electricityKw: regularElectricityKw + passiveElectricityKw,
+    computingTflops: populationComputingTflops + machineComputingTflops,
   };
 };

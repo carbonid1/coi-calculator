@@ -9,6 +9,7 @@ interface SettlementFood {
   consumedPerHundredPopsPerMonth: number;
   /** Biomass source material retained by one unit on the selected v0.8.6 production path. */
   biomassSourcePerUnit: number;
+  unityPerCycleWhenSupplied: number;
 }
 
 /**
@@ -22,17 +23,17 @@ interface SettlementFood {
  * source to Snack or Cake.
  */
 export const settlementFoods: readonly SettlementFood[] = [
-  { resourceId: "potato", categoryId: "carbohydrates", consumedPerHundredPopsPerMonth: 4.2, biomassSourcePerUnit: 1 },
-  { resourceId: "corn", categoryId: "carbohydrates", consumedPerHundredPopsPerMonth: 3, biomassSourcePerUnit: 1 },
-  { resourceId: "bread", categoryId: "carbohydrates", consumedPerHundredPopsPerMonth: 2, biomassSourcePerUnit: 16 / 27 },
-  { resourceId: "meat", categoryId: "protein", consumedPerHundredPopsPerMonth: 2.7, biomassSourcePerUnit: 10 / 7 },
-  { resourceId: "eggs", categoryId: "protein", consumedPerHundredPopsPerMonth: 3, biomassSourcePerUnit: 1 },
-  { resourceId: "tofu", categoryId: "protein", consumedPerHundredPopsPerMonth: 1.8, biomassSourcePerUnit: 6 / 11 },
-  { resourceId: "sausage", categoryId: "protein", consumedPerHundredPopsPerMonth: 3.35, biomassSourcePerUnit: 104 / 63 },
-  { resourceId: "vegetables", categoryId: "vitamins", consumedPerHundredPopsPerMonth: 4.2, biomassSourcePerUnit: 1 },
-  { resourceId: "fruit", categoryId: "vitamins", consumedPerHundredPopsPerMonth: 3.15, biomassSourcePerUnit: 1 },
-  { resourceId: "snack", categoryId: "treats", consumedPerHundredPopsPerMonth: 2.6, biomassSourcePerUnit: 8 / 9 },
-  { resourceId: "cake", categoryId: "treats", consumedPerHundredPopsPerMonth: 2.5, biomassSourcePerUnit: 58 / 63 },
+  { resourceId: "potato", categoryId: "carbohydrates", consumedPerHundredPopsPerMonth: 4.2, biomassSourcePerUnit: 1, unityPerCycleWhenSupplied: 0.15 },
+  { resourceId: "corn", categoryId: "carbohydrates", consumedPerHundredPopsPerMonth: 3, biomassSourcePerUnit: 1, unityPerCycleWhenSupplied: 0.15 },
+  { resourceId: "bread", categoryId: "carbohydrates", consumedPerHundredPopsPerMonth: 2, biomassSourcePerUnit: 16 / 27, unityPerCycleWhenSupplied: 0.3 },
+  { resourceId: "meat", categoryId: "protein", consumedPerHundredPopsPerMonth: 2.7, biomassSourcePerUnit: 10 / 7, unityPerCycleWhenSupplied: 0.4 },
+  { resourceId: "eggs", categoryId: "protein", consumedPerHundredPopsPerMonth: 3, biomassSourcePerUnit: 1, unityPerCycleWhenSupplied: 0.3 },
+  { resourceId: "tofu", categoryId: "protein", consumedPerHundredPopsPerMonth: 1.8, biomassSourcePerUnit: 6 / 11, unityPerCycleWhenSupplied: 0.3 },
+  { resourceId: "sausage", categoryId: "protein", consumedPerHundredPopsPerMonth: 3.35, biomassSourcePerUnit: 104 / 63, unityPerCycleWhenSupplied: 0.1 },
+  { resourceId: "vegetables", categoryId: "vitamins", consumedPerHundredPopsPerMonth: 4.2, biomassSourcePerUnit: 1, unityPerCycleWhenSupplied: 0.2 },
+  { resourceId: "fruit", categoryId: "vitamins", consumedPerHundredPopsPerMonth: 3.15, biomassSourcePerUnit: 1, unityPerCycleWhenSupplied: 0.3 },
+  { resourceId: "snack", categoryId: "treats", consumedPerHundredPopsPerMonth: 2.6, biomassSourcePerUnit: 8 / 9, unityPerCycleWhenSupplied: 0.25 },
+  { resourceId: "cake", categoryId: "treats", consumedPerHundredPopsPerMonth: 2.5, biomassSourcePerUnit: 58 / 63, unityPerCycleWhenSupplied: 0.55 },
 ];
 
 export const settlementServiceBuildings = {
@@ -44,6 +45,7 @@ export const settlementServiceBuildings = {
   recyclablesCollection: 1,
   biomassCollection: 1,
   clinic: 1,
+  internetModule: 1,
   wastewaterTreatment: 1,
   anaerobicDigester: 2,
   biomassCompostMixer: 1,
@@ -59,6 +61,7 @@ export const settlementRecipeIds = {
   recyclablesCollection: "housing-recyclables-collection",
   biomassCollection: "housing-biomass-collection",
   clinic: "housing-clinic",
+  internetModule: "housing-internet-module",
   wastewaterTreatment: "housing-wastewater-treatment",
   anaerobicDigester: "housing-anaerobic-digester",
   biomassCompostMixer: "housing-mixer-ii-biomass-compost",
@@ -73,6 +76,8 @@ export const settlementConfig = {
   electricityKwPerPop: 1.1,
   housingIIElectricityMultiplier: 1.1,
   medicalSuppliesPerHundredPopsPerMonth: 0.5,
+  /** Internet Module demand from SettlementIspModuleProto in v0.8.6. */
+  computingTflopsPerHundredPops: 5.76,
   recyclablesPerMedicalSupply: 0.5,
   // v0.8.6 declares this as 0.0005, but Fix32 has 10 fractional bits and
   // rounds it to its smallest positive value, 1/1024. That matches the
@@ -102,6 +107,7 @@ export const calculateSettlementPopulationFlows = (
 
   const foodInputs = settlementFoods.map((food) => ({
     resourceId: food.resourceId,
+    inputModifierId: "foodConsumption" as const,
     quantity: food.consumedPerHundredPopsPerMonth
       * (normalizedPopulation / 100)
       / settlementConfig.activeFoodCategoryCount
@@ -122,6 +128,7 @@ export const calculateSettlementPopulationFlows = (
       ...foodInputs,
       {
         resourceId: "water",
+        inputModifierId: "settlementWater",
         quantity: settlementConfig.waterPerPopPerMonth
           * settlementConfig.housingIIWaterMultiplier
           * normalizedPopulation,
@@ -141,7 +148,11 @@ export const calculateSettlementPopulationFlows = (
           * settlementConfig.daysPerMonth
           * normalizedPopulation,
       },
-      { resourceId: "biomass", quantity: biomass },
+      {
+        resourceId: "biomass",
+        quantity: biomass,
+        outputModifierId: "foodConsumption",
+      },
       {
         resourceId: "recyclables",
         quantity: medicalSupplies * settlementConfig.recyclablesPerMedicalSupply,

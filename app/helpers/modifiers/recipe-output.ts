@@ -57,10 +57,12 @@ export const getRecipeOutputQuantity = (
 
   const multiplier = modifiers[output.outputModifierId] ?? 1;
 
-  // SolarPanelsManager scales Electricity directly. Unlike material Quantity,
-  // Electricity is not rounded to a whole material unit per recipe cycle.
+  // SolarPanelsManager scales Electricity directly. Settlement food and
+  // provenance-based Biomass are continuous population flows. These values are
+  // not rounded to a whole material unit per recipe cycle.
   if (
-    output.outputModifierId === "solarPower"
+    output.outputModifierId === "foodConsumption"
+    || output.outputModifierId === "solarPower"
     || output.outputModifierId === "cropYield"
     || output.outputModifierId === "treeGrowthSpeed"
   ) {

@@ -5,16 +5,17 @@ import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateNet } from "./calculate";
 
-it("matches the verified yellowcake game rates", () => {
+it("matches the verified yellowcake production capacity", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId)!;
   const { lines } = buildModuleLines(general, preset);
   const settlingTank = lines.find((line) => line.recipe.id === "settling-tank")!;
   const uraniumOrePowder = settlingTank.recipe.inputs.find((input) => input.resourceId === "uraniumOrePowder")!;
-  const { resourceFlows } = calculateNet(lines);
-  const yellowcake = resourceFlows.find((flow) => flow.resourceId === "yellowcake")!;
+  const yellowcakeCapacity = settlingTank.recipe.outputs.find(
+    (output) => output.resourceId === "yellowcake",
+  )!.quantity * settlingTank.buildingCount * settlingTank.speedLevel;
 
-  expect(uraniumOrePowder.quantity * settlingTank.buildingCount * settlingTank.speedLevel).toBe(72);
-  expect(yellowcake.produced).toBe(12);
+  expect(uraniumOrePowder.quantity * settlingTank.buildingCount * settlingTank.speedLevel).toBe(36);
+  expect(yellowcakeCapacity).toBe(6);
 
   const maintenancePreset = maintenance.presets.find(
     (candidate) => candidate.id === maintenance.defaultPresetId,

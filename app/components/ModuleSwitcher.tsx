@@ -33,7 +33,7 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
       </SwitchButton>
     ))}
     <SwitchButton active={active === modifiersId} onClick={() => onChange(modifiersId)}>
-      Modifiers
+      Unity &amp; Policies
     </SwitchButton>
     <SwitchButton active={active === contractsId} onClick={() => onChange(contractsId)}>
       Contracts
