@@ -137,7 +137,7 @@ const legacySettingKeys = [
 ] as const;
 
 const Page = () => {
-  const [activeModuleId, setActiveModuleId] = useState(modules[0].id);
+  const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID);
 
   useEffect(() => {
     legacySettingKeys.forEach((key) => window.localStorage.removeItem(key));

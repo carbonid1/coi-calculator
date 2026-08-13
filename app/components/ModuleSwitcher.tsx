@@ -27,6 +27,9 @@ const SwitchButton: React.FC<SwitchButtonProps> = ({ active, children, onClick }
 
 export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, factoryTotalId, modifiersId, onChange }) => (
   <div className="flex flex-wrap gap-1 border-b border-border pb-2">
+    <SwitchButton active={active === factoryTotalId} onClick={() => onChange(factoryTotalId)}>
+      Factory Total
+    </SwitchButton>
     {modules.map((mod) => (
       <SwitchButton key={mod.id} active={active === mod.id} onClick={() => onChange(mod.id)}>
         {mod.name}
@@ -37,9 +40,6 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
     </SwitchButton>
     <SwitchButton active={active === contractsId} onClick={() => onChange(contractsId)}>
       Contracts
-    </SwitchButton>
-    <SwitchButton active={active === factoryTotalId} onClick={() => onChange(factoryTotalId)}>
-      Factory Total
     </SwitchButton>
   </div>
 );

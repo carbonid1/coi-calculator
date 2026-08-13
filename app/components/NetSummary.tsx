@@ -340,9 +340,9 @@ export const NetSummary: React.FC<Props> = ({
         const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
         const netMw = generationMw - consumptionMw;
         const showsCapacity = electricityGenerationCapacityMw != null;
-        const computingCapacity = computingGenerationCapacityTflops
-          ?? computingFlow?.produced
-          ?? 0;
+        const computingDemand = computingConsumptionTflops ?? 0;
+        const computingCapacity = computingGenerationCapacityTflops ?? 0;
+        const showsComputingCapacity = computingGenerationCapacityTflops != null;
 
         return (
           <div className="space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
@@ -353,16 +353,6 @@ export const NetSummary: React.FC<Props> = ({
                 </span>
                 <span className="font-mono font-semibold text-foreground">
                   {formatPower(consumptionMw)} / {formatPower(electricityGenerationCapacityMw)}
-                </span>
-              </div>
-            )}
-            {!showsCapacity && electricityFlow && (
-              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  ⚡ Generation
-                </span>
-                <span className="font-mono text-green-600 dark:text-green-400">
-                  +{formatPower(generationMw)}
                 </span>
               </div>
             )}
@@ -386,19 +376,22 @@ export const NetSummary: React.FC<Props> = ({
                 </span>
               </div>
             )}
-            {(computingCapacity > 0 || (computingConsumptionTflops ?? 0) > 0) && (
+            {(showsComputingCapacity || computingDemand > 0) && (
               <div className="-mx-2 flex items-center justify-between rounded px-2 py-1 hover:bg-accent">
                 <span className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Cpu aria-hidden="true" className="size-3.5 shrink-0" />
-                  {(computingConsumptionTflops ?? 0) > 0
-                    ? "Computing demand / capacity"
-                    : "Computing capacity"}
+                  {showsComputingCapacity
+                    ? computingDemand > 0
+                      ? "Computing demand / capacity"
+                      : "Computing capacity"
+                    : "Computing demand"}
                 </span>
                 <span className="font-mono font-semibold tabular-nums text-foreground">
-                  {(computingConsumptionTflops ?? 0) > 0
-                    ? `${formatCapacity(computingConsumptionTflops ?? 0)} / `
-                    : ""}
-                  {formatCapacity(computingCapacity)} TFLOPS
+                  {showsComputingCapacity
+                    ? computingDemand > 0
+                      ? `${formatCapacity(computingDemand)} / ${formatCapacity(computingCapacity)} TFLOPS`
+                      : `${formatCapacity(computingCapacity)} TFLOPS`
+                    : `${formatCapacity(computingDemand)} TFLOPS`}
                 </span>
               </div>
             )}
