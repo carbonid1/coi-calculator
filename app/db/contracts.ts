@@ -35,6 +35,16 @@ export interface Contract {
 
 export const contractsGameVersion = "0.8.7";
 
+/**
+ * Contracts use one dedicated size-8 cargo ship and eight large cargo modules.
+ * Installed v0.8.7 game data reserves 36 workers for the ship and 5 per module.
+ */
+export const contractInfrastructure = {
+  cargoShipWorkers: 36,
+  cargoModuleCount: 8,
+  workersPerCargoModule: 5,
+} as const;
+
 const toSlug = (resourceId: ResourceId) => resourceId
   .replaceAll(/([a-z\d])([A-Z])/g, "$1-$2")
   .toLowerCase();

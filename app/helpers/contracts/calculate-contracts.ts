@@ -1,4 +1,7 @@
-import { type Contract } from "../../db/contracts";
+import {
+  type Contract,
+  contractInfrastructure,
+} from "../../db/contracts";
 import { type ResourceId, resources } from "../../db/resources";
 import { type ResourceFlow } from "../calculate/calculate";
 
@@ -7,6 +10,14 @@ export interface ContractResult {
   exported: number;
   imported: number;
 }
+
+export const calculateContractWorkers = (activeContracts: Contract[]) => (
+  activeContracts.length * (
+    contractInfrastructure.cargoShipWorkers
+    + contractInfrastructure.cargoModuleCount
+      * contractInfrastructure.workersPerCargoModule
+  )
+);
 
 const getFlow = (
   flows: Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>,

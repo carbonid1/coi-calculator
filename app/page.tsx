@@ -56,6 +56,7 @@ import { calculateUnityBudget } from "./db/unity";
 import { calculateBuildingDiagnostics } from "./helpers/building-diagnostics/building-diagnostics";
 import { calculateBuildingStats } from "./helpers/building-stats/building-stats";
 import { type ProductionLine } from "./helpers/calculate/calculate";
+import { calculateContractWorkers } from "./helpers/contracts/calculate-contracts";
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "./helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "./helpers/modifiers/calculate-food-consumption";
@@ -252,6 +253,7 @@ const Page = () => {
     factoryResult.calculation,
     outputModifiers,
   );
+  const factoryWorkers = factoryStats.workers + calculateContractWorkers(enabledContracts);
   const factoryBuildingDiagnostics = calculateBuildingDiagnostics(
     configuredModules,
     factoryResult.flows,
@@ -343,7 +345,7 @@ const Page = () => {
       {isFactoryTotal && factoryResult && (
         <NetSummary
           flows={factoryResult.flows}
-          workers={factoryStats.workers}
+          workers={factoryWorkers}
           electricityConsumptionKw={factoryResult.electricityDemandMw * 1000}
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
           computingConsumptionTflops={factoryResult.computingDemandTflops}
