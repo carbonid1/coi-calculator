@@ -1,10 +1,10 @@
 export interface PlanningBaselines {
-  fbrAverageGenerationMw: number;
+  averageNuclearGenerationMw: number;
   hydrogenFuelDemandPerCycle: number;
 }
 
 export const defaultPlanningBaselines = {
-  // Approximate mean digitized from the in-game 100-year production graph.
-  fbrAverageGenerationMw: 30.2,
+  // Conservative FBR output for the first Nuclear checkpoint.
+  averageNuclearGenerationMw: 50,
   hydrogenFuelDemandPerCycle: 45,
 } as const satisfies PlanningBaselines;

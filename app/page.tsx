@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 import { ChickenFarmSettings } from "./components/ChickenFarmSettings";
 import { ComputingSettings } from "./components/ComputingSettings";
 import { ContractsView } from "./components/ContractsView";
-import { FbrPlanningSettings } from "./components/FbrPlanningSettings";
 import { HousingView } from "./components/HousingView";
 import { MinesView } from "./components/MinesView";
 import { ModifiersView } from "./components/ModifiersView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
+import { NuclearModuleSections } from "./components/NuclearModuleSections";
+import { NuclearPlanningSettings } from "./components/NuclearPlanningSettings";
 import { RecipeCard } from "./components/RecipeCard";
 import { ResearchSettings } from "./components/ResearchSettings";
 import { SharedRecipeCard } from "./components/SharedRecipeCard";
@@ -40,10 +41,10 @@ import {
 import { defaultMaintenanceStatueCount } from "./db/maintenance-statue";
 import { COMPUTING_MODULE_ID } from "./db/modules/computing";
 import { FARMS_MODULE_ID } from "./db/modules/farms";
-import { FBR_POWER_PLANT_MODULE_ID } from "./db/modules/fbr-power-plant";
 import { HOUSING_MODULE_ID } from "./db/modules/housing";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
+import { NUCLEAR_MODULE_ID } from "./db/modules/nuclear";
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from "./db/modules/research";
 import { SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
 import { defaultPlanningBaselines } from "./db/planning-baselines";
@@ -366,8 +367,8 @@ const Page = () => {
         />
       )}
 
-      {activeModule?.id === FBR_POWER_PLANT_MODULE_ID && (
-        <FbrPlanningSettings values={planningBaselines} />
+      {activeModule?.id === NUCLEAR_MODULE_ID && (
+        <NuclearPlanningSettings values={planningBaselines} />
       )}
 
       {activeModule?.id === COMPUTING_MODULE_ID && (
@@ -392,7 +393,9 @@ const Page = () => {
         />
       )}
 
-      {moduleResult && activeModule && activeModule.id !== SOLAR_POWER_MODULE_ID && (
+      {moduleResult
+        && activeModule
+        && activeModule.id !== SOLAR_POWER_MODULE_ID && (
         <>
           {activeModule.id === MINES_MODULE_ID ? (
             <MinesView
@@ -412,8 +415,17 @@ const Page = () => {
             />
           )}
 
-          {activeModule.id !== MINES_MODULE_ID && grouped.map(({ group, label, items }) => (
-            <div key={group} className="space-y-2">
+          {activeModule.id === NUCLEAR_MODULE_ID ? (
+            <NuclearModuleSections
+              lines={moduleResult.lines}
+              regularResults={moduleResult.regularResults}
+              sourceResults={moduleResult.sourceResults}
+              sinkResults={moduleResult.sinkResults}
+              diagnostics={factoryBuildingDiagnostics}
+              outputModifiers={outputModifiers}
+            />
+          ) : activeModule.id !== MINES_MODULE_ID && grouped.map(({ group, label, items }) => (
+              <div key={group} className="space-y-2">
               <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 {label}
               </h2>
@@ -490,7 +502,7 @@ const Page = () => {
                   );
                 })}
               </div>
-            </div>
+              </div>
           ))}
         </>
       )}

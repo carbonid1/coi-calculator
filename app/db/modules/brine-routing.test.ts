@@ -12,7 +12,7 @@ import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
 import { modules } from "./modules";
 
-it("uses surplus Super Steam to cover Brine, Chlorine, and Salt demand", () => {
+it("routes Nuclear steam through useful Water and Brine production before cooling", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -37,14 +37,14 @@ it("uses surplus Super Steam to cover Brine, Chlorine, and Salt demand", () => {
       ).multiplier,
     },
   );
-  const net = (resourceId: "brine" | "chlorine" | "salt") => (
+  const net = (resourceId: "brine" | "chlorine" | "salt" | "seaWater" | "water") => (
     result.flows.find((flow) => flow.resourceId === resourceId)?.net ?? 0
   );
   const superDesalination = result.calculation.regularResults.find(
     (candidate) => candidate.recipe.id === "thermal-desalinator-super",
   );
 
-  expect(superDesalination?.activeBuildings).toBe(2);
+  expect(superDesalination?.activeBuildings).toBe(4);
   expect(superDesalination?.supplyRatio ?? 0).toBeGreaterThan(0);
   expect(superDesalination?.actualOutputs.find(
     (output) => output.resourceId === "brine",
@@ -52,4 +52,6 @@ it("uses surplus Super Steam to cover Brine, Chlorine, and Salt demand", () => {
   expect(net("brine")).toBeGreaterThanOrEqual(-0.001);
   expect(net("chlorine")).toBeGreaterThanOrEqual(-0.001);
   expect(net("salt")).toBeGreaterThanOrEqual(-0.001);
+  expect(net("seaWater")).toBeGreaterThanOrEqual(-0.001);
+  expect(net("water")).toBeGreaterThanOrEqual(-0.001);
 });

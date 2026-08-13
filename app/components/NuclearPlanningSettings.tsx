@@ -6,25 +6,29 @@ interface Props {
   values: PlanningBaselines;
 }
 
-export const FbrPlanningSettings: React.FC<Props> = ({ values }) => (
+export const NuclearPlanningSettings: React.FC<Props> = ({ values }) => (
   <Card.Root className="max-w-xl">
     <Card.Content className="space-y-5">
       <Card.Header>
-        <Card.Title>Measured planning baselines</Card.Title>
+        <Card.Title>Operating baselines</Card.Title>
         <Card.Description>
-          Long-run values standing in for factory activity not modeled yet
+          Planned operating point before research is brought online
         </Card.Description>
       </Card.Header>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-          <p className="text-sm text-muted-foreground">FBR generation (100Y average)</p>
-          <p className="font-mono font-semibold text-foreground">{values.fbrAverageGenerationMw} MW</p>
+          <p className="text-sm text-muted-foreground">Average nuclear generation</p>
+          <p className="font-mono font-semibold text-foreground">
+            {values.averageNuclearGenerationMw} MW
+          </p>
         </div>
 
         <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-          <p className="text-sm text-muted-foreground">Hydrogen fuel demand / cycle</p>
-          <p className="font-mono font-semibold text-foreground">{values.hydrogenFuelDemandPerCycle}</p>
+          <p className="text-sm text-muted-foreground">Hydrogen vehicle fuel / cycle</p>
+          <p className="font-mono font-semibold text-foreground">
+            {values.hydrogenFuelDemandPerCycle}
+          </p>
         </div>
       </div>
     </Card.Content>

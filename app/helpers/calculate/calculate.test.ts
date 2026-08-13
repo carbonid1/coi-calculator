@@ -5,7 +5,7 @@ import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateNet } from "./calculate";
 
-it("matches the verified yellowcake production capacity", () => {
+it("installs two demand-balanced tanks with the verified per-building Yellowcake capacity", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId)!;
   const { lines } = buildModuleLines(general, preset);
   const settlingTank = lines.find((line) => line.recipe.id === "settling-tank")!;
@@ -14,8 +14,9 @@ it("matches the verified yellowcake production capacity", () => {
     (output) => output.resourceId === "yellowcake",
   )!.quantity * settlingTank.activeBuildings * settlingTank.speedLevel;
 
-  expect(uraniumOrePowder.quantity * settlingTank.activeBuildings * settlingTank.speedLevel).toBe(36);
-  expect(yellowcakeCapacity).toBe(6);
+  expect(settlingTank.operatingMode).toBe("balanced");
+  expect(uraniumOrePowder.quantity * settlingTank.activeBuildings * settlingTank.speedLevel).toBe(72);
+  expect(yellowcakeCapacity).toBe(12);
 
   const maintenancePreset = maintenance.presets.find(
     (candidate) => candidate.id === maintenance.defaultPresetId,

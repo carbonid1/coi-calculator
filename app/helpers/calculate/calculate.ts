@@ -53,6 +53,7 @@ export interface RegularResult {
 export interface PassiveResult {
   recipe: Recipe;
   moduleId: string;
+  capacityPoolId?: string;
   activeBuildings: number;
   builtBuildings: number;
   supplyRatio: number;
@@ -831,17 +832,18 @@ export const calculateNet = (
 
   // Sinks absorb excess (sequential priority)
   const sinkResults: PassiveResult[] = [];
+  const sinkCapacityTracker = createCapacityTracker(sinkLines);
 
-  for (const line of sinkLines) {
+  for (const line of orderSharedCapacity(sinkLines)) {
     if (line.activeBuildings === 0) {
-      sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, activeBuildings: 0, builtBuildings: line.builtBuildings, supplyRatio: 0, actualInputs: [], actualOutputs: [] });
+      sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, capacityPoolId: line.capacityPoolId, activeBuildings: 0, builtBuildings: line.builtBuildings, supplyRatio: 0, actualInputs: [], actualOutputs: [] });
       continue;
     }
 
     const capacity = lineFactor(line);
-    let utilizationRatio = line.recipe.sinkMode === "unbounded"
+    let utilizationRatio = line.recipe.sinkMode === "unbounded" && !line.capacityPoolId
       ? Number.POSITIVE_INFINITY
-      : 1;
+      : sinkCapacityTracker.availableRatio(line);
 
     for (const input of line.recipe.inputs) {
       const f = getFlow(input.resourceId);
@@ -855,6 +857,7 @@ export const calculateNet = (
     }
 
     if (utilizationRatio <= 1e-9) utilizationRatio = 0;
+    sinkCapacityTracker.use(line, utilizationRatio);
 
     const actualInputs: PassiveResult["actualInputs"] = [];
     const actualOutputs: PassiveResult["actualOutputs"] = [];
@@ -878,7 +881,7 @@ export const calculateNet = (
       }
     }
 
-    sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, activeBuildings: line.activeBuildings, builtBuildings: line.builtBuildings, supplyRatio: utilizationRatio, actualInputs, actualOutputs });
+    sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, capacityPoolId: line.capacityPoolId, activeBuildings: line.activeBuildings, builtBuildings: line.builtBuildings, supplyRatio: utilizationRatio, actualInputs, actualOutputs });
   }
 
   // Excess-processing recipes can create useful byproducts after sources were

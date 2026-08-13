@@ -3,6 +3,7 @@ import { cn } from "@carbonid1/design-system";
 import { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
+  type PassiveResult,
   type ProductionLine,
   type RegularResult,
 } from "../helpers/calculate/calculate";
@@ -16,7 +17,7 @@ import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   lines: ProductionLine[];
-  results: (RegularResult | undefined)[];
+  results: (RegularResult | PassiveResult | undefined)[];
   outputModifiers?: RecipeModifierMultipliers;
   diagnostic?: BuildingDiagnostic;
 }
@@ -39,7 +40,9 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
   ), 0);
   const roundedEffective = Math.round(effective * 100) / 100;
   const totalBuildings = Math.max(...lines.map((line) => line.builtBuildings));
-  const operatingMode = results.every((result) => result?.operatingMode === "fixed")
+  const operatingMode = results.every((result) => (
+    result && "operatingMode" in result && result.operatingMode === "fixed"
+  ))
     ? "fixed"
     : "balanced";
 

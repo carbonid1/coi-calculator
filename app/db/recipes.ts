@@ -405,6 +405,18 @@ export const recipes: Recipe[] = [
     electricityDispatch: { groupId: "fbr-turbines", priority: 2 },
   },
   {
+    id: "power-generator-ii-nuclear",
+    name: "Power Generator II",
+    building: "Power Generator II",
+    group: "electricity",
+    inputs: [],
+    outputs: [],
+    // Turbine recipes already expose the Generator II electrical output. Keep
+    // the physical generator on the same dispatch ratio so its card reports
+    // the matching average load without double-counting electricity.
+    electricityDispatch: { groupId: "fbr-turbines", priority: 2 },
+  },
+  {
     id: solarPanels.standard.recipeId,
     name: solarPanels.standard.name,
     building: solarPanels.standard.building,
@@ -2707,8 +2719,14 @@ export const recipes: Recipe[] = [
       { resourceId: "seaWater", quantity: 15 },
       { resourceId: "steamDepleted", quantity: 24 },
     ],
-    balanceBy: "input",
+    // Recover useful Water and Brine first, but do not desalinate merely to
+    // consume steam. Any Depleted Steam left after real demand is routed to
+    // cooling towers as the final sink.
+    balanceBy: "output",
     balanceInputIds: ["steamDepleted"],
+    balanceOutputIds: ["water", "brine"],
+    allocation: "fallback",
+    allocationPriority: 0,
     outputs: [
       { resourceId: "water", quantity: 33 },
       { resourceId: "brine", quantity: 6 },
@@ -2716,15 +2734,18 @@ export const recipes: Recipe[] = [
   },
   {
     // Captain of Industry v0.8.7 game-data rate, normalized from 10 to 60 seconds.
-    // Consume only Steam (Low) left after every modeled production use.
+    // Keep Low Steam desalination as a secondary option. It can sacrifice the
+    // last turbine stage for Water/Brine only after the ordinary depleted- and
+    // super-steam desalination paths cannot satisfy demand.
     id: "thermal-desalinator-low",
     name: "Thermal Desalinator (Low Steam)",
     building: "Thermal Desalinator",
     group: "production",
     cycleDurationSeconds: 10,
-    balanceBy: "input",
+    balanceBy: "output",
     balanceInputIds: ["steamLow"],
-    allocation: "surplus",
+    balanceOutputIds: ["water", "brine"],
+    allocation: "fallback",
     allocationPriority: 80,
     inputs: [
       { resourceId: "seaWater", quantity: 72 },
@@ -2751,7 +2772,8 @@ export const recipes: Recipe[] = [
     balanceBy: "output",
     balanceInputIds: ["steamSuper"],
     balanceOutputIds: ["water", "brine"],
-    inputPriorities: { steamSuper: 1 },
+    allocation: "fallback",
+    allocationPriority: 10,
     outputs: [
       { resourceId: "water", quantity: 72 },
       { resourceId: "brine", quantity: 42 },
@@ -2764,6 +2786,11 @@ export const recipes: Recipe[] = [
     name: "Cooling Tower Large (Depleted)",
     building: "Cooling Tower (Large)",
     group: "sink",
+    sharedCapacity: {
+      id: "cooling-tower-large-steam",
+      label: "Cooling Towers",
+      priority: 1,
+    },
     inputs: [{ resourceId: "steamDepleted", quantity: 96 }],
     outputs: [{ resourceId: "water", quantity: 72 }],
   },
@@ -2772,6 +2799,11 @@ export const recipes: Recipe[] = [
     name: "Cooling Tower Large (Super)",
     building: "Cooling Tower (Large)",
     group: "sink",
+    sharedCapacity: {
+      id: "cooling-tower-large-steam",
+      label: "Cooling Towers",
+      priority: 2,
+    },
     inputs: [{ resourceId: "steamSuper", quantity: 96 }],
     outputs: [{ resourceId: "water", quantity: 60 }],
   },

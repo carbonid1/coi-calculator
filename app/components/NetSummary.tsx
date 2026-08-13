@@ -111,7 +111,7 @@ export const NetSummary: React.FC<Props> = ({
 }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
 
-  const electricityFlow = flows.find((f) => f.resourceId === "electricity");
+  const electricityFlow = flows.find((flow) => flow.resourceId === "electricity");
   const computingFlow = flows.find((flow) => flow.resourceId === "computing");
   const materialFlows = flows.filter((flow) => (
     flow.resourceId !== "electricity" && flow.resourceId !== "computing"
@@ -336,7 +336,7 @@ export const NetSummary: React.FC<Props> = ({
         || computingGenerationCapacityTflops != null
         || (computingConsumptionTflops && computingConsumptionTflops > 0)
         || (workers && workers > 0)) && (() => {
-        const generationMw = electricityFlow ? electricityFlow.net : 0;
+        const generationMw = electricityFlow?.net ?? 0;
         const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
         const netMw = generationMw - consumptionMw;
         const showsCapacity = electricityGenerationCapacityMw != null;
@@ -346,7 +346,7 @@ export const NetSummary: React.FC<Props> = ({
 
         return (
           <div className="space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
-            {showsCapacity ? (
+            {showsCapacity && (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   ⚡ Consumption / generation cap
@@ -355,7 +355,8 @@ export const NetSummary: React.FC<Props> = ({
                   {formatPower(consumptionMw)} / {formatPower(electricityGenerationCapacityMw)}
                 </span>
               </div>
-            ) : electricityFlow && (
+            )}
+            {!showsCapacity && electricityFlow && (
               <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   ⚡ Generation

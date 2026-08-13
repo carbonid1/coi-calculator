@@ -17,7 +17,9 @@ import { defaultActiveEdicts, defaultEdictLevels } from "../edicts";
 import { recipes } from "../recipes";
 import { defaultInfiniteResearchLevels } from "../research";
 import { createFarmsModule, FARMS_MODULE_ID } from "./farms";
+import { createFbrPowerPlantModule } from "./fbr-power-plant";
 import { modules, type Module } from "./modules";
+import { NUCLEAR_MODULE_ID } from "./nuclear";
 
 const plannedCropIds: readonly CropId[] = [
   "canola",
@@ -30,6 +32,12 @@ const plannedCropIds: readonly CropId[] = [
   "treeSapling",
   "potato",
 ];
+const currentFactoryModules = modules.filter(
+  (module) => module.id !== NUCLEAR_MODULE_ID,
+).concat(createFbrPowerPlantModule({
+  averageNuclearGenerationMw: 30.2,
+  hydrogenFuelDemandPerCycle: 45,
+}));
 
 describe("active crop farm plan", () => {
   it("supports disabling chicken farms completely", () => {
@@ -99,7 +107,7 @@ describe("active crop farm plan", () => {
       defaultActiveEdicts.farmingBoost,
     );
     const result = calculateFactoryTotal(
-      modules,
+      currentFactoryModules,
       activeContracts,
       calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
       {
@@ -176,7 +184,7 @@ describe("active crop farm plan", () => {
       defaultActiveEdicts.farmingBoost,
     );
     const calculateWithChickenCount = (totalChickenCount: number) => {
-      const configuredModules: Module[] = modules.map((module) => (
+      const configuredModules: Module[] = currentFactoryModules.map((module) => (
         module.id === FARMS_MODULE_ID
           ? createFarmsModule({ totalChickenCount, slaughtering: true })
           : module

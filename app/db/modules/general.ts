@@ -12,7 +12,7 @@ export const general: Module = {
   description: "Shared production for yellowcake, electronics, and supporting materials",
   builtBuildings: {
     "crusher-large": 1,
-    "settling-tank": 1,
+    "settling-tank": 2,
     "mixer-ii-acid": 1,
     "assembly-v-electronics-i": 1,
     "assembly-v-electronics-ii": 1,
@@ -106,7 +106,7 @@ export const general: Module = {
       description: "Yellowcake production balanced against factory demand",
       builtBuildings: {
         "crusher-large": 1,
-        "settling-tank": 1,
+        "settling-tank": 2,
         "mixer-ii-acid": 1,
         "assembly-v-electronics-i": 1,
         "assembly-v-electronics-ii": 1,
@@ -194,7 +194,7 @@ export const general: Module = {
         [maintenanceStatue.id]: defaultMaintenanceStatueCount,
       },
       activeBuildings: {
-        "settling-tank": 1,
+        "settling-tank": 2,
         "mill-wheat": 2,
         "baking-unit-bread": 1,
       },

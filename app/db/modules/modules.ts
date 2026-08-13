@@ -1,12 +1,12 @@
 import { type ResourceId } from "../resources";
 import { computing } from "./computing";
 import { farms } from "./farms";
-import { fbrPowerPlant } from "./fbr-power-plant";
 import { forestry } from "./forestry";
 import { general } from "./general";
 import { housing } from "./housing";
 import { maintenance } from "./maintenance";
 import { mines } from "./mines";
+import { nuclear } from "./nuclear";
 import { processSteam } from "./process-steam";
 import { research } from "./research";
 import { solarPower } from "./solar-power";
@@ -50,7 +50,7 @@ export const modules: [Module, ...Module[]] = [
   farms,
   housing,
   mines,
-  fbrPowerPlant,
+  nuclear,
   solarPower,
   computing,
   maintenance,

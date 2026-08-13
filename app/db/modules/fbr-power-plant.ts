@@ -27,8 +27,8 @@ const fuelFixedYc = ["fbr"];
 
 export const createFbrPowerPlantModule = (baselines: PlanningBaselines): Module => ({
   id: FBR_POWER_PLANT_MODULE_ID,
-  name: "FBR Power Plant",
-  description: "YC-fed no-breed mode; turbines follow factory demand after solar",
+  name: "FBR Reference",
+  description: "Current single-reactor measurements retained for reference",
   builtBuildings: {}, // presets define their own
   presets: [
     {
@@ -57,7 +57,10 @@ export const createFbrPowerPlantModule = (baselines: PlanningBaselines): Module 
         hydrogen: Math.max(0, baselines.hydrogenFuelDemandPerCycle),
       },
       electricityDispatchTargets: {
-        [FBR_ELECTRICITY_DISPATCH_GROUP_ID]: Math.max(0, baselines.fbrAverageGenerationMw),
+        [FBR_ELECTRICITY_DISPATCH_GROUP_ID]: Math.max(
+          0,
+          baselines.averageNuclearGenerationMw,
+        ),
       },
     },
   ],

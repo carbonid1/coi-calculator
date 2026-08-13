@@ -23,9 +23,10 @@ interface Props {
   actualOutputs?: { resourceId: keyof typeof resources; quantity: number }[];
   outputModifiers?: RecipeModifierMultipliers;
   diagnostic?: BuildingDiagnostic;
+  showConfigurationSummary?: boolean;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const effective = Math.round(buildingMultiplier * 100) / 100;
   const ioMultiplier = buildingMultiplier * speedLevel;
@@ -43,7 +44,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuil
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             {recipe.building}
           </h3>
-          {recipe.name !== recipe.building && (() => {
+          {showConfigurationSummary && recipe.name !== recipe.building && (() => {
             const match = recipe.name.match(/\((.+)\)$/);
 
             return match ? (
@@ -62,7 +63,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuil
                 : ""}
             </p>
           )}
-          {speedLevel !== 1 && !recipe.computingScalesWithSpeed && (
+          {showConfigurationSummary && speedLevel !== 1 && !recipe.computingScalesWithSpeed && (
             <p className="text-xs font-medium text-attention-foreground">
               {recipe.animalPopulationCapacity
                 ? `${Math.round(recipe.animalPopulationCapacity * activeBuildings * speedLevel)} / ${recipe.animalPopulationCapacity * builtBuildings} chickens`

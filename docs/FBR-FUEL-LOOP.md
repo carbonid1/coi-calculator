@@ -1,39 +1,92 @@
-# FBR Fuel Loop
+# Nuclear target
 
-The calculator models one YC-fed, no-breed configuration.
+The Nuclear module models the two-reactor checkpoint used to expand and rewire
+the existing nuclear station.
+
+All rates below are per production cycle (60 seconds, or one in-game month).
+Numerical recipe and building values target the installed Captain of Industry
+v0.8.7 game data.
 
 ## Configuration
 
-- 1 FBR at power level I
-- 60 MW power output
-- 3 yellowcake per production cycle, equivalent to 18 uranium ore upstream
-- No EU20 production
+- 1 breeder at Power I / 3x breeding
+- 1 power reactor at Power IV / 0x breeding
+- 255 MW gross turbine capacity
+- 50 MW planned average Nuclear generation
+- 45 Hydrogen per cycle for vehicle fuel
 
-## Fuel balance per production cycle
+## Reactor and fuel balance
 
-| Step | Consumes | Produces |
+| Reactor | Inputs | Outputs |
 | --- | --- | --- |
-| FBR | 4 CF, 4 BF | 4 CFS, 4 BFE |
-| Reprocessing at 0.25 capacity | 4 CFS | 3 CF, 0.5 FP |
-| Enrichment at 0.5 capacity | 4 BFE | 3 BF, 1 CF |
-| YC → BF at 0.5 capacity | 3 YC, 1 salt | 1 BF |
+| Power I / 3x breeder | 24 Water, 4 Core Fuel, 12 Blanket Fuel | 24 Super Steam, 4 Spent Core Fuel, 12 Enriched Blanket Fuel |
+| Power IV / 0x power reactor | 384 Water, 8 Core Fuel | 384 Super Steam, 8 Spent Core Fuel |
+| **Total** | **408 Water, 12 Core Fuel, 12 Blanket Fuel** | **408 Super Steam, 12 Spent Core Fuel, 12 Enriched Blanket Fuel** |
 
-The core-fuel and blanket-fuel loops balance. The yellowcake chemical plant is load-balanced against the missing blanket fuel, so it consumes 3 of its maximum 6 yellowcake per production cycle. The fuel cycle's only net output is 0.5 fission product per production cycle.
+The support chain closes both fuel loops:
 
-## External inputs per production cycle
+| Step | Load | Consumes | Produces |
+| --- | ---: | --- | --- |
+| Core-fuel reprocessing | 0.75 / 1 plant | 12 Spent Core Fuel | 9 Core Fuel |
+| Blanket enrichment | 1.5 / 2 plants | 12 Enriched Blanket Fuel | 9 Blanket Fuel, 3 Core Fuel |
+| Yellowcake conversion | 1.5 / 2 plants | 9 Yellowcake | 3 Blanket Fuel |
 
-- 3 yellowcake
-- 1 salt
-- 0.5 acid
-- 0.5 molten glass
-- 0.25 steel
+Core Fuel and Blanket Fuel both balance at zero. Yellowcake is the only fresh
+uranium input. Two demand-balanced Settling Tanks operate at 1.5 / 2 average
+load to supply exactly 9 Yellowcake from 54 Uranium Ore and 18 Acid. The Acid
+chain supplies its 18 Acid from 3 Sulfur and 15 Water.
 
-The General module balances Yellowcake production against factory demand. With this FBR configuration, it produces and supplies 3 Yellowcake per production cycle with no planned surplus.
+The two-reactor configuration therefore has the same steady-state Yellowcake
+demand as the former five-reactor configuration. Its advantage is the smaller
+physical build and lower initial reactor fuel load, not lower Yellowcake use.
 
-## Key recipes
+## Turbines and steam routing
 
-- **Reprocessing**: 16 CFS + 2 acid + 2 molten glass + 1 steel → 12 CF + 2 FP
-- **Enrichment**: 8 BFE → 6 BF + 2 CF
-- **YC → BF**: 6 YC + 2 salt → 2 BF per production cycle
-- **Crusher (Large)**: 72 uranium ore → 72 uranium ore powder
-- **Settling tank**: 36 uranium ore powder + 12 acid → 6 YC + 36 toxic slurry
+The reactors produce 408 Super Steam, enough for 8.5 turbine trains or 255 MW
+when all reactor steam is used for power. Nine of each turbine tier and 18
+Power Generator IIs cover that full gross output. Hydrogen production and
+desalination reduce the simultaneously available net output when they consume
+reactor steam.
+Each train requires two generators: one for the Super-Pressure Turbine's 18 MW
+shaft and one for the combined 12 + 6 MW High- and Low-Pressure shafts.
+
+The initial 50 MW target dispatches two turbine trains at a combined 1.67 / 2
+average load. The breeder's single turbine train remains available, while the
+eight-train bank belongs to the Power IV reactor. Solar output is additional.
+
+All four existing Hydrogen Reformers remain active to cover the configured 45
+Hydrogen vehicle-fuel target, shared factory demand, and short demand spikes.
+Their average output remains demand-balanced.
+
+Hydrogen demand is allocated first. The desalinators then run only as much as
+needed for Water and Brine, preferring four Depleted-Steam units before four
+Super-Steam units. Low Steam continues through the turbine chain instead of
+using the inefficient Low-Steam desalination recipe. The four physical cooling
+towers all have both Super- and Depleted-Steam recipes enabled. Three remain
+active and share their capacity between the remaining streams; the fourth is a
+paused reserve. Any steam beyond the active capacity stays visible as excess in
+the calculator.
+
+## Building counts
+
+| Building | Built | Active at 50 MW |
+| --- | ---: | ---: |
+| Fast Breeder Reactor — Power I / 3x | 1 | 1 |
+| Fast Breeder Reactor — Power IV / 0x | 1 | 1 |
+| Nuclear Reprocessing Plant | 1 | 1 |
+| Seawater Pump | 3 | 3 |
+| Enrichment Plant | 2 | 2 |
+| Chemical Plant II — Yellowcake | 2 | 2 |
+| Each turbine tier | 9 | 2 |
+| Power Generator II | 18 | 4 |
+| Hydrogen Reformer | 4 | 4 |
+| Thermal Desalinator — Depleted | 4 | 4 |
+| Thermal Desalinator — Super | 4 | 4 |
+| Cooling Tower (Large) — shared Super/Depleted recipes | 4 | 3 |
+| Radioactive Waste Storage | 1 | 1 |
+| Shredder | 1 | 1 |
+
+## Waste
+
+Core-fuel reprocessing produces 1.5 Fission Product per cycle. One Radioactive
+Waste Storage and one Shredder are sufficient for the checkpoint.

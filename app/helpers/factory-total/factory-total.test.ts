@@ -20,6 +20,6 @@ describe("Factory Total contracts", () => {
 
     expect(contractResult?.imported ?? 0).toBeGreaterThan(0);
     expect(contractResult?.exported ?? 0).toBeGreaterThan(0);
-    expect(ironMine?.actualOutputs.at(0)?.quantity ?? -1).toBe(0);
+    expect(ironMine?.actualOutputs.at(0)?.quantity ?? -1).toBeCloseTo(0, 10);
   });
 });
