@@ -45,6 +45,7 @@ const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) =>
   const {
     contract,
     exported,
+    fuelPerProductionCycle,
     imported,
   } = result;
   const exportedResource = resources[contract.exchange.exported.resourceId];
@@ -53,9 +54,6 @@ const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) =>
   const workerBreakdown = calculateContractWorkerBreakdown(contract);
   const variableUnityPerCycle = imported * contract.unity.per100Imported / 100;
   const recurringUnityPerCycle = contract.unity.perProductionCycle + variableUnityPerCycle;
-  const fuelPerProductionCycle = imported > 0
-    ? imported / contract.plan.shipping.importedPerTrip * contract.plan.shipping.fuelPerTrip
-    : 0;
 
   return (
     <Card.Root>

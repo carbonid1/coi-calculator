@@ -22,13 +22,16 @@ describe("fixed contract plans", () => {
       imported: 54,
       requiredImported: 72,
       uncoveredImported: 18,
+      importedPerTrip: 1_600,
+      fuelPerTrip: 289,
+      fuelPerProductionCycle: 9.75375,
     });
     expect(uranium).toMatchObject({ consumed: 72, produced: 54, net: -18 });
     expect(foodPack).toMatchObject({ consumed: 36, produced: 0, net: -36 });
+    expect(flows.find((flow) => flow.resourceId === "hydrogen")).toBeUndefined();
   });
 
   it("counts the planned ship and four cargo modules", () => {
     expect(calculateContractWorkers(activeContracts)).toBe(42);
-    expect(activeContracts[0]?.plan.shipping.importedPerTrip).toBe(1_000);
   });
 });

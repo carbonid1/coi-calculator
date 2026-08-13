@@ -1,10 +1,12 @@
 import { type SourceKind } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
+import { BuildingCardTarget } from "./BuildingCardTarget";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
+  focusedTargetKey?: string;
   sourceResults: PassiveResult[];
   sinkResults: PassiveResult[];
 }
@@ -29,7 +31,11 @@ const sections: {
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
-export const MinesView: React.FC<Props> = ({ sourceResults, sinkResults }) => (
+export const MinesView: React.FC<Props> = ({
+  focusedTargetKey,
+  sourceResults,
+  sinkResults,
+}) => (
   <div className="space-y-4">
     {sections.map((section) => {
       const mines = sourceResults.filter((result) => result.recipe.sourceKind === section.kind);
@@ -49,40 +55,47 @@ export const MinesView: React.FC<Props> = ({ sourceResults, sinkResults }) => (
               const isGroundwater = result.recipe.sourceKind === "groundwater";
               const capacity = (result.recipe.outputs[0]?.quantity ?? 0)
                 * result.activeBuildings;
+              const targetKey = result.capacityPoolId
+                ?? `${result.moduleId}:${result.recipe.id}`;
               let title = result.recipe.building;
 
               if (!isGroundwater && output) title = resources[output.resourceId].name;
 
               return (
-                <ProductionCard
+                <BuildingCardTarget
                   key={result.recipe.id}
-                  operatingMode="balanced"
-                  passive
-                  inactive={quantity <= 0.001}
-                  className="p-3"
+                  focused={focusedTargetKey === targetKey}
+                  targetKey={targetKey}
                 >
-                  <div className="flex items-center justify-between gap-4 text-sm">
-                    <h3 className="font-semibold text-foreground">
-                      {title}
-                    </h3>
-                    {isGroundwater ? (
-                      <BuildingCount
-                        load={result.activeBuildings * result.supplyRatio}
-                        active={result.activeBuildings}
-                        built={result.builtBuildings}
-                      />
-                    ) : (
-                      <span className="font-mono font-semibold text-success">
-                        {formatQuantity(quantity)}
-                      </span>
+                  <ProductionCard
+                    operatingMode="balanced"
+                    passive
+                    inactive={quantity <= 0.001}
+                    className="p-3"
+                  >
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <h3 className="font-semibold text-foreground">
+                        {title}
+                      </h3>
+                      {isGroundwater ? (
+                        <BuildingCount
+                          load={result.activeBuildings * result.supplyRatio}
+                          active={result.activeBuildings}
+                          built={result.builtBuildings}
+                        />
+                      ) : (
+                        <span className="font-mono font-semibold text-success">
+                          {formatQuantity(quantity)}
+                        </span>
+                      )}
+                    </div>
+                    {isGroundwater && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {formatQuantity(quantity)} / {formatQuantity(capacity)} Water
+                      </p>
                     )}
-                  </div>
-                  {isGroundwater && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {formatQuantity(quantity)} / {formatQuantity(capacity)} Water
-                    </p>
-                  )}
-                </ProductionCard>
+                  </ProductionCard>
+                </BuildingCardTarget>
               );
             })}
           </div>
@@ -103,24 +116,31 @@ export const MinesView: React.FC<Props> = ({ sourceResults, sinkResults }) => (
               (actual) => actual.resourceId === input?.resourceId,
             );
             const quantity = actualInput?.quantity ?? 0;
+            const targetKey = result.capacityPoolId
+              ?? `${result.moduleId}:${result.recipe.id}`;
 
             return (
-              <ProductionCard
+              <BuildingCardTarget
                 key={result.recipe.id}
-                operatingMode="balanced"
-                passive
-                inactive={quantity <= 0.001}
-                className="p-3"
+                focused={focusedTargetKey === targetKey}
+                targetKey={targetKey}
               >
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <h3 className="font-semibold text-foreground">
-                    {input ? resources[input.resourceId].name : result.recipe.building}
-                  </h3>
-                  <span className="font-mono font-semibold text-foreground">
-                    {formatQuantity(quantity)}
-                  </span>
-                </div>
-              </ProductionCard>
+                <ProductionCard
+                  operatingMode="balanced"
+                  passive
+                  inactive={quantity <= 0.001}
+                  className="p-3"
+                >
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <h3 className="font-semibold text-foreground">
+                      {input ? resources[input.resourceId].name : result.recipe.building}
+                    </h3>
+                    <span className="font-mono font-semibold text-foreground">
+                      {formatQuantity(quantity)}
+                    </span>
+                  </div>
+                </ProductionCard>
+              </BuildingCardTarget>
             );
           })}
         </div>

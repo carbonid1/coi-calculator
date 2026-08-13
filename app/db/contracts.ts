@@ -47,11 +47,9 @@ export interface ActiveContractPlan {
     cargoModules: readonly ContractCargoModulePlan[];
     cargoShipWorkers: number;
   };
-  /** Informational only: ship fuel is assumed to be covered by the island plan. */
+  /** Fuel selection and ship mode; rates are derived from installed game data. */
   shipping: {
-    fuelPerTrip: number;
     fuelResourceId: ResourceId;
-    importedPerTrip: number;
     saveFuel: boolean;
   };
 }
@@ -61,6 +59,25 @@ export interface ActiveContract extends Contract {
 }
 
 export const contractsGameVersion = "0.8.7";
+
+/**
+ * Installed v0.8.7 cargo-ship constants. Large onboard cargo modules carry
+ * 800 units each; the shore-side Cargo Depot Module (L) capacity is 1,600 and
+ * must not be confused with one shipload.
+ */
+export const cargoShipping = {
+  fuelPerJourneyBase: 90,
+  fuelPerJourneyPerModule: 60,
+  onboardLargeModuleCapacity: 800,
+  hydrogenDieselEnergyRatio: 1.25,
+  saveFuelMultiplier: 0.7,
+  capacityMultiplierByShipSize: {
+    2: 1,
+    4: 1,
+    6: 1.5,
+    8: 1.5,
+  },
+} as const;
 
 const toSlug = (resourceId: ResourceId) => resourceId
   .replaceAll(/([a-z\d])([A-Z])/g, "$1-$2")
@@ -200,9 +217,7 @@ export const activeContracts: ActiveContract[] = [
       ],
     },
     shipping: {
-      fuelPerTrip: 289,
       fuelResourceId: "hydrogen",
-      importedPerTrip: 1000,
       saveFuel: true,
     },
   }),

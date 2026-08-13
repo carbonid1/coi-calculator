@@ -1,12 +1,49 @@
 import { expect, it } from "vitest";
 
+import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
 import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
 import { createFbrPowerPlantModule } from "./fbr-power-plant";
+import { general } from "./general";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
+import { processSteam } from "./process-steam";
+
+it("keeps every built Titanium-chain recipe paused", () => {
+  const titaniumRecipeIds = [
+    "crusher-large-titanium",
+    "arc-furnace-ii-titanium-ore",
+    "chemical-plant-ii-titanium-chlorination",
+    "distillation-stage-iii-titanium-purification",
+    "chemical-plant-ii-titanium-reduction",
+    "arc-furnace-ii-titanium-sponge",
+    "alloy-mixer-titanium",
+    "cooled-caster-ii-titanium-alloy",
+  ];
+  const lines = [general, processSteam].flatMap((module) => {
+    const preset = module.presets.find(({ id }) => id === module.defaultPresetId) ?? null;
+
+    return buildModuleLines(module, preset).lines;
+  });
+
+  expect(lines
+    .filter(({ recipe }) => titaniumRecipeIds.includes(recipe.id))
+    .toSorted((a, b) => (
+      titaniumRecipeIds.indexOf(a.recipe.id) - titaniumRecipeIds.indexOf(b.recipe.id)
+    ))
+    .map(({ recipe, builtBuildings, activeBuildings }) => ({
+      id: recipe.id,
+      builtBuildings,
+      activeBuildings,
+    })))
+    .toEqual(titaniumRecipeIds.map((id) => ({
+      id,
+      builtBuildings: 1,
+      activeBuildings: 0,
+    })));
+});
 
 it("demand-balances enough Yellowcake for the two-FBR target", () => {
   const result = calculateFactoryTotal(

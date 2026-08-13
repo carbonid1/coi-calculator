@@ -10,6 +10,7 @@ import { nuclear } from "./nuclear";
 import { processSteam } from "./process-steam";
 import { research } from "./research";
 import { solarPower } from "./solar-power";
+import { staticInfrastructure } from "./static-infrastructure";
 
 export interface Preset {
   id: string;
@@ -49,6 +50,7 @@ export const modules: [Module, ...Module[]] = [
   research,
   farms,
   housing,
+  staticInfrastructure,
   mines,
   nuclear,
   solarPower,

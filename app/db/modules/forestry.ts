@@ -10,6 +10,15 @@ export const forestry: Module = {
     "forestry-trees-100-growth": 1,
     "shredder-woodchips": 1,
   },
-  presets: [],
-  defaultPresetId: null,
+  presets: [{
+    id: "wood-shredder-paused",
+    name: "Wood shredder paused",
+    description: "The built wood Shredder is currently paused",
+    activeBuildings: {
+      "forestry-trees-100-growth": 1,
+      "shredder-woodchips": 0,
+    },
+    fixed: [],
+  }],
+  defaultPresetId: "wood-shredder-paused",
 };

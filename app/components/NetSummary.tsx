@@ -25,7 +25,7 @@ interface Props {
   groupByBalance?: boolean;
   regularResults?: RegularResult[];
   buildingDiagnostics?: BuildingDiagnostic[];
-  onOpenModule?: (moduleId: string) => void;
+  onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
 }
 
 const BALANCE_THRESHOLD = 0.001;
@@ -107,7 +107,7 @@ export const NetSummary: React.FC<Props> = ({
   groupByBalance = false,
   regularResults = [],
   buildingDiagnostics = [],
-  onOpenModule,
+  onOpenBuilding,
 }) => {
   const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
 
@@ -460,10 +460,10 @@ export const NetSummary: React.FC<Props> = ({
 
       {groupByBalance ? (
         <>
-          {onOpenModule && (
+          {onOpenBuilding && (
             <BuildingAttentionView
               diagnostics={buildingDiagnostics}
-              onOpenModule={onOpenModule}
+              onOpenBuilding={onOpenBuilding}
             />
           )}
           <div className="grid gap-2 lg:grid-cols-2">

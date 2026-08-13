@@ -8,7 +8,7 @@ export const calculateMaintenanceStatueEffect = (count: number) => {
   const normalizedCount = Math.max(0, Math.trunc(count));
   const multiplier = maintenanceStatue.additionalEffectMultiplier;
 
-  // Captain of Industry v0.8.6 applies the full 4% to the first maintained
+  // Captain of Industry v0.8.7 applies the full 4% to the first maintained
   // golden statue and halves every additional statue's effect.
   const reductionPercent = normalizedCount === 0
     ? 0

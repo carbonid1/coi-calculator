@@ -1,5 +1,6 @@
 import {
   type ActiveContract,
+  cargoShipping,
 } from "../../db/contracts";
 import { type ResourceId, resources } from "../../db/resources";
 import { type ResourceFlow } from "../calculate/calculate";
@@ -10,7 +11,41 @@ export interface ContractResult {
   imported: number;
   requiredImported: number;
   uncoveredImported: number;
+  importedPerTrip: number;
+  fuelPerTrip: number;
+  fuelPerProductionCycle: number;
 }
+
+export const calculateContractShipping = (contract: ActiveContract) => {
+  const shipSize = contract.plan.infrastructure.cargoDepotSize;
+  const capacityMultiplier = cargoShipping.capacityMultiplierByShipSize[shipSize];
+  const installedModuleCount = contract.plan.infrastructure.cargoModules.reduce(
+    (total, module) => total + module.count,
+    0,
+  );
+  const importModuleCount = contract.plan.infrastructure.cargoModules.reduce(
+    (total, module) => total + (module.direction === "import" ? module.count : 0),
+    0,
+  );
+  const importedPerTrip = importModuleCount
+    * cargoShipping.onboardLargeModuleCapacity
+    * capacityMultiplier;
+  const fuelResourceMultiplier = contract.plan.shipping.fuelResourceId === "hydrogen"
+    ? cargoShipping.hydrogenDieselEnergyRatio
+    : 1;
+  const saveFuelMultiplier = contract.plan.shipping.saveFuel
+    ? cargoShipping.saveFuelMultiplier
+    : 1;
+  const fuelPerTrip = Math.ceil((
+    cargoShipping.fuelPerJourneyBase
+    + cargoShipping.fuelPerJourneyPerModule * installedModuleCount * capacityMultiplier
+  ) * fuelResourceMultiplier * saveFuelMultiplier);
+  const fuelPerProductionCycle = importedPerTrip > 0
+    ? contract.plan.importedPerProductionCycle / importedPerTrip * fuelPerTrip
+    : 0;
+
+  return { importedPerTrip, fuelPerTrip, fuelPerProductionCycle };
+};
 
 export const calculateContractWorkerBreakdown = (contract: ActiveContract) => {
   const cargoModuleWorkers = contract.plan.infrastructure.cargoModules.reduce(
@@ -61,6 +96,7 @@ export const applyContracts = (
     const requiredImported = Math.max(0, importedFlow.consumed - importedFlow.produced);
     const imported = contract.plan.importedPerProductionCycle;
     const exported = imported * contract.exchange.exported.quantity / contract.exchange.imported.quantity;
+    const shipping = calculateContractShipping(contract);
 
     importedFlow.produced += imported;
     getFlow(combined, contract.exchange.exported.resourceId).consumed += exported;
@@ -71,6 +107,7 @@ export const applyContracts = (
       imported,
       requiredImported,
       uncoveredImported: Math.max(0, requiredImported - imported),
+      ...shipping,
     });
   }
 

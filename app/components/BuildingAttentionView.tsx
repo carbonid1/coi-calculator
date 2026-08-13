@@ -7,7 +7,7 @@ import {
 
 interface Props {
   diagnostics: BuildingDiagnostic[];
-  onOpenModule: (moduleId: string) => void;
+  onOpenBuilding: (diagnostic: BuildingDiagnostic) => void;
 }
 
 const labels = {
@@ -81,7 +81,19 @@ const isAttentionNotice = (attention: BuildingDiagnostic["attention"]) => (
   || attention === "remove-animals"
 );
 
-export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenModule }) => {
+const getAttentionStatus = (diagnostic: BuildingDiagnostic) => {
+  if (diagnostic.attention === "rebalance-farms") {
+    return `${diagnostic.affectedResources.join(", ")} short`;
+  }
+
+  if (diagnostic.animalPopulation) {
+    return `${formatCount(diagnostic.animalPopulation.current)} / ${formatCount(diagnostic.animalPopulation.capacity)} ${diagnostic.animalPopulation.label}`;
+  }
+
+  return `${formatCount(diagnostic.load)} / ${formatCount(diagnostic.active)} active`;
+};
+
+export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenBuilding }) => {
   const actionable = diagnostics
     .filter((diagnostic) => diagnostic.attention != null)
     .toSorted((a, b) => (
@@ -113,7 +125,7 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenModu
                 size="small"
                 fullWidth
                 className="h-auto justify-between px-2 py-1.5 text-left"
-                onClick={() => onOpenModule(diagnostic.moduleId)}
+                onClick={() => onOpenBuilding(diagnostic)}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Icon aria-hidden="true" className={notice
@@ -137,11 +149,7 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenModu
                     {getAttentionLabel(diagnostic)}
                   </span>
                   <span className="block font-mono text-xs text-muted-foreground">
-                    {attention === "rebalance-farms"
-                      ? `${diagnostic.affectedResources.join(", ")} short`
-                      : diagnostic.animalPopulation
-                      ? `${formatCount(diagnostic.animalPopulation.current)} / ${formatCount(diagnostic.animalPopulation.capacity)} ${diagnostic.animalPopulation.label}`
-                      : `${formatCount(diagnostic.load)} / ${formatCount(diagnostic.active)} active`}
+                    {getAttentionStatus(diagnostic)}
                   </span>
                 </span>
               </Button>

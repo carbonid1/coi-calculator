@@ -12,7 +12,6 @@ import {
   normalizeFarmingBoostLevel,
   normalizeMaintenanceReducerLevel,
 } from "../db/edicts";
-import { maintenanceStatue } from "../db/maintenance-statue";
 import {
   cropYieldResearch,
   maintenanceOutputResearch,
@@ -262,22 +261,6 @@ export const ModifiersView: React.FC<Props> = ({
           <ResearchField label={cropYieldResearch.name} description={`+${cropYieldResearch.percentPerLevel}% crop yield and +${cropYieldResearch.waterDemandPercentPerLevel}% water demand per level`} value={cropYieldLevel} />
           <ResearchField label={treeGrowthSpeedResearch.name} description={`+${treeGrowthSpeedResearch.percentPerLevel}% tree growth speed per level`} value={treeGrowthSpeedLevel} />
         </div>
-      </section>
-
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Global buildings</h3>
-        <Card.Root>
-          <Card.Content className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-center">
-            <Card.Header>
-              <Card.Title>{maintenanceStatue.name}</Card.Title>
-              <Card.Description>-{maintenanceDemand.statueReductionPercent}% maintenance demand · {maintenanceDemand.statueFuelGasPerCycle} Fuel Gas / cycle</Card.Description>
-            </Card.Header>
-            <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-              <p className="text-xs text-muted-foreground">Count</p>
-              <p className="font-mono font-semibold text-foreground">{maintenanceStatueCount}</p>
-            </div>
-          </Card.Content>
-        </Card.Root>
       </section>
 
       <section className="space-y-3">

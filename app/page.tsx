@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  BuildingCardTarget,
+  getBuildingTargetId,
+} from "./components/BuildingCardTarget";
 import { ChickenFarmSettings } from "./components/ChickenFarmSettings";
 import { ComputingSettings } from "./components/ComputingSettings";
 import { ContractsView } from "./components/ContractsView";
@@ -38,7 +42,6 @@ import {
   activeHousingType,
   defaultHousingCount,
 } from "./db/housing";
-import { defaultMaintenanceStatueCount } from "./db/maintenance-statue";
 import { COMPUTING_MODULE_ID } from "./db/modules/computing";
 import { FARMS_MODULE_ID } from "./db/modules/farms";
 import { HOUSING_MODULE_ID } from "./db/modules/housing";
@@ -53,8 +56,12 @@ import {
   defaultInfiniteResearchLevels,
 } from "./db/research";
 import { defaultSolarPanelCounts } from "./db/solar";
+import { defaultStaticInfrastructureConfig } from "./db/static-infrastructure";
 import { calculateUnityBudget } from "./db/unity";
-import { calculateBuildingDiagnostics } from "./helpers/building-diagnostics/building-diagnostics";
+import {
+  calculateBuildingDiagnostics,
+  type BuildingDiagnostic,
+} from "./helpers/building-diagnostics/building-diagnostics";
 import { calculateBuildingStats } from "./helpers/building-stats/building-stats";
 import { type ProductionLine } from "./helpers/calculate/calculate";
 import { calculateContractWorkers } from "./helpers/contracts/calculate-contracts";
@@ -138,16 +145,52 @@ const legacySettingKeys = [
 
 const Page = () => {
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID);
+  const [buildingTarget, setBuildingTarget] = useState<{
+    key: string;
+    moduleId: string;
+  } | null>(null);
 
   useEffect(() => {
     legacySettingKeys.forEach((key) => window.localStorage.removeItem(key));
   }, []);
 
+  useEffect(() => {
+    if (!buildingTarget || buildingTarget.moduleId !== activeModuleId) return undefined;
+
+    let clearTimer: number | undefined;
+    const animationFrame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(getBuildingTargetId(buildingTarget.key));
+
+      if (!target) {
+        setBuildingTarget(null);
+        return;
+      }
+
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+      clearTimer = window.setTimeout(() => {
+        setBuildingTarget((current) => current === buildingTarget ? null : current);
+      }, 1_800);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      if (clearTimer !== undefined) window.clearTimeout(clearTimer);
+    };
+  }, [activeModuleId, buildingTarget]);
+
+  const openBuilding = (diagnostic: BuildingDiagnostic) => {
+    setBuildingTarget({ key: diagnostic.key, moduleId: diagnostic.moduleId });
+    setActiveModuleId(diagnostic.moduleId);
+  };
+
   const configuredModules = modules;
   const edictLevels: Record<EdictId, EdictLevel> = defaultEdictLevels;
   const activeContractIds = defaultActiveContractIds;
   const researchModuleConfig = defaultResearchModuleConfig;
-  const maintenanceStatueCount = defaultMaintenanceStatueCount;
+  const maintenanceStatueCount = defaultStaticInfrastructureConfig.maintenanceStatue;
   const planningBaselines = defaultPlanningBaselines;
   const maintenanceOutputLevel = defaultInfiniteResearchLevels.maintenanceOutput;
   const solarPowerLevel = defaultInfiniteResearchLevels.solarPower;
@@ -354,7 +397,7 @@ const Page = () => {
           groupByBalance
           regularResults={factoryResult.calculation.regularResults}
           buildingDiagnostics={factoryBuildingDiagnostics}
-          onOpenModule={setActiveModuleId}
+          onOpenBuilding={openBuilding}
         />
       )}
 
@@ -397,6 +440,9 @@ const Page = () => {
         <>
           {activeModule.id === MINES_MODULE_ID ? (
             <MinesView
+              focusedTargetKey={buildingTarget?.moduleId === activeModule.id
+                ? buildingTarget.key
+                : undefined}
               sourceResults={moduleResult.sourceResults}
               sinkResults={moduleResult.sinkResults}
             />
@@ -415,6 +461,9 @@ const Page = () => {
 
           {activeModule.id === NUCLEAR_MODULE_ID ? (
             <NuclearModuleSections
+              focusedTargetKey={buildingTarget?.moduleId === activeModule.id
+                ? buildingTarget.key
+                : undefined}
               lines={moduleResult.lines}
               regularResults={moduleResult.regularResults}
               sourceResults={moduleResult.sourceResults}
@@ -422,86 +471,136 @@ const Page = () => {
               diagnostics={factoryBuildingDiagnostics}
               outputModifiers={outputModifiers}
             />
-          ) : activeModule.id !== MINES_MODULE_ID && grouped.map(({ group, label, items }) => (
-              <div key={group} className="space-y-2">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {label}
-              </h2>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {groupSharedProductionLines(items).map(({ key, lines }) => {
-                  const line = lines[0];
+          ) : activeModule.id !== MINES_MODULE_ID
+            && grouped.map(({ group, label, items }) => {
+              const groupTargetKey = activeModule.id === FARMS_MODULE_ID
+                && group === "production"
+                ? `${activeModule.id}:crop-rebalance`
+                : `${activeModule.id}:group:${group}`;
 
-                  if (!line) return null;
+              return (
+                <BuildingCardTarget
+                  key={group}
+                  className="space-y-2"
+                  focused={buildingTarget?.key === groupTargetKey}
+                  stretchChild={false}
+                  targetKey={groupTargetKey}
+                >
+                  <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {label}
+                  </h2>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {groupSharedProductionLines(items).map(({ key, lines }) => {
+                      const line = lines[0];
 
-                  if (group === "source") {
-                    const result = moduleResult.sourceResults.find((s) => s.recipe.id === line.recipe.id);
+                      if (!line) return null;
 
-                    return result ? (
-                      <SinkCard key={line.recipe.id} result={result} role="source" />
-                    ) : null;
-                  }
-                  if (group === "sink") {
-                    const result = moduleResult.sinkResults.find((s) => s.recipe.id === line.recipe.id);
+                      const targetKey = line.capacityPoolId
+                        ?? `${line.moduleId}:${line.recipe.id}`;
 
-                    return result ? (
-                      <SinkCard key={line.recipe.id} result={result} role="sink" />
-                    ) : null;
-                  }
+                      if (group === "source") {
+                        const result = moduleResult.sourceResults.find(
+                          (source) => source.recipe.id === line.recipe.id,
+                        );
 
-                  if (lines.length > 1) {
-                    return (
-                      <SharedRecipeCard
-                        key={key}
-                        lines={lines}
-                        results={lines.map((sharedLine) => (
-                          moduleResult.regularResults.find(
-                            (result) => result.recipe.id === sharedLine.recipe.id,
-                          )
-                        ))}
-                        outputModifiers={outputModifiers}
-                        diagnostic={factoryBuildingDiagnostics.find(
-                          (diagnostic) => diagnostic.key === key,
-                        )}
-                      />
-                    );
-                  }
+                        return result ? (
+                          <BuildingCardTarget
+                            key={key}
+                            focused={buildingTarget?.key === targetKey}
+                            targetKey={targetKey}
+                          >
+                            <SinkCard result={result} role="source" />
+                          </BuildingCardTarget>
+                        ) : null;
+                      }
+                      if (group === "sink") {
+                        const result = moduleResult.sinkResults.find(
+                          (sink) => sink.recipe.id === line.recipe.id,
+                        );
 
-                  const result = moduleResult.regularResults.find((r) => r.recipe.id === line.recipe.id);
+                        return result ? (
+                          <BuildingCardTarget
+                            key={key}
+                            focused={buildingTarget?.key === targetKey}
+                            targetKey={targetKey}
+                          >
+                            <SinkCard result={result} role="sink" />
+                          </BuildingCardTarget>
+                        ) : null;
+                      }
 
-                  if (line.recipe.decayStorage) {
-                    return (
-                      <StorageCard
-                        key={line.recipe.id}
-                        recipe={line.recipe}
-                        storage={line.recipe.decayStorage}
-                        activeBuildings={line.activeBuildings}
-                        builtBuildings={line.builtBuildings}
-                        operatingMode={result?.operatingMode ?? "balanced"}
-                      />
-                    );
-                  }
+                      if (lines.length > 1) {
+                        return (
+                          <BuildingCardTarget
+                            key={key}
+                            focused={buildingTarget?.key === targetKey}
+                            targetKey={targetKey}
+                          >
+                            <SharedRecipeCard
+                              lines={lines}
+                              results={lines.map((sharedLine) => (
+                                moduleResult.regularResults.find(
+                                  (result) => result.recipe.id === sharedLine.recipe.id,
+                                )
+                              ))}
+                              outputModifiers={outputModifiers}
+                              diagnostic={factoryBuildingDiagnostics.find(
+                                (diagnostic) => diagnostic.key === key,
+                              )}
+                            />
+                          </BuildingCardTarget>
+                        );
+                      }
 
-                  return (
-                    <RecipeCard
-                      key={line.recipe.id}
-                      recipe={line.recipe}
-                      activeBuildings={line.activeBuildings}
-                      builtBuildings={line.builtBuildings}
-                      diagnostic={factoryBuildingDiagnostics.find(
-                        (diagnostic) => diagnostic.key === key,
-                      )}
-                      supplyRatio={result?.supplyRatio ?? 1}
-                      operatingMode={result?.operatingMode ?? "balanced"}
-                      speedLevel={line.speedLevel}
-                      actualInputs={result?.actualInputs}
-                      actualOutputs={result?.actualOutputs}
-                      outputModifiers={outputModifiers}
-                    />
-                  );
-                })}
-              </div>
-              </div>
-          ))}
+                      const result = moduleResult.regularResults.find(
+                        (regularResult) => regularResult.recipe.id === line.recipe.id,
+                      );
+
+                      if (line.recipe.decayStorage) {
+                        return (
+                          <BuildingCardTarget
+                            key={key}
+                            focused={buildingTarget?.key === targetKey}
+                            targetKey={targetKey}
+                          >
+                            <StorageCard
+                              recipe={line.recipe}
+                              storage={line.recipe.decayStorage}
+                              activeBuildings={line.activeBuildings}
+                              builtBuildings={line.builtBuildings}
+                              operatingMode={result?.operatingMode ?? "balanced"}
+                            />
+                          </BuildingCardTarget>
+                        );
+                      }
+
+                      return (
+                        <BuildingCardTarget
+                          key={key}
+                          focused={buildingTarget?.key === targetKey}
+                          targetKey={targetKey}
+                        >
+                          <RecipeCard
+                            recipe={line.recipe}
+                            activeBuildings={line.activeBuildings}
+                            builtBuildings={line.builtBuildings}
+                            diagnostic={factoryBuildingDiagnostics.find(
+                              (diagnostic) => diagnostic.key === key,
+                            )}
+                            supplyRatio={result?.supplyRatio ?? 1}
+                            operatingMode={result?.operatingMode ?? "balanced"}
+                            speedLevel={line.speedLevel}
+                            actualInputs={result?.actualInputs}
+                            actualOutputs={result?.actualOutputs}
+                            outputModifiers={outputModifiers}
+                          />
+                        </BuildingCardTarget>
+                      );
+                    })}
+                  </div>
+                </BuildingCardTarget>
+              );
+            })}
         </>
       )}
     </div>

@@ -1,7 +1,3 @@
-import {
-  defaultMaintenanceStatueCount,
-  maintenanceStatue,
-} from "../maintenance-statue";
 import { type Module } from "./modules";
 
 export const GENERAL_MODULE_ID = "general";
@@ -99,7 +95,6 @@ export const general: Module = {
     "crusher-large-iron": 1,
     "wastewater-treatment-toxic-slurry": 1,
     "evaporation-pond-heated-salt-brine": 1,
-    [maintenanceStatue.id]: defaultMaintenanceStatueCount,
   },
   presets: [
     {
@@ -195,34 +190,21 @@ export const general: Module = {
         "crusher-large-iron": 1,
         "wastewater-treatment-toxic-slurry": 1,
         "evaporation-pond-heated-salt-brine": 1,
-        [maintenanceStatue.id]: defaultMaintenanceStatueCount,
       },
       activeBuildings: {
         "settling-tank": 2,
+        "crusher-large-titanium": 0,
+        "arc-furnace-ii-titanium-ore": 0,
+        "chemical-plant-ii-titanium-chlorination": 0,
+        "chemical-plant-ii-titanium-reduction": 0,
+        "arc-furnace-ii-titanium-sponge": 0,
+        "alloy-mixer-titanium": 0,
+        "cooled-caster-ii-titanium-alloy": 0,
         "mill-wheat": 4,
         "baking-unit-bread": 3,
       },
-      fixed: [maintenanceStatue.id],
+      fixed: [],
     },
   ],
   defaultPresetId: "yellowcake",
-};
-
-export const createGeneralModule = (maintenanceStatueCount: number): Module => {
-  const normalizedCount = Math.max(0, Math.trunc(maintenanceStatueCount));
-
-  return {
-    ...general,
-    builtBuildings: {
-      ...general.builtBuildings,
-      [maintenanceStatue.id]: normalizedCount,
-    },
-    presets: general.presets.map((preset) => ({
-      ...preset,
-      builtBuildings: {
-        ...preset.builtBuildings,
-        [maintenanceStatue.id]: normalizedCount,
-      },
-    })),
-  };
 };

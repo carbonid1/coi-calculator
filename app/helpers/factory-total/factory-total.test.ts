@@ -17,7 +17,11 @@ describe("Factory Total contracts", () => {
       imported: 54,
       requiredImported: 54,
       uncoveredImported: 0,
+      importedPerTrip: 1_600,
+      fuelPerTrip: 289,
+      fuelPerProductionCycle: 9.75375,
     });
+
   });
 
   it("keeps uncovered Uranium demand visible instead of resizing the contract", () => {

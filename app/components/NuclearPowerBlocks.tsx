@@ -1,9 +1,11 @@
 import { type RegularResult, type ProductionLine } from "../helpers/calculate/calculate";
 import { type RecipeModifierMultipliers } from "../helpers/modifiers/recipe-output";
 import { createNuclearPowerBlocks } from "../helpers/nuclear-power-blocks/nuclear-power-blocks";
+import { BuildingCardTarget } from "./BuildingCardTarget";
 import { RecipeCard } from "./RecipeCard";
 
 interface Props {
+  focusedTargetKey?: string;
   lines: ProductionLine[];
   results: RegularResult[];
   outputModifiers: RecipeModifierMultipliers;
@@ -17,11 +19,13 @@ const powerLevelLabels: Record<number, string> = {
 };
 
 export const NuclearPowerBlocks: React.FC<Props> = ({
+  focusedTargetKey,
   lines,
   results,
   outputModifiers,
 }) => {
   const blocks = createNuclearPowerBlocks(lines, results);
+  const renderedTargetKeys = new Set<string>();
 
   return (
     <div className="space-y-3">
@@ -35,21 +39,35 @@ export const NuclearPowerBlocks: React.FC<Props> = ({
           </h3>
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {[block.reactor, ...block.turbineBank].map(({ line, result }) => (
-              <RecipeCard
-                key={`${block.id}:${line.recipe.id}`}
-                recipe={line.recipe}
-                activeBuildings={line.activeBuildings}
-                builtBuildings={line.builtBuildings}
-                supplyRatio={result?.supplyRatio ?? 0}
-                operatingMode={result?.operatingMode ?? "balanced"}
-                speedLevel={line.speedLevel}
-                actualInputs={result?.actualInputs}
-                actualOutputs={result?.actualOutputs}
-                outputModifiers={outputModifiers}
-                showConfigurationSummary={!line.recipe.id.startsWith("fbr-")}
-              />
-            ))}
+            {[block.reactor, ...block.turbineBank].map(({ line, result }) => {
+              const diagnosticKey = `${line.moduleId}:${line.recipe.id}`;
+              const isFirstForDiagnostic = !renderedTargetKeys.has(diagnosticKey);
+
+              renderedTargetKeys.add(diagnosticKey);
+
+              return (
+                <BuildingCardTarget
+                  key={`${block.id}:${line.recipe.id}`}
+                  focused={isFirstForDiagnostic && focusedTargetKey === diagnosticKey}
+                  targetKey={isFirstForDiagnostic
+                    ? diagnosticKey
+                    : `${diagnosticKey}:${block.id}`}
+                >
+                  <RecipeCard
+                    recipe={line.recipe}
+                    activeBuildings={line.activeBuildings}
+                    builtBuildings={line.builtBuildings}
+                    supplyRatio={result?.supplyRatio ?? 0}
+                    operatingMode={result?.operatingMode ?? "balanced"}
+                    speedLevel={line.speedLevel}
+                    actualInputs={result?.actualInputs}
+                    actualOutputs={result?.actualOutputs}
+                    outputModifiers={outputModifiers}
+                    showConfigurationSummary={!line.recipe.id.startsWith("fbr-")}
+                  />
+                </BuildingCardTarget>
+              );
+            })}
           </div>
         </section>
       ))}

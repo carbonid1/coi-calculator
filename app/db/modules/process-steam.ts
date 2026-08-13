@@ -16,6 +16,16 @@ export const processSteam: Module = {
     "sour-water-stripper": 1,
     "incineration-plant-waste": 1,
   },
-  presets: [],
-  defaultPresetId: null,
+  presets: [
+    {
+      id: "titanium-purification-paused",
+      name: "Titanium purification paused",
+      description: "Keeps the built Titanium purification column switched off",
+      activeBuildings: {
+        "distillation-stage-iii-titanium-purification": 0,
+      },
+      fixed: [],
+    },
+  ],
+  defaultPresetId: "titanium-purification-paused",
 };

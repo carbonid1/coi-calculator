@@ -4,7 +4,7 @@ export const maintenanceStatue = {
   baseReductionPercent: 4,
   additionalEffectMultiplier: 0.5,
   fuelGasPerCycle: 2,
-  gameVersion: "0.8.6",
+  gameVersion: "0.8.7",
 } as const;
 
 export const defaultMaintenanceStatueCount = 3;

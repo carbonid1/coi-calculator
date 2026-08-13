@@ -5,6 +5,7 @@ import {
   type RegularResult,
 } from "../helpers/calculate/calculate";
 import { type RecipeModifierMultipliers } from "../helpers/modifiers/recipe-output";
+import { BuildingCardTarget } from "./BuildingCardTarget";
 import { NuclearPowerBlocks } from "./NuclearPowerBlocks";
 import { RecipeCard } from "./RecipeCard";
 import { SharedRecipeCard } from "./SharedRecipeCard";
@@ -12,6 +13,7 @@ import { SinkCard } from "./SinkCard";
 import { StorageCard } from "./StorageCard";
 
 interface Props {
+  focusedTargetKey?: string;
   lines: ProductionLine[];
   regularResults: RegularResult[];
   sourceResults: PassiveResult[];
@@ -46,6 +48,7 @@ const selectLines = (lines: ProductionLine[], recipeIds: readonly string[]) => (
 );
 
 export const NuclearModuleSections: React.FC<Props> = ({
+  focusedTargetKey,
   lines,
   regularResults,
   sourceResults,
@@ -54,49 +57,77 @@ export const NuclearModuleSections: React.FC<Props> = ({
   outputModifiers,
 }) => {
   const renderLine = (line: ProductionLine) => {
+    const targetKey = line.capacityPoolId ?? `${line.moduleId}:${line.recipe.id}`;
+
     if (line.recipe.group === "source") {
       const result = sourceResults.find((candidate) => candidate.recipe.id === line.recipe.id);
 
-      return result ? <SinkCard key={line.recipe.id} result={result} role="source" /> : null;
+      return result ? (
+        <BuildingCardTarget
+          key={line.recipe.id}
+          focused={focusedTargetKey === targetKey}
+          targetKey={targetKey}
+        >
+          <SinkCard result={result} role="source" />
+        </BuildingCardTarget>
+      ) : null;
     }
 
     if (line.recipe.group === "sink") {
       const result = sinkResults.find((candidate) => candidate.recipe.id === line.recipe.id);
 
-      return result ? <SinkCard key={line.recipe.id} result={result} role="sink" /> : null;
+      return result ? (
+        <BuildingCardTarget
+          key={line.recipe.id}
+          focused={focusedTargetKey === targetKey}
+          targetKey={targetKey}
+        >
+          <SinkCard result={result} role="sink" />
+        </BuildingCardTarget>
+      ) : null;
     }
 
     const result = regularResults.find((candidate) => candidate.recipe.id === line.recipe.id);
 
     if (line.recipe.decayStorage) {
       return (
-        <StorageCard
+        <BuildingCardTarget
           key={line.recipe.id}
-          recipe={line.recipe}
-          storage={line.recipe.decayStorage}
-          activeBuildings={line.activeBuildings}
-          builtBuildings={line.builtBuildings}
-          operatingMode={result?.operatingMode ?? "balanced"}
-        />
+          focused={focusedTargetKey === targetKey}
+          targetKey={targetKey}
+        >
+          <StorageCard
+            recipe={line.recipe}
+            storage={line.recipe.decayStorage}
+            activeBuildings={line.activeBuildings}
+            builtBuildings={line.builtBuildings}
+            operatingMode={result?.operatingMode ?? "balanced"}
+          />
+        </BuildingCardTarget>
       );
     }
 
     return (
-      <RecipeCard
+      <BuildingCardTarget
         key={line.recipe.id}
-        recipe={line.recipe}
-        activeBuildings={line.activeBuildings}
-        builtBuildings={line.builtBuildings}
-        diagnostic={diagnostics.find(
-          (diagnostic) => diagnostic.key === `${line.moduleId}:${line.recipe.id}`,
-        )}
-        supplyRatio={result?.supplyRatio ?? 1}
-        operatingMode={result?.operatingMode ?? "balanced"}
-        speedLevel={line.speedLevel}
-        actualInputs={result?.actualInputs}
-        actualOutputs={result?.actualOutputs}
-        outputModifiers={outputModifiers}
-      />
+        focused={focusedTargetKey === targetKey}
+        targetKey={targetKey}
+      >
+        <RecipeCard
+          recipe={line.recipe}
+          activeBuildings={line.activeBuildings}
+          builtBuildings={line.builtBuildings}
+          diagnostic={diagnostics.find(
+            (diagnostic) => diagnostic.key === targetKey,
+          )}
+          supplyRatio={result?.supplyRatio ?? 1}
+          operatingMode={result?.operatingMode ?? "balanced"}
+          speedLevel={line.speedLevel}
+          actualInputs={result?.actualInputs}
+          actualOutputs={result?.actualOutputs}
+          outputModifiers={outputModifiers}
+        />
+      </BuildingCardTarget>
     );
   };
 
@@ -105,6 +136,7 @@ export const NuclearModuleSections: React.FC<Props> = ({
   const waterAndSteamLines = selectLines(lines, waterAndSteamRecipeIds);
   const coolingLines = waterAndSteamLines.filter((line) => line.capacityPoolId);
   const waterProductionLines = waterAndSteamLines.filter((line) => !line.capacityPoolId);
+  const coolingTargetKey = coolingLines[0]?.capacityPoolId;
 
   return (
     <>
@@ -116,6 +148,7 @@ export const NuclearModuleSections: React.FC<Props> = ({
           Nuclear &amp; waste
         </h2>
         <NuclearPowerBlocks
+          focusedTargetKey={focusedTargetKey}
           lines={electricityLines}
           results={regularResults}
           outputModifiers={outputModifiers}
@@ -134,16 +167,23 @@ export const NuclearModuleSections: React.FC<Props> = ({
         </h2>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
           {waterProductionLines.map(renderLine)}
-          <SharedRecipeCard
-            lines={coolingLines}
-            results={coolingLines.map((line) => (
-              sinkResults.find((result) => result.recipe.id === line.recipe.id)
-            ))}
-            outputModifiers={outputModifiers}
-            diagnostic={diagnostics.find(
-              (diagnostic) => diagnostic.key === coolingLines[0]?.capacityPoolId,
-            )}
-          />
+          {coolingTargetKey && (
+            <BuildingCardTarget
+              focused={focusedTargetKey === coolingTargetKey}
+              targetKey={coolingTargetKey}
+            >
+              <SharedRecipeCard
+                lines={coolingLines}
+                results={coolingLines.map((line) => (
+                  sinkResults.find((result) => result.recipe.id === line.recipe.id)
+                ))}
+                outputModifiers={outputModifiers}
+                diagnostic={diagnostics.find(
+                  (diagnostic) => diagnostic.key === coolingTargetKey,
+                )}
+              />
+            </BuildingCardTarget>
+          )}
         </div>
       </section>
     </>
