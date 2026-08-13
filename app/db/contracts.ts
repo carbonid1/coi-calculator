@@ -5,8 +5,6 @@ interface ContractResource {
   quantity: number;
 }
 
-export type ContractMode = "continuous" | "temporary";
-
 export type ContractLocationId =
   | "settlement-2"
   | "settlement-3"
@@ -33,17 +31,36 @@ export interface Contract {
   gameVersion: string;
 }
 
-export const contractsGameVersion = "0.8.7";
+export interface ContractCargoModulePlan {
+  buildingName: "Loose Module (L)" | "Unit Module (L)";
+  count: number;
+  direction: "export" | "import";
+  resourceId: ResourceId;
+  workersPerModule: number;
+}
 
-/**
- * Contracts use one dedicated size-8 cargo ship and eight large cargo modules.
- * Installed v0.8.7 game data reserves 36 workers for the ship and 5 per module.
- */
-export const contractInfrastructure = {
-  cargoShipWorkers: 36,
-  cargoModuleCount: 8,
-  workersPerCargoModule: 5,
-} as const;
+export interface ActiveContractPlan {
+  /** Fixed shipment allocation. Factory demand never resizes an active contract. */
+  importedPerProductionCycle: number;
+  infrastructure: {
+    cargoDepotSize: 2 | 4 | 6 | 8;
+    cargoModules: readonly ContractCargoModulePlan[];
+    cargoShipWorkers: number;
+  };
+  /** Informational only: ship fuel is assumed to be covered by the island plan. */
+  shipping: {
+    fuelPerTrip: number;
+    fuelResourceId: ResourceId;
+    importedPerTrip: number;
+    saveFuel: boolean;
+  };
+}
+
+export interface ActiveContract extends Contract {
+  plan: ActiveContractPlan;
+}
+
+export const contractsGameVersion = "0.8.7";
 
 const toSlug = (resourceId: ResourceId) => resourceId
   .replaceAll(/([a-z\d])([A-Z])/g, "$1-$2")
@@ -144,18 +161,51 @@ export const contracts: Contract[] = [
   defineContract("ship-settlement", "copperOre", 1, "ironOre", 1, 0.08, 0.3, 1),
 ];
 
-export const defaultActiveContractIds = ["uranium-ore-for-food-pack"];
+const defineActiveContract = (
+  contractId: string,
+  plan: ActiveContractPlan,
+): ActiveContract => {
+  const contract = contracts.find((candidate) => candidate.id === contractId);
 
-const defaultActiveContractIdSet = new Set(defaultActiveContractIds);
+  if (!contract) throw new Error(`Unknown active contract: ${contractId}`);
 
-/** Default plan retained for calculations and tests that do not provide user state. */
-export const activeContracts = contracts.filter((contract) => defaultActiveContractIdSet.has(contract.id));
+  return { ...contract, plan };
+};
 
-export const defaultContractModes = activeContracts.reduce<Record<string, ContractMode>>(
-  (modes, contract) => {
-    modes[contract.id] = "temporary";
+/**
+ * Locked physical contract plan. The 54 Uranium Ore allocation exactly covers
+ * the current two-FBR checkpoint and stays fixed when factory demand changes.
+ */
+export const activeContracts: ActiveContract[] = [
+  defineActiveContract("uranium-ore-for-food-pack", {
+    importedPerProductionCycle: 54,
+    infrastructure: {
+      cargoDepotSize: 4,
+      cargoShipWorkers: 22,
+      cargoModules: [
+        {
+          buildingName: "Unit Module (L)",
+          count: 2,
+          direction: "export",
+          resourceId: "foodPack",
+          workersPerModule: 5,
+        },
+        {
+          buildingName: "Loose Module (L)",
+          count: 2,
+          direction: "import",
+          resourceId: "uraniumOre",
+          workersPerModule: 5,
+        },
+      ],
+    },
+    shipping: {
+      fuelPerTrip: 289,
+      fuelResourceId: "hydrogen",
+      importedPerTrip: 1000,
+      saveFuel: true,
+    },
+  }),
+];
 
-    return modes;
-  },
-  {},
-);
+export const defaultActiveContractIds = activeContracts.map((contract) => contract.id);

@@ -13,7 +13,7 @@ v0.8.7 game data.
 - 1 power reactor at Power IV / 0x breeding
 - 255 MW gross turbine capacity
 - 50 MW planned average Nuclear generation
-- 45 Hydrogen per cycle for vehicle fuel
+- 50 Hydrogen Fuel per cycle
 
 ## Reactor and fuel balance
 
@@ -54,18 +54,18 @@ The initial 50 MW target dispatches two turbine trains at a combined 1.67 / 2
 average load. The breeder's single turbine train remains available, while the
 eight-train bank belongs to the Power IV reactor. Solar output is additional.
 
-All four existing Hydrogen Reformers remain active to cover the configured 45
-Hydrogen vehicle-fuel target, shared factory demand, and short demand spikes.
-Their average output remains demand-balanced.
+Keep all four existing Hydrogen Reformers installed, with three active and one
+paused. The active set covers the configured 50 Hydrogen Fuel target while
+remaining demand-balanced.
 
 Hydrogen demand is allocated first. The desalinators then run only as much as
-needed for Water and Brine, preferring four Depleted-Steam units before four
-Super-Steam units. Low Steam continues through the turbine chain instead of
-using the inefficient Low-Steam desalination recipe. The four physical cooling
-towers all have both Super- and Depleted-Steam recipes enabled. Three remain
-active and share their capacity between the remaining streams; the fourth is a
-paused reserve. Any steam beyond the active capacity stays visible as excess in
-the calculator.
+needed for Water and Brine, preferring four Depleted-Steam units before five
+Super-Steam units. The intended Thermal Desalinator route for surplus Low Steam
+remains deferred in the calculator, so that excess stays visible for now. The
+four physical cooling towers all have both Super- and Depleted-Steam recipes
+enabled. Three remain active and share their capacity between the remaining
+streams; the fourth is a paused reserve. Any other steam beyond the active
+capacity also stays visible as excess in the calculator.
 
 ## Building counts
 
@@ -79,9 +79,9 @@ the calculator.
 | Chemical Plant II — Yellowcake | 2 | 2 |
 | Each turbine tier | 9 | 2 |
 | Power Generator II | 18 | 4 |
-| Hydrogen Reformer | 4 | 4 |
+| Hydrogen Reformer | 4 | 3 |
 | Thermal Desalinator — Depleted | 4 | 4 |
-| Thermal Desalinator — Super | 4 | 4 |
+| Thermal Desalinator — Super | 5 | 5 |
 | Cooling Tower (Large) — shared Super/Depleted recipes | 4 | 3 |
 | Radioactive Waste Storage | 1 | 1 |
 | Shredder | 1 | 1 |

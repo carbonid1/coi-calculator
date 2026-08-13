@@ -43,7 +43,7 @@ it("caps demand-balanced Groundwater Pumps and leaves Water at equilibrium", () 
       .filter((module) => module.id !== NUCLEAR_MODULE_ID)
       .concat(createFbrPowerPlantModule({
         averageNuclearGenerationMw: 30.2,
-        hydrogenFuelDemandPerCycle: 45,
+        hydrogenFuelDemandPerCycle: 50,
       })),
     activeContracts,
   );

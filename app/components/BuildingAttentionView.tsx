@@ -1,5 +1,5 @@
 import { Button, Tooltip } from "@carbonid1/design-system";
-import { CirclePause, Hammer, Play } from "lucide-react";
+import { CircleMinus, CirclePause, CirclePlus, Hammer, Play, RefreshCw } from "lucide-react";
 
 import {
   type BuildingDiagnostic,
@@ -13,12 +13,16 @@ interface Props {
 const labels = {
   build: "Build",
   "can-pause": "Can pause",
+  "rebalance-farms": "Rebalance farms",
   unpause: "Unpause",
 } as const;
 
 const icons = {
+  "add-animals": CirclePlus,
   build: Hammer,
   "can-pause": CirclePause,
+  "rebalance-farms": RefreshCw,
+  "remove-animals": CircleMinus,
   unpause: Play,
 } as const;
 
@@ -29,6 +33,20 @@ const getTooltip = (diagnostic: BuildingDiagnostic) => {
     ? ` Affects ${diagnostic.affectedResources.join(", ")}.`
     : "";
 
+  if (diagnostic.attention === "add-animals" && diagnostic.animalPopulation) {
+    const { additionalBuildings, label } = diagnostic.animalPopulation;
+    const capacityNote = additionalBuildings > 0
+      ? ` Also requires ${additionalBuildings} more ${diagnostic.buildingName}${additionalBuildings === 1 ? "" : "s"}.`
+      : "";
+
+    return `Direct output demand requires ${diagnostic.attentionCount.toLocaleString()} more ${label}.${affected}${capacityNote}`;
+  }
+  if (diagnostic.attention === "remove-animals" && diagnostic.animalPopulation) {
+    return `Every direct output remains covered with ${diagnostic.attentionCount.toLocaleString()} fewer ${diagnostic.animalPopulation.label}.`;
+  }
+  if (diagnostic.attention === "rebalance-farms") {
+    return `Fixed crop rotations no longer cover ${diagnostic.affectedResources.join(", ")}. Rebalance the schedules before adding Greenhouse capacity.`;
+  }
   if (diagnostic.attention === "can-pause") {
     return `Current average load fits in fewer active buildings.${affected}`;
   }
@@ -38,6 +56,30 @@ const getTooltip = (diagnostic: BuildingDiagnostic) => {
 
   return `Current capacity is constrained and every built building is active.${affected}`;
 };
+
+const getAttentionLabel = (diagnostic: BuildingDiagnostic) => {
+  if (
+    diagnostic.attention === "add-animals"
+    || diagnostic.attention === "remove-animals"
+  ) {
+    const verb = diagnostic.attention === "add-animals" ? "Add" : "Remove";
+    const label = diagnostic.animalPopulation?.label ?? "animals";
+
+    return `${verb} ${diagnostic.attentionCount.toLocaleString()} ${label}`;
+  }
+
+  if (!diagnostic.attention) return "";
+
+  return `${labels[diagnostic.attention]}${diagnostic.attentionCount > 0
+    ? ` ${diagnostic.attentionCount}`
+    : ""}`;
+};
+
+const isAttentionNotice = (attention: BuildingDiagnostic["attention"]) => (
+  attention === "can-pause"
+  || attention === "rebalance-farms"
+  || attention === "remove-animals"
+);
 
 export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenModule }) => {
   const actionable = diagnostics
@@ -62,6 +104,7 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenModu
 
           const Icon = icons[attention];
           const tooltip = getTooltip(diagnostic);
+          const notice = isAttentionNotice(attention);
 
           return (
             <Tooltip key={diagnostic.key} label={tooltip} maxWidth={320}>
@@ -73,7 +116,7 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenModu
                 onClick={() => onOpenModule(diagnostic.moduleId)}
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <Icon aria-hidden="true" className={attention === "can-pause"
+                  <Icon aria-hidden="true" className={notice
                     ? "size-4 shrink-0 text-attention-foreground"
                     : "size-4 shrink-0 text-destructive"}
                   />
@@ -87,16 +130,18 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenModu
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className={attention === "can-pause"
+                  <span className={notice
                     ? "block text-xs font-medium text-attention-foreground"
                     : "block text-xs font-medium text-destructive"}
                   >
-                    {labels[attention]} {diagnostic.attentionCount > 0
-                      ? diagnostic.attentionCount
-                      : ""}
+                    {getAttentionLabel(diagnostic)}
                   </span>
                   <span className="block font-mono text-xs text-muted-foreground">
-                    {formatCount(diagnostic.load)} / {formatCount(diagnostic.active)} active
+                    {attention === "rebalance-farms"
+                      ? `${diagnostic.affectedResources.join(", ")} short`
+                      : diagnostic.animalPopulation
+                      ? `${formatCount(diagnostic.animalPopulation.current)} / ${formatCount(diagnostic.animalPopulation.capacity)} ${diagnostic.animalPopulation.label}`
+                      : `${formatCount(diagnostic.load)} / ${formatCount(diagnostic.active)} active`}
                   </span>
                 </span>
               </Button>

@@ -108,11 +108,11 @@ export const defaultEdictLevels: Record<EdictId, EdictLevel> = {
   moreHouseholdGoods: 0,
   moreAirConditioners: 0,
   moreConsumerElectronics: 0,
-  vehiclesFuelSaver: 0,
+  vehiclesFuelSaver: 1,
   shipsFuelSaver: 0,
-  overloadedTrucks: 0,
+  overloadedTrucks: 2,
   maintenanceReducer: 3,
-  recyclingIncrease: 3,
+  recyclingIncrease: 4,
   farmingBoost: 1,
   waterSaver: 0,
   cleanPanels: 0,
@@ -226,7 +226,7 @@ export const maintenanceReducerEdict = {
 };
 
 export const defaultActiveEdicts = {
-  recyclingIncrease: 3,
+  recyclingIncrease: 4,
   cleanPanels: 0,
   farmingBoost: 1,
   maintenanceReducer: 3,

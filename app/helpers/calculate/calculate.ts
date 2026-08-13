@@ -156,7 +156,9 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
 };
 
 const orderDemandBalancedLines = (lines: ProductionLine[]) => {
-  const priorityOrderedLines = orderInputPriorities(lines);
+  const priorityOrderedLines = orderInputPriorities(lines).toSorted((a, b) => (
+    (a.recipe.demandPriority ?? 0) - (b.recipe.demandPriority ?? 0)
+  ));
   const ordered: ProductionLine[] = [];
   const visiting = new Set<ProductionLine>();
   const visited = new Set<ProductionLine>();
@@ -259,6 +261,7 @@ export const calculateNet = (
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
   outputModifiers: RecipeModifierMultipliers = {},
   externalDemands: Partial<Record<ResourceId, number>> = {},
+  nonConstrainingExternalInputIds: ReadonlySet<ResourceId> = new Set(),
 ) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
@@ -295,6 +298,9 @@ export const calculateNet = (
   const externalEntries = typedEntries(externalInputs);
   const externalDemandEntries = typedEntries(externalDemands);
   const externalIds = new Set(externalEntries.map(([id]) => id));
+  const hardExternalIds = new Set(
+    [...externalIds].filter((id) => !nonConstrainingExternalInputIds.has(id)),
+  );
   const internallyProducedIds = new Set(
     lines.flatMap((line) => line.recipe.outputs.map((output) => output.resourceId)),
   );
@@ -377,7 +383,7 @@ export const calculateNet = (
   for (const [id, flow] of simFlows) {
     if (
       flow.consumed > flow.produced
-      && (internallyProducedIds.has(id) || externalIds.has(id))
+      && (internallyProducedIds.has(id) || hardExternalIds.has(id))
     ) {
       constrained.add(id);
     }
@@ -538,8 +544,9 @@ export const calculateNet = (
 
   // Propagate demand from consumers to producers. Internally produced inputs are
   // intentionally allowed to go temporarily negative because their upstream
-  // recipes run later in this downstream-to-upstream pass. An explicit external
-  // supply with no internal producer (including zero) remains a hard limit.
+  // recipes run later in this downstream-to-upstream pass. Explicit external
+  // supplies remain hard limits unless the caller asks to expose an uncovered
+  // balance, as fixed-capacity contracts do.
   for (const line of demandBalancedLines) {
     if (line.activeBuildings === 0) {
       applyRegularLine(line, 0);
@@ -558,7 +565,7 @@ export const calculateNet = (
         if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
         continue;
       }
-      if (!externalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
+      if (!hardExternalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
 
       const flow = getFlow(input.resourceId);
       const available = flow.produced - flow.consumed;
@@ -678,7 +685,7 @@ export const calculateNet = (
             if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
             continue;
           }
-          if (!externalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
+          if (!hardExternalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
 
           const flow = getFlow(input.resourceId);
           const available = flow.produced - flow.consumed;

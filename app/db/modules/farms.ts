@@ -26,8 +26,6 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
   const builtBuildings = {
     ...cropFarmTotals,
     [farmRecipeId]: chickenLayout.farmCount,
-    "food-processor-meat": 1,
-    "food-processor-meat-trimmings": 1,
   };
 
   return {
@@ -39,7 +37,7 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
       {
         id: "current-farm-plan",
         name: "Current Farm Plan",
-        description: `${cropFarmCount} Greenhouse IIs, ${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens, and one Food Processor`,
+        description: `${cropFarmCount} Greenhouse IIs and ${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens`,
         activeBuildings: builtBuildings,
         fixed: [...fixedCropFarmIds, farmRecipeId],
         speedLevels: {

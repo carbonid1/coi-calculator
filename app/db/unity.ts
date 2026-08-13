@@ -1,4 +1,3 @@
-import { type ContractMode } from "./contracts";
 import { type EdictId, type EdictLevel, edictCatalog } from "./edicts";
 import { type HousingType } from "./housing";
 import { settlementFoods } from "./settlement";
@@ -49,10 +48,11 @@ export interface UnityBudget {
 }
 
 interface ContractUnityInput {
+  id: string;
+  name: string;
   importedPerCycle: number;
   fixedUnityPerCycle: number;
   unityPer100Imported: number;
-  mode: ContractMode;
 }
 
 export const calculateUnityBudget = ({
@@ -127,15 +127,18 @@ export const calculateUnityBudget = ({
 
     return total + (active?.unityCostPerCycle ?? 0);
   }, 0);
-  const contractConsumption = contracts.reduce((total, contract) => {
-    if (contract.mode === "temporary") return total;
+  const contractConsumption: UnityBreakdownItem[] = contracts.map((contract) => {
     const variable = contract.unityPer100Imported * contract.importedPerCycle / 100;
 
-    return total + contract.fixedUnityPerCycle + variable;
-  }, 0);
+    return {
+      id: `contract-${contract.id}`,
+      name: contract.name,
+      amount: contract.fixedUnityPerCycle + variable,
+    };
+  });
   const consumption: UnityBreakdownItem[] = [
     ...(edictConsumption > 0 ? [{ id: "edicts", name: "Edicts", amount: edictConsumption }] : []),
-    ...(contractConsumption > 0 ? [{ id: "contracts", name: "Continuous contracts", amount: contractConsumption }] : []),
+    ...contractConsumption.filter((item) => item.amount > 0),
     ...buildingConsumption.filter((item) => item.amount > 0),
   ];
   const generationPerCycle = generation.reduce((total, item) => total + item.amount, 0);

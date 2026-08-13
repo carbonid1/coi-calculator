@@ -1,74 +1,68 @@
-import { Card, cn } from "@carbonid1/design-system";
+import { Card } from "@carbonid1/design-system";
 
-import { type Contract, type ContractMode } from "../db/contracts";
+import { type Contract } from "../db/contracts";
 import { resources } from "../db/resources";
-import { type ContractResult } from "../helpers/contracts/calculate-contracts";
+import {
+  calculateContractWorkerBreakdown,
+  type ContractResult,
+} from "../helpers/contracts/calculate-contracts";
 
 interface Props {
   activeContractIds: string[];
   contracts: Contract[];
-  modes: Record<string, ContractMode>;
   results: ContractResult[];
 }
 
-const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2)).toLocaleString();
+const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(3)).toLocaleString();
 
 const ContractTerms: React.FC<{ contract: Contract }> = ({ contract }) => {
   const importedResource = resources[contract.exchange.imported.resourceId];
 
   return (
     <p className="text-xs text-muted-foreground">
-      {contract.unity.perProductionCycle} fixed/cycle
+      {contract.unity.perProductionCycle} Unity/month
       {" + "}
       {contract.unity.per100Imported}/100 {importedResource.name}
-      {" · "}
-      {formatQuantity(contract.unity.establish)} establish
       {" · "}
       Rep {contract.minimumReputation}
     </p>
   );
 };
 
-const ModeSummary: React.FC<{ contractName: string; mode: ContractMode }> = ({
-  contractName,
-  mode,
-}) => (
-  <div className="flex gap-1" aria-label={`${contractName} planning mode`}>
-    {(["temporary", "continuous"] as const).map((option) => (
-      <span
-        key={option}
-        className={cn(
-          "rounded-lg px-2 py-1 text-xs text-muted-foreground",
-          option === mode && "bg-primary/10 text-foreground ring-1 ring-primary/20",
-        )}
-      >
-        {option === "temporary" ? "Temporary" : "Continuous"}
-      </span>
-    ))}
+const DataRow: React.FC<{
+  label: string;
+  value: React.ReactNode;
+}> = ({ label, value }) => (
+  <div className="flex items-baseline justify-between gap-4 rounded-lg px-2 py-1.5 hover:bg-accent">
+    <dt className="text-sm text-muted-foreground">{label}</dt>
+    <dd className="text-right font-mono text-sm font-semibold tabular-nums text-foreground">
+      {value}
+    </dd>
   </div>
 );
 
-const ActiveContractCard: React.FC<{
-  mode: ContractMode;
-  result: ContractResult;
-}> = ({ mode, result }) => {
-  const { contract, exported, imported } = result;
+const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) => {
+  const {
+    contract,
+    exported,
+    imported,
+  } = result;
   const exportedResource = resources[contract.exchange.exported.resourceId];
   const importedResource = resources[contract.exchange.imported.resourceId];
+  const fuelResource = resources[contract.plan.shipping.fuelResourceId];
+  const workerBreakdown = calculateContractWorkerBreakdown(contract);
   const variableUnityPerCycle = imported * contract.unity.per100Imported / 100;
-  const recurringUnityPerCycle = mode === "continuous"
-    ? contract.unity.perProductionCycle + variableUnityPerCycle
+  const recurringUnityPerCycle = contract.unity.perProductionCycle + variableUnityPerCycle;
+  const fuelPerProductionCycle = imported > 0
+    ? imported / contract.plan.shipping.importedPerTrip * contract.plan.shipping.fuelPerTrip
     : 0;
 
   return (
     <Card.Root>
-      <Card.Content>
+      <Card.Content className="space-y-4">
         <Card.Header>
           <div className="space-y-1">
             <Card.Title>{contract.name}</Card.Title>
-            <Card.Description>
-              {contract.exchange.exported.quantity.toLocaleString()} for {contract.exchange.imported.quantity.toLocaleString()}
-            </Card.Description>
           </div>
           <Card.Action>
             <span className="text-xs font-medium text-foreground">Active</span>
@@ -76,28 +70,48 @@ const ActiveContractCard: React.FC<{
         </Card.Header>
 
         <div className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-          {imported > 0 ? (
-            <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-base font-semibold text-foreground">
-              <span>{formatQuantity(exported)} {exportedResource.name}</span>
-              <span className="text-muted-foreground" aria-hidden="true">→</span>
-              <span>{formatQuantity(imported)} {importedResource.name}</span>
-              <span className="text-xs font-normal text-muted-foreground">/ cycle</span>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No {importedResource.name} deficit
-            </p>
-          )}
+          <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-base font-semibold text-foreground">
+            <span>{formatQuantity(exported)} {exportedResource.name}</span>
+            <span className="text-muted-foreground" aria-hidden="true">→</span>
+            <span>{formatQuantity(imported)} {importedResource.name}</span>
+            <span className="text-xs font-normal text-muted-foreground">/ month</span>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ModeSummary contractName={contract.name} mode={mode} />
-          <p className="text-sm text-muted-foreground">
-            <span className="font-mono text-foreground">{formatQuantity(recurringUnityPerCycle)}</span> Unity/cycle included
-          </p>
-        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="space-y-2" aria-labelledby={`${contract.id}-build-heading`}>
+            <h4 id={`${contract.id}-build-heading`} className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Build
+            </h4>
+            <dl className="rounded-lg bg-surface-inset p-1 inset-shadow-surface">
+              <DataRow
+                label={`1× Cargo Depot (${contract.plan.infrastructure.cargoDepotSize}) + Cargo Ship`}
+                value={`${workerBreakdown.cargoShipWorkers} workers`}
+              />
+              {contract.plan.infrastructure.cargoModules.map((module) => (
+                <DataRow
+                  key={`${module.direction}-${module.resourceId}`}
+                  label={`${module.count}× ${module.buildingName} · ${resources[module.resourceId].name} ${module.direction}`}
+                  value={`${module.count * module.workersPerModule} workers`}
+                />
+              ))}
+              <DataRow label="Total" value={`${workerBreakdown.total} workers`} />
+            </dl>
+          </section>
 
-        <ContractTerms contract={contract} />
+          <section className="space-y-2" aria-labelledby={`${contract.id}-operating-heading`}>
+            <h4 id={`${contract.id}-operating-heading`} className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Operating
+            </h4>
+            <dl className="rounded-lg bg-surface-inset p-1 inset-shadow-surface">
+              <DataRow label="Unity" value={`${formatQuantity(recurringUnityPerCycle)} / month`} />
+              <DataRow
+                label="Ship fuel"
+                value={`${formatQuantity(fuelPerProductionCycle)} ${fuelResource.name} / month`}
+              />
+            </dl>
+          </section>
+        </div>
       </Card.Content>
     </Card.Root>
   );
@@ -125,7 +139,6 @@ const InactiveContractCard: React.FC<{ contract: Contract }> = ({ contract }) =>
 export const ContractsView: React.FC<Props> = ({
   activeContractIds,
   contracts,
-  modes,
   results,
 }) => {
   const activeIdSet = new Set(activeContractIds);
@@ -149,7 +162,7 @@ export const ContractsView: React.FC<Props> = ({
       <div>
         <h2 className="text-xl font-semibold text-foreground">Contracts</h2>
         <p className="text-sm text-muted-foreground">
-          Active contracts cover matching Factory Total deficits. Temporary mode omits recurring Unity; continuous mode includes it.
+          Fixed import plans. Factory growth leaves uncovered demand visible.
         </p>
       </div>
 
@@ -158,13 +171,9 @@ export const ContractsView: React.FC<Props> = ({
           Active · {activeResults.length}
         </h3>
         {activeResults.length > 0 ? (
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3">
             {activeResults.map((result) => (
-              <ActiveContractCard
-                key={result.contract.id}
-                result={result}
-                mode={modes[result.contract.id] ?? "temporary"}
-              />
+              <ActiveContractCard key={result.contract.id} result={result} />
             ))}
           </div>
         ) : (

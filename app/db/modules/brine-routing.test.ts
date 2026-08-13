@@ -44,7 +44,7 @@ it("routes Nuclear steam through useful Water and Brine production before coolin
     (candidate) => candidate.recipe.id === "thermal-desalinator-super",
   );
 
-  expect(superDesalination?.activeBuildings).toBe(4);
+  expect(superDesalination?.activeBuildings).toBe(5);
   expect(superDesalination?.supplyRatio ?? 0).toBeGreaterThan(0);
   expect(superDesalination?.actualOutputs.find(
     (output) => output.resourceId === "brine",

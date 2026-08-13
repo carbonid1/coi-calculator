@@ -6,7 +6,20 @@ import {
   type ResourceFlow,
 } from "../calculate/calculate";
 
-export type BuildingAttention = "build" | "can-pause" | "unpause";
+export type BuildingAttention =
+  | "add-animals"
+  | "build"
+  | "can-pause"
+  | "rebalance-farms"
+  | "remove-animals"
+  | "unpause";
+
+export interface AnimalPopulationDiagnostic {
+  current: number;
+  capacity: number;
+  label: string;
+  additionalBuildings: number;
+}
 
 export interface BuildingDiagnostic {
   key: string;
@@ -18,6 +31,7 @@ export interface BuildingDiagnostic {
   built: number;
   attention: BuildingAttention | null;
   attentionCount: number;
+  animalPopulation?: AnimalPopulationDiagnostic;
   affectedResources: string[];
 }
 
@@ -34,6 +48,89 @@ export const getBuildingKey = (result: Result) => (
 const isRegularResult = (result: Result): result is RegularResult => (
   "operatingMode" in result
 );
+
+const roundUpToStep = (value: number, step: number) => (
+  Math.ceil(Math.max(0, value - EPSILON) / step) * step
+);
+
+const roundDownToStep = (value: number, step: number) => (
+  Math.floor(Math.max(0, value + EPSILON) / step) * step
+);
+
+const getAnimalPopulationDiagnostic = (
+  results: Result[],
+  flowsById: Map<ResourceId, ResourceFlow>,
+) => {
+  if (results.length !== 1) return null;
+
+  const result = results[0];
+
+  if (!result || !isRegularResult(result)) return null;
+
+  const populationCapacity = result.recipe.animalPopulationCapacity;
+
+  if (!populationCapacity || populationCapacity <= 0) return null;
+
+  const populationStep = result.recipe.animalPopulationStep ?? 1;
+  const current = result.activeBuildings * populationCapacity * result.speedLevel;
+  const capacity = result.builtBuildings * populationCapacity;
+  const outputRates = result.recipe.outputs.flatMap((output) => {
+    const ratePerAnimal = output.quantity / populationCapacity;
+    const flow = flowsById.get(output.resourceId);
+
+    return flow && ratePerAnimal > 0
+      ? [{ output, flow, ratePerAnimal }]
+      : [];
+  });
+  const shortages = outputRates.filter(({ flow }) => flow.net < -EPSILON);
+  const label = result.recipe.animalPopulationLabel ?? "animals";
+
+  if (shortages.length > 0) {
+    const unroundedIncrease = Math.max(...shortages.map(
+      ({ flow, ratePerAnimal }) => -flow.net / ratePerAnimal,
+    ));
+    const attentionCount = roundUpToStep(unroundedIncrease, populationStep);
+    const requiredPopulation = current + attentionCount;
+    const requiredBuildings = Math.ceil(
+      Math.max(0, requiredPopulation - EPSILON) / populationCapacity,
+    );
+
+    return {
+      attention: "add-animals" as const,
+      attentionCount,
+      animalPopulation: {
+        current,
+        capacity,
+        label,
+        additionalBuildings: Math.max(0, requiredBuildings - result.builtBuildings),
+      },
+      affectedResourceIds: shortages.map(({ output }) => output.resourceId),
+    };
+  }
+
+  // This is deliberately conservative. A livestock output consumed by a fallback
+  // recipe has zero net surplus, so it prevents a removal recommendation even if
+  // another output is overproduced. Removing animals is only safe when every
+  // direct output has enough visible surplus to absorb the same flock reduction.
+  const removablePopulation = outputRates.length > 0
+    ? Math.min(current, ...outputRates.map(({ flow, ratePerAnimal }) => (
+        Math.max(0, flow.net) / ratePerAnimal
+      )))
+    : 0;
+  const attentionCount = roundDownToStep(removablePopulation, populationStep);
+
+  return {
+    attention: attentionCount >= populationStep ? "remove-animals" as const : null,
+    attentionCount,
+    animalPopulation: {
+      current,
+      capacity,
+      label,
+      additionalBuildings: 0,
+    },
+    affectedResourceIds: [] as ResourceId[],
+  };
+};
 
 const getAttention = ({
   tracksPhysicalCapacity,
@@ -98,10 +195,46 @@ export const calculateBuildingDiagnostics = (
     groups.set(key, group);
   }
 
-  return [...groups.entries()].map(([key, results]) => {
+  const cropKeysByModule = new Map<string, Set<string>>();
+
+  for (const [key, results] of groups) {
+    const firstCropResult = results.find((result) => result.recipe.farmFertilizer != null);
+
+    if (!firstCropResult) continue;
+
+    const keys = cropKeysByModule.get(firstCropResult.moduleId) ?? new Set<string>();
+
+    keys.add(key);
+    cropKeysByModule.set(firstCropResult.moduleId, keys);
+  }
+
+  const diagnostics = [...groups.entries()].map(([key, results]) => {
     const first = results[0];
 
     if (!first) throw new Error(`Building group ${key} has no results`);
+
+    const animalDiagnostic = getAnimalPopulationDiagnostic(results, flowsById);
+
+    if (animalDiagnostic) {
+      return {
+        key,
+        moduleId: first.moduleId,
+        moduleName: moduleNames.get(first.moduleId) ?? first.moduleId,
+        buildingName: isRegularResult(first)
+          ? first.recipe.sharedCapacity?.label ?? first.recipe.building
+          : first.recipe.building,
+        load: animalDiagnostic.animalPopulation.current
+          / (first.recipe.animalPopulationCapacity ?? 1),
+        active: first.activeBuildings,
+        built: first.builtBuildings,
+        attention: animalDiagnostic.attention,
+        attentionCount: animalDiagnostic.attentionCount,
+        animalPopulation: animalDiagnostic.animalPopulation,
+        affectedResources: animalDiagnostic.affectedResourceIds.map(
+          (resourceId) => flowsById.get(resourceId)?.name ?? resourceId,
+        ),
+      };
+    }
 
     const tracksPhysicalCapacity = results.some((result) => (
       result.recipe.sinkMode !== "unbounded"
@@ -116,8 +249,19 @@ export const calculateBuildingDiagnostics = (
     const affectedResourceIds = new Set<ResourceId>();
 
     for (const result of results) {
+      const diagnosticOutputIds = isRegularResult(result)
+        && result.recipe.balanceOutputIds
+        ? new Set(result.recipe.balanceOutputIds)
+        : null;
+
       for (const output of result.recipe.outputs) {
-        if ((flowsById.get(output.resourceId)?.net ?? 0) < -EPSILON) {
+        const outputDrivesCapacity = result.recipe.group !== "sink"
+          && (!diagnosticOutputIds || diagnosticOutputIds.has(output.resourceId));
+
+        if (
+          outputDrivesCapacity
+          && (flowsById.get(output.resourceId)?.net ?? 0) < -EPSILON
+        ) {
           affectedResourceIds.add(output.resourceId);
         }
       }
@@ -167,4 +311,33 @@ export const calculateBuildingDiagnostics = (
       ),
     };
   });
+
+  for (const [moduleId, cropKeys] of cropKeysByModule) {
+    const cropDiagnostics = diagnostics.filter((diagnostic) => cropKeys.has(diagnostic.key));
+    const affectedResources = [...new Set(cropDiagnostics.flatMap(
+      (diagnostic) => diagnostic.affectedResources,
+    ))];
+
+    for (const diagnostic of cropDiagnostics) {
+      diagnostic.attention = null;
+      diagnostic.attentionCount = 0;
+    }
+
+    if (affectedResources.length === 0) continue;
+
+    diagnostics.push({
+      key: `${moduleId}:crop-rebalance`,
+      moduleId,
+      moduleName: moduleNames.get(moduleId) ?? moduleId,
+      buildingName: "Crop farms",
+      load: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.load, 0),
+      active: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.active, 0),
+      built: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.built, 0),
+      attention: "rebalance-farms",
+      attentionCount: 0,
+      affectedResources,
+    });
+  }
+
+  return diagnostics;
 };

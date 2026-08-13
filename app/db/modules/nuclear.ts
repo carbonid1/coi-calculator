@@ -5,10 +5,11 @@ import {
 import { type Module } from "./modules";
 
 export const NUCLEAR_MODULE_ID = "nuclear";
-const HYDROGEN_REFORMER_COUNT = 4;
+const BUILT_HYDROGEN_REFORMER_COUNT = 4;
+const ACTIVE_HYDROGEN_REFORMER_COUNT = 3;
 const SEAWATER_PUMP_COUNT = 3;
 const DEPLETED_DESALINATOR_COUNT = 4;
-const SUPER_DESALINATOR_COUNT = 4;
+const SUPER_DESALINATOR_COUNT = 5;
 const BUILT_COOLING_TOWER_COUNT = 4;
 const ACTIVE_COOLING_TOWER_COUNT = 3;
 
@@ -78,7 +79,7 @@ export const createNuclearModule = (
           "turbine-high": builtTurbineCount,
           "turbine-low": builtTurbineCount,
           "power-generator-ii-nuclear": builtTurbineCount * 2,
-          "hydrogen-reformer-super": HYDROGEN_REFORMER_COUNT,
+          "hydrogen-reformer-super": BUILT_HYDROGEN_REFORMER_COUNT,
           "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
           "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
           "cooling-tower-large-super": BUILT_COOLING_TOWER_COUNT,
@@ -97,7 +98,7 @@ export const createNuclearModule = (
           "turbine-high": activeTurbineCount,
           "turbine-low": activeTurbineCount,
           "power-generator-ii-nuclear": activeTurbineCount * 2,
-          "hydrogen-reformer-super": HYDROGEN_REFORMER_COUNT,
+          "hydrogen-reformer-super": ACTIVE_HYDROGEN_REFORMER_COUNT,
           "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
           "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
           "cooling-tower-large-super": ACTIVE_COOLING_TOWER_COUNT,

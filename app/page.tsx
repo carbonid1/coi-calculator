@@ -22,9 +22,9 @@ import { buildings } from "./db/buildings";
 import { defaultChickenFarmSettings } from "./db/chicken-farm";
 import { defaultComputingConfig } from "./db/computing";
 import {
+  activeContracts,
   contracts,
   defaultActiveContractIds,
-  defaultContractModes,
 } from "./db/contracts";
 import {
   defaultEdictLevels,
@@ -145,7 +145,6 @@ const Page = () => {
 
   const configuredModules = modules;
   const edictLevels: Record<EdictId, EdictLevel> = defaultEdictLevels;
-  const contractModes = defaultContractModes;
   const activeContractIds = defaultActiveContractIds;
   const researchModuleConfig = defaultResearchModuleConfig;
   const maintenanceStatueCount = defaultMaintenanceStatueCount;
@@ -205,8 +204,7 @@ const Page = () => {
     settlementWater: waterSaverMultiplier,
     treeGrowthSpeed: treeGrowthSpeed.multiplier,
   };
-  const activeContractIdSet = new Set(activeContractIds);
-  const enabledContracts = contracts.filter((contract) => activeContractIdSet.has(contract.id));
+  const enabledContracts = activeContracts;
   const factoryResult = calculateFactoryTotal(
     configuredModules,
     enabledContracts,
@@ -226,10 +224,11 @@ const Page = () => {
         }]
       : [],
     contracts: factoryResult.contractResults.map((result) => ({
+      id: result.contract.id,
+      name: result.contract.name,
       importedPerCycle: result.imported,
       fixedUnityPerCycle: result.contract.unity.perProductionCycle,
       unityPer100Imported: result.contract.unity.per100Imported,
-      mode: contractModes[result.contract.id] ?? "temporary",
     })),
   });
   const moduleResult = activeModule
@@ -339,7 +338,6 @@ const Page = () => {
           activeContractIds={activeContractIds}
           contracts={contracts}
           results={factoryResult.contractResults}
-          modes={contractModes}
         />
       )}
 

@@ -1,6 +1,7 @@
 import { Tooltip } from "@carbonid1/design-system";
 
 import {
+  type AnimalPopulationDiagnostic,
   type BuildingAttention,
 } from "../helpers/building-diagnostics/building-diagnostics";
 
@@ -10,12 +11,24 @@ interface Props {
   built: number;
   attention?: BuildingAttention | null;
   attentionCount?: number;
+  animalPopulation?: AnimalPopulationDiagnostic;
 }
 
 const formatCount = (value: number) => parseFloat(value.toFixed(2));
 
-const attentionLabel = (attention: BuildingAttention, count: number) => {
+const attentionLabel = (
+  attention: BuildingAttention,
+  count: number,
+  animalPopulation?: AnimalPopulationDiagnostic,
+) => {
+  if (attention === "add-animals" && animalPopulation) {
+    return `Add ${count.toLocaleString()} ${animalPopulation.label}`;
+  }
+  if (attention === "remove-animals" && animalPopulation) {
+    return `Remove ${count.toLocaleString()} ${animalPopulation.label}`;
+  }
   if (attention === "can-pause") return `Can pause ${count}`;
+  if (attention === "rebalance-farms") return "Rebalance farms";
   if (attention === "unpause") return `Unpause ${count}`;
 
   return "Build capacity";
@@ -27,31 +40,40 @@ export const BuildingCount: React.FC<Props> = ({
   built,
   attention,
   attentionCount = 0,
+  animalPopulation,
 }) => {
   const paused = Math.max(0, built - active);
 
   return (
     <div className="shrink-0 text-right tabular-nums">
       <Tooltip
-        label="Average load / active buildings. Paused buildings are shown separately."
+        label={animalPopulation
+          ? `Planned ${animalPopulation.label} / capacity in built farms.`
+          : "Average load / active buildings. Paused buildings are shown separately."}
         maxWidth={280}
       >
         <span className="inline-flex gap-1 text-sm font-medium text-foreground">
-          <span className="text-muted-foreground">Load</span>
-          <span className="font-mono">{formatCount(load)} / {formatCount(active)}</span>
+          <span className="text-muted-foreground">
+            {animalPopulation ? "Chickens" : "Load"}
+          </span>
+          <span className="font-mono">
+            {animalPopulation
+              ? `${formatCount(animalPopulation.current)} / ${formatCount(animalPopulation.capacity)}`
+              : `${formatCount(load)} / ${formatCount(active)}`}
+          </span>
         </span>
       </Tooltip>
-      {paused > 0 && (
+      {!animalPopulation && paused > 0 && (
         <p className="text-xs text-muted-foreground">
           {formatCount(active)} active · {formatCount(paused)} paused
         </p>
       )}
       {attention && (
-        <p className={attention === "can-pause"
+        <p className={attention === "can-pause" || attention === "remove-animals"
           ? "text-xs font-medium text-attention-foreground"
           : "text-xs font-medium text-destructive"}
         >
-          {attentionLabel(attention, attentionCount)}
+          {attentionLabel(attention, attentionCount, animalPopulation)}
         </p>
       )}
     </div>

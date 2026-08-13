@@ -54,6 +54,18 @@ In v0.8.6, farm crop growth does not read sunlight. Weather affects crops throug
 
 ## Current planning layout
 
-The active crop plan uses five fixed Greenhouse IIs, Fertilizer II at targets from 100% to 140%, and full irrigation. Its four-slot rotations are sized against the current factory demand at 2,240 population capacity with Plenty of Food II (+40% consumption), 1,100 chickens split across two full farms and one farm holding 100, 45 Hydrogen Fuel per cycle, and demand-balanced production of 3 Yellowcake per cycle. One shared Food Processor satisfies Meat first with the mixed Meat + Trimmings recipe, then sends every remaining carcass through the Trimmings-only recipe. Sausage consumes Trimmings first; an Anaerobic Digester converts the excess to Fuel Gas, and a Cracking Unit converts excess Fuel Gas to Diesel. Four Greenhouse IIs cannot cover that demand. Every rotation avoids placing the same fertility-consuming crop after itself, including across the last-to-first wrap, so the 50% repeated-crop fertility penalty is not paid. Three Green Manure slots absorb otherwise wasteful low-demand crop slots. Surplus is minimized relative to each crop's factory use, leaving one Sugar Cane slot and keeping every crop surplus below 3.5 per in-game month. The farms deliberately do not auto-balance: changing population or downstream recipes leaves a visible crop deficit or surplus until the physical layout is revised.
+The active crop plan uses six fixed Greenhouse II rotations, Fertilizer II at
+targets from 100% to 140%, and full irrigation. Six is the minimum building
+count that supports the current factory: every crop deficit is closed and every
+crop surplus remains at or below 5 per month. The Food Pack expansion uses
+1,700 chickens across four farms, three Baking Units, and four Mills. Carcass
+processing belongs to the General module, not Farms: one dedicated Food
+Processor makes Meat + Trimmings, and a second dedicated Food Processor converts
+only surplus Carcasses into Trimmings. Surplus Trimmings continue through Fuel
+Gas into Diesel, which is intentionally retained as a useful trade surplus.
+Every rotation avoids placing the same fertility-consuming crop after itself,
+including across the last-to-first wrap. The farms do not auto-balance:
+changing population or downstream recipes leaves a visible crop deficit or
+surplus until the physical layout is revised.
 
 Crop output and fertilizer are long-run cycle averages on the calculator's 100-year horizon. Each farm card keeps gross crop demand visible for comparison with the game UI, then reports the weather-adjusted imported water used by module and factory balances. Evaporation is absent because every schedule slot is occupied.

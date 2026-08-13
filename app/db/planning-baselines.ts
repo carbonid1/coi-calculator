@@ -6,5 +6,5 @@ export interface PlanningBaselines {
 export const defaultPlanningBaselines = {
   // Conservative FBR output for the first Nuclear checkpoint.
   averageNuclearGenerationMw: 50,
-  hydrogenFuelDemandPerCycle: 45,
+  hydrogenFuelDemandPerCycle: 50,
 } as const satisfies PlanningBaselines;

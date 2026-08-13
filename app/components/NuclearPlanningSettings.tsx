@@ -25,7 +25,7 @@ export const NuclearPlanningSettings: React.FC<Props> = ({ values }) => (
         </div>
 
         <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-          <p className="text-sm text-muted-foreground">Hydrogen vehicle fuel / cycle</p>
+          <p className="text-sm text-muted-foreground">Hydrogen Fuel / cycle</p>
           <p className="font-mono font-semibold text-foreground">
             {values.hydrogenFuelDemandPerCycle}
           </p>

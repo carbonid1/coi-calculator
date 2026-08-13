@@ -1,5 +1,5 @@
 import { baseConfig } from "../../db/config";
-import { type Contract } from "../../db/contracts";
+import { type ActiveContract } from "../../db/contracts";
 import { type Module } from "../../db/modules/modules";
 import { type ResourceId } from "../../db/resources";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
@@ -39,6 +39,7 @@ const calculateWithDispatch = (
   outputModifiers: RecipeModifierMultipliers,
   externalDemands: Partial<Record<ResourceId, number>> = {},
   electricityDispatchTargets: Record<string, number> = {},
+  nonConstrainingExternalInputIds: ReadonlySet<ResourceId> = new Set(),
 ) => {
   const groupsById = new Map<string, ElectricityDispatchGroup>();
   const prioritizedLines = lines.filter((line) => (
@@ -124,6 +125,7 @@ const calculateWithDispatch = (
       recyclingEfficiencyPercent,
       outputModifiers,
       externalDemands,
+      nonConstrainingExternalInputIds,
     );
 
     const modeledDemandMw = calculateBuildingStats(
@@ -377,6 +379,7 @@ const calculateWithDispatch = (
     recyclingEfficiencyPercent,
     outputModifiers,
     externalDemands,
+    nonConstrainingExternalInputIds,
   );
 
   const buildingStats = calculateBuildingStats(
@@ -396,7 +399,7 @@ const calculateWithDispatch = (
 
 export const calculateFactoryTotal = (
   modules: Module[],
-  contracts: Contract[] = [],
+  contracts: ActiveContract[] = [],
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
   outputModifiers: RecipeModifierMultipliers = {},
 ): FactoryTotalResult => {
@@ -473,6 +476,7 @@ export const calculateFactoryTotal = (
   );
   const inputsWithContracts = { ...externalInputs };
   const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
+  const fixedContractInputIds = new Set<ResourceId>();
 
   for (const result of contractPlan.contractResults) {
     const importedId = result.contract.exchange.imported.resourceId;
@@ -480,6 +484,7 @@ export const calculateFactoryTotal = (
 
     inputsWithContracts[importedId] = (inputsWithContracts[importedId] ?? 0) + result.imported;
     contractDemands[exportedId] = (contractDemands[exportedId] ?? 0) + result.exported;
+    fixedContractInputIds.add(importedId);
   }
 
   const dispatched = calculateWithDispatch(
@@ -489,6 +494,7 @@ export const calculateFactoryTotal = (
     outputModifiers,
     contractDemands,
     electricityDispatchTargets,
+    fixedContractInputIds,
   );
   const { calculation } = dispatched;
   const flows = calculation.allResourceFlows.filter(

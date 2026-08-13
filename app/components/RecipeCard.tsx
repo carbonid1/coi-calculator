@@ -63,11 +63,13 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuil
                 : ""}
             </p>
           )}
-          {showConfigurationSummary && speedLevel !== 1 && !recipe.computingScalesWithSpeed && (
+          {showConfigurationSummary
+            && speedLevel !== 1
+            && !recipe.computingScalesWithSpeed
+            && !recipe.animalPopulationCapacity
+            && (
             <p className="text-xs font-medium text-attention-foreground">
-              {recipe.animalPopulationCapacity
-                ? `${Math.round(recipe.animalPopulationCapacity * activeBuildings * speedLevel)} / ${recipe.animalPopulationCapacity * builtBuildings} chickens`
-                : `Throughput ×${speedLevel}`}
+              Throughput ×{speedLevel}
             </p>
           )}
           {recipe.computingScalesWithSpeed && computingTflops > 0 && (
@@ -82,6 +84,16 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuil
           built={builtBuildings}
           attention={diagnostic?.attention}
           attentionCount={diagnostic?.attentionCount}
+          animalPopulation={diagnostic?.animalPopulation ?? (
+            recipe.animalPopulationCapacity
+              ? {
+                  current: recipe.animalPopulationCapacity * activeBuildings * speedLevel,
+                  capacity: recipe.animalPopulationCapacity * builtBuildings,
+                  label: recipe.animalPopulationLabel ?? "animals",
+                  additionalBuildings: 0,
+                }
+              : undefined
+          )}
         />
       </div>
 

@@ -73,6 +73,8 @@ export interface Recipe {
   inputPriorities?: Partial<Record<ResourceId, number>>;
   /** Outputs that create demand for an output-balanced recipe; defaults to every output. */
   balanceOutputIds?: ResourceId[];
+  /** Lower values allocate demand-balanced recipes first when planned outputs compete. */
+  demandPriority?: number;
   /** Fallback recipes run after ordinary production; surplus recipes run last. */
   allocation?: RecipeAllocation;
   /** Lower values run first within the same non-primary allocation pass. */
@@ -103,6 +105,10 @@ export interface Recipe {
   };
   /** Displays fractional throughput as a livestock count instead of a generic speed. */
   animalPopulationCapacity?: number;
+  /** Smallest useful livestock adjustment supported by the in-game control. */
+  animalPopulationStep?: number;
+  /** Human-readable plural used by livestock diagnostics. */
+  animalPopulationLabel?: string;
   /** In-game fertilizer control shown on crop-farm production cards. */
   farmFertilizer?: {
     targetFertilityPercent: number;
@@ -484,6 +490,8 @@ export const recipes: Recipe[] = [
     name: "Basic Rack",
     building: "Basic Rack",
     group: "production",
+    // Computing is the capacity-driving output; returned Water is a byproduct.
+    balanceOutputIds: ["computing"],
     inputs: [{ resourceId: "chilledWater", quantity: dataCenter.chilledWaterPerRack }],
     outputs: [
       { resourceId: "water", quantity: dataCenter.chilledWaterPerRack },
@@ -657,6 +665,7 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 60,
     balanceBy: "output",
+    demandPriority: -2,
     inputs: [
       { resourceId: "flour", quantity: 10 },
       { resourceId: "sugar", quantity: 4 },
@@ -1347,6 +1356,8 @@ export const recipes: Recipe[] = [
       },
     ],
     animalPopulationCapacity: chickenFarm.capacity,
+    animalPopulationStep: chickenFarm.countStep,
+    animalPopulationLabel: "chickens",
   },
   {
     id: "chicken-farm-eggs-only",
@@ -1370,21 +1381,18 @@ export const recipes: Recipe[] = [
       },
     ],
     animalPopulationCapacity: chickenFarm.capacity,
+    animalPopulationStep: chickenFarm.countStep,
+    animalPopulationLabel: "chickens",
   },
   {
     id: "food-processor-meat",
     // Captain of Industry v0.8.7 game-data rate, normalized to 60 seconds.
-    name: "Food Processor (Meat + Trimmings)",
+    name: "Food Processor (Chicken Carcass → Meat + Trimmings)",
     building: "Food Processor",
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "output",
     balanceOutputIds: ["meat"],
-    sharedCapacity: {
-      id: "food-processor-chicken-carcass",
-      label: "Food Processor — Chicken Carcass",
-      priority: 1,
-    },
     inputs: [
       { resourceId: "chickenCarcass", quantity: 30 },
       { resourceId: "water", quantity: 9 },
@@ -1398,22 +1406,17 @@ export const recipes: Recipe[] = [
   {
     id: "food-processor-meat-trimmings",
     // Captain of Industry v0.8.7 game-data rate, normalized to 60 seconds.
-    name: "Food Processor (Trimmings only)",
+    name: "Food Processor (Surplus Chicken Carcass → Trimmings)",
     building: "Food Processor",
     group: "production",
     cycleDurationSeconds: 20,
     balanceBy: "input",
     balanceInputIds: ["chickenCarcass"],
-    // Meat is satisfied by the primary shared recipe first. This fallback then
-    // consumes every remaining carcass; downstream fallbacks route excess
+    // The dedicated Meat processor runs first. This separate fallback building
+    // then consumes every remaining carcass; downstream fallbacks route excess
     // Trimmings to Fuel Gas and excess Fuel Gas to Diesel.
     allocation: "fallback",
     allocationPriority: 10,
-    sharedCapacity: {
-      id: "food-processor-chicken-carcass",
-      label: "Food Processor — Chicken Carcass",
-      priority: 2,
-    },
     inputs: [{ resourceId: "chickenCarcass", quantity: 30 }],
     outputs: [{ resourceId: "meatTrimmings", quantity: 27 }],
   },
@@ -1632,6 +1635,7 @@ export const recipes: Recipe[] = [
     balanceBy: "output",
     balanceInputIds: ["eggs"],
     balanceOutputIds: ["foodPack"],
+    demandPriority: -1,
     sharedCapacity: {
       id: "assembly-v-food-pack",
       label: "Assembly V — Food Pack",
@@ -1650,7 +1654,9 @@ export const recipes: Recipe[] = [
     group: "production",
     cycleDurationSeconds: 7.5,
     balanceBy: "output",
-    balanceInputIds: ["meat"],
+    // Meat is demand-produced by the carcass processor. Let this recipe create
+    // that upstream demand after the higher-priority Eggs recipe takes its share.
+    balanceInputIds: [],
     balanceOutputIds: ["foodPack"],
     sharedCapacity: {
       id: "assembly-v-food-pack",

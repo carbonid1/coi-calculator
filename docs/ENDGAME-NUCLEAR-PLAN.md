@@ -34,8 +34,9 @@ without committing to the final factory layout now.
 - Build nine complete turbine trains, with two trains dispatched for the
   initial 50 MW average target. Hydrogen and desalination steam use part of the
   gross headroom when they run at the same time.
-- Keep all four existing Hydrogen Reformers active to absorb demand spikes while
-  demand-balancing their average output around the 45-per-cycle vehicle target.
+- Keep all four existing Hydrogen Reformers installed, with three active and
+  one paused while demand-balancing average output around the 50-per-cycle
+  Hydrogen Fuel target.
 - Keep research stations outside the initial material and electricity load.
 - Keep Maintenance III as a separate factory-wide planning concern.
 - Add more reactors only after the 255 MW station is no longer sufficient.
@@ -70,8 +71,8 @@ Core Fuel, Blanket Fuel, Water, or waste-handling deadlock.
 
 Reuse the current nuclear infrastructure, release workers from machinery that
 will remain paused, and reserve the two reactor locations with the breeder
-first. Active contracts retain their verified infrastructure workforce of 76
-workers per contract.
+first. The fixed Uranium contract uses one size-4 cargo ship and four large
+cargo modules for 42 workers total.
 
 ### Stage 2: expand and rewire
 
@@ -89,7 +90,7 @@ generation.
 
 ### Stage 4: use the headroom
 
-Use the available electricity and Hydrogen vehicles for research, mining, and
+Use the available electricity and Hydrogen Fuel for research, mining, and
 terrain flattening. Bring additional turbine trains online as demand grows,
 up to the station's 255 MW capacity.
 
@@ -104,7 +105,8 @@ next expansion as a separate checkpoint.
 
 - Maintenance III will be a major long-term ore drain even though it is not
   assigned directly to production modules.
-- Each active contract adds 76 workers to the factory total.
+- The active Uranium contract adds 42 workers to the factory total: 22 on the
+  cargo ship and 20 across its four large cargo modules.
 - Population growth must include the demand created by new residents while
   crediting workers released from reused or closed infrastructure.
 - The immediate fresh inputs for the nuclear fuel loop are 54 Uranium Ore,

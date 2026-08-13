@@ -1,12 +1,13 @@
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
 
-// Inferred from the 10-year average building loads at Maintenance Output III:
-// I: 495 * 83%, II: 495 * 29%, III: 246 * 50%.
+// Baseline inferred from the 10-year average building loads at Maintenance
+// Output III: I: 495 * 83%, II: 495 * 29%, III: 246 * 50%. The active
+// Maintenance III plan includes 140 additional units per production cycle.
 export const maintenanceDemandPerMonth = {
   maintenanceI: 410.85,
   maintenanceII: 143.55,
-  maintenanceIII: 123,
+  maintenanceIII: 263,
 } as const satisfies Partial<Record<ResourceId, number>>;
 
 const activeRecipeIds = {
@@ -18,7 +19,7 @@ const activeRecipeIds = {
 const activeBuildings = {
   [activeRecipeIds.maintenanceI]: 1,
   [activeRecipeIds.maintenanceII]: 1,
-  [activeRecipeIds.maintenanceIII]: 1,
+  [activeRecipeIds.maintenanceIII]: 2,
 };
 
 export const maintenance: Module = {
@@ -28,13 +29,13 @@ export const maintenance: Module = {
   builtBuildings: {
     [activeRecipeIds.maintenanceI]: 1,
     [activeRecipeIds.maintenanceII]: 1,
-    [activeRecipeIds.maintenanceIII]: 1,
+    [activeRecipeIds.maintenanceIII]: 2,
   },
   presets: [
     {
       id: "current-demand",
       name: "Current demand",
-      description: "10-year average: 83% Maintenance I, 29% Maintenance II, and 50% Maintenance III load",
+      description: "10-year average with 140 additional Maintenance III per production cycle",
       activeBuildings,
       fixed: Object.values(activeRecipeIds),
       outputTargets: maintenanceDemandPerMonth,

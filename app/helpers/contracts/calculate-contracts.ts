@@ -1,21 +1,35 @@
 import {
-  type Contract,
-  contractInfrastructure,
+  type ActiveContract,
 } from "../../db/contracts";
 import { type ResourceId, resources } from "../../db/resources";
 import { type ResourceFlow } from "../calculate/calculate";
 
 export interface ContractResult {
-  contract: Contract;
+  contract: ActiveContract;
   exported: number;
   imported: number;
+  requiredImported: number;
+  uncoveredImported: number;
 }
 
-export const calculateContractWorkers = (activeContracts: Contract[]) => (
-  activeContracts.length * (
-    contractInfrastructure.cargoShipWorkers
-    + contractInfrastructure.cargoModuleCount
-      * contractInfrastructure.workersPerCargoModule
+export const calculateContractWorkerBreakdown = (contract: ActiveContract) => {
+  const cargoModuleWorkers = contract.plan.infrastructure.cargoModules.reduce(
+    (total, module) => total + module.count * module.workersPerModule,
+    0,
+  );
+  const cargoShipWorkers = contract.plan.infrastructure.cargoShipWorkers;
+
+  return {
+    cargoModuleWorkers,
+    cargoShipWorkers,
+    total: cargoShipWorkers + cargoModuleWorkers,
+  };
+};
+
+export const calculateContractWorkers = (activeContracts: ActiveContract[]) => (
+  activeContracts.reduce(
+    (total, contract) => total + calculateContractWorkerBreakdown(contract).total,
+    0,
   )
 );
 
@@ -31,7 +45,7 @@ const getFlow = (
 
 export const applyContracts = (
   resourceFlows: ResourceFlow[],
-  contracts: Contract[],
+  contracts: ActiveContract[],
 ): { flows: ResourceFlow[]; contractResults: ContractResult[] } => {
   const combined = new Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>(
     resourceFlows.map((flow) => [flow.resourceId, {
@@ -44,7 +58,8 @@ export const applyContracts = (
 
   for (const contract of contracts) {
     const importedFlow = getFlow(combined, contract.exchange.imported.resourceId);
-    const imported = Math.max(0, importedFlow.consumed - importedFlow.produced);
+    const requiredImported = Math.max(0, importedFlow.consumed - importedFlow.produced);
+    const imported = contract.plan.importedPerProductionCycle;
     const exported = imported * contract.exchange.exported.quantity / contract.exchange.imported.quantity;
 
     importedFlow.produced += imported;
@@ -54,6 +69,8 @@ export const applyContracts = (
       contract,
       exported,
       imported,
+      requiredImported,
+      uncoveredImported: Math.max(0, requiredImported - imported),
     });
   }
 
