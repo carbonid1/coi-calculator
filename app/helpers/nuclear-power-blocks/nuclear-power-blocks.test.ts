@@ -6,7 +6,7 @@ import { NUCLEAR_MODULE_ID } from "../../db/modules/nuclear";
 import { calculateFactoryTotal } from "../factory-total/factory-total";
 import { createNuclearPowerBlocks } from "./nuclear-power-blocks";
 
-it("presents the aggregate Nuclear machinery as two physical reactor blocks", () => {
+it("presents the breeder without turbines and the power reactor with its turbine bank", () => {
   const factory = calculateFactoryTotal(modules, activeContracts);
   const electricityLines = factory.allLines.filter((line) => (
     line.moduleId === NUCLEAR_MODULE_ID && line.recipe.group === "electricity"
@@ -16,6 +16,7 @@ it("presents the aggregate Nuclear machinery as two physical reactor blocks", ()
   );
   const blocks = createNuclearPowerBlocks(electricityLines, results);
 
+  expect(blocks[0]?.turbineBank).toEqual([]);
   expect(blocks.map((block) => ({
     reactor: block.reactor.line.recipe.id,
     trains: block.turbineBank.find(
@@ -28,7 +29,7 @@ it("presents the aggregate Nuclear machinery as two physical reactor blocks", ()
       ({ line }) => line.recipe.id === "power-generator-ii-nuclear",
     )?.line.builtBuildings,
   }))).toEqual([
-    { reactor: "fbr-3x", trains: 1, activeTrains: 0, generators: 2 },
+    { reactor: "fbr-3x", trains: undefined, activeTrains: undefined, generators: undefined },
     { reactor: "fbr-0x", trains: 8, activeTrains: 2, generators: 16 },
   ]);
 

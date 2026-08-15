@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 
+import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateSolarPower } from "../../helpers/modifiers/calculate-solar-power";
 import { defaultInfiniteResearchLevels } from "../research";
@@ -10,6 +11,18 @@ it("models the two-FBR checkpoint and its external requirements", () => {
   const result = calculateFactoryTotal([nuclear]);
   const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
     (candidate) => candidate.resourceId === resourceId,
+  );
+  const liquidDumpLines = result.allLines.filter(
+    (line) => line.recipe.id.startsWith("nuclear-liquid-dump-"),
+  );
+  const waterDumpResult = result.calculation.sinkResults.find(
+    (candidate) => candidate.recipe.id === "nuclear-liquid-dump-water",
+  );
+  const brineDumpResult = result.calculation.sinkResults.find(
+    (candidate) => candidate.recipe.id === "nuclear-liquid-dump-brine",
+  );
+  const oxygenVentResult = result.calculation.sinkResults.find(
+    (candidate) => candidate.recipe.id === "nuclear-smoke-stack-large-oxygen",
   );
 
   expect(defaultNuclearConfig).toEqual({
@@ -24,15 +37,20 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "seawater-pump": 3,
     "enrichment-plant": 2,
     "chemical-plant-yellowcake": 2,
-    "turbine-super": 9,
-    "turbine-high": 9,
-    "turbine-low": 9,
-    "power-generator-ii-nuclear": 18,
+    "turbine-super": 8,
+    "turbine-high": 8,
+    "turbine-low": 8,
+    "power-generator-ii-nuclear": 16,
     "hydrogen-reformer-super": 4,
     "thermal-desalinator-depleted": 4,
     "thermal-desalinator-super": 5,
+    "electrolyzer-ii-chlorine": 2,
+    "evaporation-pond-heated-salt-brine": 2,
     "cooling-tower-large-super": 4,
     "cooling-tower-large-depleted": 4,
+    "nuclear-liquid-dump-water": 1,
+    "nuclear-liquid-dump-brine": 1,
+    "nuclear-smoke-stack-large-oxygen": 1,
     "radioactive-waste-storage": 1,
     "shredder-retired-waste": 1,
   });
@@ -48,8 +66,13 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "hydrogen-reformer-super": 3,
     "thermal-desalinator-depleted": 4,
     "thermal-desalinator-super": 5,
+    "electrolyzer-ii-chlorine": 1,
+    "evaporation-pond-heated-salt-brine": 1,
     "cooling-tower-large-super": 3,
     "cooling-tower-large-depleted": 3,
+    "nuclear-liquid-dump-water": 1,
+    "nuclear-liquid-dump-brine": 1,
+    "nuclear-smoke-stack-large-oxygen": 1,
     "radioactive-waste-storage": 1,
     "shredder-retired-waste": 1,
   });
@@ -57,9 +80,35 @@ it("models the two-FBR checkpoint and its external requirements", () => {
   expect(flow("blanketFuel")?.net).toBe(0);
   expect(flow("yellowcake")?.net).toBe(-9);
   expect(flow("hydrogen")?.net).toBe(0);
-  expect(flow("water")?.net ?? 0).toBeGreaterThanOrEqual(-0.001);
+  expect(flow("water")?.net).toBeCloseTo(0, 10);
+  expect(flow("brine")?.net).toBeCloseTo(0, 10);
+  expect(flow("oxygen")?.net).toBeCloseTo(0, 10);
   expect(flow("electricity")?.produced).toBeCloseTo(50, 10);
   expect(result.electricityDemandMw).toBe(50);
+  expect(liquidDumpLines).toHaveLength(2);
+  expect(liquidDumpLines).toEqual(expect.arrayContaining([
+    expect.objectContaining({ activeBuildings: 1, builtBuildings: 1 }),
+    expect.objectContaining({ activeBuildings: 1, builtBuildings: 1 }),
+  ]));
+  expect(waterDumpResult?.actualInputs).toEqual([
+    expect.objectContaining({ resourceId: "water" }),
+  ]);
+  expect(brineDumpResult?.actualInputs).toEqual([
+    expect.objectContaining({ resourceId: "brine" }),
+  ]);
+  expect(oxygenVentResult?.actualInputs).toEqual([
+    expect.objectContaining({ resourceId: "oxygen" }),
+  ]);
+  expect(waterDumpResult?.supplyRatio ?? 0).toBeGreaterThan(0);
+  expect(brineDumpResult?.supplyRatio ?? 0).toBeGreaterThan(0);
+  expect(waterDumpResult?.supplyRatio ?? 0).toBeLessThanOrEqual(1);
+  expect(brineDumpResult?.supplyRatio ?? 0).toBeLessThanOrEqual(1);
+  expect(oxygenVentResult?.supplyRatio ?? 0).toBeGreaterThan(0);
+  expect(oxygenVentResult?.supplyRatio ?? 0).toBeLessThanOrEqual(1);
+  expect(calculateBuildingStats(
+    liquidDumpLines,
+    result.calculation,
+  ).workers).toBe(2);
 });
 
 it("treats the baseline as nuclear generation in addition to solar", () => {

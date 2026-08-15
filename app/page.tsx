@@ -43,7 +43,10 @@ import {
   defaultHousingCount,
 } from "./db/housing";
 import { COMPUTING_MODULE_ID } from "./db/modules/computing";
-import { FARMS_MODULE_ID } from "./db/modules/farms";
+import {
+  CHICKEN_FARMS_MODULE_ID,
+  GREENHOUSES_MODULE_ID,
+} from "./db/modules/farms";
 import { HOUSING_MODULE_ID } from "./db/modules/housing";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
@@ -423,7 +426,7 @@ const Page = () => {
         <ResearchSettings config={researchModuleConfig} />
       )}
 
-      {activeModule?.id === FARMS_MODULE_ID && (
+      {activeModule?.id === CHICKEN_FARMS_MODULE_ID && (
         <ChickenFarmSettings settings={chickenFarmSettings} />
       )}
 
@@ -473,7 +476,7 @@ const Page = () => {
             />
           ) : activeModule.id !== MINES_MODULE_ID
             && grouped.map(({ group, label, items }) => {
-              const groupTargetKey = activeModule.id === FARMS_MODULE_ID
+              const groupTargetKey = activeModule.id === GREENHOUSES_MODULE_ID
                 && group === "production"
                 ? `${activeModule.id}:crop-rebalance`
                 : `${activeModule.id}:group:${group}`;

@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "../../helpers/calculate/calculate";
-import { defaultHousingCount } from "../housing";
+import { activeHousingType, defaultHousingCount } from "../housing";
 import { settlementRecipeIds } from "../settlement";
 import { createHousingModule } from "./housing";
 
@@ -21,7 +21,9 @@ it("uses two anaerobic digesters to consume the population sludge surplus", () =
 
   expect(digester.builtBuildings).toBe(2);
   expect(digester.activeBuildings).toBe(2);
-  expect(sludge.produced).toBeCloseTo(21.168);
+  expect(defaultHousingCount).toBe(17);
+  expect(defaultHousingCount * activeHousingType.populationCapacity).toBe(2_380);
+  expect(sludge.produced).toBeCloseTo(22.491);
   expect(sludge.consumed).toBeCloseTo(sludge.produced);
   expect(sludge.net).toBeCloseTo(0);
 });

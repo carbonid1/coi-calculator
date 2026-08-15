@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { type Module } from "../../db/modules/modules";
 import { recipes } from "../../db/recipes";
 import { type ResourceId, resources } from "../../db/resources";
-import { type RegularResult, type ResourceFlow } from "../calculate/calculate";
+import {
+  type PassiveResult,
+  type RegularResult,
+  type ResourceFlow,
+} from "../calculate/calculate";
 import { calculateBuildingDiagnostics } from "./building-diagnostics";
 
 const chickenRecipe = recipes.find((recipe) => recipe.id === "chicken-farm-slaughtering");
@@ -189,5 +193,55 @@ describe("byproduct building diagnostics", () => {
 
     expect(diagnostic?.affectedResources).toEqual([]);
     expect(diagnostic?.attention).toBeNull();
+  });
+});
+
+describe("cost-free capacity diagnostics", () => {
+  const coolingTowerRecipe = recipes.find(
+    (recipe) => recipe.id === "cooling-tower-large-low",
+  );
+
+  if (!coolingTowerRecipe) throw new Error("Large Cooling Tower recipe is missing");
+
+  const coolingModule: Module = {
+    id: "cooling",
+    name: "Cooling",
+    description: "",
+    builtBuildings: { [coolingTowerRecipe.id]: 1 },
+    presets: [],
+    defaultPresetId: null,
+  };
+  const coolingResult = (supplyRatio: number): PassiveResult => ({
+    recipe: coolingTowerRecipe,
+    moduleId: coolingModule.id,
+    activeBuildings: 1,
+    builtBuildings: 1,
+    supplyRatio,
+    actualInputs: [],
+    actualOutputs: [],
+  });
+
+  it("does not recommend pausing an idle Large Cooling Tower", () => {
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [coolingModule],
+      [],
+      [],
+      [],
+      [coolingResult(0)],
+    );
+
+    expect(diagnostic?.attention).toBeNull();
+  });
+
+  it("still warns when Large Cooling Tower capacity is insufficient", () => {
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [coolingModule],
+      [resourceFlow("steamLow", 1)],
+      [],
+      [],
+      [coolingResult(1)],
+    );
+
+    expect(diagnostic).toMatchObject({ attention: "build", attentionCount: 1 });
   });
 });

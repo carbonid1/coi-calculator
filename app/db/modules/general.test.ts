@@ -6,10 +6,31 @@ import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-
 import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
 import { createFbrPowerPlantModule } from "./fbr-power-plant";
+import {
+  CHICKEN_FARMS_MODULE_ID,
+  GREENHOUSES_MODULE_ID,
+} from "./farms";
 import { general } from "./general";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
 import { processSteam } from "./process-steam";
+
+it("models the physical General Low Steam recovery cluster", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+
+  expect(general.builtBuildings).toMatchObject({
+    "seawater-pump": 1,
+    "thermal-desalinator-low": 2,
+    "cooling-tower-large-low": 1,
+  });
+  expect(preset?.builtBuildings).toMatchObject({
+    "seawater-pump": 1,
+    "thermal-desalinator-low": 2,
+    "cooling-tower-large-low": 1,
+  });
+});
 
 it("keeps every built Titanium-chain recipe paused", () => {
   const titaniumRecipeIds = [
@@ -74,7 +95,7 @@ it("demand-balances enough Yellowcake for the two-FBR target", () => {
   });
 });
 
-it("caps demand-balanced Groundwater Pumps and leaves Water at equilibrium", () => {
+it("caps the five Greenhouse Groundwater Pumps without covering Chicken Farms", () => {
   const result = calculateFactoryTotal(
     modules
       .filter((module) => module.id !== NUCLEAR_MODULE_ID)
@@ -84,18 +105,31 @@ it("caps demand-balanced Groundwater Pumps and leaves Water at equilibrium", () 
       })),
     activeContracts,
   );
-  const water = result.calculation.allResourceFlows.find(
-    (flow) => flow.resourceId === "water",
-  );
   const groundwater = result.calculation.sourceResults.find(
-    (candidate) => candidate.recipe.id === "groundwater-pump",
+    (candidate) => (
+      candidate.moduleId === GREENHOUSES_MODULE_ID
+      && candidate.recipe.id === "groundwater-pump"
+    ),
   );
   const pumped = groundwater?.actualOutputs[0]?.quantity ?? 0;
+  const minesGroundwater = result.allLines.find((line) => (
+    line.moduleId === "mines" && line.recipe.id === "groundwater-pump"
+  ));
+  const greenhouseWaterConsumed = result.calculation.regularResults.reduce((total, line) => (
+    line.moduleId === GREENHOUSES_MODULE_ID
+      ? total + (line.actualInputs.find((input) => input.resourceId === "water")?.quantity ?? 0)
+      : total
+  ), 0);
+  const chickenWaterConsumed = result.calculation.regularResults.reduce((total, line) => (
+    line.moduleId === CHICKEN_FARMS_MODULE_ID
+      ? total + (line.actualInputs.find((input) => input.resourceId === "water")?.quantity ?? 0)
+      : total
+  ), 0);
 
-  expect([
-    groundwater?.activeBuildings,
-    pumped > 0,
-    pumped <= 4 * 48,
-    Number((water?.net ?? NaN).toFixed(10)),
-  ]).toEqual([4, true, true, 0]);
+  expect(groundwater?.activeBuildings).toBe(4);
+  expect(pumped).toBeGreaterThan(0);
+  expect(pumped).toBeLessThanOrEqual(4 * 48);
+  expect(minesGroundwater).toMatchObject({ activeBuildings: 0, builtBuildings: 0 });
+  expect(chickenWaterConsumed).toBeGreaterThan(0);
+  expect(pumped).toBeCloseTo(greenhouseWaterConsumed, 10);
 });

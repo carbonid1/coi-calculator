@@ -108,6 +108,7 @@ export const resources = {
   redMud: { id: "redMud", name: "Red Mud", state: "fluid" },
   alumina: { id: "alumina", name: "Alumina", state: "loose" },
   quartz: { id: "quartz", name: "Quartz", state: "loose" },
+  quartzCrushed: { id: "quartzCrushed", name: "Quartz Crushed", state: "loose" },
   wood: { id: "wood", name: "Wood", state: "unit" },
   woodchips: { id: "woodchips", name: "Woodchips", state: "loose" },
   paper: { id: "paper", name: "Paper", state: "unit" },

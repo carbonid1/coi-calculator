@@ -89,8 +89,8 @@ export interface Recipe {
   appliesRecyclingEfficiency?: boolean;
   /** Emits the recoverable material composition carried by Recyclables. */
   sortsRecyclableSources?: boolean;
-  /** Demand sources supply only the remaining deficit; capped sources respect installed throughput. */
-  sourceMode?: "demand" | "demand-capped";
+  /** Demand sources cover deficits; module-capped sources cannot supply consumers in other modules. */
+  sourceMode?: "demand" | "demand-capped" | "module-demand-capped";
   sourceKind?: SourceKind;
   /** Unbounded sinks remove every available unit of their declared excess inputs. */
   sinkMode?: "unbounded";
@@ -194,6 +194,9 @@ export const recipes: Recipe[] = [
     group: "source",
     inputs: [],
     outputs: [{ resourceId: "seaWater", quantity: 216 }],
+    // Pumps are physically piped inside their module. Do not let spare pump
+    // capacity in one network supply a different module's desalination plant.
+    sourceMode: "module-demand-capped",
   },
   {
     id: "copper-map-mine",
@@ -296,7 +299,7 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 10,
     inputs: [],
     outputs: [{ resourceId: "water", quantity: 48 }],
-    sourceMode: "demand-capped",
+    sourceMode: "module-demand-capped",
     sourceKind: "groundwater",
   },
   {
@@ -1013,6 +1016,26 @@ export const recipes: Recipe[] = [
     balanceBy: "output",
     inputs: [{ resourceId: "gravel", quantity: 48 }],
     outputs: [{ resourceId: "manufacturedSand", quantity: 48 }],
+  },
+  {
+    id: "crusher-large-quartz",
+    name: "Crusher (Large) — Quartz",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 20,
+    balanceBy: "output",
+    inputs: [{ resourceId: "quartz", quantity: 288 }],
+    outputs: [{ resourceId: "quartzCrushed", quantity: 288 }],
+  },
+  {
+    id: "crusher-large-quartz-crushed",
+    name: "Crusher (Large) — Quartz Crushed",
+    building: "Crusher (Large)",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    inputs: [{ resourceId: "quartzCrushed", quantity: 96 }],
+    outputs: [{ resourceId: "sand", quantity: 96 }],
   },
   {
     id: "coal-maker-wood",
@@ -1916,6 +1939,20 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "polySilicon", quantity: 12 }],
   },
   {
+    id: "assembly-v-solar-cell",
+    name: "Assembly V (Solar Cell)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 40,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "steel", quantity: 1.5 },
+      { resourceId: "polySilicon", quantity: 18 },
+      { resourceId: "glass", quantity: 6 },
+    ],
+    outputs: [{ resourceId: "solarCell", quantity: 12 }],
+  },
+  {
     id: "crystallizer-silicon-wafer",
     name: "Crystallizer (Silicon Wafer)",
     building: "Crystallizer",
@@ -2252,11 +2289,6 @@ export const recipes: Recipe[] = [
     // is a surplus constraint on this demand-balanced recipe.
     balanceInputIds: [],
     balanceOutputIds: ["graphite"],
-    sharedCapacity: {
-      id: "chemical-plant-ii-electronics",
-      label: "Chemical Plant II",
-      priority: 3,
-    },
     allocation: "fallback",
     allocationPriority: 30,
     inputs: [
@@ -2707,7 +2739,6 @@ export const recipes: Recipe[] = [
     inputs: [],
     outputs: [],
   },
-
   // Maintenance
   {
     id: maintenanceStatue.id,
@@ -3081,10 +3112,25 @@ export const recipes: Recipe[] = [
     group: "sink",
     sharedCapacity: {
       id: "cooling-tower-large-steam",
-      label: "Cooling Towers",
+      label: "Cooling Tower (Large)",
       priority: 1,
     },
     inputs: [{ resourceId: "steamDepleted", quantity: 96 }],
+    outputs: [{ resourceId: "water", quantity: 72 }],
+  },
+  {
+    // Captain of Industry v0.8.7 game data: 16 Low Steam becomes 12 Water
+    // every 10 seconds, normalized here to one 60-second production cycle.
+    id: "cooling-tower-large-low",
+    name: "Cooling Tower Large (Low)",
+    building: "Cooling Tower (Large)",
+    group: "sink",
+    sharedCapacity: {
+      id: "cooling-tower-large-steam",
+      label: "Cooling Tower (Large)",
+      priority: 2,
+    },
+    inputs: [{ resourceId: "steamLow", quantity: 96 }],
     outputs: [{ resourceId: "water", quantity: 72 }],
   },
   {
@@ -3094,10 +3140,42 @@ export const recipes: Recipe[] = [
     group: "sink",
     sharedCapacity: {
       id: "cooling-tower-large-steam",
-      label: "Cooling Towers",
-      priority: 2,
+      label: "Cooling Tower (Large)",
+      priority: 3,
     },
     inputs: [{ resourceId: "steamSuper", quantity: 96 }],
-    outputs: [{ resourceId: "water", quantity: 60 }],
+    outputs: [{ resourceId: "water", quantity: 48 }],
+  },
+  {
+    // Captain of Industry v0.8.7: each Liquid Dump handles 200 fluid per
+    // production cycle. It consumes only Water left after useful consumers.
+    id: "nuclear-liquid-dump-water",
+    name: "Liquid Dump (Water)",
+    building: "Liquid Dump",
+    group: "sink",
+    inputs: [{ resourceId: "water", quantity: 200 }],
+    outputs: [],
+  },
+  {
+    // Captain of Industry v0.8.7: each Liquid Dump handles 200 fluid per
+    // production cycle. It consumes only Brine left after useful consumers.
+    id: "nuclear-liquid-dump-brine",
+    name: "Liquid Dump (Brine)",
+    building: "Liquid Dump",
+    group: "sink",
+    inputs: [{ resourceId: "brine", quantity: 200 }],
+    outputs: [],
+  },
+  {
+    // Captain of Industry v0.8.7: the Large Smoke Stack runs the 20 Oxygen / 20s
+    // disposal recipe at 15x throughput, or 900 Oxygen per production cycle.
+    // As a sink, it exports Oxygen to regular factory consumers first and vents
+    // only the final factory-wide remainder.
+    id: "nuclear-smoke-stack-large-oxygen",
+    name: "Smoke stack (large) (Oxygen)",
+    building: "Smoke stack (large)",
+    group: "sink",
+    inputs: [{ resourceId: "oxygen", quantity: 900 }],
+    outputs: [],
   },
 ];

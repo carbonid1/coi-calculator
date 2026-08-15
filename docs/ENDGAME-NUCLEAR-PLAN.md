@@ -14,8 +14,8 @@ Reactors instead of constructing the former five-reactor long-term block:
 - Reactor 1 is the breeder at Power I / 3x breeding.
 - Reactor 2 is the power reactor at Power IV / 0x breeding.
 - Planned average Nuclear generation remains 50 MW.
-- The two reactors produce enough steam for 255 MW gross turbine output when
-  all nine trains are dispatched and all reactor steam is routed to power.
+- The Power IV reactor supplies eight turbine trains for 240 MW gross output.
+  The breeder's Super Steam remains available for Hydrogen and desalination.
 - Fresh uranium demand remains exactly 9 Yellowcake per cycle.
 
 This combination has the same steady-state fuel balance and Yellowcake demand
@@ -31,15 +31,16 @@ without committing to the final factory layout now.
 
 - Build and operate exactly two FBRs for this checkpoint.
 - Keep the breeder first in the physical layout and calculator presentation.
-- Build nine complete turbine trains, with two trains dispatched for the
+- Build eight complete turbine trains, with two trains dispatched for the
   initial 50 MW average target. Hydrogen and desalination steam use part of the
   gross headroom when they run at the same time.
 - Keep all four existing Hydrogen Reformers installed, with three active and
   one paused while demand-balancing average output around the 50-per-cycle
   Hydrogen Fuel target.
 - Keep research stations outside the initial material and electricity load.
-- Keep Maintenance III as a separate factory-wide planning concern.
-- Add more reactors only after the 255 MW station is no longer sufficient.
+- Keep Maintenance III at its measured factory demand; the two-FBR checkpoint
+  does not require additional depot or supporting-chain capacity.
+- Add more reactors only after the 240 MW station is no longer sufficient.
 
 ## Closed-loop checkpoint
 
@@ -62,6 +63,21 @@ Water and Brine are recovered in this order:
    Brine recovery.
 3. Use cooling towers for the remaining steam only.
 
+Recovered Brine is handled beside the Nuclear station: satisfy the remote
+Toxic Slurry treatment load first, then produce globally demanded Chlorine in
+one active Electrolyzer II and Salt in one active Heated Evaporation Pond. One
+additional copy of each Brine-processing building remains paused for future
+growth. The two Liquid Dumps remain the final, demand-balanced overflow path
+after useful exports: one handles up to 200 Water per cycle and one handles up
+to 200 Brine per cycle. No Brine branch is reserved for Aluminum at this
+checkpoint; if Aluminum later leaves too little Brine for Salt, add the
+secondary supply then.
+
+Oxygen from the Hydrogen Reformers is exported only while the rest of the
+factory demands it. One active Smoke Stack (Large) at the Nuclear station vents
+the remaining Oxygen automatically; its 900-per-cycle capacity is ample for
+the planned reformers.
+
 The success condition is an indefinite number of production cycles without a
 Core Fuel, Blanket Fuel, Water, or waste-handling deadlock.
 
@@ -78,7 +94,14 @@ cargo modules for 42 workers total.
 
 Build the second FBR and right-sized support machinery listed in
 [FBR-FUEL-LOOP.md](./FBR-FUEL-LOOP.md). Arrange each reactor with its related
-turbine bank so the physical layout matches the calculator.
+steam consumers so the Power IV reactor feeds the turbine bank and the breeder
+feeds the utility-steam header.
+
+Build two Electrolyzer IIs for Chlorine and two Heated Evaporation Ponds for
+Salt inside the Nuclear station. Start with one of each active and one of each
+paused. Keep the existing General copies operating during construction; pause
+them only after the local Brine chain is commissioned and supplying the
+factory.
 
 ### Stage 3: commission the closed loop
 
@@ -92,19 +115,18 @@ generation.
 
 Use the available electricity and Hydrogen Fuel for research, mining, and
 terrain flattening. Bring additional turbine trains online as demand grows,
-up to the station's 255 MW capacity.
+up to the station's 240 MW capacity.
 
 ### Stage 5: scale only when needed
 
-When 255 MW is no longer enough, plan the next reactor block from measured
+When 240 MW is no longer enough, plan the next reactor block from measured
 demand. Do not reserve the former five-reactor footprint or its support plant.
 As local deposits run out, transition finite inputs to contracts and treat the
 next expansion as a separate checkpoint.
 
 ## Constraints to keep visible
 
-- Maintenance III will be a major long-term ore drain even though it is not
-  assigned directly to production modules.
+- No Maintenance III expansion is part of this checkpoint.
 - The active Uranium contract adds 42 workers to the factory total: 22 on the
   cargo ship and 20 across its four large cargo modules.
 - Population growth must include the demand created by new residents while

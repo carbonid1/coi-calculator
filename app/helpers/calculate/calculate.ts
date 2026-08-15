@@ -306,6 +306,21 @@ export const calculateNet = (
   );
   const sourceOutputCapacities = new Map<ProductionLine, Map<ResourceId, number>>();
   const totalSourceCapacityByResource = new Map<ResourceId, number>();
+  const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => (
+    `${moduleId}:${resourceId}`
+  );
+  const simulatedModuleFlows = new Map<
+    string,
+    { consumed: number; produced: number }
+  >();
+  const getSimulatedModuleFlow = (moduleId: string, resourceId: ResourceId) => {
+    const key = moduleResourceKey(moduleId, resourceId);
+    const flow = simulatedModuleFlows.get(key) ?? { consumed: 0, produced: 0 };
+
+    simulatedModuleFlows.set(key, flow);
+
+    return flow;
+  };
   const setSourceOutputCapacity = (
     line: ProductionLine,
     resourceId: ResourceId,
@@ -349,10 +364,16 @@ export const calculateNet = (
     const m = lineFactor(line);
 
     for (const input of line.recipe.inputs) {
-      simGet(input.resourceId).consumed += getRecipeInputQuantity(input, outputModifiers) * m;
+      const quantity = getRecipeInputQuantity(input, outputModifiers) * m;
+
+      simGet(input.resourceId).consumed += quantity;
+      getSimulatedModuleFlow(line.moduleId, input.resourceId).consumed += quantity;
     }
     for (const output of line.recipe.outputs) {
-      simGet(output.resourceId).produced += getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+      const quantity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+
+      simGet(output.resourceId).produced += quantity;
+      getSimulatedModuleFlow(line.moduleId, output.resourceId).produced += quantity;
     }
   }
 
@@ -367,11 +388,25 @@ export const calculateNet = (
       setSourceOutputCapacity(line, output.resourceId, capacity);
     }
   }
-  for (const line of sourceLines.filter((source) => source.recipe.sourceMode === "demand-capped")) {
+  for (const line of sourceLines.filter((source) => (
+    source.recipe.sourceMode === "demand-capped"
+    || source.recipe.sourceMode === "module-demand-capped"
+  ))) {
     const m = lineFactor(line);
 
     for (const output of line.recipe.outputs) {
-      const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * m;
+      const installedCapacity = getRecipeOutputQuantity(
+        line.recipe,
+        output,
+        outputModifiers,
+      ) * m;
+      const moduleFlow = getSimulatedModuleFlow(line.moduleId, output.resourceId);
+      const capacity = line.recipe.sourceMode === "module-demand-capped"
+        ? Math.min(
+            installedCapacity,
+            Math.max(0, moduleFlow.consumed - moduleFlow.produced),
+          )
+        : installedCapacity;
 
       simGet(output.resourceId).produced += capacity;
       setSourceOutputCapacity(line, output.resourceId, capacity);
@@ -774,6 +809,41 @@ export const calculateNet = (
   // Sources are fallback streams: internal production is retained first, then
   // sources are allocated in declaration order to cover only what remains.
   const remainingSourceDemand = new Map<ResourceId, number>();
+  const remainingModuleSourceDemand = new Map<string, number>();
+
+  for (const line of sourceLines) {
+    if (line.recipe.sourceMode !== "module-demand-capped") continue;
+
+    for (const output of line.recipe.outputs) {
+      const key = moduleResourceKey(line.moduleId, output.resourceId);
+
+      if (remainingModuleSourceDemand.has(key)) continue;
+
+      const moduleConsumed = regularResults.reduce((total, result) => (
+        result.moduleId === line.moduleId
+          ? total + result.actualInputs.reduce((inputTotal, input) => (
+              input.resourceId === output.resourceId
+                ? inputTotal + input.quantity
+                : inputTotal
+            ), 0)
+          : total
+      ), 0);
+      const moduleProduced = regularResults.reduce((total, result) => (
+        result.moduleId === line.moduleId
+          ? total + result.actualOutputs.reduce((outputTotal, actualOutput) => (
+              actualOutput.resourceId === output.resourceId
+                ? outputTotal + actualOutput.quantity
+                : outputTotal
+            ), 0)
+          : total
+      ), 0);
+
+      remainingModuleSourceDemand.set(
+        key,
+        Math.max(0, moduleConsumed - moduleProduced),
+      );
+    }
+  }
 
   for (const line of sourceLines) {
     for (const output of line.recipe.outputs) {
@@ -796,11 +866,26 @@ export const calculateNet = (
     const actualOutputs = line.recipe.outputs.map((output) => {
       const flow = getFlow(output.resourceId);
       const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
-      const remaining = remainingSourceDemand.get(output.resourceId) ?? 0;
+      const moduleKey = moduleResourceKey(line.moduleId, output.resourceId);
+      const moduleScoped = line.recipe.sourceMode === "module-demand-capped";
+      const remaining = moduleScoped
+        ? remainingModuleSourceDemand.get(moduleKey) ?? 0
+        : remainingSourceDemand.get(output.resourceId) ?? 0;
       const actualUsed = Math.min(capacity, remaining);
 
       flow.produced -= capacity - actualUsed;
-      remainingSourceDemand.set(output.resourceId, remaining - actualUsed);
+      if (moduleScoped) {
+        remainingModuleSourceDemand.set(moduleKey, remaining - actualUsed);
+        remainingSourceDemand.set(
+          output.resourceId,
+          Math.max(
+            0,
+            (remainingSourceDemand.get(output.resourceId) ?? 0) - actualUsed,
+          ),
+        );
+      } else {
+        remainingSourceDemand.set(output.resourceId, remaining - actualUsed);
+      }
 
       return { resourceId: output.resourceId, quantity: actualUsed };
     });
@@ -901,7 +986,11 @@ export const calculateNet = (
     if (excess <= 1e-9) continue;
 
     for (const result of sourceResults.toReversed()) {
-      if (!result.recipe.sourceMode || excess <= 1e-9) continue;
+      if (
+        !result.recipe.sourceMode
+        || result.recipe.sourceMode === "module-demand-capped"
+        || excess <= 1e-9
+      ) continue;
 
       const actualOutput = result.actualOutputs.find(
         (output) => output.resourceId === resourceId,

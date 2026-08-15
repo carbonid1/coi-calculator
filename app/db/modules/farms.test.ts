@@ -16,10 +16,12 @@ import {
 import { defaultActiveEdicts, defaultEdictLevels } from "../edicts";
 import { recipes } from "../recipes";
 import { defaultInfiniteResearchLevels } from "../research";
-import { createFarmsModule, FARMS_MODULE_ID } from "./farms";
-import { createFbrPowerPlantModule } from "./fbr-power-plant";
+import {
+  CHICKEN_FARMS_MODULE_ID,
+  createChickenFarmsModule,
+  greenhouses,
+} from "./farms";
 import { modules, type Module } from "./modules";
-import { NUCLEAR_MODULE_ID } from "./nuclear";
 
 const plannedCropIds: readonly CropId[] = [
   "canola",
@@ -32,20 +34,27 @@ const plannedCropIds: readonly CropId[] = [
   "treeSapling",
   "potato",
 ];
-const currentFactoryModules = modules.filter(
-  (module) => module.id !== NUCLEAR_MODULE_ID,
-).concat(createFbrPowerPlantModule({
-  averageNuclearGenerationMw: 30.2,
-  hydrogenFuelDemandPerCycle: 50,
-}));
+const currentFactoryModules = modules;
 
 describe("active crop farm plan", () => {
   it("supports disabling chicken farms completely", () => {
-    const farmsModule = createFarmsModule({ totalChickenCount: 0, slaughtering: true });
-    const preset = farmsModule.presets.at(0);
+    const chickenFarmsModule = createChickenFarmsModule({
+      totalChickenCount: 0,
+      slaughtering: true,
+    });
+    const preset = chickenFarmsModule.presets.at(0);
 
-    expect(farmsModule.builtBuildings?.["chicken-farm-slaughtering"]).toBe(0);
+    expect(chickenFarmsModule.builtBuildings?.["chicken-farm-slaughtering"]).toBe(0);
     expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0);
+  });
+
+  it("connects four active and one paused Groundwater Pump only to Greenhouses", () => {
+    const greenhousePreset = greenhouses.presets.at(0);
+    const chickenFarmsModule = createChickenFarmsModule(defaultChickenFarmSettings);
+
+    expect(greenhouses.builtBuildings["groundwater-pump"]).toBe(5);
+    expect(greenhousePreset?.activeBuildings["groundwater-pump"]).toBe(4);
+    expect(chickenFarmsModule.builtBuildings).not.toHaveProperty("groundwater-pump");
   });
 
   it("uses separate dedicated v0.8.7 Carcass processors in General", () => {
@@ -83,7 +92,7 @@ describe("active crop farm plan", () => {
       "food-processor-meat": 1,
       "food-processor-meat-trimmings": 1,
     });
-    expect(createFarmsModule(defaultChickenFarmSettings).builtBuildings).not.toHaveProperty(
+    expect(createChickenFarmsModule(defaultChickenFarmSettings).builtBuildings).not.toHaveProperty(
       "food-processor-meat",
     );
   });
@@ -100,7 +109,7 @@ describe("active crop farm plan", () => {
     }
   });
 
-  it("closes every planned crop deficit with at most 5 surplus per crop", () => {
+  it("keeps every planned crop in surplus for the current factory", () => {
     expect(defaultEdictLevels.plentyOfFood).toBe(2);
 
     const cropFarming = calculateCropFarmingModifiers(
@@ -133,10 +142,11 @@ describe("active crop farm plan", () => {
 
     for (const cropId of plannedCropIds) {
       const flow = result.flows.find((candidate) => candidate.resourceId === cropId);
+      const net = flow?.net ?? -1;
 
       expect(flow, cropId).toBeDefined();
-      expect(flow?.net ?? -1, `${cropId} deficit`).toBeGreaterThanOrEqual(-1e-9);
-      expect(flow?.net ?? 6, `${cropId} surplus`).toBeLessThanOrEqual(5);
+      expect(net, `${cropId} deficit`).toBeGreaterThanOrEqual(-1e-9);
+      expect(net, `${cropId} surplus`).toBeLessThanOrEqual(5);
     }
 
     const sugarCane = result.flows.find((flow) => flow.resourceId === "sugarCane");
@@ -161,7 +171,10 @@ describe("active crop farm plan", () => {
       (line) => line.recipe.id === "cracking-unit-fuel-gas-diesel",
     );
 
-    expect(activeCropFarmGroups).toHaveLength(6);
+    expect(activeCropFarmGroups.reduce(
+      (total, group) => total + group.farmCount,
+      0,
+    )).toBe(6);
     expect(sugarCane?.net ?? 6).toBeLessThanOrEqual(5);
     expect(foodPack?.net).toBeCloseTo(0);
     expect(defaultChickenFarmSettings).toMatchObject({ totalChickenCount: 1_700 });
@@ -189,8 +202,8 @@ describe("active crop farm plan", () => {
     );
     const calculateWithChickenCount = (totalChickenCount: number) => {
       const configuredModules: Module[] = currentFactoryModules.map((module) => (
-        module.id === FARMS_MODULE_ID
-          ? createFarmsModule({ totalChickenCount, slaughtering: true })
+        module.id === CHICKEN_FARMS_MODULE_ID
+          ? createChickenFarmsModule({ totalChickenCount, slaughtering: true })
           : module
       ));
 

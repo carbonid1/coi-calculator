@@ -54,12 +54,13 @@ In v0.8.6, farm crop growth does not read sunlight. Weather affects crops throug
 
 ## Current planning layout
 
-The active crop plan uses six fixed Greenhouse II rotations, Fertilizer II at
-targets from 100% to 140%, and full irrigation. Six is the minimum building
-count that supports the current factory: every crop deficit is closed and every
-crop surplus remains at or below 5 per month. The Food Pack expansion uses
+The active crop plan uses six Greenhouse IIs across five fixed rotations,
+Fertilizer II at targets from 100% to 140%, and full irrigation. Six is the
+minimum building count that supports the current factory: every crop deficit is
+closed and every crop surplus remains at or below 5 per production cycle. The
+Food Pack expansion uses
 1,700 chickens across four farms, three Baking Units, and four Mills. Carcass
-processing belongs to the General module, not Farms: one dedicated Food
+processing belongs to the General module, not Chicken Farms: one dedicated Food
 Processor makes Meat + Trimmings, and a second dedicated Food Processor converts
 only surplus Carcasses into Trimmings. Surplus Trimmings continue through Fuel
 Gas into Diesel, which is intentionally retained as a useful trade surplus.
@@ -68,4 +69,21 @@ including across the last-to-first wrap. The farms do not auto-balance:
 changing population or downstream recipes leaves a visible crop deficit or
 surplus until the physical layout is revised.
 
-Crop output and fertilizer are long-run cycle averages on the calculator's 100-year horizon. Each farm card keeps gross crop demand visible for comparison with the game UI, then reports the weather-adjusted imported water used by module and factory balances. Evaporation is absent because every schedule slot is occupied.
+Greenhouses and Chicken Farms are separate calculator modules because they are
+separate physical water networks. Five Groundwater Pumps are installed for the
+Greenhouses, with four active and one paused. Chicken Farm water is imported
+from Factory Total and can never increase those pumps' modeled output.
+
+| Farms | Rotation | Fertilizer II target |
+| ---: | --- | ---: |
+| 1 | Fruit / Sugar Cane / Fruit / Tree Sapling | 100% |
+| 1 | Canola / Wheat / Fruit / Wheat | 130% |
+| 2 | Wheat / Corn / Vegetables / Corn | 140% |
+| 1 | Wheat / Potato / Green Manure / Green Manure | 140% |
+| 1 | Wheat / Corn / Soybean / Corn | 130% |
+
+Crop output and fertilizer are long-run cycle averages on the calculator's
+100-year horizon. Each farm card keeps gross crop demand visible for comparison
+with the game UI, then reports the weather-adjusted imported water used by
+module and factory balances. Evaporation is absent because every schedule slot
+is occupied.

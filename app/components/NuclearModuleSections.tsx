@@ -32,9 +32,20 @@ const nuclearAndWasteRecipeIds = [
 
 const waterAndSteamRecipeIds = [
   "hydrogen-reformer-super",
-  "seawater-pump",
   "thermal-desalinator-depleted",
   "thermal-desalinator-super",
+] as const;
+
+const brineProcessingRecipeIds = [
+  "electrolyzer-ii-chlorine",
+  "evaporation-pond-heated-salt-brine",
+] as const;
+
+const intakeAndDisposalRecipeIds = [
+  "seawater-pump",
+  "nuclear-liquid-dump-water",
+  "nuclear-liquid-dump-brine",
+  "nuclear-smoke-stack-large-oxygen",
   "cooling-tower-large-super",
   "cooling-tower-large-depleted",
 ] as const;
@@ -134,8 +145,12 @@ export const NuclearModuleSections: React.FC<Props> = ({
   const electricityLines = lines.filter((line) => line.recipe.group === "electricity");
   const nuclearAndWasteLines = selectLines(lines, nuclearAndWasteRecipeIds);
   const waterAndSteamLines = selectLines(lines, waterAndSteamRecipeIds);
-  const coolingLines = waterAndSteamLines.filter((line) => line.capacityPoolId);
-  const waterProductionLines = waterAndSteamLines.filter((line) => !line.capacityPoolId);
+  const brineProcessingLines = selectLines(lines, brineProcessingRecipeIds);
+  const intakeAndDisposalLines = selectLines(lines, intakeAndDisposalRecipeIds);
+  const coolingLines = intakeAndDisposalLines.filter((line) => line.capacityPoolId);
+  const standaloneIntakeAndDisposalLines = intakeAndDisposalLines.filter(
+    (line) => !line.capacityPoolId,
+  );
   const coolingTargetKey = coolingLines[0]?.capacityPoolId;
 
   return (
@@ -166,7 +181,31 @@ export const NuclearModuleSections: React.FC<Props> = ({
           Water &amp; steam
         </h2>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {waterProductionLines.map(renderLine)}
+          {waterAndSteamLines.map(renderLine)}
+        </div>
+      </section>
+
+      <section className="space-y-2" aria-labelledby="brine-processing-heading">
+        <h2
+          id="brine-processing-heading"
+          className="text-sm font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          Brine processing
+        </h2>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {brineProcessingLines.map(renderLine)}
+        </div>
+      </section>
+
+      <section className="space-y-2" aria-labelledby="intake-and-disposal-heading">
+        <h2
+          id="intake-and-disposal-heading"
+          className="text-sm font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          Intake &amp; disposal
+        </h2>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {standaloneIntakeAndDisposalLines.map(renderLine)}
           {coolingTargetKey && (
             <BuildingCardTarget
               focused={focusedTargetKey === coolingTargetKey}

@@ -4,6 +4,8 @@ import { settlementConfig } from "./settlement";
 interface BuildingData {
   workers: number;
   electricityKw: number;
+  /** Pausing this building has no recurring-cost benefit worth recommending. */
+  suppressPauseAttention?: boolean;
   /** Full-load computing demand. Capacity providers leave this at zero. */
   computingTflops?: number;
   /** Recurring Unity demand while the building is operating. */
@@ -85,6 +87,7 @@ export const buildings: Record<string, BuildingData> = {
   "Rotary Kiln (gas)": { workers: 10, electricityKw: 100 },
   "Compactor": { workers: 1, electricityKw: 100 },
   "Liquid Dump": { workers: 1, electricityKw: 0 },
+  "Smoke stack (large)": { workers: 0, electricityKw: 0 },
   "Glass Maker II": { workers: 8, electricityKw: 500 },
   "Oxygen Furnace II": { workers: 6, electricityKw: 200 },
   "Cooled Caster II": { workers: 2, electricityKw: 0 },
@@ -106,7 +109,11 @@ export const buildings: Record<string, BuildingData> = {
   "Truck": { workers: 1, electricityKw: 0 },
   "Haul truck (dump)": { workers: 1, electricityKw: 0 },
   "Mega excavator": { workers: 1, electricityKw: 0 },
-  "Cooling Tower (Large)": { workers: 0, electricityKw: 0 },
+  "Cooling Tower (Large)": {
+    workers: 0,
+    electricityKw: 0,
+    suppressPauseAttention: true,
+  },
   "Data Center": { workers: 6, electricityKw: 0 },
   "Basic Rack": { workers: 0, electricityKw: 85 },
   "Water Chiller": { workers: 3, electricityKw: 1000 },

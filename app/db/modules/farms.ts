@@ -7,39 +7,67 @@ import {
 import { activeCropFarmGroups } from "../crop-farming";
 import { type Module } from "./modules";
 
-export const FARMS_MODULE_ID = "farms";
+export const GREENHOUSES_MODULE_ID = "greenhouses";
+export const CHICKEN_FARMS_MODULE_ID = "chicken-farms";
 
+const builtGroundwaterPumpCount = 5;
+const activeGroundwaterPumpCount = 4;
 const slaughteringRecipeId = "chicken-farm-slaughtering";
 const eggsOnlyRecipeId = "chicken-farm-eggs-only";
 
-export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
+const cropFarmTotals = Object.fromEntries(
+  activeCropFarmGroups.map((group) => [group.id, group.farmCount]),
+);
+const fixedCropFarmIds = activeCropFarmGroups.map((group) => group.id);
+const cropFarmCount = activeCropFarmGroups.reduce(
+  (total, group) => total + group.farmCount,
+  0,
+);
+const greenhouseBuildings = {
+  "groundwater-pump": builtGroundwaterPumpCount,
+  ...cropFarmTotals,
+};
+const activeGreenhouseBuildings = {
+  ...greenhouseBuildings,
+  "groundwater-pump": activeGroundwaterPumpCount,
+};
+
+export const greenhouses: Module = {
+  id: GREENHOUSES_MODULE_ID,
+  name: "Greenhouses",
+  description: `${cropFarmCount} fixed Greenhouse II rotations. Five directly connected Groundwater Pumps are built with four active; they balance only greenhouse demand, and any remaining Water is imported. Crop cards show imported water after weather and gross demand.`,
+  builtBuildings: greenhouseBuildings,
+  presets: [
+    {
+      id: "current-greenhouse-plan",
+      name: "Current Greenhouse Plan",
+      description: `${cropFarmCount} Greenhouse IIs with four active and one paused Groundwater Pump`,
+      activeBuildings: activeGreenhouseBuildings,
+      fixed: fixedCropFarmIds,
+    },
+  ],
+  defaultPresetId: "current-greenhouse-plan",
+};
+
+export const createChickenFarmsModule = (settings: ChickenFarmSettings): Module => {
   const farmRecipeId = settings.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
   const chickenLayout = getChickenFarmLayout(settings.totalChickenCount);
-  const cropFarmTotals = Object.fromEntries(
-    activeCropFarmGroups.map((group) => [group.id, group.farmCount]),
-  );
-  const fixedCropFarmIds = activeCropFarmGroups.map((group) => group.id);
-  const cropFarmCount = activeCropFarmGroups.reduce(
-    (total, group) => total + group.farmCount,
-    0,
-  );
   const builtBuildings = {
-    ...cropFarmTotals,
     [farmRecipeId]: chickenLayout.farmCount,
   };
 
   return {
-    id: FARMS_MODULE_ID,
-    name: "Farms",
-    description: `${cropFarmCount} fixed Greenhouse II rotations plus livestock. Crop cards show imported water after weather and gross demand.`,
+    id: CHICKEN_FARMS_MODULE_ID,
+    name: "Chicken Farms",
+    description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens. Their Water is imported from Factory Total; they are not connected to the Greenhouse groundwater network.`,
     builtBuildings,
     presets: [
       {
-        id: "current-farm-plan",
-        name: "Current Farm Plan",
-        description: `${cropFarmCount} Greenhouse IIs and ${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens`,
+        id: "current-chicken-farm-plan",
+        name: "Current Chicken Farm Plan",
+        description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens`,
         activeBuildings: builtBuildings,
-        fixed: [...fixedCropFarmIds, farmRecipeId],
+        fixed: [farmRecipeId],
         speedLevels: {
           [farmRecipeId]: chickenLayout.farmCount > 0
             ? chickenLayout.totalChickenCount
@@ -48,8 +76,8 @@ export const createFarmsModule = (settings: ChickenFarmSettings): Module => {
         },
       },
     ],
-    defaultPresetId: "current-farm-plan",
+    defaultPresetId: "current-chicken-farm-plan",
   };
 };
 
-export const farms = createFarmsModule(defaultChickenFarmSettings);
+export const chickenFarms = createChickenFarmsModule(defaultChickenFarmSettings);

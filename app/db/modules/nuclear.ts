@@ -10,6 +10,8 @@ const ACTIVE_HYDROGEN_REFORMER_COUNT = 3;
 const SEAWATER_PUMP_COUNT = 3;
 const DEPLETED_DESALINATOR_COUNT = 4;
 const SUPER_DESALINATOR_COUNT = 5;
+const BUILT_BRINE_PROCESSING_COUNT = 2;
+const ACTIVE_BRINE_PROCESSING_COUNT = 1;
 const BUILT_COOLING_TOWER_COUNT = 4;
 const ACTIVE_COOLING_TOWER_COUNT = 3;
 
@@ -38,10 +40,9 @@ export const createNuclearModule = (
   const spentCoreFuel = breederReactors * 4 * breederPowerLevel
     + nonBreederReactors * 2 * nonBreederPowerLevel;
   const enrichedBlanketFuel = breederReactors * 12 * breederPowerLevel;
-  const superSteam = breederReactors * 24 * breederPowerLevel
-    + nonBreederReactors * 96 * nonBreederPowerLevel;
+  const powerReactorSuperSteam = nonBreederReactors * 96 * nonBreederPowerLevel;
   const fissionProducts = spentCoreFuel / 8;
-  const generationCapacityMw = superSteam
+  const generationCapacityMw = powerReactorSuperSteam
     * (15 + 10 + 5)
     / 48;
   const generationTargetMw = Math.max(0, baselines.averageNuclearGenerationMw);
@@ -52,7 +53,7 @@ export const createNuclearModule = (
   const turbineSteamPerCycle = dispatchedGenerationMw * 48 / (15 + 10 + 5);
   const hydrogenDemandPerCycle = Math.max(0, baselines.hydrogenFuelDemandPerCycle);
   const activeTurbineCount = Math.ceil(turbineSteamPerCycle / 48);
-  const builtTurbineCount = Math.ceil(superSteam / 48);
+  const builtTurbineCount = Math.ceil(powerReactorSuperSteam / 48);
   const reprocessingCount = Math.ceil(spentCoreFuel / 16);
   const enrichmentCount = Math.ceil(enrichedBlanketFuel / 8);
   const wasteStorageCount = Math.ceil(fissionProducts / 2);
@@ -82,8 +83,13 @@ export const createNuclearModule = (
           "hydrogen-reformer-super": BUILT_HYDROGEN_REFORMER_COUNT,
           "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
           "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
+          "electrolyzer-ii-chlorine": BUILT_BRINE_PROCESSING_COUNT,
+          "evaporation-pond-heated-salt-brine": BUILT_BRINE_PROCESSING_COUNT,
           "cooling-tower-large-super": BUILT_COOLING_TOWER_COUNT,
           "cooling-tower-large-depleted": BUILT_COOLING_TOWER_COUNT,
+          "nuclear-liquid-dump-water": 1,
+          "nuclear-liquid-dump-brine": 1,
+          "nuclear-smoke-stack-large-oxygen": 1,
           "radioactive-waste-storage": wasteStorageCount,
           "shredder-retired-waste": shredderCount,
         },
@@ -101,8 +107,13 @@ export const createNuclearModule = (
           "hydrogen-reformer-super": ACTIVE_HYDROGEN_REFORMER_COUNT,
           "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
           "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
+          "electrolyzer-ii-chlorine": ACTIVE_BRINE_PROCESSING_COUNT,
+          "evaporation-pond-heated-salt-brine": ACTIVE_BRINE_PROCESSING_COUNT,
           "cooling-tower-large-super": ACTIVE_COOLING_TOWER_COUNT,
           "cooling-tower-large-depleted": ACTIVE_COOLING_TOWER_COUNT,
+          "nuclear-liquid-dump-water": 1,
+          "nuclear-liquid-dump-brine": 1,
+          "nuclear-smoke-stack-large-oxygen": 1,
           "radioactive-waste-storage": wasteStorageCount,
           "shredder-retired-waste": shredderCount,
         },

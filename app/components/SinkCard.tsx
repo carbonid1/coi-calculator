@@ -14,15 +14,22 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.activeBuildings === 0 || !hasWork;
 
-  // Effective building count based on actual vs max output
-  const effectiveCount = hasWork && result.recipe.outputs.length > 0
+  // Effective building count based on the first produced or consumed resource.
+  const effectiveCount = hasWork
     ? (() => {
         if (result.recipe.sourceMode === "demand") return result.activeBuildings;
 
-        const maxOutput = (result.recipe.outputs[0]?.quantity ?? 0) * result.activeBuildings;
-        const actualOutput = result.actualOutputs[0]?.quantity ?? 0;
+        const referenceQuantity = result.recipe.outputs[0]?.quantity
+          ?? result.recipe.inputs[0]?.quantity
+          ?? 0;
+        const actualQuantity = result.actualOutputs[0]?.quantity
+          ?? result.actualInputs[0]?.quantity
+          ?? 0;
+        const maxQuantity = referenceQuantity * result.activeBuildings;
 
-        return maxOutput > 0 ? parseFloat((result.activeBuildings * actualOutput / maxOutput).toFixed(2)) : result.activeBuildings;
+        return maxQuantity > 0
+          ? parseFloat((result.activeBuildings * actualQuantity / maxQuantity).toFixed(2))
+          : result.activeBuildings;
       })()
     : 0;
 

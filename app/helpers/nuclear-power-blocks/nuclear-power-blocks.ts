@@ -135,7 +135,7 @@ export const createNuclearPowerBlocks = (
         },
         result: splitResult(reactorResult, reactorActive, 1, reactorShare),
       },
-      turbineBank: turbineLines.map((line) => {
+      turbineBank: turbineLines.flatMap((line) => {
         const builtMultiplier = line.recipe.id === "power-generator-ii-nuclear" ? 2 : 1;
         const builtByBlock = turbineTrainCounts.map((count) => count * builtMultiplier);
         const activeByBlock = allocateActiveCapacity(
@@ -144,22 +144,26 @@ export const createNuclearPowerBlocks = (
           reactorInstances.map((reactor) => reactor.steamWeight),
         );
         const active = activeByBlock[blockIndex] ?? 0;
+        const built = builtByBlock[blockIndex] ?? 0;
+
+        if (built === 0) return [];
+
         const result = results.find((candidate) => candidate.recipe.id === line.recipe.id);
         const share = line.activeBuildings > 0 ? active / line.activeBuildings : 0;
 
-        return {
+        return [{
           line: {
             ...line,
             activeBuildings: active,
-            builtBuildings: builtByBlock[blockIndex] ?? 0,
+            builtBuildings: built,
           },
           result: splitResult(
             result,
             active,
-            builtByBlock[blockIndex] ?? 0,
+            built,
             share,
           ),
-        };
+        }];
       }),
     };
   });

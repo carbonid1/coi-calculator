@@ -1,9 +1,19 @@
 import { expect, it } from "vitest";
 import { general } from "../../db/modules/general";
 import { maintenance } from "../../db/modules/maintenance";
+import { type Recipe, recipes } from "../../db/recipes";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateNet } from "./calculate";
+
+const fixedLine = (recipe: Recipe, moduleId: string, activeBuildings = 1) => ({
+  recipe,
+  moduleId,
+  activeBuildings,
+  builtBuildings: activeBuildings,
+  speedLevel: 1,
+  operatingMode: "fixed" as const,
+});
 
 it("installs two demand-balanced tanks with the verified per-building Yellowcake capacity", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId)!;
@@ -40,4 +50,52 @@ it("installs two demand-balanced tanks with the verified per-building Yellowcake
     produced: Number(recyclables.produced.toFixed(5)),
     sourceValue: Number(recyclables.recyclableSourceValueProduced?.toFixed(5)),
   }).toEqual({ produced: 14.94, sourceValue: 14.94 });
+});
+
+it("limits module-scoped Groundwater Pumps to their module's Water demand", () => {
+  const groundwaterPump = recipes.find((recipe) => recipe.id === "groundwater-pump")!;
+  const farmWaterConsumer: Recipe = {
+    id: "test-farm-water-consumer",
+    name: "Test Farm Water Consumer",
+    building: "Test Farm",
+    group: "production",
+    inputs: [{ resourceId: "water", quantity: 100 }],
+    outputs: [],
+  };
+  const remoteWaterConsumer: Recipe = {
+    id: "test-remote-water-consumer",
+    name: "Test Remote Water Consumer",
+    building: "Test Remote",
+    group: "production",
+    inputs: [{ resourceId: "water", quantity: 500 }],
+    outputs: [],
+  };
+  const withoutRemoteDemand = calculateNet([
+    fixedLine(groundwaterPump, "farms", 5),
+    fixedLine(farmWaterConsumer, "farms"),
+  ]);
+  const withRemoteDemand = calculateNet([
+    fixedLine(groundwaterPump, "farms", 5),
+    fixedLine(farmWaterConsumer, "farms"),
+    fixedLine(remoteWaterConsumer, "general"),
+  ]);
+  const pumped = (result: ReturnType<typeof calculateNet>) => (
+    result.sourceResults.find((candidate) => (
+      candidate.moduleId === "farms"
+      && candidate.recipe.id === "groundwater-pump"
+    ))?.actualOutputs[0]?.quantity ?? 0
+  );
+  const waterNet = (result: ReturnType<typeof calculateNet>) => (
+    result.allResourceFlows.find((flow) => flow.resourceId === "water")?.net ?? 0
+  );
+  const reportedWaterNet = (result: ReturnType<typeof calculateNet>) => (
+    result.resourceFlows.find((flow) => flow.resourceId === "water")?.net ?? 0
+  );
+
+  expect(groundwaterPump.sourceMode).toBe("module-demand-capped");
+  expect(pumped(withoutRemoteDemand)).toBe(100);
+  expect(waterNet(withoutRemoteDemand)).toBe(0);
+  expect(pumped(withRemoteDemand)).toBe(100);
+  expect(waterNet(withRemoteDemand)).toBe(-500);
+  expect(reportedWaterNet(withRemoteDemand)).toBe(-500);
 });

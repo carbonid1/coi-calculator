@@ -51,7 +51,7 @@ describe("Factory Total contracts", () => {
     expect(uranium).toMatchObject({ consumed: 54, produced: 36, net: -18 });
   });
 
-  it("adds 140 Maintenance III without pinning the two depots", () => {
+  it("uses the measured Maintenance III demand with one depot", () => {
     const maintenanceOutput = calculateMaintenanceOutput(
       defaultInfiniteResearchLevels.maintenanceOutput,
     );
@@ -68,12 +68,12 @@ describe("Factory Total contracts", () => {
       (output) => output.resourceId === "maintenanceIII",
     )?.quantity;
 
-    expect(maintenanceDemandPerMonth.maintenanceIII).toBe(263);
+    expect(maintenanceDemandPerMonth.maintenanceIII).toBe(123);
     expect(maintenanceIII).toMatchObject({
-      activeBuildings: 2,
-      builtBuildings: 2,
+      activeBuildings: 1,
+      builtBuildings: 1,
     });
     expect(maintenanceIII?.supplyRatio ?? 1).toBeLessThan(1);
-    expect(produced).toBeCloseTo(263);
+    expect(produced).toBeCloseTo(123);
   });
 });

@@ -49,7 +49,7 @@ it("routes Nuclear steam through useful Water and Brine production before coolin
   expect(superDesalination?.actualOutputs.find(
     (output) => output.resourceId === "brine",
   )?.quantity ?? 0).toBeGreaterThan(0);
-  expect(net("brine")).toBeGreaterThanOrEqual(-0.001);
+  expect(net("brine")).toBeCloseTo(0, 10);
   expect(net("chlorine")).toBeGreaterThanOrEqual(-0.001);
   expect(net("salt")).toBeGreaterThanOrEqual(-0.001);
   expect(net("seaWater")).toBeGreaterThanOrEqual(-0.001);

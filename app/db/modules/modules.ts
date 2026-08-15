@@ -1,6 +1,6 @@
 import { type ResourceId } from "../resources";
 import { computing } from "./computing";
-import { farms } from "./farms";
+import { chickenFarms, greenhouses } from "./farms";
 import { forestry } from "./forestry";
 import { general } from "./general";
 import { housing } from "./housing";
@@ -48,7 +48,8 @@ export const modules: [Module, ...Module[]] = [
   forestry,
   processSteam,
   research,
-  farms,
+  greenhouses,
+  chickenFarms,
   housing,
   staticInfrastructure,
   mines,

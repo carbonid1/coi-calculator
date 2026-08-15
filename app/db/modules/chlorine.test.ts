@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { type ProductionLine, calculateNet } from "../../helpers/calculate/calculate";
 import { type Recipe, recipes } from "../recipes";
 import { general } from "./general";
+import { nuclear } from "./nuclear";
 
 const recipeById = (id: string): Recipe => {
   const recipe = recipes.find((candidate) => candidate.id === id);
@@ -20,11 +21,24 @@ const balancedLine = (recipe: Recipe): ProductionLine => ({
   operatingMode: "balanced",
 });
 
-it("models the installed Electrolyzer II building", () => {
-  const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId);
+it("assigns planned Brine processing to Nuclear rather than General", () => {
+  const generalPreset = general.presets.find(
+    (candidate) => candidate.id === general.defaultPresetId,
+  );
+  const nuclearPreset = nuclear.presets.find(
+    (candidate) => candidate.id === nuclear.defaultPresetId,
+  );
 
-  expect(general.builtBuildings["electrolyzer-ii-chlorine"]).toBe(1);
-  expect(preset?.builtBuildings?.["electrolyzer-ii-chlorine"]).toBe(1);
+  expect(general.builtBuildings["electrolyzer-ii-chlorine"]).toBeUndefined();
+  expect(generalPreset?.builtBuildings?.["electrolyzer-ii-chlorine"]).toBeUndefined();
+  expect(nuclearPreset?.builtBuildings).toMatchObject({
+    "electrolyzer-ii-chlorine": 2,
+    "evaporation-pond-heated-salt-brine": 2,
+  });
+  expect(nuclearPreset?.activeBuildings).toMatchObject({
+    "electrolyzer-ii-chlorine": 1,
+    "evaporation-pond-heated-salt-brine": 1,
+  });
 });
 
 it("uses Titanium reduction Chlorine before running Electrolyzer II", () => {

@@ -54,13 +54,13 @@ it("balances graphite production", () => {
   )!;
 
   expect(carbonDioxideResult.builtBuildings).toBe(2);
-  expect(coalResult.builtBuildings).toBe(2);
+  expect(coalResult.builtBuildings).toBe(1);
   expect(carbonDioxideResult.capacityPoolId).toBe("general:chemical-plant-ii-electronics");
-  expect(coalResult.capacityPoolId).toBe("general:chemical-plant-ii-electronics");
+  expect(coalResult.capacityPoolId).toBeUndefined();
   expect(carbonDioxideResult.supplyRatio).toBeGreaterThan(0);
   expect(coalResult.supplyRatio).toBeGreaterThan(0);
   expect(carbonDioxideResult.recipe.sharedCapacity?.priority).toBe(2);
-  expect(coalResult.recipe.sharedCapacity?.priority).toBe(3);
+  expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
   expect(carbonDioxide.net).toBeCloseTo(0);
   expect(graphite.produced).toBeCloseTo(graphite.consumed);
