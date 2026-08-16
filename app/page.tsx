@@ -434,6 +434,7 @@ const Page = () => {
         <HousingView
           housing={activeHousingType}
           buildingCount={housingCount}
+          serviceMultiplier={unityBudget.housingMultiplier}
         />
       )}
 

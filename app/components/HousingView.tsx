@@ -8,6 +8,7 @@ import {
 interface Props {
   buildingCount: number;
   housing: HousingType;
+  serviceMultiplier: number;
 }
 
 const formatQuantity = (quantity: number) => quantity.toLocaleString("en-US");
@@ -15,8 +16,12 @@ const formatQuantity = (quantity: number) => quantity.toLocaleString("en-US");
 export const HousingView: React.FC<Props> = ({
   buildingCount,
   housing,
+  serviceMultiplier,
 }) => {
   const populationCapacity = calculatePopulationCapacity(housing, buildingCount);
+  const activeUnityTier = housing.unityBonusTiers.find(
+    (tier) => tier.multiplier === serviceMultiplier,
+  );
 
   return (
     <Card.Root className="max-w-2xl">
@@ -61,15 +66,15 @@ export const HousingView: React.FC<Props> = ({
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Best service multiplier</p>
+              <p className="text-xs text-muted-foreground">Configured service multiplier</p>
               <p className="font-mono font-semibold text-foreground">
-                ×{housing.unityBonusTiers.at(-1)?.multiplier ?? 1}
+                ×{serviceMultiplier}
               </p>
             </div>
           </div>
-          {housing.unityBonusTiers.at(-1) && (
+          {activeUnityTier && (
             <p className="text-xs text-muted-foreground">
-              Requires {housing.unityBonusTiers.at(-1)?.requirements.join(", ")} to stay fully supplied.
+              Requires {activeUnityTier.requirements.join(", ")} to stay fully supplied.
             </p>
           )}
         </div>

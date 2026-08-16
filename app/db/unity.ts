@@ -1,5 +1,5 @@
 import { type EdictId, type EdictLevel, edictCatalog } from "./edicts";
-import { type HousingType } from "./housing";
+import { activeHousingServices, type HousingType } from "./housing";
 import { settlementFoods } from "./settlement";
 
 export const baseUnityStorage = 20;
@@ -19,10 +19,10 @@ export const unityServiceDefinitions: readonly UnityServiceDefinition[] = [
   { id: "food", name: "Food", baseUnityPerCycle: 1, active: true },
   { id: "electricity", name: "Electricity", baseUnityPerCycle: 1.2, active: true },
   { id: "water", name: "Water", baseUnityPerCycle: 1, active: true },
-  { id: "householdGoods", name: "Household Goods", baseUnityPerCycle: 1.4, active: false },
-  { id: "householdAppliances", name: "Household Appliances", baseUnityPerCycle: 1.4, active: false },
+  { id: "householdGoods", name: "Household Goods", baseUnityPerCycle: 1.4, active: activeHousingServices.householdGoods },
+  { id: "householdAppliances", name: "Household Appliances", baseUnityPerCycle: 1.4, active: activeHousingServices.householdAppliances },
   { id: "luxuryGoods", name: "Luxury Goods", baseUnityPerCycle: 1, active: false },
-  { id: "consumerElectronics", name: "Consumer Electronics", baseUnityPerCycle: 1.4, active: false },
+  { id: "consumerElectronics", name: "Consumer Electronics", baseUnityPerCycle: 1.4, active: activeHousingServices.consumerElectronics },
   { id: "medicalI", name: "Hospitals", baseUnityPerCycle: 0.5, active: true },
   { id: "medicalII", name: "Hospitals", baseUnityPerCycle: 0.75, active: false },
   { id: "medicalIII", name: "Hospitals", baseUnityPerCycle: 1, active: false },

@@ -31,5 +31,6 @@ it("includes recurring Unity for every active contract", () => {
 
   expect(contractCost?.name).toBe("Food Pack → Uranium Ore");
   expect(contractCost?.amount).toBeCloseTo(0.354, 10);
-  expect(budget.netPerCycle).toBeCloseTo(2.196, 10);
+  expect(budget.housingMultiplier).toBe(1.75);
+  expect(budget.netPerCycle).toBeCloseTo(2.321, 10);
 });

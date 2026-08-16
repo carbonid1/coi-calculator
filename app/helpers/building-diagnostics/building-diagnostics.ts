@@ -119,6 +119,7 @@ const getAnimalPopulationDiagnostic = (
       )))
     : 0;
   const attentionCount = roundDownToStep(removablePopulation, populationStep);
+  const affectedResourceIds: ResourceId[] = [];
 
   return {
     attention: attentionCount >= populationStep ? "remove-animals" as const : null,
@@ -129,7 +130,7 @@ const getAnimalPopulationDiagnostic = (
       label,
       additionalBuildings: 0,
     },
-    affectedResourceIds: [] as ResourceId[],
+    affectedResourceIds,
   };
 };
 

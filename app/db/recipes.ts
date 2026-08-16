@@ -119,8 +119,9 @@ export interface Recipe {
 const radioactiveWasteStorageCapacity = 2400;
 const fissionProductDecayCycles = 100 * 12;
 const radioactiveWasteStorageThroughput = radioactiveWasteStorageCapacity / fissionProductDecayCycles;
-const housingIIPopulationFlows = calculateSettlementPopulationFlows(
+const housingPopulationFlows = calculateSettlementPopulationFlows(
   activeHousingType.populationCapacity,
+  activeHousingType,
 );
 
 export const cropFarmRecipes: Recipe[] = activeCropFarmGroups.map((group) => {
@@ -458,14 +459,14 @@ export const recipes: Recipe[] = [
 
   // Production (order = priority)
 
-  // Settlement demand at full Housing II population capacity
+  // Settlement demand at full configured housing population capacity
   {
     id: settlementRecipeIds.residents,
-    name: "Housing II Residents",
-    building: "Housing II",
+    name: `${activeHousingType.name} Residents`,
+    building: activeHousingType.name,
     group: "production",
-    inputs: housingIIPopulationFlows.inputs,
-    outputs: housingIIPopulationFlows.outputs,
+    inputs: housingPopulationFlows.inputs,
+    outputs: housingPopulationFlows.outputs,
     // v0.8.6 settlement collection converts tracked recyclable sources with
     // its own 2:1 rule; the global recycling modifier is not applied here.
     appliesRecyclingEfficiency: false,
@@ -539,6 +540,14 @@ export const recipes: Recipe[] = [
     id: settlementRecipeIds.waterFacility,
     name: "Water Facility",
     building: "Water Facility",
+    group: "production",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    id: settlementRecipeIds.householdGoodsModule,
+    name: "Household Goods Module",
+    building: "Household Goods Module",
     group: "production",
     inputs: [],
     outputs: [],
@@ -1758,7 +1767,7 @@ export const recipes: Recipe[] = [
     name: "Research Lab IV",
     building: "Research Lab IV",
     group: "production",
-    inputs: [],
+    inputs: [{ resourceId: "labEquipmentIv", quantity: 48 }],
     outputs: [],
   },
   {

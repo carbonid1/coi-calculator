@@ -46,6 +46,27 @@ const formatPower = (megawatts: number) => {
 const formatCapacity = (value: number) => parseFloat(value.toFixed(2));
 const formatBuildingCapacity = (value: number) => parseFloat(value.toFixed(3));
 
+const getComputingSummary = (demand: number, capacity?: number) => {
+  if (capacity == null) {
+    return {
+      label: "Computing demand",
+      value: `${formatCapacity(demand)} TFLOPS`,
+    };
+  }
+
+  if (demand > 0) {
+    return {
+      label: "Computing demand / capacity",
+      value: `${formatCapacity(demand)} / ${formatCapacity(capacity)} TFLOPS`,
+    };
+  }
+
+  return {
+    label: "Computing capacity",
+    value: `${formatCapacity(capacity)} TFLOPS`,
+  };
+};
+
 const getCapacityLimit = (
   resourceId: ResourceId,
   regularResults: RegularResult[],
@@ -341,8 +362,11 @@ export const NetSummary: React.FC<Props> = ({
         const netMw = generationMw - consumptionMw;
         const showsCapacity = electricityGenerationCapacityMw != null;
         const computingDemand = computingConsumptionTflops ?? 0;
-        const computingCapacity = computingGenerationCapacityTflops ?? 0;
         const showsComputingCapacity = computingGenerationCapacityTflops != null;
+        const computingSummary = getComputingSummary(
+          computingDemand,
+          computingGenerationCapacityTflops,
+        );
 
         return (
           <div className="space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
@@ -380,18 +404,10 @@ export const NetSummary: React.FC<Props> = ({
               <div className="-mx-2 flex items-center justify-between rounded px-2 py-1 hover:bg-accent">
                 <span className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Cpu aria-hidden="true" className="size-3.5 shrink-0" />
-                  {showsComputingCapacity
-                    ? computingDemand > 0
-                      ? "Computing demand / capacity"
-                      : "Computing capacity"
-                    : "Computing demand"}
+                  {computingSummary.label}
                 </span>
                 <span className="font-mono font-semibold tabular-nums text-foreground">
-                  {showsComputingCapacity
-                    ? computingDemand > 0
-                      ? `${formatCapacity(computingDemand)} / ${formatCapacity(computingCapacity)} TFLOPS`
-                      : `${formatCapacity(computingCapacity)} TFLOPS`
-                    : `${formatCapacity(computingDemand)} TFLOPS`}
+                  {computingSummary.value}
                 </span>
               </div>
             )}

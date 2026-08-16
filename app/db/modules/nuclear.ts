@@ -6,7 +6,7 @@ import { type Module } from "./modules";
 
 export const NUCLEAR_MODULE_ID = "nuclear";
 const BUILT_HYDROGEN_REFORMER_COUNT = 4;
-const ACTIVE_HYDROGEN_REFORMER_COUNT = 3;
+const ACTIVE_HYDROGEN_REFORMER_COUNT = 4;
 const SEAWATER_PUMP_COUNT = 3;
 const DEPLETED_DESALINATOR_COUNT = 4;
 const SUPER_DESALINATOR_COUNT = 5;

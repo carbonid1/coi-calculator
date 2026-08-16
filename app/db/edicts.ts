@@ -108,15 +108,15 @@ export const defaultEdictLevels: Record<EdictId, EdictLevel> = {
   moreHouseholdGoods: 0,
   moreAirConditioners: 0,
   moreConsumerElectronics: 0,
-  vehiclesFuelSaver: 1,
+  vehiclesFuelSaver: 0,
   shipsFuelSaver: 0,
-  overloadedTrucks: 2,
+  overloadedTrucks: 0,
   maintenanceReducer: 3,
   recyclingIncrease: 4,
   farmingBoost: 1,
   waterSaver: 0,
   cleanPanels: 0,
-  researchEfficiency: 0,
+  researchEfficiency: 5,
 };
 
 const getLevel = (id: EdictId, value: EdictLevel): EdictLevelDefinition => {

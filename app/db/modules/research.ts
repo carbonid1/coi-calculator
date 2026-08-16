@@ -7,17 +7,17 @@ export interface ResearchModuleConfig {
 }
 
 export const defaultResearchModuleConfig: ResearchModuleConfig = {
-  activeResearchLabIvCount: 0,
+  activeResearchLabIvCount: 2,
 };
 
 export const createResearchModule = (config: ResearchModuleConfig): Module => {
   const activeResearchLabIvCount = Math.max(0, Math.trunc(config.activeResearchLabIvCount));
   const builtBuildings = {
     "research-lab-iv": activeResearchLabIvCount,
-    "assembly-v-lab-equipment-i": 0,
-    "assembly-v-lab-equipment-ii": 0,
-    "assembly-v-lab-equipment-iii": 0,
-    "assembly-v-lab-equipment-iv": 0,
+    "assembly-v-lab-equipment-i": 1,
+    "assembly-v-lab-equipment-ii": 2,
+    "assembly-v-lab-equipment-iii": 2,
+    "assembly-v-lab-equipment-iv": 3,
   };
 
   return {
@@ -29,7 +29,7 @@ export const createResearchModule = (config: ResearchModuleConfig): Module => {
       {
         id: "planning-baseline",
         name: "Planning baseline",
-        description: "Lab Equipment planning starts from zero demand and zero production",
+        description: "Two active labs with a dedicated Lab Equipment I–IV chain",
         activeBuildings: builtBuildings,
         fixed: ["research-lab-iv"],
       },

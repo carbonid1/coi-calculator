@@ -63,7 +63,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "turbine-high": 2,
     "turbine-low": 2,
     "power-generator-ii-nuclear": 4,
-    "hydrogen-reformer-super": 3,
+    "hydrogen-reformer-super": 4,
     "thermal-desalinator-depleted": 4,
     "thermal-desalinator-super": 5,
     "electrolyzer-ii-chlorine": 1,

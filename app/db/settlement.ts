@@ -1,3 +1,4 @@
+import { activeHousingServices, type HousingType } from "./housing";
 import { type Ingredient } from "./recipes";
 import { type ResourceId } from "./resources";
 
@@ -41,6 +42,7 @@ export const settlementServiceBuildings = {
   foodMarketII: 2,
   transformer: 1,
   waterFacility: 1,
+  householdGoodsModule: 1,
   wasteCollection: 1,
   recyclablesCollection: 1,
   biomassCollection: 1,
@@ -52,11 +54,12 @@ export const settlementServiceBuildings = {
 } as const;
 
 export const settlementRecipeIds = {
-  residents: "housing-ii-residents",
+  residents: "housing-residents",
   foodMarket: "housing-food-market",
   foodMarketII: "housing-food-market-ii",
   transformer: "housing-transformer",
   waterFacility: "housing-water-facility",
+  householdGoodsModule: "housing-household-goods-module",
   wasteCollection: "housing-waste-collection",
   recyclablesCollection: "housing-recyclables-collection",
   biomassCollection: "housing-biomass-collection",
@@ -72,9 +75,8 @@ export const settlementConfig = {
   daysPerMonth: 30,
   waterPerPopPerMonth: 0.048,
   wasteWaterPerPopPerMonth: 0.04,
-  housingIIWaterMultiplier: 1.05,
   electricityKwPerPop: 1.1,
-  housingIIElectricityMultiplier: 1.1,
+  householdGoodsPerThousandPopsPerMonth: 10,
   medicalSuppliesPerHundredPopsPerMonth: 0.5,
   /** Internet Module demand from SettlementIspModuleProto in v0.8.6. */
   computingTflopsPerHundredPops: 5.76,
@@ -94,6 +96,7 @@ export interface SettlementPopulationFlows {
 
 export const calculateSettlementPopulationFlows = (
   population: number,
+  housing: HousingType,
 ): SettlementPopulationFlows => {
   const normalizedPopulation = Math.max(0, population);
   const foodsPerCategory = new Map<FoodCategoryId, number>();
@@ -116,6 +119,10 @@ export const calculateSettlementPopulationFlows = (
   const medicalSupplies = settlementConfig.medicalSuppliesPerHundredPopsPerMonth
     * normalizedPopulation
     / 100;
+  const householdGoods = settlementConfig.householdGoodsPerThousandPopsPerMonth
+    * normalizedPopulation
+    / 1000
+    * housing.serviceDemandMultipliers.householdGoods;
   const biomass = foodInputs.reduce((total, input, index) => (
     total
     + input.quantity
@@ -130,16 +137,19 @@ export const calculateSettlementPopulationFlows = (
         resourceId: "water",
         inputModifierId: "settlementWater",
         quantity: settlementConfig.waterPerPopPerMonth
-          * settlementConfig.housingIIWaterMultiplier
+          * housing.serviceDemandMultipliers.water
           * normalizedPopulation,
       },
       { resourceId: "medicalSupplies", quantity: medicalSupplies },
+      ...(activeHousingServices.householdGoods
+        ? [{ resourceId: "householdGoods" as const, quantity: householdGoods }]
+        : []),
     ],
     outputs: [
       {
         resourceId: "wasteWater",
         quantity: settlementConfig.wasteWaterPerPopPerMonth
-          * settlementConfig.housingIIWaterMultiplier
+          * housing.serviceDemandMultipliers.wasteWater
           * normalizedPopulation,
       },
       {
@@ -159,7 +169,7 @@ export const calculateSettlementPopulationFlows = (
       },
     ],
     electricityKw: settlementConfig.electricityKwPerPop
-      * settlementConfig.housingIIElectricityMultiplier
+      * housing.serviceDemandMultipliers.electricity
       * normalizedPopulation,
   };
 };

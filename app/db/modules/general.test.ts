@@ -5,11 +5,11 @@ import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
 import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
-import { createFbrPowerPlantModule } from "./fbr-power-plant";
 import {
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
 } from "./farms";
+import { createFbrPowerPlantModule } from "./fbr-power-plant";
 import { general } from "./general";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";

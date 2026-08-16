@@ -13,11 +13,11 @@ interface BuildingData {
 }
 
 export const buildings: Record<string, BuildingData> = {
-  "Housing II": {
+  [activeHousingType.name]: {
     workers: 0,
     electricityKw: activeHousingType.populationCapacity
       * settlementConfig.electricityKwPerPop
-      * settlementConfig.housingIIElectricityMultiplier,
+      * activeHousingType.serviceDemandMultipliers.electricity,
   },
   "Internet Module": {
     workers: 12,
@@ -28,6 +28,7 @@ export const buildings: Record<string, BuildingData> = {
   "Food Market II": { workers: 6, electricityKw: 0 },
   "Transformer": { workers: 8, electricityKw: 0 },
   "Water Facility": { workers: 6, electricityKw: 100 },
+  "Household Goods Module": { workers: 16, electricityKw: 150 },
   "Waste Collection": { workers: 4, electricityKw: 0 },
   "Recyclables Collection": { workers: 12, electricityKw: 0 },
   "Biomass Collection": { workers: 6, electricityKw: 0 },

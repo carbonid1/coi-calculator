@@ -16,6 +16,7 @@ export const createHousingModule = (housingCount: number): Module => {
     [settlementRecipeIds.foodMarketII]: settlementServiceBuildings.foodMarketII * serviceFactor,
     [settlementRecipeIds.transformer]: settlementServiceBuildings.transformer * serviceFactor,
     [settlementRecipeIds.waterFacility]: settlementServiceBuildings.waterFacility * serviceFactor,
+    [settlementRecipeIds.householdGoodsModule]: settlementServiceBuildings.householdGoodsModule * serviceFactor,
     [settlementRecipeIds.wasteCollection]: settlementServiceBuildings.wasteCollection * serviceFactor,
     [settlementRecipeIds.recyclablesCollection]: settlementServiceBuildings.recyclablesCollection * serviceFactor,
     [settlementRecipeIds.biomassCollection]: settlementServiceBuildings.biomassCollection * serviceFactor,
@@ -29,13 +30,13 @@ export const createHousingModule = (housingCount: number): Module => {
   return {
     id: HOUSING_MODULE_ID,
     name: "Population",
-    description: "Full-capacity Housing II demand with settlement services and waste processing",
+    description: `Full-capacity ${activeHousingType.name} demand with settlement services and waste processing`,
     builtBuildings,
     presets: [
       {
-        id: "housing-ii-full-capacity",
-        name: "Housing II — Full Capacity",
-        description: `${residents} Housing II buildings at full population capacity`,
+        id: "housing-full-capacity",
+        name: `${activeHousingType.name} — Full Capacity`,
+        description: `${residents} ${activeHousingType.name} buildings at full population capacity`,
         activeBuildings: builtBuildings,
         fixed: Object.keys(builtBuildings).filter((recipeId) => (
           recipeId !== settlementRecipeIds.wastewaterTreatment
@@ -49,7 +50,7 @@ export const createHousingModule = (housingCount: number): Module => {
         },
       },
     ],
-    defaultPresetId: "housing-ii-full-capacity",
+    defaultPresetId: "housing-full-capacity",
   };
 };
 
