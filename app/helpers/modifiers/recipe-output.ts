@@ -53,7 +53,9 @@ export const getRecipeOutputQuantity = (
   output: Ingredient,
   modifiers: RecipeModifierMultipliers = {},
 ) => {
-  if (!output.outputModifierId) return output.quantity;
+  const modifierExemptQuantity = output.modifierExemptQuantity ?? 0;
+
+  if (!output.outputModifierId) return output.quantity + modifierExemptQuantity;
 
   const multiplier = modifiers[output.outputModifierId] ?? 1;
 
@@ -66,7 +68,7 @@ export const getRecipeOutputQuantity = (
     || output.outputModifierId === "cropYield"
     || output.outputModifierId === "treeGrowthSpeed"
   ) {
-    return output.quantity * multiplier;
+    return output.quantity * multiplier + modifierExemptQuantity;
   }
 
   const cyclesPer60Seconds = recipe.cycleDurationSeconds
@@ -75,7 +77,8 @@ export const getRecipeOutputQuantity = (
   const quantityPerCycle = output.quantity / cyclesPer60Seconds;
 
   // The game scales each recipe-cycle output before reporting its /60 rate.
-  return scaleGameQuantity(quantityPerCycle, multiplier) * cyclesPer60Seconds;
+  return scaleGameQuantity(quantityPerCycle, multiplier) * cyclesPer60Seconds
+    + modifierExemptQuantity;
 };
 
 export const getRecipeInputQuantity = (

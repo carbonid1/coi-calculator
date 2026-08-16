@@ -67,7 +67,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "thermal-desalinator-depleted": 4,
     "thermal-desalinator-super": 5,
     "electrolyzer-ii-chlorine": 1,
-    "evaporation-pond-heated-salt-brine": 1,
+    "evaporation-pond-heated-salt-brine": 2,
     "cooling-tower-large-super": 3,
     "cooling-tower-large-depleted": 3,
     "nuclear-liquid-dump-water": 1,

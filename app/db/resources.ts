@@ -121,7 +121,13 @@ export const resources = {
   constructionPartsIV: { id: "constructionPartsIV", name: "Construction Parts IV", state: "unit" },
   vehiclePartsII: { id: "vehiclePartsII", name: "Vehicle Parts II", state: "unit" },
   vehiclePartsIII: { id: "vehiclePartsIII", name: "Vehicle Parts III", state: "unit" },
-  householdGoods: { id: "householdGoods", name: "Household Goods", state: "unit" },
+  householdGoods: {
+    id: "householdGoods",
+    name: "Household Goods",
+    state: "unit",
+    // 8 goods use 2 Steel (2 Iron Scrap sources each) and 4 Glass.
+    recyclableSources: { ironScrap: 0.5, brokenGlass: 0.5 },
+  },
   householdAppliances: { id: "householdAppliances", name: "Household Appliances", state: "unit" },
   consumerElectronics: { id: "consumerElectronics", name: "Consumer Electronics", state: "unit" },
   importedGoods: { id: "importedGoods", name: "Imported Goods", state: "unit" },

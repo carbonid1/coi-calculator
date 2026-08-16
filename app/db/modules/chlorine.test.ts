@@ -21,7 +21,16 @@ const balancedLine = (recipe: Recipe): ProductionLine => ({
   operatingMode: "balanced",
 });
 
-it("assigns planned Brine processing to Nuclear rather than General", () => {
+const fixedLine = (recipe: Recipe, moduleId: string): ProductionLine => ({
+  recipe,
+  moduleId,
+  activeBuildings: 1,
+  builtBuildings: 1,
+  speedLevel: 1,
+  operatingMode: "fixed",
+});
+
+it("keeps Nuclear Brine processing local and adds a General surplus pond", () => {
   const generalPreset = general.presets.find(
     (candidate) => candidate.id === general.defaultPresetId,
   );
@@ -31,14 +40,63 @@ it("assigns planned Brine processing to Nuclear rather than General", () => {
 
   expect(general.builtBuildings["electrolyzer-ii-chlorine"]).toBeUndefined();
   expect(generalPreset?.builtBuildings?.["electrolyzer-ii-chlorine"]).toBeUndefined();
+  expect(generalPreset?.builtBuildings).toMatchObject({
+    "general-evaporation-pond-heated-brine-surplus": 1,
+  });
   expect(nuclearPreset?.builtBuildings).toMatchObject({
     "electrolyzer-ii-chlorine": 2,
     "evaporation-pond-heated-salt-brine": 2,
   });
   expect(nuclearPreset?.activeBuildings).toMatchObject({
     "electrolyzer-ii-chlorine": 1,
-    "evaporation-pond-heated-salt-brine": 1,
+    "evaporation-pond-heated-salt-brine": 2,
   });
+});
+
+it("keeps Nuclear Brine out of the General surplus pond", () => {
+  const nuclearBrine: Recipe = {
+    id: "test-nuclear-brine",
+    name: "Nuclear Brine",
+    building: "Test",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "brine", quantity: 100 }],
+  };
+  const generalBrine: Recipe = {
+    id: "test-general-brine",
+    name: "General Brine",
+    building: "Test",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "brine", quantity: 40 }],
+  };
+  const generalDemand: Recipe = {
+    id: "test-general-brine-demand",
+    name: "General Brine Demand",
+    building: "Test",
+    group: "production",
+    inputs: [{ resourceId: "brine", quantity: 30 }],
+    outputs: [],
+  };
+  const nuclearDump = recipeById("nuclear-liquid-dump-brine");
+  const generalPond = recipeById("general-evaporation-pond-heated-brine-surplus");
+  const result = calculateNet([
+    fixedLine(nuclearBrine, "nuclear"),
+    fixedLine(generalBrine, "general"),
+    fixedLine(generalDemand, "general"),
+    fixedLine(nuclearDump, "nuclear"),
+    fixedLine(generalPond, "general"),
+  ]);
+  const dumpResult = result.sinkResults.find(
+    (candidate) => candidate.recipe.id === nuclearDump.id,
+  );
+  const pondResult = result.sinkResults.find(
+    (candidate) => candidate.recipe.id === generalPond.id,
+  );
+
+  expect(dumpResult?.actualInputs).toEqual([{ resourceId: "brine", quantity: 100 }]);
+  expect(pondResult?.actualInputs).toEqual([{ resourceId: "brine", quantity: 10 }]);
+  expect(pondResult?.actualOutputs).toEqual([{ resourceId: "salt", quantity: 1.25 }]);
 });
 
 it("uses Titanium reduction Chlorine before running Electrolyzer II", () => {

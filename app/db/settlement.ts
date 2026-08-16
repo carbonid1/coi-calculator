@@ -81,6 +81,8 @@ export const settlementConfig = {
   /** Internet Module demand from SettlementIspModuleProto in v0.8.6. */
   computingTflopsPerHundredPops: 5.76,
   recyclablesPerMedicalSupply: 0.5,
+  recyclablesPerHouseholdGood: 0.5,
+  biomassPerHouseholdGood: 0.4,
   // v0.8.6 declares this as 0.0005, but Fix32 has 10 fractional bits and
   // rounds it to its smallest positive value, 1/1024. That matches the
   // observed 61.5 Waste / month for 2,100 people.
@@ -123,6 +125,9 @@ export const calculateSettlementPopulationFlows = (
     * normalizedPopulation
     / 1000
     * housing.serviceDemandMultipliers.householdGoods;
+  const householdGoodsBiomass = activeHousingServices.householdGoods
+    ? householdGoods * settlementConfig.biomassPerHouseholdGood
+    : 0;
   const biomass = foodInputs.reduce((total, input, index) => (
     total
     + input.quantity
@@ -161,11 +166,16 @@ export const calculateSettlementPopulationFlows = (
       {
         resourceId: "biomass",
         quantity: biomass,
+        modifierExemptQuantity: householdGoodsBiomass,
         outputModifierId: "foodConsumption",
       },
       {
         resourceId: "recyclables",
-        quantity: medicalSupplies * settlementConfig.recyclablesPerMedicalSupply,
+        quantity:
+          medicalSupplies * settlementConfig.recyclablesPerMedicalSupply
+          + (activeHousingServices.householdGoods
+            ? householdGoods * settlementConfig.recyclablesPerHouseholdGood
+            : 0),
       },
     ],
     electricityKw: settlementConfig.electricityKwPerPop

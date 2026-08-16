@@ -926,7 +926,28 @@ export const calculateNet = (
   const sinkResults: PassiveResult[] = [];
   const sinkCapacityTracker = createCapacityTracker(sinkLines);
 
-  for (const line of orderSharedCapacity(sinkLines)) {
+  const orderedSinkLines = orderSharedCapacity(sinkLines).toSorted((a, b) => (
+    (a.recipe.sinkPriority ?? 0) - (b.recipe.sinkPriority ?? 0)
+  ));
+  const getModuleExcess = (moduleId: string, resourceId: ResourceId) => {
+    let produced = 0;
+    let consumed = 0;
+
+    for (const result of [...regularResults, ...sourceResults, ...sinkResults]) {
+      if (result.moduleId !== moduleId) continue;
+
+      produced += result.actualOutputs.reduce((total, output) => (
+        output.resourceId === resourceId ? total + output.quantity : total
+      ), 0);
+      consumed += result.actualInputs.reduce((total, input) => (
+        input.resourceId === resourceId ? total + input.quantity : total
+      ), 0);
+    }
+
+    return Math.max(0, produced - consumed);
+  };
+
+  for (const line of orderedSinkLines) {
     if (line.activeBuildings === 0) {
       sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, capacityPoolId: line.capacityPoolId, activeBuildings: 0, builtBuildings: line.builtBuildings, supplyRatio: 0, actualInputs: [], actualOutputs: [] });
       continue;
@@ -939,7 +960,10 @@ export const calculateNet = (
 
     for (const input of line.recipe.inputs) {
       const f = getFlow(input.resourceId);
-      const excess = f.produced - f.consumed;
+      const factoryExcess = f.produced - f.consumed;
+      const excess = line.recipe.sinkScope === "module"
+        ? Math.min(factoryExcess, getModuleExcess(line.moduleId, input.resourceId))
+        : factoryExcess;
 
       if (excess <= 0) { utilizationRatio = 0; break; }
       utilizationRatio = Math.min(

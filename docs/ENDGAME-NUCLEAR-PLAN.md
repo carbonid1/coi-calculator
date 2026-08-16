@@ -65,13 +65,13 @@ Water and Brine are recovered in this order:
 
 Recovered Brine is handled beside the Nuclear station: satisfy the remote
 Toxic Slurry treatment load first, then produce globally demanded Chlorine in
-one active Electrolyzer II and Salt in one active Heated Evaporation Pond. One
-additional copy of each Brine-processing building remains paused for future
-growth. The two Liquid Dumps remain the final, demand-balanced overflow path
-after useful exports: one handles up to 200 Water per cycle and one handles up
-to 200 Brine per cycle. No Brine branch is reserved for Aluminum at this
-checkpoint; if Aluminum later leaves too little Brine for Salt, add the
-secondary supply then.
+one active Electrolyzer II and Salt in two active Heated Evaporation Ponds. The
+second Nuclear Electrolyzer remains paused. The two Liquid Dumps remain the final,
+demand-balanced local overflow path after useful exports: one handles up to
+200 Water per cycle and one handles up to 200 Brine per cycle. A separate
+General Heated Evaporation Pond converts only non-Nuclear global Brine surplus
+to Salt. No Brine branch is reserved for Aluminum at this checkpoint; if
+Aluminum later leaves too little Brine for Salt, add the secondary supply then.
 
 Oxygen from the Hydrogen Reformers is exported only while the rest of the
 factory demands it. One active Smoke Stack (Large) at the Nuclear station vents
@@ -98,10 +98,9 @@ steam consumers so the Power IV reactor feeds the turbine bank and the breeder
 feeds the utility-steam header.
 
 Build two Electrolyzer IIs for Chlorine and two Heated Evaporation Ponds for
-Salt inside the Nuclear station. Start with one of each active and one of each
-paused. Keep the existing General copies operating during construction; pause
-them only after the local Brine chain is commissioned and supplying the
-factory.
+Salt inside the Nuclear station. Run both ponds, but keep the second
+Electrolyzer paused. After commissioning, add one General Heated Evaporation
+Pond for non-Nuclear global Brine surplus.
 
 ### Stage 3: commission the closed loop
 

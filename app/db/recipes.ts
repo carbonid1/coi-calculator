@@ -19,6 +19,8 @@ import { solarPanels } from "./solar";
 export interface Ingredient {
   resourceId: ResourceId;
   quantity: number; // per 60 seconds
+  /** Additional output quantity that is not scaled by outputModifierId. */
+  modifierExemptQuantity?: number;
   inputModifierId?: InputModifierId;
   outputModifierId?: OutputModifierId;
   /** Applies the configured seed's finite-buffer farm rainfall simulation. */
@@ -94,6 +96,10 @@ export interface Recipe {
   sourceKind?: SourceKind;
   /** Unbounded sinks remove every available unit of their declared excess inputs. */
   sinkMode?: "unbounded";
+  /** Module-scoped sinks can dispose only excess attributable to their own module. */
+  sinkScope?: "module";
+  /** Lower-priority sinks run first; useful conversion can follow local disposal. */
+  sinkPriority?: number;
   /** Recipe-specific multiplier applied to the building's base electricity draw. */
   electricityMultiplier?: number;
   /** Scale the building's computing demand by speedLevel (used for per-100-population services). */
@@ -1557,7 +1563,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: "evaporation-pond-heated-salt-brine",
-    // Captain of Industry v0.8.6 heated-pond rate, normalized to 60 seconds.
+    // Captain of Industry v0.8.7 heated-pond rate, normalized to 60 seconds.
     name: "Evaporation Pond (Brine → Salt)",
     building: "Evaporation Pond (Heated)",
     group: "production",
@@ -1566,6 +1572,16 @@ export const recipes: Recipe[] = [
     balanceInputIds: ["brine"],
     balanceOutputIds: ["salt"],
     inputPriorities: { brine: 3 },
+    inputs: [{ resourceId: "brine", quantity: 96 }],
+    outputs: [{ resourceId: "salt", quantity: 12 }],
+  },
+  {
+    id: "general-evaporation-pond-heated-brine-surplus",
+    name: "Evaporation Pond (Global Brine Surplus → Salt)",
+    building: "Evaporation Pond (Heated)",
+    group: "sink",
+    cycleDurationSeconds: 20,
+    sinkPriority: 10,
     inputs: [{ resourceId: "brine", quantity: 96 }],
     outputs: [{ resourceId: "salt", quantity: 12 }],
   },
@@ -2450,6 +2466,20 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "glassMix", quantity: 120 }],
   },
   {
+    id: "assembly-v-household-goods",
+    name: "Assembly V (Household Goods)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "glass", quantity: 32 },
+      { resourceId: "steel", quantity: 16 },
+      { resourceId: "wood", quantity: 32 },
+    ],
+    outputs: [{ resourceId: "householdGoods", quantity: 64 }],
+  },
+  {
     id: "assembly-v-mechanical-parts",
     name: "Assembly V (Mechanical Parts)",
     building: "Assembly V",
@@ -3172,6 +3202,7 @@ export const recipes: Recipe[] = [
     name: "Liquid Dump (Brine)",
     building: "Liquid Dump",
     group: "sink",
+    sinkScope: "module",
     inputs: [{ resourceId: "brine", quantity: 200 }],
     outputs: [],
   },

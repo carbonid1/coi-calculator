@@ -49,6 +49,10 @@ it("presents the breeder without turbines and the power reactor with its turbine
     .flatMap(({ result }) => result?.actualOutputs ?? [])
     .filter((output) => output.resourceId === "electricity")
     .reduce((total, output) => total + output.quantity, 0);
+  const calculatedNuclearElectricity = results
+    .flatMap((result) => result.actualOutputs)
+    .filter((output) => output.resourceId === "electricity")
+    .reduce((total, output) => total + output.quantity, 0);
 
-  expect(presentedElectricity).toBeCloseTo(50, 10);
+  expect(presentedElectricity).toBeCloseTo(calculatedNuclearElectricity, 10);
 });

@@ -83,7 +83,7 @@ beyond the active capacity stays visible as excess in the calculator.
 | Power Generator II | 16 | 4 |
 | Hydrogen Reformer | 4 | 3 |
 | Electrolyzer II - Chlorine | 2 | 1 demand-balanced, 1 paused |
-| Evaporation Pond (Heated) - Brine to Salt | 2 | 1 demand-balanced, 1 paused |
+| Evaporation Pond (Heated) - Brine to Salt | 2 | 2 demand-balanced |
 | Thermal Desalinator — Depleted | 4 | 4 |
 | Thermal Desalinator — Super | 5 | 5 |
 | Cooling Tower (Large) — shared Super/Depleted recipes | 4 | 3 |
@@ -93,11 +93,12 @@ beyond the active capacity stays visible as excess in the calculator.
 | Radioactive Waste Storage | 1 | 1 |
 | Shredder | 1 | 1 |
 
-The Brine buildings belong at the Nuclear station. Keep the existing General
-Electrolyzer II and Heated Evaporation Pond online until this local chain is
-commissioned, then pause those remote copies. Aluminum has no reserved Brine
-branch in this checkpoint; introduce a secondary Salt plan later if Aluminum
-consumption makes the recovered Brine insufficient.
+Run both Nuclear Heated Evaporation Ponds. Nuclear Brine satisfies ordinary
+factory demand first and its local remainder is dumped. A separate
+General Heated Evaporation Pond converts only non-Nuclear global Brine surplus
+to Salt. Aluminum has no reserved Brine branch in this checkpoint; introduce a
+secondary Salt plan later if Aluminum consumption makes the available Brine
+insufficient.
 
 Hydrogen Reformer Oxygen satisfies global factory demand first. The Large
 Smoke Stack is the final sink for any remainder and can vent up to 900 Oxygen

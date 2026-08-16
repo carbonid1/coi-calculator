@@ -11,7 +11,8 @@ const SEAWATER_PUMP_COUNT = 3;
 const DEPLETED_DESALINATOR_COUNT = 4;
 const SUPER_DESALINATOR_COUNT = 5;
 const BUILT_BRINE_PROCESSING_COUNT = 2;
-const ACTIVE_BRINE_PROCESSING_COUNT = 1;
+const ACTIVE_CHLORINE_PROCESSING_COUNT = 1;
+const ACTIVE_SALT_PROCESSING_COUNT = 2;
 const BUILT_COOLING_TOWER_COUNT = 4;
 const ACTIVE_COOLING_TOWER_COUNT = 3;
 
@@ -107,8 +108,8 @@ export const createNuclearModule = (
           "hydrogen-reformer-super": ACTIVE_HYDROGEN_REFORMER_COUNT,
           "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
           "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
-          "electrolyzer-ii-chlorine": ACTIVE_BRINE_PROCESSING_COUNT,
-          "evaporation-pond-heated-salt-brine": ACTIVE_BRINE_PROCESSING_COUNT,
+          "electrolyzer-ii-chlorine": ACTIVE_CHLORINE_PROCESSING_COUNT,
+          "evaporation-pond-heated-salt-brine": ACTIVE_SALT_PROCESSING_COUNT,
           "cooling-tower-large-super": ACTIVE_COOLING_TOWER_COUNT,
           "cooling-tower-large-depleted": ACTIVE_COOLING_TOWER_COUNT,
           "nuclear-liquid-dump-water": 1,
