@@ -49,7 +49,7 @@ it("keeps Nuclear Brine processing local and adds a General surplus pond", () =>
   });
   expect(nuclearPreset?.activeBuildings).toMatchObject({
     "electrolyzer-ii-chlorine": 1,
-    "evaporation-pond-heated-salt-brine": 2,
+    "evaporation-pond-heated-salt-brine": 1,
   });
 });
 

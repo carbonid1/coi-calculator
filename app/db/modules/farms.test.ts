@@ -64,7 +64,7 @@ describe("active crop farm plan", () => {
     expect(mixed?.sharedCapacity).toBeUndefined();
     expect(trimmingsOnly?.sharedCapacity).toBeUndefined();
     expect(modules.find((module) => module.id === "general")?.builtBuildings).toMatchObject({
-      "food-processor-meat": 1,
+      "food-processor-meat": 2,
       "food-processor-meat-trimmings": 1,
     });
     expect(createChickenFarmsModule(defaultChickenFarmSettings).builtBuildings).not.toHaveProperty(

@@ -13,7 +13,7 @@ v0.8.7 game data.
 - 1 power reactor at Power IV / 0x breeding
 - 240 MW gross turbine capacity
 - 50 MW planned average Nuclear generation
-- 50 Hydrogen Fuel per cycle
+- 46.5 Hydrogen Fuel per cycle
 
 ## Reactor and fuel balance
 
@@ -56,7 +56,7 @@ average load from the Power IV reactor's eight-train bank. Solar output is
 additional.
 
 Keep all four existing Hydrogen Reformers installed, with three active and one
-paused. The active set covers the configured 50 Hydrogen Fuel target while
+paused. The active set covers the configured 46.5 Hydrogen Fuel target while
 remaining demand-balanced.
 
 Hydrogen demand is allocated first. The desalinators then run only as much as
@@ -83,7 +83,7 @@ beyond the active capacity stays visible as excess in the calculator.
 | Power Generator II | 16 | 4 |
 | Hydrogen Reformer | 4 | 3 |
 | Electrolyzer II - Chlorine | 2 | 1 demand-balanced, 1 paused |
-| Evaporation Pond (Heated) - Brine to Salt | 2 | 2 demand-balanced |
+| Evaporation Pond (Heated) - Brine to Salt | 2 | 1 demand-balanced, 1 paused |
 | Thermal Desalinator — Depleted | 4 | 4 |
 | Thermal Desalinator — Super | 5 | 5 |
 | Cooling Tower (Large) — shared Super/Depleted recipes | 4 | 3 |
@@ -93,7 +93,7 @@ beyond the active capacity stays visible as excess in the calculator.
 | Radioactive Waste Storage | 1 | 1 |
 | Shredder | 1 | 1 |
 
-Run both Nuclear Heated Evaporation Ponds. Nuclear Brine satisfies ordinary
+Run one Nuclear Heated Evaporation Pond and keep the second paused. Nuclear Brine satisfies ordinary
 factory demand first and its local remainder is dumped. A separate
 General Heated Evaporation Pond converts only non-Nuclear global Brine surplus
 to Salt. Aluminum has no reserved Brine branch in this checkpoint; introduce a

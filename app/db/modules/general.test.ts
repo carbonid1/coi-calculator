@@ -22,12 +22,12 @@ it("models the physical General Low Steam recovery cluster", () => {
 
   expect(general.builtBuildings).toMatchObject({
     "seawater-pump": 1,
-    "thermal-desalinator-low": 2,
+    "thermal-desalinator-low": 3,
     "cooling-tower-large-low": 1,
   });
   expect(preset?.builtBuildings).toMatchObject({
     "seawater-pump": 1,
-    "thermal-desalinator-low": 2,
+    "thermal-desalinator-low": 3,
     "cooling-tower-large-low": 1,
   });
 });

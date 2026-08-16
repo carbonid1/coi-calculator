@@ -35,7 +35,7 @@ without committing to the final factory layout now.
   initial 50 MW average target. Hydrogen and desalination steam use part of the
   gross headroom when they run at the same time.
 - Keep all four existing Hydrogen Reformers installed, with three active and
-  one paused while demand-balancing average output around the 50-per-cycle
+  one paused while demand-balancing average output around the 46.5-per-cycle
   Hydrogen Fuel target.
 - Keep research stations outside the initial material and electricity load.
 - Keep Maintenance III at its measured factory demand; the two-FBR checkpoint
@@ -65,8 +65,8 @@ Water and Brine are recovered in this order:
 
 Recovered Brine is handled beside the Nuclear station: satisfy the remote
 Toxic Slurry treatment load first, then produce globally demanded Chlorine in
-one active Electrolyzer II and Salt in two active Heated Evaporation Ponds. The
-second Nuclear Electrolyzer remains paused. The two Liquid Dumps remain the final,
+one active Electrolyzer II and one active Heated Evaporation Pond. The second pond and
+second Nuclear Electrolyzer remain paused. The two Liquid Dumps remain the final,
 demand-balanced local overflow path after useful exports: one handles up to
 200 Water per cycle and one handles up to 200 Brine per cycle. A separate
 General Heated Evaporation Pond converts only non-Nuclear global Brine surplus
@@ -98,7 +98,7 @@ steam consumers so the Power IV reactor feeds the turbine bank and the breeder
 feeds the utility-steam header.
 
 Build two Electrolyzer IIs for Chlorine and two Heated Evaporation Ponds for
-Salt inside the Nuclear station. Run both ponds, but keep the second
+Salt inside the Nuclear station. Run one pond, and keep the second pond and
 Electrolyzer paused. After commissioning, add one General Heated Evaporation
 Pond for non-Nuclear global Brine surplus.
 

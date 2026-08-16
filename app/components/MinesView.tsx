@@ -27,6 +27,10 @@ const sections: {
     kind: "groundwater",
     label: "Groundwater",
   },
+  {
+    kind: "virtual-provision",
+    label: "Virtual provisions",
+  },
 ];
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
@@ -53,6 +57,7 @@ export const MinesView: React.FC<Props> = ({
               const output = result.actualOutputs[0];
               const quantity = output?.quantity ?? 0;
               const isGroundwater = result.recipe.sourceKind === "groundwater";
+              const isVirtualProvision = result.recipe.sourceKind === "virtual-provision";
               const capacity = (result.recipe.outputs[0]?.quantity ?? 0)
                 * result.activeBuildings;
               const targetKey = result.capacityPoolId
@@ -92,6 +97,11 @@ export const MinesView: React.FC<Props> = ({
                     {isGroundwater && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         {formatQuantity(quantity)} / {formatQuantity(capacity)} Water
+                      </p>
+                    )}
+                    {isVirtualProvision && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Covers factory deficit only
                       </p>
                     )}
                   </ProductionCard>

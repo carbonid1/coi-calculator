@@ -41,7 +41,7 @@ export type OutputModifierId =
   | "treeGrowthSpeed";
 export type BalanceBy = "input" | "output";
 export type RecipeAllocation = "primary" | "fallback" | "surplus";
-export type SourceKind = "groundwater" | "map-mine" | "world-mine";
+export type SourceKind = "groundwater" | "map-mine" | "virtual-provision" | "world-mine";
 
 export interface SharedCapacity {
   /** Recipes with the same ID share one installed building pool inside a module. */
@@ -256,6 +256,16 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "goldOre", quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "map-mine",
+  },
+  {
+    id: "gold-virtual-provision",
+    name: "Gold (Virtual Provision)",
+    building: "Virtual Provision",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "gold", quantity: 0 }],
+    sourceMode: "demand",
+    sourceKind: "virtual-provision",
   },
   {
     id: "titanium-map-mine",
