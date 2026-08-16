@@ -2,7 +2,8 @@ export type InfiniteResearchId =
   | "maintenanceOutput"
   | "solarPower"
   | "cropYield"
-  | "treeGrowthSpeed";
+  | "treeGrowthSpeed"
+  | "worldMineOutput";
 
 export interface InfiniteResearchDefinition {
   id: InfiniteResearchId;
@@ -46,11 +47,20 @@ export const treeGrowthSpeedResearch = {
   gameVersion: "0.8.6",
 } as const satisfies InfiniteResearchDefinition;
 
+export const worldMineOutputResearch = {
+  id: "worldMineOutput",
+  name: "World Mine Output",
+  percentPerLevel: 2,
+  maxLevel: 50,
+  gameVersion: "0.8.7",
+} as const satisfies InfiniteResearchDefinition;
+
 export const TREE_FULL_GROWTH_CYCLES = 12 * 12;
 
 export const defaultInfiniteResearchLevels = {
   maintenanceOutput: 4,
-  solarPower: 7,
-  cropYield: 11,
+  solarPower: 10,
+  cropYield: 19,
   treeGrowthSpeed: 0,
+  worldMineOutput: 0,
 } as const satisfies Record<InfiniteResearchId, number>;

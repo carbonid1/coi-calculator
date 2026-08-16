@@ -199,6 +199,7 @@ const Page = () => {
   const solarPowerLevel = defaultInfiniteResearchLevels.solarPower;
   const cropYieldLevel = defaultInfiniteResearchLevels.cropYield;
   const treeGrowthSpeedLevel = defaultInfiniteResearchLevels.treeGrowthSpeed;
+  const worldMineOutputLevel = defaultInfiniteResearchLevels.worldMineOutput;
   const solarPanelCounts = defaultSolarPanelCounts;
   const computingConfig = defaultComputingConfig;
   const chickenFarmSettings = defaultChickenFarmSettings;
@@ -376,6 +377,7 @@ const Page = () => {
           solarPowerLevel={solarPowerLevel}
           cropYieldLevel={cropYieldLevel}
           treeGrowthSpeedLevel={treeGrowthSpeedLevel}
+          worldMineOutputLevel={worldMineOutputLevel}
         />
       )}
 

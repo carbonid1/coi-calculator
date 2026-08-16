@@ -3,6 +3,40 @@
 Target: Captain of Industry v0.8.7 installed under Steam. All rates below are
 normalized to one 60-second production cycle.
 
+## World-map mines and oil rigs
+
+The dormant world-mine database contains every installed `WorldMapMineProto`.
+The three oil-rig prototype IDs have identical production data and share one
+calculator definition. Repaired sites start at mine level II, upgrades add two
+levels, and the active production level can be set from zero through the site's
+current mine level.
+
+| Site | Base output at production level I | Max production level | Max base output | Base reserve |
+| --- | ---: | ---: | ---: | ---: |
+| Oil rig | 30 Crude Oil | 16 | 480 | 1,000,000 per rig |
+| Groundwater well | 48 Water | 8 | 384 | Unlimited |
+| Sulfur mine | 54 Sulfur | 8 | 432 | Unlimited |
+| Coal mine | 48 Coal | 24 | 1,152 | 1,500,000 |
+| Quartz mine | 36 Quartz | 20 | 720 | 1,000,000 |
+| Uranium mine | 36 Uranium Ore | 20 | 720 | 800,000 |
+| Rock mine | 36 Rock | 32 | 1,152 | Unlimited |
+| Limestone quarry | 24 Limestone | 16 | 384 | 500,000 |
+| Bauxite quarry | 36 Bauxite | 24 | 864 | 750,000 |
+
+The database also records Unity and workers per active production level. It
+deliberately excludes Maintenance I because the calculator's maintenance demand
+is entered as a measured planning baseline rather than derived automatically.
+Base reserves are before the game-difficulty reserve multiplier.
+
+World Mine Output research adds 2% bonus output per research level. The runtime
+accumulates fractional bonuses until a whole unit can be produced and charges
+finite reserves only for base output. Because the Groundwater well uses the
+same `WorldMapMine` runtime, it receives the bonus too despite the research
+description mentioning only mines and oil rigs.
+
+Verified in installed v0.8.7 `WorldMapEntitiesData`, `WorldMapMineProto`, and
+`WorldMapMine.SimUpdateInternal`.
+
 ## Cargo contracts
 
 The active size-4 cargo plan has one ship and four occupied large modules:

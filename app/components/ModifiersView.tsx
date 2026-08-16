@@ -17,6 +17,7 @@ import {
   maintenanceOutputResearch,
   solarPowerResearch,
   treeGrowthSpeedResearch,
+  worldMineOutputResearch,
 } from "../db/research";
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
@@ -27,6 +28,7 @@ import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maint
 import { calculateRecyclingEfficiency } from "../helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
+import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-mine-output";
 
 interface Props {
   edictLevels: Record<EdictId, EdictLevel>;
@@ -36,6 +38,7 @@ interface Props {
   solarPowerLevel: number;
   cropYieldLevel: number;
   treeGrowthSpeedLevel: number;
+  worldMineOutputLevel: number;
 }
 
 const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
@@ -126,6 +129,7 @@ export const ModifiersView: React.FC<Props> = ({
   solarPowerLevel,
   cropYieldLevel,
   treeGrowthSpeedLevel,
+  worldMineOutputLevel,
 }) => {
   const recyclingEfficiency = calculateRecyclingEfficiency(edictLevels.recyclingIncrease);
   const foodConsumption = calculateFoodConsumption(
@@ -145,6 +149,7 @@ export const ModifiersView: React.FC<Props> = ({
     cropFarming.waterDemandMultiplier * waterSaverMultiplier - 1
   ) * 100;
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
+  const worldMineOutput = calculateWorldMineOutput(worldMineOutputLevel);
   const maintenanceDemand = calculateMaintenanceDemandReduction(
     normalizeMaintenanceReducerLevel(edictLevels.maintenanceReducer),
     maintenanceStatueCount,
@@ -242,6 +247,7 @@ export const ModifiersView: React.FC<Props> = ({
               )],
               ["Settlement water demand", formatSignedPercent(-waterDemandReductionPercent)],
               ["Tree growth speed", `+${treeGrowthSpeed.bonusPercent}%`],
+              ["World mine bonus output", `+${worldMineOutput.bonusPercent}%`],
               ["Maintenance demand", `-${maintenanceDemand.totalReductionPercent}% (informational)`],
             ].map(([label, value]) => (
               <div key={label} className="space-y-1">
@@ -260,6 +266,7 @@ export const ModifiersView: React.FC<Props> = ({
           <ResearchField label={solarPowerResearch.name} description={`+${solarPowerResearch.percentPerLevel}% solar production per level`} value={solarPowerLevel} />
           <ResearchField label={cropYieldResearch.name} description={`+${cropYieldResearch.percentPerLevel}% crop yield and +${cropYieldResearch.waterDemandPercentPerLevel}% water demand per level`} value={cropYieldLevel} />
           <ResearchField label={treeGrowthSpeedResearch.name} description={`+${treeGrowthSpeedResearch.percentPerLevel}% tree growth speed per level`} value={treeGrowthSpeedLevel} />
+          <ResearchField label={worldMineOutputResearch.name} description={`+${worldMineOutputResearch.percentPerLevel}% world mine and oil rig output per level without extra reserve depletion`} value={worldMineOutputLevel} />
         </div>
       </section>
 

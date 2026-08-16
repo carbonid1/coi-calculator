@@ -12,7 +12,7 @@ import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
 import { modules } from "./modules";
 
-it("balances graphite production", () => {
+it("balances graphite production and retains the planned carbon dioxide surplus", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -62,7 +62,7 @@ it("balances graphite production", () => {
   expect(carbonDioxideResult.recipe.sharedCapacity?.priority).toBe(2);
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(carbonDioxide.net).toBeCloseTo(0);
+  expect(carbonDioxide.net).toBeCloseTo(4.787701558456064);
   expect(graphite.produced).toBeCloseTo(graphite.consumed);
   expect(graphite.net).toBeCloseTo(0);
 });

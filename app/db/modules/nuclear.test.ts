@@ -126,6 +126,6 @@ it("treats the baseline as nuclear generation in addition to solar", () => {
     (flow) => flow.resourceId === "electricity",
   );
 
-  expect(electricity?.produced).toBeCloseTo(84.7, 1);
-  expect(result.electricityDemandMw).toBeCloseTo(84.7, 1);
+  expect(electricity?.produced).toBeCloseTo(86.52416, 6);
+  expect(result.electricityDemandMw).toBeCloseTo(86.52416, 6);
 });

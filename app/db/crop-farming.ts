@@ -355,7 +355,7 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     farmCount: 1,
     tierId: "greenhouseII",
     schedule: ["corn", "vegetables", "soybean", "vegetables"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 130 },
   },
   {
     id: "greenhouse-ii-fruit-potato-wheat-green-manure",
@@ -371,7 +371,7 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     farmCount: 1,
     tierId: "greenhouseII",
     schedule: ["fruit", "sugarCane", "treeSapling", "wheat"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 120 },
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
   },
   {
     id: "greenhouse-ii-corn-wheat-corn-wheat",
@@ -379,7 +379,7 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     farmCount: 1,
     tierId: "greenhouseII",
     schedule: ["corn", "wheat", "corn", "wheat"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 130 },
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
     id: "greenhouse-ii-corn-wheat-potato-wheat",
@@ -387,7 +387,7 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     farmCount: 1,
     tierId: "greenhouseII",
     schedule: ["corn", "wheat", "potato", "wheat"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 120 },
   },
   {
     id: "greenhouse-ii-canola-corn-wheat-corn",
@@ -395,7 +395,7 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     farmCount: 1,
     tierId: "greenhouseII",
     schedule: ["canola", "corn", "wheat", "corn"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 120 },
   },
 ] as const;
 
