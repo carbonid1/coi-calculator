@@ -15,6 +15,8 @@ import {
 import {
   cropYieldResearch,
   maintenanceOutputResearch,
+  rainwaterYieldResearch,
+  settlementWaterUseResearch,
   solarPowerResearch,
   treeGrowthSpeedResearch,
   worldMineOutputResearch,
@@ -25,7 +27,9 @@ import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-cr
 import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
 import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maintenance-output";
+import { calculateRainwaterYield } from "../helpers/modifiers/calculate-rainwater-yield";
 import { calculateRecyclingEfficiency } from "../helpers/modifiers/calculate-recycling-efficiency";
+import { calculateSettlementWaterUse } from "../helpers/modifiers/calculate-settlement-water-use";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-mine-output";
@@ -37,6 +41,8 @@ interface Props {
   maintenanceOutputLevel: number;
   solarPowerLevel: number;
   cropYieldLevel: number;
+  rainwaterYieldLevel: number;
+  settlementWaterUseLevel: number;
   treeGrowthSpeedLevel: number;
   worldMineOutputLevel: number;
 }
@@ -128,6 +134,8 @@ export const ModifiersView: React.FC<Props> = ({
   maintenanceOutputLevel,
   solarPowerLevel,
   cropYieldLevel,
+  rainwaterYieldLevel,
+  settlementWaterUseLevel,
   treeGrowthSpeedLevel,
   worldMineOutputLevel,
 }) => {
@@ -145,8 +153,13 @@ export const ModifiersView: React.FC<Props> = ({
   const waterDemandReductionPercent = waterSaver?.modeledEffects
     ?.waterDemandReductionPercent ?? 0;
   const waterSaverMultiplier = 1 - waterDemandReductionPercent / 100;
+  const rainwaterYield = calculateRainwaterYield(rainwaterYieldLevel);
+  const settlementWaterUse = calculateSettlementWaterUse(settlementWaterUseLevel);
   const effectiveCropWaterDemandPercent = (
     cropFarming.waterDemandMultiplier * waterSaverMultiplier - 1
+  ) * 100;
+  const effectiveSettlementWaterReductionPercent = (
+    1 - settlementWaterUse.multiplier * waterSaverMultiplier
   ) * 100;
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const worldMineOutput = calculateWorldMineOutput(worldMineOutputLevel);
@@ -245,7 +258,10 @@ export const ModifiersView: React.FC<Props> = ({
               ["Crop water demand", formatSignedPercent(
                 parseFloat(effectiveCropWaterDemandPercent.toFixed(2)),
               )],
-              ["Settlement water demand", formatSignedPercent(-waterDemandReductionPercent)],
+              ["Settlement Water and Waste Water", formatSignedPercent(
+                -effectiveSettlementWaterReductionPercent,
+              )],
+              ["Rainwater yield", `+${rainwaterYield.bonusPercent}%`],
               ["Tree growth speed", `+${treeGrowthSpeed.bonusPercent}%`],
               ["World mine bonus output", `+${worldMineOutput.bonusPercent}%`],
               ["Maintenance demand", `-${maintenanceDemand.totalReductionPercent}% (informational)`],
@@ -265,6 +281,8 @@ export const ModifiersView: React.FC<Props> = ({
           <ResearchField label={maintenanceOutputResearch.name} description={`+${maintenanceOutputResearch.percentPerLevel}% maintenance production per level`} value={maintenanceOutputLevel} />
           <ResearchField label={solarPowerResearch.name} description={`+${solarPowerResearch.percentPerLevel}% solar production per level`} value={solarPowerLevel} />
           <ResearchField label={cropYieldResearch.name} description={`+${cropYieldResearch.percentPerLevel}% crop yield and +${cropYieldResearch.waterDemandPercentPerLevel}% water demand per level`} value={cropYieldLevel} />
+          <ResearchField label={rainwaterYieldResearch.name} description={`+${rainwaterYieldResearch.percentPerLevel}% rainwater collected per level`} value={rainwaterYieldLevel} />
+          <ResearchField label={settlementWaterUseResearch.name} description={`${settlementWaterUseResearch.percentPerLevel}% settlement Water and Waste Water per level`} value={settlementWaterUseLevel} />
           <ResearchField label={treeGrowthSpeedResearch.name} description={`+${treeGrowthSpeedResearch.percentPerLevel}% tree growth speed per level`} value={treeGrowthSpeedLevel} />
           <ResearchField label={worldMineOutputResearch.name} description={`+${worldMineOutputResearch.percentPerLevel}% world mine and oil rig output per level without extra reserve depletion`} value={worldMineOutputLevel} />
         </div>

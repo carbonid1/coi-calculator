@@ -72,7 +72,9 @@ import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "./helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "./helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
+import { calculateRainwaterYield } from "./helpers/modifiers/calculate-rainwater-yield";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
+import { calculateSettlementWaterUse } from "./helpers/modifiers/calculate-settlement-water-use";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-growth-speed";
 import { getRecipeOutputQuantity } from "./helpers/modifiers/recipe-output";
@@ -198,6 +200,8 @@ const Page = () => {
   const maintenanceOutputLevel = defaultInfiniteResearchLevels.maintenanceOutput;
   const solarPowerLevel = defaultInfiniteResearchLevels.solarPower;
   const cropYieldLevel = defaultInfiniteResearchLevels.cropYield;
+  const rainwaterYieldLevel = defaultInfiniteResearchLevels.rainwaterYield;
+  const settlementWaterUseLevel = defaultInfiniteResearchLevels.settlementWaterUse;
   const treeGrowthSpeedLevel = defaultInfiniteResearchLevels.treeGrowthSpeed;
   const worldMineOutputLevel = defaultInfiniteResearchLevels.worldMineOutput;
   const solarPanelCounts = defaultSolarPanelCounts;
@@ -241,6 +245,8 @@ const Page = () => {
   const waterSaverMultiplier = 1 - (
     waterSaverLevel?.modeledEffects?.waterDemandReductionPercent ?? 0
   ) / 100;
+  const rainwaterYield = calculateRainwaterYield(rainwaterYieldLevel);
+  const settlementWaterUse = calculateSettlementWaterUse(settlementWaterUseLevel);
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const outputModifiers = {
     foodConsumption: foodConsumption.multiplier,
@@ -248,7 +254,8 @@ const Page = () => {
     solarPower: solarPowerOutput.multiplier,
     cropYield: cropFarming.yieldMultiplier,
     cropWater: cropFarming.waterDemandMultiplier * waterSaverMultiplier,
-    settlementWater: waterSaverMultiplier,
+    rainwaterYield: rainwaterYield.multiplier,
+    settlementWater: settlementWaterUse.multiplier * waterSaverMultiplier,
     treeGrowthSpeed: treeGrowthSpeed.multiplier,
   };
   const enabledContracts = activeContracts;
@@ -376,6 +383,8 @@ const Page = () => {
           maintenanceOutputLevel={maintenanceOutputLevel}
           solarPowerLevel={solarPowerLevel}
           cropYieldLevel={cropYieldLevel}
+          rainwaterYieldLevel={rainwaterYieldLevel}
+          settlementWaterUseLevel={settlementWaterUseLevel}
           treeGrowthSpeedLevel={treeGrowthSpeedLevel}
           worldMineOutputLevel={worldMineOutputLevel}
         />

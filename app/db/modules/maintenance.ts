@@ -1,12 +1,13 @@
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
 
-// Inferred from the 10-year average building loads at Maintenance Output III:
-// I: 495 * 83%, II: 495 * 29%, III: 246 * 50%.
+// Inferred from the 10-year average building loads at Maintenance Output IV.
+// The game rounds each recipe-cycle output before converting it to a /60 rate:
+// I: 2 depots * 498 * 55%, II: 498 * 39%, III: 249 * 95%.
 export const maintenanceDemandPerMonth = {
-  maintenanceI: 410.85,
-  maintenanceII: 143.55,
-  maintenanceIII: 123,
+  maintenanceI: 547.8,
+  maintenanceII: 194.22,
+  maintenanceIII: 236.55,
 } as const satisfies Partial<Record<ResourceId, number>>;
 
 const activeRecipeIds = {
@@ -16,7 +17,7 @@ const activeRecipeIds = {
 } as const;
 
 const activeBuildings = {
-  [activeRecipeIds.maintenanceI]: 1,
+  [activeRecipeIds.maintenanceI]: 2,
   [activeRecipeIds.maintenanceII]: 1,
   [activeRecipeIds.maintenanceIII]: 1,
 };
@@ -26,7 +27,7 @@ export const maintenance: Module = {
   name: "Maintenance",
   description: "Manual factory demand using the highest-tier recycling recipes",
   builtBuildings: {
-    [activeRecipeIds.maintenanceI]: 1,
+    [activeRecipeIds.maintenanceI]: 2,
     [activeRecipeIds.maintenanceII]: 1,
     [activeRecipeIds.maintenanceIII]: 1,
   },
@@ -34,7 +35,7 @@ export const maintenance: Module = {
     {
       id: "current-demand",
       name: "Current demand",
-      description: "10-year average: 83% Maintenance I, 29% Maintenance II, and 50% Maintenance III load",
+      description: "10-year average: two Maintenance I depots at 55%, Maintenance II at 39%, and Maintenance III at 95% load",
       activeBuildings,
       fixed: Object.values(activeRecipeIds),
       outputTargets: maintenanceDemandPerMonth,

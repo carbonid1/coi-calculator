@@ -205,10 +205,44 @@ export const resources = {
     recyclableSources: { goldScrap: 1 },
   },
   ironOre: { id: "ironOre", name: "Iron Ore", state: "loose" },
-  labEquipmentI: { id: "labEquipmentI", name: "Lab Equipment I", state: "unit" },
-  labEquipmentII: { id: "labEquipmentII", name: "Lab Equipment II", state: "unit" },
-  labEquipmentIII: { id: "labEquipmentIII", name: "Lab Equipment III", state: "unit" },
-  labEquipmentIv: { id: "labEquipmentIv", name: "Lab Equipment IV", state: "unit" },
+  labEquipmentI: {
+    id: "labEquipmentI",
+    name: "Lab Equipment I",
+    state: "unit",
+    recyclableSources: { ironScrap: 2 / 3, copperScrap: 1 / 3 },
+  },
+  labEquipmentII: {
+    id: "labEquipmentII",
+    name: "Lab Equipment II",
+    state: "unit",
+    recyclableSources: {
+      ironScrap: 2 / 3,
+      copperScrap: 1 / 3,
+      brokenGlass: 1 / 3,
+    },
+  },
+  labEquipmentIII: {
+    id: "labEquipmentIII",
+    name: "Lab Equipment III",
+    state: "unit",
+    recyclableSources: {
+      ironScrap: 2 / 3,
+      copperScrap: 17 / 24,
+      brokenGlass: 3 / 8,
+    },
+  },
+  labEquipmentIv: {
+    id: "labEquipmentIv",
+    name: "Lab Equipment IV",
+    state: "unit",
+    // Source products propagated through the active Lab Equipment I-IV chain.
+    recyclableSources: {
+      ironScrap: 2 / 3,
+      copperScrap: 65 / 48,
+      goldScrap: 1 / 16,
+      brokenGlass: 7 / 16,
+    },
+  },
   toxicSlurry: { id: "toxicSlurry", name: "Toxic Slurry", state: "fluid" },
   hydrogenFluoride: { id: "hydrogenFluoride", name: "Hydrogen Fluoride", state: "fluid" },
   titaniumOre: { id: "titaniumOre", name: "Titanium Ore", state: "loose" },

@@ -84,8 +84,9 @@ const getCropForScheduleIndex = (group: CropFarmGroup, index: number) => {
 export const calculateFarmIrrigationRates = (
   group: CropFarmGroup,
   cropWaterMultiplier: number,
+  rainwaterYieldMultiplier = 1,
 ): FarmIrrigationRates => {
-  const cacheKey = `${group.id}:${cropWaterMultiplier}`;
+  const cacheKey = `${group.id}:${cropWaterMultiplier}:${rainwaterYieldMultiplier}`;
   const cached = irrigationCache.get(cacheKey);
 
   if (cached) return cached;
@@ -120,7 +121,9 @@ export const calculateFarmIrrigationRates = (
     // RainHarvestingHelper runs before Farm.onNewDay in v0.8.6. It carries
     // fractional collection forward and stores only whole material units.
     if (rainIntensity > 0) {
-      rainPartial += tier.rainwaterAtFullRainPerDay * rainIntensity;
+      rainPartial += tier.rainwaterAtFullRainPerDay
+        * rainwaterYieldMultiplier
+        * rainIntensity;
       const availableRain = Math.trunc(rainPartial);
 
       rainPartial -= availableRain;

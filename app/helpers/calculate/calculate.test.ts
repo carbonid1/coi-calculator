@@ -49,7 +49,7 @@ it("installs two demand-balanced tanks with the verified per-building Yellowcake
   expect({
     produced: Number(recyclables.produced.toFixed(5)),
     sourceValue: Number(recyclables.recyclableSourceValueProduced?.toFixed(5)),
-  }).toEqual({ produced: 14.94, sourceValue: 14.94 });
+  }).toEqual({ produced: 19.92, sourceValue: 19.92 });
 });
 
 it("limits module-scoped Groundwater Pumps to their module's Water demand", () => {

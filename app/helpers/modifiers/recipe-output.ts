@@ -8,7 +8,7 @@ import {
 import { calculateFarmIrrigationRates } from "../weather/calculate-farm-irrigation";
 
 export type RecipeModifierMultipliers = Partial<Record<
-  InputModifierId | OutputModifierId,
+  InputModifierId | OutputModifierId | "rainwaterYield",
   number
 >>;
 
@@ -64,6 +64,7 @@ export const getRecipeOutputQuantity = (
   // not rounded to a whole material unit per recipe cycle.
   if (
     output.outputModifierId === "foodConsumption"
+    || output.outputModifierId === "settlementWater"
     || output.outputModifierId === "solarPower"
     || output.outputModifierId === "cropYield"
     || output.outputModifierId === "treeGrowthSpeed"
@@ -92,7 +93,11 @@ export const getRecipeInputQuantity = (
   const farmGroup = getWeatherAdjustedFarm(input);
 
   if (farmGroup) {
-    return calculateFarmIrrigationRates(farmGroup, multiplier).importedWaterPerMonth;
+    return calculateFarmIrrigationRates(
+      farmGroup,
+      multiplier,
+      modifiers.rainwaterYield ?? 1,
+    ).importedWaterPerMonth;
   }
 
   return input.quantity * multiplier;

@@ -51,7 +51,7 @@ describe("Factory Total contracts", () => {
     expect(uranium).toMatchObject({ consumed: 54, produced: 36, net: -18 });
   });
 
-  it("uses the measured Maintenance III demand with one depot", () => {
+  it("uses the measured maintenance demand and exposes the saturated recycler", () => {
     const maintenanceOutput = calculateMaintenanceOutput(
       defaultInfiniteResearchLevels.maintenanceOutput,
     );
@@ -61,19 +61,35 @@ describe("Factory Total contracts", () => {
       undefined,
       { maintenanceOutput: maintenanceOutput.multiplier },
     );
-    const maintenanceIII = result.calculation.regularResults.find(
-      (line) => line.recipe.id === "maintenance-iii-recycling",
+    const getLine = (recipeId: string) => result.calculation.regularResults.find(
+      (line) => line.recipe.id === recipeId,
     );
-    const produced = maintenanceIII?.actualOutputs.find(
-      (output) => output.resourceId === "maintenanceIII",
-    )?.quantity;
+    const maintenanceI = getLine("maintenance-i-recycling");
+    const maintenanceII = getLine("maintenance-ii-recycling");
+    const maintenanceIII = getLine("maintenance-iii-recycling");
+    const researchLab = getLine("research-lab-iv");
+    const wasteSorter = getLine("waste-sorting-recyclables");
+    const recyclables = result.calculation.allResourceFlows.find(
+      (flow) => flow.resourceId === "recyclables",
+    );
 
-    expect(maintenanceDemandPerMonth.maintenanceIII).toBe(123);
-    expect(maintenanceIII).toMatchObject({
-      activeBuildings: 1,
-      builtBuildings: 1,
+    expect(maintenanceDemandPerMonth).toEqual({
+      maintenanceI: 547.8,
+      maintenanceII: 194.22,
+      maintenanceIII: 236.55,
     });
-    expect(maintenanceIII?.supplyRatio ?? 1).toBeLessThan(1);
-    expect(produced).toBeCloseTo(123);
+    expect(maintenanceI).toMatchObject({ activeBuildings: 2, builtBuildings: 2 });
+    expect(maintenanceI?.supplyRatio).toBeCloseTo(0.55);
+    expect(maintenanceII?.supplyRatio).toBeCloseTo(0.39);
+    expect(maintenanceIII?.supplyRatio).toBeCloseTo(0.95);
+    expect(researchLab?.actualOutputs).toContainEqual({
+      resourceId: "recyclables",
+      quantity: 96,
+    });
+    expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
+    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.59);
+    expect(recyclables?.consumed).toBeCloseTo(169.92);
+    expect(recyclables?.produced).toBeCloseTo(169.92);
+    expect(recyclables?.net).toBeCloseTo(0);
   });
 });

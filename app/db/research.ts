@@ -2,6 +2,8 @@ export type InfiniteResearchId =
   | "maintenanceOutput"
   | "solarPower"
   | "cropYield"
+  | "rainwaterYield"
+  | "settlementWaterUse"
   | "treeGrowthSpeed"
   | "worldMineOutput";
 
@@ -39,6 +41,22 @@ export const cropYieldResearch = {
   gameVersion: "0.8.6",
 } as const satisfies InfiniteResearchDefinition;
 
+export const rainwaterYieldResearch = {
+  id: "rainwaterYield",
+  name: "Rainwater Yield",
+  percentPerLevel: 5,
+  maxLevel: 40,
+  gameVersion: "0.8.7",
+} as const satisfies InfiniteResearchDefinition;
+
+export const settlementWaterUseResearch = {
+  id: "settlementWaterUse",
+  name: "Settlement Water Use",
+  percentPerLevel: -2,
+  maxLevel: 40,
+  gameVersion: "0.8.7",
+} as const satisfies InfiniteResearchDefinition;
+
 export const treeGrowthSpeedResearch = {
   id: "treeGrowthSpeed",
   name: "Tree Growth Speed",
@@ -60,7 +78,9 @@ export const TREE_FULL_GROWTH_CYCLES = 12 * 12;
 export const defaultInfiniteResearchLevels = {
   maintenanceOutput: 4,
   solarPower: 10,
-  cropYield: 19,
-  treeGrowthSpeed: 0,
-  worldMineOutput: 0,
+  cropYield: 20,
+  rainwaterYield: 0,
+  settlementWaterUse: 0,
+  treeGrowthSpeed: 5,
+  worldMineOutput: 1,
 } as const satisfies Record<InfiniteResearchId, number>;

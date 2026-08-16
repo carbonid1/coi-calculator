@@ -36,6 +36,7 @@ export type InputModifierId =
 export type OutputModifierId =
   | "foodConsumption"
   | "maintenanceOutput"
+  | "settlementWater"
   | "solarPower"
   | "cropYield"
   | "treeGrowthSpeed";
@@ -178,7 +179,7 @@ export const recipes: Recipe[] = [
     // at 100% growth after 12 in-game years. Forest area is intentionally
     // unbounded, so this demand source scales the number of growing trees.
     id: "forestry-trees-100-growth",
-    name: "Forestry Control Tower (Trees at 100% growth)",
+    name: "Forestry Control Tower (Mature tree harvesting)",
     building: "Forestry Control Tower",
     group: "source",
     cycleDurationSeconds: TREE_FULL_GROWTH_CYCLES * 60,
@@ -1794,7 +1795,7 @@ export const recipes: Recipe[] = [
     building: "Research Lab IV",
     group: "production",
     inputs: [{ resourceId: "labEquipmentIv", quantity: 48 }],
-    outputs: [],
+    outputs: [{ resourceId: "recyclables", quantity: 48 }],
   },
   {
     id: "assembly-v-lab-equipment-i",

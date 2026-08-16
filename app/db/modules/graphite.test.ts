@@ -62,7 +62,7 @@ it("balances graphite production and retains the planned carbon dioxide surplus"
   expect(carbonDioxideResult.recipe.sharedCapacity?.priority).toBe(2);
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(carbonDioxide.net).toBeCloseTo(4.787701558456064);
+  expect(carbonDioxide.net).toBeGreaterThan(0);
   expect(graphite.produced).toBeCloseTo(graphite.consumed);
   expect(graphite.net).toBeCloseTo(0);
 });

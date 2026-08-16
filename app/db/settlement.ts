@@ -153,6 +153,7 @@ export const calculateSettlementPopulationFlows = (
     outputs: [
       {
         resourceId: "wasteWater",
+        outputModifierId: "settlementWater",
         quantity: settlementConfig.wasteWaterPerPopPerMonth
           * housing.serviceDemandMultipliers.wasteWater
           * normalizedPopulation,
