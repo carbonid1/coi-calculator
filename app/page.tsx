@@ -17,7 +17,10 @@ import { NetSummary } from "./components/NetSummary";
 import { NuclearModuleSections } from "./components/NuclearModuleSections";
 import { NuclearPlanningSettings } from "./components/NuclearPlanningSettings";
 import { RecipeCard } from "./components/RecipeCard";
-import { ResearchSettings } from "./components/ResearchSettings";
+import {
+  InfiniteResearchSettings,
+  ResearchSettings,
+} from "./components/ResearchSettings";
 import { SharedRecipeCard } from "./components/SharedRecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { SolarPowerSettings } from "./components/SolarPowerSettings";
@@ -77,6 +80,7 @@ import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recy
 import { calculateSettlementWaterUse } from "./helpers/modifiers/calculate-settlement-water-use";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-growth-speed";
+import { calculateUnityCapacity } from "./helpers/modifiers/calculate-unity-capacity";
 import { getRecipeOutputQuantity } from "./helpers/modifiers/recipe-output";
 import { extractModuleResult } from "./helpers/module-result/module-result";
 
@@ -204,6 +208,7 @@ const Page = () => {
   const settlementWaterUseLevel = defaultInfiniteResearchLevels.settlementWaterUse;
   const treeGrowthSpeedLevel = defaultInfiniteResearchLevels.treeGrowthSpeed;
   const worldMineOutputLevel = defaultInfiniteResearchLevels.worldMineOutput;
+  const unityCapacityLevel = defaultInfiniteResearchLevels.unityCapacity;
   const solarPanelCounts = defaultSolarPanelCounts;
   const computingConfig = defaultComputingConfig;
   const chickenFarmSettings = defaultChickenFarmSettings;
@@ -248,6 +253,7 @@ const Page = () => {
   const rainwaterYield = calculateRainwaterYield(rainwaterYieldLevel);
   const settlementWaterUse = calculateSettlementWaterUse(settlementWaterUseLevel);
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
+  const unityCapacity = calculateUnityCapacity(unityCapacityLevel);
   const outputModifiers = {
     foodConsumption: foodConsumption.multiplier,
     maintenanceOutput: maintenanceOutput.multiplier,
@@ -268,6 +274,7 @@ const Page = () => {
   const unityBudget = calculateUnityBudget({
     housing: activeHousingType,
     housingCount,
+    unityCapacityMultiplier: unityCapacity.multiplier,
     edictLevels,
     buildingConsumption: researchModuleConfig.activeResearchLabIvCount > 0
       ? [{
@@ -617,6 +624,10 @@ const Page = () => {
               );
             })}
         </>
+      )}
+
+      {activeModule?.id === RESEARCH_MODULE_ID && (
+        <InfiniteResearchSettings levels={defaultInfiniteResearchLevels} />
       )}
     </div>
   );

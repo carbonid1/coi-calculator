@@ -13,6 +13,7 @@ it("includes recurring Unity for every active contract", () => {
   const budget = calculateUnityBudget({
     housing: activeHousingType,
     housingCount: 1,
+    unityCapacityMultiplier: 1.25,
     edictLevels: defaultEdictLevels,
     contracts: contract
       ? [{
@@ -32,5 +33,6 @@ it("includes recurring Unity for every active contract", () => {
   expect(contractCost?.name).toBe("Food Pack → Uranium Ore");
   expect(contractCost?.amount).toBeCloseTo(0.354, 10);
   expect(budget.housingMultiplier).toBe(1.75);
+  expect(budget.storageCapacity).toBe(47.5);
   expect(budget.netPerCycle).toBeCloseTo(2.321, 10);
 });

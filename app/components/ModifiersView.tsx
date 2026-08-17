@@ -12,15 +12,6 @@ import {
   normalizeFarmingBoostLevel,
   normalizeMaintenanceReducerLevel,
 } from "../db/edicts";
-import {
-  cropYieldResearch,
-  maintenanceOutputResearch,
-  rainwaterYieldResearch,
-  settlementWaterUseResearch,
-  solarPowerResearch,
-  treeGrowthSpeedResearch,
-  worldMineOutputResearch,
-} from "../db/research";
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
@@ -103,29 +94,6 @@ const EdictCard = ({
     </Card.Root>
   );
 };
-
-const ResearchField = ({
-  label,
-  description,
-  value,
-}: {
-  label: string;
-  description: string;
-  value: number;
-}) => (
-  <Card.Root>
-    <Card.Content className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-center">
-      <Card.Header>
-        <Card.Title>{label}</Card.Title>
-        <Card.Description>{description}</Card.Description>
-      </Card.Header>
-      <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-        <p className="text-xs text-muted-foreground">Level</p>
-        <p className="font-mono font-semibold text-foreground">{value}</p>
-      </div>
-    </Card.Content>
-  </Card.Root>
-);
 
 export const ModifiersView: React.FC<Props> = ({
   edictLevels,
@@ -273,19 +241,6 @@ export const ModifiersView: React.FC<Props> = ({
             ))}
           </Card.Content>
         </Card.Root>
-      </section>
-
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Repeatable research</h3>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ResearchField label={maintenanceOutputResearch.name} description={`+${maintenanceOutputResearch.percentPerLevel}% maintenance production per level`} value={maintenanceOutputLevel} />
-          <ResearchField label={solarPowerResearch.name} description={`+${solarPowerResearch.percentPerLevel}% solar production per level`} value={solarPowerLevel} />
-          <ResearchField label={cropYieldResearch.name} description={`+${cropYieldResearch.percentPerLevel}% crop yield and +${cropYieldResearch.waterDemandPercentPerLevel}% water demand per level`} value={cropYieldLevel} />
-          <ResearchField label={rainwaterYieldResearch.name} description={`+${rainwaterYieldResearch.percentPerLevel}% rainwater collected per level`} value={rainwaterYieldLevel} />
-          <ResearchField label={settlementWaterUseResearch.name} description={`${settlementWaterUseResearch.percentPerLevel}% settlement Water and Waste Water per level`} value={settlementWaterUseLevel} />
-          <ResearchField label={treeGrowthSpeedResearch.name} description={`+${treeGrowthSpeedResearch.percentPerLevel}% tree growth speed per level`} value={treeGrowthSpeedLevel} />
-          <ResearchField label={worldMineOutputResearch.name} description={`+${worldMineOutputResearch.percentPerLevel}% world mine and oil rig output per level without extra reserve depletion`} value={worldMineOutputLevel} />
-        </div>
       </section>
 
       <section className="space-y-3">

@@ -58,12 +58,14 @@ interface ContractUnityInput {
 export const calculateUnityBudget = ({
   housing,
   housingCount,
+  unityCapacityMultiplier,
   edictLevels,
   contracts,
   buildingConsumption = [],
 }: {
   housing: HousingType;
   housingCount: number;
+  unityCapacityMultiplier: number;
   edictLevels: Record<EdictId, EdictLevel>;
   contracts: ContractUnityInput[];
   buildingConsumption?: UnityBreakdownItem[];
@@ -148,7 +150,9 @@ export const calculateUnityBudget = ({
     generationPerCycle,
     consumptionPerCycle,
     netPerCycle: generationPerCycle - consumptionPerCycle,
-    storageCapacity: baseUnityStorage + housing.unityStorage * normalizedHousingCount,
+    storageCapacity: (
+      baseUnityStorage + housing.unityStorage * normalizedHousingCount
+    ) * unityCapacityMultiplier,
     housingMultiplier,
     generation,
     consumption,

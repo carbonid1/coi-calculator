@@ -4,12 +4,12 @@ import { defaultInfiniteResearchLevels, worldMineOutputResearch } from '../../db
 import { calculateWorldMineOutput } from './calculate-world-mine-output'
 
 describe('calculateWorldMineOutput', () => {
-  it('applies the configured level-one default', () => {
-    expect(defaultInfiniteResearchLevels.worldMineOutput).toBe(1)
+  it('applies the configured level-five default', () => {
+    expect(defaultInfiniteResearchLevels.worldMineOutput).toBe(5)
     expect(calculateWorldMineOutput(defaultInfiniteResearchLevels.worldMineOutput)).toEqual({
-      level: 1,
-      bonusPercent: 2,
-      multiplier: 1.02,
+      level: 5,
+      bonusPercent: 10,
+      multiplier: 1.1,
     })
   })
 
