@@ -15,6 +15,107 @@ const fixedLine = (recipe: Recipe, moduleId: string, activeBuildings = 1) => ({
   operatingMode: "fixed" as const,
 });
 
+const balancedLine = (recipe: Recipe, moduleId: string, activeBuildings = 1) => ({
+  recipe,
+  moduleId,
+  activeBuildings,
+  builtBuildings: activeBuildings,
+  speedLevel: 1,
+  operatingMode: "balanced" as const,
+});
+
+it("reserves Forestry saplings and keeps Biomass conversion inside each physical module", () => {
+  const treeProducer: Recipe = {
+    id: "test-tree-producer",
+    name: "Test Tree Producer",
+    building: "Test Farm",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "treeSapling", quantity: 5 }],
+  };
+  const generalBiomassProducer: Recipe = {
+    id: "test-general-biomass-producer",
+    name: "Test General Biomass Producer",
+    building: "Test Food Processor",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "biomass", quantity: 6 }],
+  };
+  const housingBiomassProducer: Recipe = {
+    id: "test-housing-biomass-producer",
+    name: "Test Housing Biomass Producer",
+    building: "Test Housing",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "biomass", quantity: 10 }],
+  };
+  const forestry: Recipe = {
+    id: "test-forestry",
+    name: "Test Forestry",
+    building: "Test Forestry",
+    group: "source",
+    inputs: [{ resourceId: "treeSapling", quantity: 1 }],
+    outputs: [{ resourceId: "wood", quantity: 20 }],
+    sourceMode: "demand",
+  };
+  const shredder: Recipe = {
+    id: "test-sapling-shredder",
+    name: "Test Sapling Shredder",
+    building: "Test Shredder",
+    group: "production",
+    balanceBy: "input",
+    balanceInputIds: ["treeSapling"],
+    allocation: "surplus",
+    allocationPriority: 5,
+    inputs: [{ resourceId: "treeSapling", quantity: 24 }],
+    outputs: [{ resourceId: "biomass", quantity: 24 }],
+  };
+  const biomassMixer: Recipe = {
+    id: "test-biomass-mixer",
+    name: "Test Biomass Mixer",
+    building: "Test Mixer",
+    group: "production",
+    balanceBy: "input",
+    balanceInputIds: ["biomass"],
+    balanceInputScope: "module",
+    allocation: "surplus",
+    allocationPriority: 10,
+    inputs: [{ resourceId: "biomass", quantity: 24 }],
+    outputs: [{ resourceId: "compost", quantity: 16 }],
+  };
+  const housingMixer: Recipe = {
+    ...biomassMixer,
+    id: "test-housing-biomass-mixer",
+    allocation: undefined,
+    allocationPriority: undefined,
+  };
+  const result = calculateNet([
+    fixedLine(treeProducer, "greenhouses"),
+    fixedLine(generalBiomassProducer, "general"),
+    fixedLine(housingBiomassProducer, "housing"),
+    fixedLine(forestry, "forestry"),
+    balancedLine(housingMixer, "housing", 2),
+    balancedLine(shredder, "general"),
+    balancedLine(biomassMixer, "general"),
+  ], {}, undefined, {}, { wood: 80 });
+  const getResult = (recipeId: string) => [
+    ...result.regularResults,
+    ...result.sourceResults,
+  ].find((candidate) => candidate.recipe.id === recipeId);
+  const getQuantity = (
+    recipeId: string,
+    side: "actualInputs" | "actualOutputs",
+    resourceId: string,
+  ) => getResult(recipeId)?.[side].find((item) => item.resourceId === resourceId)?.quantity ?? 0;
+
+  expect(getQuantity("test-forestry", "actualInputs", "treeSapling")).toBe(4);
+  expect(getQuantity("test-sapling-shredder", "actualInputs", "treeSapling")).toBe(1);
+  expect(getQuantity("test-housing-biomass-mixer", "actualInputs", "biomass")).toBe(10);
+  expect(getQuantity("test-biomass-mixer", "actualInputs", "biomass")).toBe(7);
+  expect(result.allResourceFlows.find((flow) => flow.resourceId === "treeSapling")?.net).toBe(0);
+  expect(result.allResourceFlows.find((flow) => flow.resourceId === "biomass")?.net).toBe(0);
+});
+
 it("installs two demand-balanced tanks with the verified per-building Yellowcake capacity", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId)!;
   const { lines } = buildModuleLines(general, preset);

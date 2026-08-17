@@ -52,7 +52,7 @@ describe("Space Station", () => {
       produced: 96,
       net: 0,
     });
-    expect(flow("electronicsIv")).toMatchObject({ consumed: 4, net: -4 });
+    expect(flow("electronicsIv")).toMatchObject({ consumed: 4, produced: 4, net: 0 });
     expect(flow("crewSupplies")).toMatchObject({ consumed: 1.2, net: -1.2 });
     expect(flow("stationParts")).toMatchObject({ consumed: 1, net: -1 });
   });

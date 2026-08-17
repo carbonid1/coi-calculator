@@ -2,9 +2,13 @@ import { expect, it } from "vitest";
 
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { calculateCropFarmingModifiers } from "../../helpers/modifiers/calculate-crop-farming";
+import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food-consumption";
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
+import { calculateTreeGrowthSpeed } from "../../helpers/modifiers/calculate-tree-growth-speed";
 import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
+import { defaultInfiniteResearchLevels } from "../research";
 import {
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
@@ -30,6 +34,80 @@ it("models the physical General Low Steam recovery cluster", () => {
     "thermal-desalinator-low": 3,
     "cooling-tower-large-low": 1,
   });
+});
+
+it("combines Tree Sapling and food-process Biomass in the local General recovery line", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const shredder = buildModuleLines(general, preset ?? null).lines.find(
+    (line) => line.recipe.id === "shredder-tree-saplings",
+  );
+  const biomassMixer = buildModuleLines(general, preset ?? null).lines.find(
+    (line) => line.recipe.id === "mixer-ii-biomass-compost",
+  );
+
+  expect(shredder).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+  expect(shredder?.recipe).toMatchObject({
+    cycleDurationSeconds: 10,
+    inputs: [{ resourceId: "treeSapling", quantity: 24 }],
+    outputs: [{ resourceId: "biomass", quantity: 24 }],
+  });
+  expect(biomassMixer?.recipe.balanceInputScope).toBe("module");
+});
+
+it("processes the default Tree Sapling and Biomass surplus without cross-feeding Population", () => {
+  const cropFarming = calculateCropFarmingModifiers(
+    defaultInfiniteResearchLevels.cropYield,
+    defaultActiveEdicts.farmingBoost,
+  );
+  const result = calculateFactoryTotal(
+    modules,
+    activeContracts,
+    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    {
+      cropYield: cropFarming.yieldMultiplier,
+      cropWater: cropFarming.waterDemandMultiplier,
+      foodConsumption: calculateFoodConsumption(0, 2).multiplier,
+      treeGrowthSpeed: calculateTreeGrowthSpeed(
+        defaultInfiniteResearchLevels.treeGrowthSpeed,
+      ).multiplier,
+    },
+  );
+  const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
+    (candidate) => candidate.resourceId === resourceId,
+  );
+  const line = (recipeId: string) => result.calculation.regularResults.find(
+    (candidate) => candidate.recipe.id === recipeId,
+  );
+  const forestry = result.calculation.sourceResults.find(
+    (candidate) => candidate.recipe.id === "forestry-trees-100-growth",
+  );
+  const shredder = line("shredder-tree-saplings");
+  const generalMixer = line("mixer-ii-biomass-compost");
+  const housingMixer = line("housing-mixer-ii-biomass-compost");
+  const residents = line("housing-residents");
+  const generalBiomassProduced = result.calculation.regularResults.reduce((total, candidate) => (
+    candidate.moduleId === "general"
+      ? total + (candidate.actualOutputs.find(
+          (output) => output.resourceId === "biomass",
+        )?.quantity ?? 0)
+      : total
+  ), 0);
+
+  expect(flow("treeSapling")?.net).toBeCloseTo(0);
+  expect(flow("biomass")?.net).toBeCloseTo(0);
+  expect(shredder?.actualInputs[0]?.quantity).toBeGreaterThan(0);
+  expect(
+    (forestry?.actualInputs[0]?.quantity ?? 0)
+      + (shredder?.actualInputs[0]?.quantity ?? 0),
+  ).toBeCloseTo(flow("treeSapling")?.produced ?? 0);
+  expect(generalMixer?.actualInputs[0]?.quantity).toBeCloseTo(generalBiomassProduced);
+  expect(housingMixer).toMatchObject({ activeBuildings: 2, builtBuildings: 2 });
+  expect(housingMixer?.actualInputs[0]?.quantity)
+    .toBeCloseTo(residents?.actualOutputs.find(
+      (output) => output.resourceId === "biomass",
+    )?.quantity ?? 0);
 });
 
 it("keeps every built Titanium-chain recipe paused", () => {

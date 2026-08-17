@@ -83,6 +83,8 @@ export interface Recipe {
   allocation?: RecipeAllocation;
   /** Lower values run first within the same non-primary allocation pass. */
   allocationPriority?: number;
+  /** Input-balanced recipes can consume only net production from their own physical module. */
+  balanceInputScope?: "module";
   sharedCapacity?: SharedCapacity;
   cycleDurationSeconds?: number;
   /**
@@ -642,6 +644,7 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 60,
     balanceBy: "input",
     balanceInputIds: ["biomass"],
+    balanceInputScope: "module",
     inputs: [{ resourceId: "biomass", quantity: 24 }],
     outputs: [{ resourceId: "compost", quantity: 16 }],
   },
@@ -788,19 +791,37 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "animalFeed", quantity: 144 }],
   },
   {
+    // Captain of Industry v0.8.7 game data: 4 Tree Saplings become 4 Biomass
+    // every 10 seconds, normalized here to one 60-second production cycle.
+    // Forestry reserves its planting demand first; this line shreds only the
+    // remaining crop surplus into the General module's local Biomass belt.
+    id: "shredder-tree-saplings",
+    name: "Shredder (Tree Saplings → Biomass)",
+    building: "Shredder",
+    group: "production",
+    cycleDurationSeconds: 10,
+    balanceBy: "input",
+    balanceInputIds: ["treeSapling"],
+    allocation: "surplus",
+    allocationPriority: 5,
+    inputs: [{ resourceId: "treeSapling", quantity: 24 }],
+    outputs: [{ resourceId: "biomass", quantity: 24 }],
+  },
+  {
     id: "mixer-ii-biomass-compost",
     name: "Mixer II (Biomass → Compost)",
     building: "Mixer II",
     group: "production",
     cycleDurationSeconds: 60,
     balanceBy: "input",
-    // This second installation consumes only factory-wide Biomass left after
-    // primary consumers, including byproducts created by General food recipes.
+    // This installation is physically fed by the General food processors and
+    // Tree Sapling shredder. It cannot accept Biomass exported by other modules.
+    balanceInputScope: "module",
     sharedCapacity: {
       id: "mixer-ii-biomass-compost-general",
       priority: 1,
     },
-    allocation: "fallback",
+    allocation: "surplus",
     allocationPriority: 10,
     inputs: [{ resourceId: "biomass", quantity: 24 }],
     outputs: [{ resourceId: "compost", quantity: 16 }],
@@ -923,7 +944,7 @@ export const recipes: Recipe[] = [
       id: "mixer-ii-dirt-from-compost",
       priority: 1,
     },
-    allocation: "fallback",
+    allocation: "surplus",
     allocationPriority: 20,
     inputs: [
       { resourceId: "gravel", quantity: 48 },
@@ -1434,7 +1455,8 @@ export const recipes: Recipe[] = [
     id: "liquid-dump-red-mud",
     name: "Liquid Dump (Red Mud)",
     building: "Liquid Dump",
-    group: "waste",
+    group: "sink",
+    sinkScope: "module",
     cycleDurationSeconds: 3,
     balanceBy: "input",
     balanceInputIds: ["redMud"],
@@ -2444,6 +2466,82 @@ export const recipes: Recipe[] = [
       { resourceId: "electronicsII", quantity: 12 },
     ],
     outputs: [{ resourceId: "electronicsIII", quantity: 6 }],
+  },
+  {
+    // Captain of Industry v0.8.7 Electronics IV branch, normalized to one
+    // 60-second production cycle from the installed game assemblies.
+    id: "diamond-reactor-synthesis",
+    name: "Diamond Reactor (Synthetic Diamond)",
+    building: "Diamond Reactor",
+    group: "production",
+    cycleDurationSeconds: 60,
+    balanceBy: "output",
+    balanceOutputIds: ["diamond"],
+    inputs: [
+      { resourceId: "graphite", quantity: 2 },
+      { resourceId: "salt", quantity: 2 },
+    ],
+    outputs: [{ resourceId: "diamond", quantity: 2 }],
+  },
+  {
+    id: "chemical-plant-ii-diamond-paste-cooking-oil",
+    name: "Chemical Plant II (Diamond Paste — Cooking Oil)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    balanceOutputIds: ["diamondPaste"],
+    sharedCapacity: { id: "chemical-plant-ii-diamond-paste", priority: 1 },
+    inputs: [
+      { resourceId: "diamond", quantity: 4 },
+      { resourceId: "cookingOil", quantity: 4 },
+    ],
+    outputs: [{ resourceId: "diamondPaste", quantity: 16 }],
+  },
+  {
+    id: "chemical-plant-ii-diamond-paste-heavy-oil",
+    name: "Chemical Plant II (Diamond Paste — Heavy Oil)",
+    building: "Chemical Plant II",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    balanceOutputIds: ["diamondPaste"],
+    sharedCapacity: { id: "chemical-plant-ii-diamond-paste", priority: 2 },
+    inputs: [
+      { resourceId: "diamond", quantity: 4 },
+      { resourceId: "heavyOil", quantity: 2 },
+    ],
+    outputs: [{ resourceId: "diamondPaste", quantity: 16 }],
+  },
+  {
+    id: "lens-polisher",
+    name: "Lens Polisher",
+    building: "Lens Polisher",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    balanceOutputIds: ["lens"],
+    inputs: [
+      { resourceId: "sapphireWafer", quantity: 2 },
+      { resourceId: "diamondPaste", quantity: 2 },
+      { resourceId: "ethanol", quantity: 2 },
+    ],
+    outputs: [{ resourceId: "lens", quantity: 2 }],
+  },
+  {
+    id: "assembly-v-electronics-iv",
+    name: "Assembly V (Electronics IV)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 30,
+    balanceBy: "output",
+    balanceOutputIds: ["electronicsIv"],
+    inputs: [
+      { resourceId: "electronicsIII", quantity: 6 },
+      { resourceId: "lens", quantity: 4 },
+      { resourceId: "diamond", quantity: 2 },
+    ],
+    outputs: [{ resourceId: "electronicsIv", quantity: 6 }],
   },
   {
     id: "rubber-maker-naphtha",

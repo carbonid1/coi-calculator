@@ -50,7 +50,7 @@ export const settlementServiceBuildings = {
   internetModule: 1,
   wastewaterTreatment: 1,
   anaerobicDigester: 2,
-  biomassCompostMixer: 1,
+  biomassCompostMixer: 2,
 } as const;
 
 export const settlementRecipeIds = {

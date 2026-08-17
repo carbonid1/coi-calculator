@@ -335,6 +335,20 @@ export const calculateNet = (
       (totalSourceCapacityByResource.get(resourceId) ?? 0) + quantity,
     );
   };
+  const getSourceScale = (
+    line: ProductionLine,
+    outputQuantities: ReadonlyMap<ResourceId, number>,
+  ) => line.recipe.outputs.reduce((maximum, output) => {
+    const declaredQuantity = getRecipeOutputQuantity(
+      line.recipe,
+      output,
+      outputModifiers,
+    );
+
+    return declaredQuantity > 0
+      ? Math.max(maximum, (outputQuantities.get(output.resourceId) ?? 0) / declaredQuantity)
+      : maximum;
+  }, 0);
 
   // ── Pass 1: full-capacity simulation to find truly constrained resources ──
   const simFlows: FlowMap = new Map();
@@ -413,6 +427,23 @@ export const calculateNet = (
     }
   }
 
+  // Sources with material inputs reserve those inputs before surplus recipes
+  // are allocated. Forestry is demand-driven by Wood, so its Tree Saplings
+  // must be retained before a Shredder can consume the remaining farm output.
+  for (const line of sourceLines) {
+    const sourceScale = getSourceScale(
+      line,
+      sourceOutputCapacities.get(line) ?? new Map(),
+    );
+
+    for (const input of line.recipe.inputs) {
+      const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
+
+      simGet(input.resourceId).consumed += quantity;
+      getSimulatedModuleFlow(line.moduleId, input.resourceId).consumed += quantity;
+    }
+  }
+
   const constrained = new Set<ResourceId>();
 
   for (const [id, flow] of simFlows) {
@@ -427,6 +458,25 @@ export const calculateNet = (
   // ── Pass 2: actual allocation with priority for constrained resources only ──
   const flows: FlowMap = new Map();
   const getFlow = makeGetFlow(flows);
+  const actualModuleFlows = new Map<
+    string,
+    { consumed: number; produced: number }
+  >();
+  const getActualModuleFlow = (moduleId: string, resourceId: ResourceId) => {
+    const key = moduleResourceKey(moduleId, resourceId);
+    const flow = actualModuleFlows.get(key) ?? { consumed: 0, produced: 0 };
+
+    actualModuleFlows.set(key, flow);
+
+    return flow;
+  };
+  const getAvailableInput = (line: ProductionLine, resourceId: ResourceId) => {
+    const flow = line.recipe.balanceInputScope === "module"
+      ? getActualModuleFlow(line.moduleId, resourceId)
+      : getFlow(resourceId);
+
+    return flow.produced - flow.consumed;
+  };
 
   // External inputs as virtual sources
   for (const [id, qty] of externalEntries) {
@@ -443,8 +493,10 @@ export const calculateNet = (
       const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
 
       getFlow(output.resourceId).produced += capacity;
+      getActualModuleFlow(line.moduleId, output.resourceId).produced += capacity;
     }
   }
+  const reservedSourceInputs = new Map<ProductionLine, Map<ResourceId, number>>();
 
   const allocationRatios = new Map<ProductionLine, number>();
   const createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
@@ -487,6 +539,7 @@ export const calculateNet = (
       }
 
       flow.consumed += actualQuantity;
+      getActualModuleFlow(line.moduleId, input.resourceId).consumed += actualQuantity;
     }
     for (const output of line.recipe.outputs) {
       const outputQuantity = getRecipeOutputQuantity(line.recipe, output, outputModifiers);
@@ -496,6 +549,7 @@ export const calculateNet = (
       const flow = getFlow(output.resourceId);
 
       flow.produced += actualQuantity;
+      getActualModuleFlow(line.moduleId, output.resourceId).produced += actualQuantity;
 
       if (output.resourceId === "recyclables") {
         const efficiency = getAppliedRecyclingEfficiencyPercent(
@@ -567,8 +621,7 @@ export const calculateNet = (
       if (demandProducedIds.has(input.resourceId) && !explicitlyInputBalanced) continue;
       if (line.recipe.balanceBy !== "input" && !constrained.has(input.resourceId)) continue;
 
-      const flow = getFlow(input.resourceId);
-      const available = flow.produced - flow.consumed;
+      const available = getAvailableInput(line, input.resourceId);
       const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
       if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
@@ -593,8 +646,7 @@ export const calculateNet = (
 
     for (const input of line.recipe.inputs) {
       if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
-        const flow = getFlow(input.resourceId);
-        const available = flow.produced - flow.consumed;
+        const available = getAvailableInput(line, input.resourceId);
         const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
         if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
@@ -659,8 +711,7 @@ export const calculateNet = (
           continue;
         }
 
-        const flow = getFlow(input.resourceId);
-        const available = flow.produced - flow.consumed;
+        const available = getAvailableInput(line, input.resourceId);
         const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
         if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
@@ -713,8 +764,7 @@ export const calculateNet = (
 
         for (const input of line.recipe.inputs) {
           if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
-            const flow = getFlow(input.resourceId);
-            const available = flow.produced - flow.consumed;
+            const available = getAvailableInput(line, input.resourceId);
             const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
             if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
@@ -762,10 +812,100 @@ export const calculateNet = (
     }
   };
 
+  const reservePlannedSourceInputs = () => {
+    const remainingGlobalDemand = new Map<ResourceId, number>();
+    const remainingModuleDemand = new Map<string, number>();
+    const moduleSourceCapacities = new Map<string, number>();
+
+    for (const line of sourceLines) {
+      if (line.recipe.sourceMode !== "module-demand-capped") continue;
+
+      for (const output of line.recipe.outputs) {
+        const key = moduleResourceKey(line.moduleId, output.resourceId);
+
+        moduleSourceCapacities.set(
+          key,
+          (moduleSourceCapacities.get(key) ?? 0)
+            + (sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0),
+        );
+      }
+    }
+
+    for (const line of sourceLines) {
+      for (const output of line.recipe.outputs) {
+        if (!remainingGlobalDemand.has(output.resourceId)) {
+          const flow = getFlow(output.resourceId);
+          const internallyProduced = flow.produced
+            - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+
+          remainingGlobalDemand.set(
+            output.resourceId,
+            Math.max(0, flow.consumed - internallyProduced),
+          );
+        }
+
+        if (line.recipe.sourceMode === "module-demand-capped") {
+          const key = moduleResourceKey(line.moduleId, output.resourceId);
+
+          if (!remainingModuleDemand.has(key)) {
+            const flow = getActualModuleFlow(line.moduleId, output.resourceId);
+            const internallyProduced = flow.produced
+              - (moduleSourceCapacities.get(key) ?? 0);
+
+            remainingModuleDemand.set(
+              key,
+              Math.max(0, flow.consumed - internallyProduced),
+            );
+          }
+        }
+      }
+    }
+
+    for (const line of sourceLines) {
+      const plannedOutputs = new Map<ResourceId, number>();
+
+      for (const output of line.recipe.outputs) {
+        const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
+        const key = moduleResourceKey(line.moduleId, output.resourceId);
+        const moduleScoped = line.recipe.sourceMode === "module-demand-capped";
+        const remaining = moduleScoped
+          ? remainingModuleDemand.get(key) ?? 0
+          : remainingGlobalDemand.get(output.resourceId) ?? 0;
+        const planned = Math.min(capacity, remaining);
+
+        plannedOutputs.set(output.resourceId, planned);
+        remainingGlobalDemand.set(
+          output.resourceId,
+          Math.max(
+            0,
+            (remainingGlobalDemand.get(output.resourceId) ?? 0) - planned,
+          ),
+        );
+        if (moduleScoped) {
+          remainingModuleDemand.set(key, remaining - planned);
+        }
+      }
+
+      const sourceScale = getSourceScale(line, plannedOutputs);
+      const reservedInputs = new Map<ResourceId, number>();
+
+      for (const input of line.recipe.inputs) {
+        const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
+
+        getFlow(input.resourceId).consumed += quantity;
+        getActualModuleFlow(line.moduleId, input.resourceId).consumed += quantity;
+        reservedInputs.set(input.resourceId, quantity);
+      }
+
+      reservedSourceInputs.set(line, reservedInputs);
+    }
+  };
+
   // Fallbacks may create supporting demand (for example Sour Water recovery
   // needs Steam). Resolve that demand before final surplus converters run.
   applyLowerPriorityLines(fallbackLines);
   propagateAdditionalDemand();
+  reservePlannedSourceInputs();
   applyLowerPriorityLines(surplusLines);
   propagateAdditionalDemand();
 
@@ -874,6 +1014,7 @@ export const calculateNet = (
       const actualUsed = Math.min(capacity, remaining);
 
       flow.produced -= capacity - actualUsed;
+      getActualModuleFlow(line.moduleId, output.resourceId).produced -= capacity - actualUsed;
       if (moduleScoped) {
         remainingModuleSourceDemand.set(moduleKey, remaining - actualUsed);
         remainingSourceDemand.set(
@@ -903,8 +1044,10 @@ export const calculateNet = (
     }, 0);
     const actualInputs = line.recipe.inputs.map((input) => {
       const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
+      const reserved = reservedSourceInputs.get(line)?.get(input.resourceId) ?? 0;
 
-      getFlow(input.resourceId).consumed += quantity;
+      getFlow(input.resourceId).consumed += quantity - reserved;
+      getActualModuleFlow(line.moduleId, input.resourceId).consumed += quantity - reserved;
 
       return { resourceId: input.resourceId, quantity };
     });

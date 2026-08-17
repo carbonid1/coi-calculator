@@ -49,4 +49,14 @@ it("applies settlement demand modifiers to Factory Total flows", () => {
   expect(actualOutput(baseResidents, "recyclables")).toBeCloseTo(22.32);
   expect(baseResidents.recyclableSourceValueProduced).toBeCloseTo(44.64);
   expect(actualOutput(baseResidents, "biomass")).toBeGreaterThan(householdGoodsBiomass);
+
+  const biomassMixer = modified.regularResults.find(
+    (result) => result.recipe.id === settlementRecipeIds.biomassCompostMixer,
+  )!;
+
+  expect(biomassMixer).toMatchObject({ activeBuildings: 2, builtBuildings: 2 });
+  expect(biomassMixer.actualInputs[0]?.quantity)
+    .toBeCloseTo(actualOutput(modifiedResidents, "biomass"));
+  expect(modified.allResourceFlows.find((flow) => flow.resourceId === "biomass")?.net)
+    .toBeCloseTo(0);
 });

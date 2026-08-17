@@ -82,6 +82,8 @@ export const buildings: Record<string, BuildingData> = {
   "Mill": { workers: 5, electricityKw: 120 },
   "Baking Unit": { workers: 8, electricityKw: 200 },
   "Assembly V": { workers: 0, electricityKw: 400, computingTflops: 6 },
+  "Diamond Reactor": { workers: 8, electricityKw: 2000, computingTflops: 2 },
+  "Lens Polisher": { workers: 6, electricityKw: 200, computingTflops: 4 },
   "Silicon Reactor": { workers: 2, electricityKw: 80 },
   "Crystallizer": { workers: 8, electricityKw: 500, computingTflops: 4 },
   "Microchip Machine II": { workers: 6, electricityKw: 500, computingTflops: 12 },

@@ -5,7 +5,7 @@ export const GENERAL_MODULE_ID = "general";
 export const general: Module = {
   id: GENERAL_MODULE_ID,
   name: "General",
-  description: "Shared production for yellowcake, electronics, supporting materials, and Low Steam recovery",
+  description: "Shared production for yellowcake, electronics, supporting materials, locally combined Biomass recovery, and Low Steam recovery",
   builtBuildings: {
     "seawater-pump": 1,
     "thermal-desalinator-low": 3,
@@ -80,6 +80,7 @@ export const general: Module = {
     "food-processor-meat": 2,
     "food-processor-meat-trimmings": 1,
     "mixer-ii-animal-feed-corn": 1,
+    "shredder-tree-saplings": 1,
     "mixer-ii-biomass-compost": 1,
     "air-separator-nitrogen": 1,
     "chemical-plant-ii-ammonia": 1,
@@ -185,6 +186,7 @@ export const general: Module = {
         "food-processor-meat": 2,
         "food-processor-meat-trimmings": 1,
         "mixer-ii-animal-feed-corn": 1,
+        "shredder-tree-saplings": 1,
         "mixer-ii-biomass-compost": 1,
         "air-separator-nitrogen": 1,
         "chemical-plant-ii-ammonia": 1,
