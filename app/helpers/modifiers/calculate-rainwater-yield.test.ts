@@ -7,12 +7,12 @@ import {
 import { calculateRainwaterYield } from "./calculate-rainwater-yield";
 
 describe("calculateRainwaterYield", () => {
-  it("keeps the configured default at base rainwater collection", () => {
-    expect(defaultInfiniteResearchLevels.rainwaterYield).toBe(0);
+  it("applies the configured default rainwater research", () => {
+    expect(defaultInfiniteResearchLevels.rainwaterYield).toBe(5);
     expect(calculateRainwaterYield(defaultInfiniteResearchLevels.rainwaterYield)).toEqual({
-      level: 0,
-      bonusPercent: 0,
-      multiplier: 1,
+      level: 5,
+      bonusPercent: 25,
+      multiplier: 1.25,
     });
   });
 

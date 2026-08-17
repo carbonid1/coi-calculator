@@ -330,7 +330,7 @@ export const defaultInfiniteResearchLevels = {
   trainsPollution: 0,
   cropYield: 20,
   treeGrowthSpeed: 5,
-  rainwaterYield: 0,
+  rainwaterYield: 5,
   settlementWaterUse: 0,
   unityCapacity: 5,
   housingCapacity: 0,

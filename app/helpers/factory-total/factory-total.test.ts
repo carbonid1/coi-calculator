@@ -87,9 +87,9 @@ describe("Factory Total contracts", () => {
       quantity: 96,
     });
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
-    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.59);
-    expect(recyclables?.consumed).toBeCloseTo(169.92);
-    expect(recyclables?.produced).toBeCloseTo(169.92);
+    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.5964583333);
+    expect(recyclables?.consumed).toBeCloseTo(171.78);
+    expect(recyclables?.produced).toBeCloseTo(171.78);
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });

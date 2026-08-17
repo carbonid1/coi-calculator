@@ -34,7 +34,7 @@ it("applies settlement demand modifiers to Factory Total flows", () => {
 
   expect(actualInput(modifiedResidents, "potato"))
     .toBeCloseTo(actualInput(baseResidents, "potato") * 1.4);
-  const householdGoodsBiomass = 11.088;
+  const householdGoodsBiomass = 12.096;
 
   expect(actualOutput(modifiedResidents, "biomass")).toBeCloseTo(
     (actualOutput(baseResidents, "biomass") - householdGoodsBiomass) * 1.4
@@ -46,7 +46,7 @@ it("applies settlement demand modifiers to Factory Total flows", () => {
     .toBeCloseTo(actualOutput(baseResidents, "waste"));
   expect(actualOutput(modifiedResidents, "wasteWater"))
     .toBeCloseTo(actualOutput(baseResidents, "wasteWater") * 0.85);
-  expect(actualOutput(baseResidents, "recyclables")).toBeCloseTo(20.46);
-  expect(baseResidents.recyclableSourceValueProduced).toBeCloseTo(40.92);
+  expect(actualOutput(baseResidents, "recyclables")).toBeCloseTo(22.32);
+  expect(baseResidents.recyclableSourceValueProduced).toBeCloseTo(44.64);
   expect(actualOutput(baseResidents, "biomass")).toBeGreaterThan(householdGoodsBiomass);
 });

@@ -63,7 +63,7 @@ export const housingTypes = {
 } as const satisfies Record<string, HousingType>;
 
 export const activeHousingType = housingTypes.housingIII;
-export const defaultHousingCount = 11;
+export const defaultHousingCount = 12;
 
 export const activeHousingServices = {
   householdGoods: true,
