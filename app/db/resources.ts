@@ -309,6 +309,13 @@ export const resources = {
     },
   },
   electronicsIv: { id: "electronicsIv", name: "Electronics IV", state: "unit" },
+  stationParts: { id: "stationParts", name: "Station Parts", state: "unit" },
+  crewSupplies: { id: "crewSupplies", name: "Crew Supplies", state: "unit" },
+  spaceResearchPoints: {
+    id: "spaceResearchPoints",
+    name: "Space Research Points",
+    state: "unit",
+  },
   maintenanceI: { id: "maintenanceI", name: "Maintenance I", state: "unit" },
   maintenanceII: { id: "maintenanceII", name: "Maintenance II", state: "unit" },
   maintenanceIII: { id: "maintenanceIII", name: "Maintenance III", state: "unit" },

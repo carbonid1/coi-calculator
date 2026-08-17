@@ -1,5 +1,6 @@
 import { activeHousingType } from "./housing";
 import { settlementConfig } from "./settlement";
+import { defaultSpaceStationLevel } from "./space-station";
 
 interface BuildingData {
   workers: number;
@@ -56,6 +57,12 @@ export const buildings: Record<string, BuildingData> = {
   "Polymerization Plant": { workers: 12, electricityKw: 400 },
   "Nuclear Reprocessing Plant": { workers: 30, electricityKw: 2000, computingTflops: 24 },
   "Research Lab IV": { workers: 80, electricityKw: 1000, computingTflops: 12, unityPerCycle: 0.5 },
+  "Space Station IV": { workers: defaultSpaceStationLevel.crew, electricityKw: 0 },
+  "Space Station Orbital Research": {
+    workers: 0,
+    electricityKw: 0,
+    suppressPauseAttention: true,
+  },
   "Radioactive Waste Storage": { workers: 10, electricityKw: 120 },
   "Shredder": { workers: 1, electricityKw: 100 },
   "Enrichment Plant": { workers: 14, electricityKw: 4000 },

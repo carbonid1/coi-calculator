@@ -62,6 +62,7 @@ export const calculateUnityBudget = ({
   edictLevels,
   contracts,
   buildingConsumption = [],
+  buildingGeneration = [],
 }: {
   housing: HousingType;
   housingCount: number;
@@ -69,6 +70,7 @@ export const calculateUnityBudget = ({
   edictLevels: Record<EdictId, EdictLevel>;
   contracts: ContractUnityInput[];
   buildingConsumption?: UnityBreakdownItem[];
+  buildingGeneration?: UnityBreakdownItem[];
 }): UnityBudget => {
   const normalizedHousingCount = Math.max(0, Math.trunc(housingCount));
   const population = normalizedHousingCount * housing.populationCapacity;
@@ -123,6 +125,7 @@ export const calculateUnityBudget = ({
           amount: edictGeneration,
         }]
       : []),
+    ...buildingGeneration.filter((item) => item.amount > 0),
   ];
   const edictConsumption = edictCatalog.reduce((total, edict) => {
     const active = edict.levels.find((candidate) => candidate.level === edictLevels[edict.id]);

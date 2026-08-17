@@ -24,6 +24,11 @@ it("includes recurring Unity for every active contract", () => {
           unityPer100Imported: contract.unity.per100Imported,
         }]
       : [],
+    buildingGeneration: [{
+      id: "space-station",
+      name: "Space Station level 4",
+      amount: 0.3,
+    }],
   });
 
   const contractCost = budget.consumption.find(
@@ -34,5 +39,10 @@ it("includes recurring Unity for every active contract", () => {
   expect(contractCost?.amount).toBeCloseTo(0.354, 10);
   expect(budget.housingMultiplier).toBe(1.75);
   expect(budget.storageCapacity).toBe(47.5);
-  expect(budget.netPerCycle).toBeCloseTo(2.321, 10);
+  expect(budget.generation).toContainEqual({
+    id: "space-station",
+    name: "Space Station level 4",
+    amount: 0.3,
+  });
+  expect(budget.netPerCycle).toBeCloseTo(2.621, 10);
 });

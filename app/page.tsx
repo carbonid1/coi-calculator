@@ -24,6 +24,7 @@ import {
 import { SharedRecipeCard } from "./components/SharedRecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { SolarPowerSettings } from "./components/SolarPowerSettings";
+import { SpaceStationView } from "./components/SpaceStationView";
 import { StorageCard } from "./components/StorageCard";
 import { buildings } from "./db/buildings";
 import { defaultChickenFarmSettings } from "./db/chicken-farm";
@@ -56,12 +57,17 @@ import { modules } from "./db/modules/modules";
 import { NUCLEAR_MODULE_ID } from "./db/modules/nuclear";
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from "./db/modules/research";
 import { SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
+import { SPACE_STATION_MODULE_ID } from "./db/modules/space-station";
 import { defaultPlanningBaselines } from "./db/planning-baselines";
 import { type RecipeGroup } from "./db/recipes";
 import {
   defaultInfiniteResearchLevels,
 } from "./db/research";
 import { defaultSolarPanelCounts } from "./db/solar";
+import {
+  defaultSpaceStationConfig,
+  defaultSpaceStationLevel,
+} from "./db/space-station";
 import { defaultStaticInfrastructureConfig } from "./db/static-infrastructure";
 import { calculateUnityBudget } from "./db/unity";
 import {
@@ -284,6 +290,13 @@ const Page = () => {
             * (buildings["Research Lab IV"]?.unityPerCycle ?? 0),
         }]
       : [],
+    buildingGeneration: defaultSpaceStationLevel.unityPerCycle > 0
+      ? [{
+          id: "space-station",
+          name: `Space Station level ${defaultSpaceStationLevel.level}`,
+          amount: defaultSpaceStationLevel.unityPerCycle,
+        }]
+      : [],
     contracts: factoryResult.contractResults.map((result) => ({
       id: result.contract.id,
       name: result.contract.name,
@@ -444,6 +457,10 @@ const Page = () => {
         <ResearchSettings config={researchModuleConfig} />
       )}
 
+      {activeModule?.id === SPACE_STATION_MODULE_ID && (
+        <SpaceStationView config={defaultSpaceStationConfig} />
+      )}
+
       {activeModule?.id === CHICKEN_FARMS_MODULE_ID && (
         <ChickenFarmSettings settings={chickenFarmSettings} />
       )}
@@ -460,7 +477,7 @@ const Page = () => {
         && activeModule
         && activeModule.id !== SOLAR_POWER_MODULE_ID && (
         <>
-          {activeModule.id === MINES_MODULE_ID ? (
+          {activeModule.id === MINES_MODULE_ID && (
             <MinesView
               focusedTargetKey={buildingTarget?.moduleId === activeModule.id
                 ? buildingTarget.key
@@ -468,7 +485,10 @@ const Page = () => {
               sourceResults={moduleResult.sourceResults}
               sinkResults={moduleResult.sinkResults}
             />
-          ) : (
+          )}
+
+          {activeModule.id !== SPACE_STATION_MODULE_ID
+            && activeModule.id !== MINES_MODULE_ID && (
             <NetSummary
               flows={moduleResult.resourceFlows}
               externalInputs={resolvedExternalInputs}
@@ -494,6 +514,7 @@ const Page = () => {
               outputModifiers={outputModifiers}
             />
           ) : activeModule.id !== MINES_MODULE_ID
+            && activeModule.id !== SPACE_STATION_MODULE_ID
             && grouped.map(({ group, label, items }) => {
               const groupTargetKey = activeModule.id === GREENHOUSES_MODULE_ID
                 && group === "production"

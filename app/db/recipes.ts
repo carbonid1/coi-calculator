@@ -15,6 +15,7 @@ import {
   settlementRecipeIds,
 } from "./settlement";
 import { solarPanels } from "./solar";
+import { defaultSpaceStationLevel } from "./space-station";
 
 export interface Ingredient {
   resourceId: ResourceId;
@@ -1948,8 +1949,48 @@ export const recipes: Recipe[] = [
     name: "Research Lab IV",
     building: "Research Lab IV",
     group: "production",
-    inputs: [{ resourceId: "labEquipmentIv", quantity: 48 }],
+    inputs: [
+      { resourceId: "labEquipmentIv", quantity: 48 },
+      { resourceId: "spaceResearchPoints", quantity: 48 },
+    ],
     outputs: [{ resourceId: "recyclables", quantity: 48 }],
+  },
+  {
+    id: "space-station-operations",
+    name: "Space Station IV Operations",
+    building: "Space Station IV",
+    group: "production",
+    inputs: [
+      {
+        resourceId: "stationParts",
+        quantity: defaultSpaceStationLevel.maintenancePartsPerCycle,
+      },
+      {
+        resourceId: "crewSupplies",
+        quantity: defaultSpaceStationLevel.crewSuppliesPerCycle,
+      },
+    ],
+    outputs: [],
+  },
+  {
+    id: "space-station-orbital-research",
+    name: "Space Station IV Orbital Research",
+    building: "Space Station Orbital Research",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["spaceResearchPoints"],
+    inputs: [
+      {
+        resourceId: "electronicsIv",
+        quantity: defaultSpaceStationLevel.researchSuppliesPerCycle,
+      },
+    ],
+    outputs: [
+      {
+        resourceId: "spaceResearchPoints",
+        quantity: defaultSpaceStationLevel.spaceResearchPointsPerCycle,
+      },
+    ],
   },
   {
     id: "assembly-v-lab-equipment-i",
