@@ -83,6 +83,7 @@ import { calculateFoodConsumption } from "./helpers/modifiers/calculate-food-con
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRainwaterYield } from "./helpers/modifiers/calculate-rainwater-yield";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
+import { calculateResearchEfficiency } from "./helpers/modifiers/calculate-research-efficiency";
 import { calculateSettlementWaterUse } from "./helpers/modifiers/calculate-settlement-water-use";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-growth-speed";
@@ -219,6 +220,12 @@ const Page = () => {
   const computingConfig = defaultComputingConfig;
   const chickenFarmSettings = defaultChickenFarmSettings;
   const housingCount = defaultHousingCount;
+  const populationCapacity = housingCount * activeHousingType.populationCapacity;
+  const researchEfficiency = calculateResearchEfficiency({
+    edictLevel: edictLevels.researchEfficiency,
+    population: populationCapacity,
+    stationBonusPercent: defaultSpaceStationLevel.researchEfficiencyBonusPercent,
+  });
 
   const isModifiers = activeModuleId === MODIFIERS_ID;
   const isContracts = activeModuleId === CONTRACTS_ID;
@@ -364,8 +371,6 @@ const Page = () => {
   const solarGenerationCapacityMw = calculateGenerationCapacityMw(
     factoryResult.allLines.filter((line) => line.moduleId === SOLAR_POWER_MODULE_ID),
   );
-  const populationCapacity = housingCount * activeHousingType.populationCapacity;
-
   const grouped = moduleResult
     ? groupOrder
         .map((group) => ({
@@ -454,7 +459,10 @@ const Page = () => {
       )}
 
       {activeModule?.id === RESEARCH_MODULE_ID && (
-        <ResearchSettings config={researchModuleConfig} />
+        <ResearchSettings
+          config={researchModuleConfig}
+          efficiency={researchEfficiency}
+        />
       )}
 
       {activeModule?.id === SPACE_STATION_MODULE_ID && (

@@ -63,6 +63,12 @@ export const buildings: Record<string, BuildingData> = {
     electricityKw: 0,
     suppressPauseAttention: true,
   },
+  "Rocket Assembly Depot": {
+    workers: 160,
+    electricityKw: 2000,
+    computingTflops: 8,
+  },
+  "Rocket Launch Pad": { workers: 30, electricityKw: 0 },
   "Radioactive Waste Storage": { workers: 10, electricityKw: 120 },
   "Shredder": { workers: 1, electricityKw: 100 },
   "Enrichment Plant": { workers: 14, electricityKw: 4000 },

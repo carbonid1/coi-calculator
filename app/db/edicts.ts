@@ -24,6 +24,7 @@ export interface EdictLevelDefinition {
     cropWaterDemandIncreasePercent?: number;
     waterDemandReductionPercent?: number;
     maintenanceDemandReductionPercent?: number;
+    researchEfficiencyBonusPercent?: number;
   };
 }
 
@@ -86,7 +87,7 @@ export const edictCatalog: readonly EdictDefinition[] = [
   { id: "farmingBoost", name: "Farming Boost", category: "industrial", levels: [off, level(1, "I", "+15% crop yield and water demand", 1, { modeledEffects: { cropYieldIncreasePercent: 15, cropWaterDemandIncreasePercent: 15 } }), level(2, "II", "+27% crop yield and water demand", 2, { modeledEffects: { cropYieldIncreasePercent: 27, cropWaterDemandIncreasePercent: 27 } }), level(3, "III", "+35% crop yield and water demand", 3, { modeledEffects: { cropYieldIncreasePercent: 35, cropWaterDemandIncreasePercent: 35 } })] },
   { id: "waterSaver", name: "Water Saver", category: "industrial", levels: [off, level(1, "I", "-15% settlement and farm water demand", 1, { modeledEffects: { waterDemandReductionPercent: 15 } }), level(2, "II", "-27% settlement and farm water demand", 2, { modeledEffects: { waterDemandReductionPercent: 27 } }), level(3, "III", "-35% settlement and farm water demand", 3, { modeledEffects: { waterDemandReductionPercent: 35 } })] },
   { id: "cleanPanels", name: "Clean Panels", category: "industrial", levels: [off, level(1, "I", "+5% solar power", 0.5, { modeledEffects: { solarPowerIncreasePercent: 5 } }), level(2, "II", "+15% solar power", 1.5, { modeledEffects: { solarPowerIncreasePercent: 15 } }), level(3, "III", "+30% solar power", 2.5, { modeledEffects: { solarPowerIncreasePercent: 30 } })] },
-  { id: "researchEfficiency", name: "Research Efficiency", category: "industrial", levels: [off, level(1, "I", "+15% research efficiency", 1), level(2, "II", "+25% research efficiency", 2), level(3, "III", "+35% research efficiency", 3), level(4, "IV", "+45% research efficiency", 4), level(5, "V", "+60% research efficiency", 6)] },
+  { id: "researchEfficiency", name: "Research Efficiency", category: "industrial", levels: [off, level(1, "I", "+15% research efficiency", 1, { modeledEffects: { researchEfficiencyBonusPercent: 15 } }), level(2, "II", "+25% research efficiency", 2, { modeledEffects: { researchEfficiencyBonusPercent: 25 } }), level(3, "III", "+35% research efficiency", 3, { modeledEffects: { researchEfficiencyBonusPercent: 35 } }), level(4, "IV", "+45% research efficiency", 4, { modeledEffects: { researchEfficiencyBonusPercent: 45 } }), level(5, "V", "+60% research efficiency", 6, { modeledEffects: { researchEfficiencyBonusPercent: 60 } })] },
 ];
 
 export const getEdict = (id: EdictId): EdictDefinition => {
@@ -112,7 +113,7 @@ export const defaultEdictLevels: Record<EdictId, EdictLevel> = {
   shipsFuelSaver: 0,
   overloadedTrucks: 0,
   maintenanceReducer: 3,
-  recyclingIncrease: 4,
+  recyclingIncrease: 5,
   farmingBoost: 1,
   waterSaver: 0,
   cleanPanels: 0,

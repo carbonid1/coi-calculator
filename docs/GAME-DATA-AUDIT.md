@@ -3,6 +3,46 @@
 Target: Captain of Industry v0.8.7 installed under Steam. All rates below are
 normalized to one 60-second production cycle.
 
+## Research efficiency
+
+Research efficiency bonuses are additive on top of the base 100% output. The
+current plan combines Research Efficiency V (+60%), Space Station IV (+25%),
+and planned population. Population contributes
+`trunc((population * 5 + 500) / 1000)%`; at 2,880 residents this is +14%.
+Combined research output is therefore 199% of the base lab output.
+
+Verified in installed v0.8.7 `SettlementsManager`, `SpaceStation`,
+`SpaceStationProto`, `EdictsData`, `PropertiesData`, and `ResearchLab`.
+
+## Space-station Rocket II logistics
+
+The station plan amortizes only recurring Rocket II logistics. Space-station,
+assembly-depot, and launch-pad construction costs are deliberately excluded.
+
+- Rocket II takes 6 production cycles to assemble and carries 120 cargo or 12
+  crew before research.
+- Rockets Capacity level 1 adds 5%, raising this to 126 cargo and 13 crew.
+- Each rocket costs 480 Composite Panels, 120 Titanium Alloy, 80 Steel, and 16
+  Electronics III. The Composite Panel recipe expands the 480 panels into 480
+  Aluminum, 60 Steel, and 120 Plastic.
+- Each launch consumes 320 Hydrogen, 90 Oxygen, and 160 Water.
+- One rocket carries only one cargo product. Level 4 consumes 1 Station Part,
+  1.2 Crew Supplies, and 4 Electronics IV per cycle, so cargo launches average
+  `6.2 / 126 = 0.0492063` per cycle.
+- Six crew fit in one Rocket II and rotate every 24 cycles, adding `1 / 24 =
+  0.0416667` launches per cycle.
+- Total steady-state traffic is therefore `0.0908730` launches per cycle: one
+  launch every 11.0044 cycles, or about 0.9170 in-game years. The assembly depot
+  averages 54.5238% of its build capacity.
+
+This yields 43.6190 Aluminum, 10.9048 Titanium Alloy, 12.7222 Steel, 10.9048
+Plastic, 1.4540 Electronics III, 29.0794 Hydrogen, 8.1786 Oxygen, and 14.5397
+Water per production cycle.
+
+Verified in installed v0.8.7 `RocketsData`, `Costs.Rockets`, `AssemblyData`,
+`RocketProto`, `RocketEntity`, `RocketLaunchPadData`, `RocketLaunchPad`,
+`SpaceStationProto`, and `SpaceStation`.
+
 ## World-map mines and oil rigs
 
 The dormant world-mine database contains every installed `WorldMapMineProto`.

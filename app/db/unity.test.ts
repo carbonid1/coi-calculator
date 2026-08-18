@@ -44,5 +44,5 @@ it("includes recurring Unity for every active contract", () => {
     name: "Space Station level 4",
     amount: 0.3,
   });
-  expect(budget.netPerCycle).toBeCloseTo(2.621, 10);
+  expect(budget.netPerCycle).toBeCloseTo(0.621, 10);
 });

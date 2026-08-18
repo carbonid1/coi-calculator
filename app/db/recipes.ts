@@ -15,7 +15,11 @@ import {
   settlementRecipeIds,
 } from "./settlement";
 import { solarPanels } from "./solar";
-import { defaultSpaceStationLevel } from "./space-station";
+import {
+  defaultRocketIiRecurringLogistics,
+  defaultSpaceStationLevel,
+  rocketIiGameData,
+} from "./space-station";
 
 export interface Ingredient {
   resourceId: ResourceId;
@@ -2013,6 +2017,77 @@ export const recipes: Recipe[] = [
         quantity: defaultSpaceStationLevel.spaceResearchPointsPerCycle,
       },
     ],
+  },
+  {
+    // Installed v0.8.7 Assembly V recipe, normalized from its 15-second cycle.
+    id: "assembly-v-composite-panel",
+    name: "Assembly V (Composite Panel)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 15,
+    balanceBy: "output",
+    balanceOutputIds: ["compositePanel"],
+    inputs: [
+      { resourceId: "aluminum", quantity: 32 },
+      { resourceId: "steel", quantity: 4 },
+      { resourceId: "plastic", quantity: 8 },
+    ],
+    outputs: [{ resourceId: "compositePanel", quantity: 32 }],
+  },
+  {
+    // Rocket II is destroyed after every launch. Its six-cycle build is kept as
+    // a real demand-balanced production line; only launch frequency is averaged.
+    id: "rocket-ii-assembly",
+    name: "Rocket Assembly Depot (Rocket II)",
+    building: "Rocket Assembly Depot",
+    group: "production",
+    cycleDurationSeconds: 360,
+    balanceBy: "output",
+    balanceOutputIds: ["rocketII"],
+    inputs: [
+      {
+        resourceId: "compositePanel",
+        quantity: rocketIiGameData.buildCosts.compositePanel / rocketIiGameData.buildCycles,
+      },
+      {
+        resourceId: "titaniumAlloy",
+        quantity: rocketIiGameData.buildCosts.titaniumAlloy / rocketIiGameData.buildCycles,
+      },
+      {
+        resourceId: "steel",
+        quantity: rocketIiGameData.buildCosts.steel / rocketIiGameData.buildCycles,
+      },
+      {
+        resourceId: "electronicsIII",
+        quantity: rocketIiGameData.buildCosts.electronicsIii / rocketIiGameData.buildCycles,
+      },
+    ],
+    outputs: [{ resourceId: "rocketII", quantity: 1 / rocketIiGameData.buildCycles }],
+  },
+  {
+    id: "rocket-ii-launch-amortized",
+    name: "Rocket Launch Pad (Rocket II average)",
+    building: "Rocket Launch Pad",
+    group: "production",
+    inputs: [
+      {
+        resourceId: "rocketII",
+        quantity: defaultRocketIiRecurringLogistics.launchesPerCycle,
+      },
+      {
+        resourceId: "water",
+        quantity: defaultRocketIiRecurringLogistics.waterPerCycle,
+      },
+      {
+        resourceId: "hydrogen",
+        quantity: defaultRocketIiRecurringLogistics.hydrogenPerCycle,
+      },
+      {
+        resourceId: "oxygen",
+        quantity: defaultRocketIiRecurringLogistics.oxygenPerCycle,
+      },
+    ],
+    outputs: [],
   },
   {
     id: "assembly-v-lab-equipment-i",

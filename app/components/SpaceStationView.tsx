@@ -2,6 +2,7 @@ import { Card } from "@carbonid1/design-system";
 
 import {
   calculateSpaceStationLevel,
+  defaultRocketIiRecurringLogistics,
   type SpaceStationConfig,
 } from "../db/space-station";
 
@@ -31,7 +32,7 @@ export const SpaceStationView: React.FC<Props> = ({ config }) => {
           <Card.Title>Space Station level {station.level}</Card.Title>
         </Card.Header>
 
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-3">
           <section className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
             <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Recurring inputs
@@ -70,10 +71,75 @@ export const SpaceStationView: React.FC<Props> = ({ config }) => {
             </div>
           </section>
 
+          <section className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Rocket II transport
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <Metric
+                label="Payload"
+                value={`${formatQuantity(defaultRocketIiRecurringLogistics.cargoCapacity)} / launch`}
+              />
+              <Metric
+                label="Capacity research"
+                value={`Level ${defaultRocketIiRecurringLogistics.researchLevel} (+${formatQuantity(defaultRocketIiRecurringLogistics.payloadCapacityBonusPercent)}%)`}
+              />
+              <Metric
+                label="Average launches"
+                value={`${formatQuantity(defaultRocketIiRecurringLogistics.launchesPerCycle)} / cycle`}
+              />
+              <Metric
+                label="Average cadence"
+                value={`${formatQuantity(defaultRocketIiRecurringLogistics.cyclesPerLaunch)} cycles / launch`}
+              />
+            </div>
+          </section>
+
         </div>
 
+        <section className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Amortized Rocket II inputs
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Metric
+              label="Aluminum"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.aluminumPerCycle)} / cycle`}
+            />
+            <Metric
+              label="Titanium Alloy"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle)} / cycle`}
+            />
+            <Metric
+              label="Water"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.waterPerCycle)} / cycle`}
+            />
+            <Metric
+              label="Hydrogen"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.hydrogenPerCycle)} / cycle`}
+            />
+            <Metric
+              label="Oxygen"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.oxygenPerCycle)} / cycle`}
+            />
+            <Metric
+              label="Steel"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.steelPerCycle)} / cycle`}
+            />
+            <Metric
+              label="Plastic"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.plasticPerCycle)} / cycle`}
+            />
+            <Metric
+              label="Electronics III"
+              value={`${formatQuantity(defaultRocketIiRecurringLogistics.electronicsIiiPerCycle)} / cycle`}
+            />
+          </div>
+        </section>
+
         <p className="text-xs text-muted-foreground">
-          Electronics IV is demand-balanced: consumption stops when stored Space Research Points are full.
+          Includes full cargo launches and the 24-cycle crew rotation. Composite Panel production
+          is included and expands into Aluminum, Steel, and Plastic. Station construction costs are excluded.
         </p>
       </Card.Content>
     </Card.Root>

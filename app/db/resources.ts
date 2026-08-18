@@ -136,6 +136,7 @@ export const resources = {
   diamondPaste: { id: "diamondPaste", name: "Diamond Paste", state: "unit" },
   lens: { id: "lens", name: "Lens", state: "unit" },
   compositeCore: { id: "compositeCore", name: "Composite Core", state: "unit" },
+  compositePanel: { id: "compositePanel", name: "Composite Panel", state: "unit" },
   server: { id: "server", name: "Server", state: "unit" },
   solarCell: { id: "solarCell", name: "Solar Cell", state: "unit" },
   fissionProduct: { id: "fissionProduct", name: "Fission Product", state: "unit" },
@@ -312,6 +313,7 @@ export const resources = {
     },
   },
   electronicsIv: { id: "electronicsIv", name: "Electronics IV", state: "unit" },
+  rocketII: { id: "rocketII", name: "Rocket II", state: "unit" },
   stationParts: { id: "stationParts", name: "Station Parts", state: "unit" },
   crewSupplies: { id: "crewSupplies", name: "Crew Supplies", state: "unit" },
   spaceResearchPoints: {

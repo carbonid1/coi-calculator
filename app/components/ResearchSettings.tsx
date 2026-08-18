@@ -11,9 +11,11 @@ import {
   type InfiniteResearchDefinition,
   type InfiniteResearchId,
 } from "../db/research";
+import { type ResearchEfficiencyBreakdown } from "../helpers/modifiers/calculate-research-efficiency";
 
 interface ResearchSettingsProps {
   config: ResearchModuleConfig;
+  efficiency: ResearchEfficiencyBreakdown;
 }
 
 interface InfiniteResearchSettingsProps {
@@ -123,14 +125,51 @@ const ResearchProgressCard = ({
   );
 };
 
-export const ResearchSettings: React.FC<ResearchSettingsProps> = ({ config }) => (
-  <Card.Root className="max-w-2xl">
+const EfficiencyMetric = ({ label, value }: { label: string; value: string }) => (
+  <div className="space-y-1">
+    <p className="text-xs text-muted-foreground">{label}</p>
+    <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
+      {value}
+    </p>
+  </div>
+);
+
+export const ResearchSettings: React.FC<ResearchSettingsProps> = ({
+  config,
+  efficiency,
+}) => (
+  <Card.Root className="max-w-3xl">
     <Card.Content>
-      <div className="max-w-xs rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-        <p className="text-sm text-muted-foreground">Active Research Lab IV</p>
-        <p className="font-mono font-semibold text-foreground">
-          {config.activeResearchLabIvCount.toLocaleString()}
-        </p>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+        <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
+          <p className="text-sm text-muted-foreground">Active Research Lab IV</p>
+          <p className="font-mono font-semibold text-foreground">
+            {config.activeResearchLabIvCount.toLocaleString()}
+          </p>
+        </div>
+
+        <div className="space-y-3 rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm text-muted-foreground">Combined research output</p>
+            <p className="font-mono font-semibold tabular-nums text-foreground">
+              {efficiency.totalOutputPercent.toLocaleString()}%
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <EfficiencyMetric
+              label="Edict"
+              value={`+${efficiency.edictBonusPercent}%`}
+            />
+            <EfficiencyMetric
+              label="Space station"
+              value={`+${efficiency.stationBonusPercent}%`}
+            />
+            <EfficiencyMetric
+              label={`Population (${efficiency.population.toLocaleString()})`}
+              value={`+${efficiency.populationBonusPercent}%`}
+            />
+          </div>
+        </div>
       </div>
     </Card.Content>
   </Card.Root>

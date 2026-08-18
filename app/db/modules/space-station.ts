@@ -14,12 +14,15 @@ export const createSpaceStationModule = (
   const builtBuildings = {
     "space-station-operations": hasStation ? 1 : 0,
     "space-station-orbital-research": hasOrbitalResearch ? 1 : 0,
+    "assembly-v-composite-panel": hasStation ? 2 : 0,
+    "rocket-ii-assembly": hasStation ? 1 : 0,
+    "rocket-ii-launch-amortized": hasStation ? 1 : 0,
   };
 
   return {
     id: SPACE_STATION_MODULE_ID,
     name: "Space Station",
-    description: "One scalable orbital station; level 4 supports two Research Lab IV buildings",
+    description: "Level 4 orbital research with amortized Rocket II supply launches",
     builtBuildings,
     presets: [
       {
@@ -27,7 +30,10 @@ export const createSpaceStationModule = (
         name: "Target level",
         description: `Space Station level ${config.targetLevel}`,
         activeBuildings: builtBuildings,
-        fixed: ["space-station-operations"],
+        fixed: [
+          "space-station-operations",
+          "rocket-ii-launch-amortized",
+        ],
       },
     ],
     defaultPresetId: "target-level",
