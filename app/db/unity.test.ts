@@ -13,6 +13,7 @@ it("includes recurring Unity for every active contract", () => {
   const budget = calculateUnityBudget({
     housing: activeHousingType,
     housingCount: 1,
+    housingCapacityMultiplier: 1,
     unityCapacityMultiplier: 1.25,
     edictLevels: defaultEdictLevels,
     contracts: contract

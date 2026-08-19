@@ -44,6 +44,7 @@ import {
 } from "./db/edicts";
 import {
   activeHousingType,
+  calculatePopulationCapacity,
   defaultHousingCount,
 } from "./db/housing";
 import { COMPUTING_MODULE_ID } from "./db/modules/computing";
@@ -80,11 +81,13 @@ import { calculateContractWorkers } from "./helpers/contracts/calculate-contract
 import { calculateFactoryTotal } from "./helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "./helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "./helpers/modifiers/calculate-food-consumption";
+import { calculateHousingCapacity } from "./helpers/modifiers/calculate-housing-capacity";
 import { calculateMaintenanceOutput } from "./helpers/modifiers/calculate-maintenance-output";
 import { calculateRainwaterYield } from "./helpers/modifiers/calculate-rainwater-yield";
 import { calculateRecyclingEfficiency } from "./helpers/modifiers/calculate-recycling-efficiency";
 import { calculateResearchEfficiency } from "./helpers/modifiers/calculate-research-efficiency";
 import { calculateSettlementWaterUse } from "./helpers/modifiers/calculate-settlement-water-use";
+import { calculateShipsFuelUse } from "./helpers/modifiers/calculate-ships-fuel-use";
 import { calculateSolarPower } from "./helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-growth-speed";
 import { calculateUnityCapacity } from "./helpers/modifiers/calculate-unity-capacity";
@@ -216,15 +219,27 @@ const Page = () => {
   const treeGrowthSpeedLevel = defaultInfiniteResearchLevels.treeGrowthSpeed;
   const worldMineOutputLevel = defaultInfiniteResearchLevels.worldMineOutput;
   const unityCapacityLevel = defaultInfiniteResearchLevels.unityCapacity;
+  const housingCapacityLevel = defaultInfiniteResearchLevels.housingCapacity;
+  const shipsFuelUseLevel = defaultInfiniteResearchLevels.shipsFuelUse;
   const solarPanelCounts = defaultSolarPanelCounts;
   const computingConfig = defaultComputingConfig;
   const chickenFarmSettings = defaultChickenFarmSettings;
   const housingCount = defaultHousingCount;
-  const populationCapacity = housingCount * activeHousingType.populationCapacity;
+  const housingCapacity = calculateHousingCapacity(housingCapacityLevel);
+  const populationCapacity = calculatePopulationCapacity(
+    activeHousingType,
+    housingCount,
+    housingCapacity.multiplier,
+  );
+  const spaceStationIncludedInFactoryTotals = configuredModules.find(
+    (module) => module.id === SPACE_STATION_MODULE_ID,
+  )?.includedInFactoryTotals !== false;
   const researchEfficiency = calculateResearchEfficiency({
     edictLevel: edictLevels.researchEfficiency,
     population: populationCapacity,
-    stationBonusPercent: defaultSpaceStationLevel.researchEfficiencyBonusPercent,
+    stationBonusPercent: spaceStationIncludedInFactoryTotals
+      ? defaultSpaceStationLevel.researchEfficiencyBonusPercent
+      : 0,
   });
 
   const isModifiers = activeModuleId === MODIFIERS_ID;
@@ -267,6 +282,7 @@ const Page = () => {
   const settlementWaterUse = calculateSettlementWaterUse(settlementWaterUseLevel);
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel);
+  const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel);
   const outputModifiers = {
     foodConsumption: foodConsumption.multiplier,
     maintenanceOutput: maintenanceOutput.multiplier,
@@ -283,10 +299,12 @@ const Page = () => {
     enabledContracts,
     recyclingEfficiencyPercent,
     outputModifiers,
+    shipsFuelUse.multiplier,
   );
   const unityBudget = calculateUnityBudget({
     housing: activeHousingType,
     housingCount,
+    housingCapacityMultiplier: housingCapacity.multiplier,
     unityCapacityMultiplier: unityCapacity.multiplier,
     edictLevels,
     buildingConsumption: researchModuleConfig.activeResearchLabIvCount > 0
@@ -297,7 +315,8 @@ const Page = () => {
             * (buildings["Research Lab IV"]?.unityPerCycle ?? 0),
         }]
       : [],
-    buildingGeneration: defaultSpaceStationLevel.unityPerCycle > 0
+    buildingGeneration: spaceStationIncludedInFactoryTotals
+      && defaultSpaceStationLevel.unityPerCycle > 0
       ? [{
           id: "space-station",
           name: `Space Station level ${defaultSpaceStationLevel.level}`,
@@ -312,12 +331,23 @@ const Page = () => {
       unityPer100Imported: result.contract.unity.per100Imported,
     })),
   });
+  const activeModuleFactoryResult = activeModule?.includedInFactoryTotals === false
+    ? calculateFactoryTotal(
+        [{ ...activeModule, includedInFactoryTotals: true }],
+        [],
+        recyclingEfficiencyPercent,
+        outputModifiers,
+        shipsFuelUse.multiplier,
+      )
+    : factoryResult;
   const moduleResult = activeModule
     ? (() => {
-        const lines = factoryResult.allLines.filter((line) => line.moduleId === activeModule.id);
+        const lines = activeModuleFactoryResult.allLines.filter(
+          (line) => line.moduleId === activeModule.id,
+        );
         const calc = extractModuleResult(
           activeModule.id,
-          factoryResult.calculation,
+          activeModuleFactoryResult.calculation,
           preset?.fixedDemands,
         );
 
@@ -342,6 +372,15 @@ const Page = () => {
     factoryResult.calculation.sourceResults,
     factoryResult.calculation.sinkResults,
   );
+  const activeBuildingDiagnostics = activeModule?.includedInFactoryTotals === false
+    ? calculateBuildingDiagnostics(
+        [activeModule],
+        activeModuleFactoryResult.flows,
+        activeModuleFactoryResult.calculation.regularResults,
+        activeModuleFactoryResult.calculation.sourceResults,
+        activeModuleFactoryResult.calculation.sinkResults,
+      )
+    : factoryBuildingDiagnostics;
   const calculateGenerationCapacityMw = (lines: ProductionLine[]) => lines.reduce(
     (total, line) => (
       total + line.recipe.outputs.reduce((lineTotal, output) => (
@@ -477,6 +516,8 @@ const Page = () => {
         <HousingView
           housing={activeHousingType}
           buildingCount={housingCount}
+          capacityBonusPercent={housingCapacity.bonusPercent}
+          capacityMultiplier={housingCapacity.multiplier}
           serviceMultiplier={unityBudget.housingMultiplier}
         />
       )}
@@ -518,7 +559,7 @@ const Page = () => {
               regularResults={moduleResult.regularResults}
               sourceResults={moduleResult.sourceResults}
               sinkResults={moduleResult.sinkResults}
-              diagnostics={factoryBuildingDiagnostics}
+              diagnostics={activeBuildingDiagnostics}
               outputModifiers={outputModifiers}
             />
           ) : activeModule.id !== MINES_MODULE_ID
@@ -595,7 +636,7 @@ const Page = () => {
                                 )
                               ))}
                               outputModifiers={outputModifiers}
-                              diagnostic={factoryBuildingDiagnostics.find(
+                              diagnostic={activeBuildingDiagnostics.find(
                                 (diagnostic) => diagnostic.key === key,
                               )}
                             />

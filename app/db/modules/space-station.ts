@@ -23,6 +23,7 @@ export const createSpaceStationModule = (
     id: SPACE_STATION_MODULE_ID,
     name: "Space Station",
     description: "Level 4 orbital research with amortized Rocket II supply launches",
+    includedInFactoryTotals: false,
     builtBuildings,
     presets: [
       {

@@ -36,6 +36,8 @@ export interface Module {
   id: string;
   name: string;
   description: string;
+  /** Planning-only modules stay browsable but do not affect Factory Total. */
+  includedInFactoryTotals?: boolean;
   /** Physical buildings present in the factory, including paused buildings. */
   builtBuildings: Record<string, number>;
   presets: Preset[];

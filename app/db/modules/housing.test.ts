@@ -1,9 +1,13 @@
 import { expect, it } from "vitest";
 
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
+import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
-import { defaultHousingCount } from "../housing";
-import { settlementRecipeIds } from "../settlement";
+import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
+import { buildings } from "../buildings";
+import { activeHousingType, defaultHousingCount } from "../housing";
+import { defaultInfiniteResearchLevels } from "../research";
+import { settlementConfig, settlementRecipeIds } from "../settlement";
 import { createHousingModule } from "./housing";
 
 it("applies settlement demand modifiers to Factory Total flows", () => {
@@ -34,7 +38,21 @@ it("applies settlement demand modifiers to Factory Total flows", () => {
 
   expect(actualInput(modifiedResidents, "potato"))
     .toBeCloseTo(actualInput(baseResidents, "potato") * 1.4);
-  const householdGoodsBiomass = 12.096;
+  const population = activeHousingType.populationCapacity
+    * defaultHousingCount
+    * calculateHousingCapacity(defaultInfiniteResearchLevels.housingCapacity).multiplier;
+  const householdGoods = settlementConfig.householdGoodsPerThousandPopsPerMonth
+    * population
+    / 1000
+    * activeHousingType.serviceDemandMultipliers.householdGoods;
+  const householdGoodsBiomass = householdGoods
+    * settlementConfig.biomassPerHouseholdGood;
+  const medicalSupplies = settlementConfig.medicalSuppliesPerHundredPopsPerMonth
+    * population
+    / 100;
+  const expectedRecyclables = medicalSupplies
+      * settlementConfig.recyclablesPerMedicalSupply
+    + householdGoods * settlementConfig.recyclablesPerHouseholdGood;
 
   expect(actualOutput(modifiedResidents, "biomass")).toBeCloseTo(
     (actualOutput(baseResidents, "biomass") - householdGoodsBiomass) * 1.4
@@ -46,8 +64,9 @@ it("applies settlement demand modifiers to Factory Total flows", () => {
     .toBeCloseTo(actualOutput(baseResidents, "waste"));
   expect(actualOutput(modifiedResidents, "wasteWater"))
     .toBeCloseTo(actualOutput(baseResidents, "wasteWater") * 0.85);
-  expect(actualOutput(baseResidents, "recyclables")).toBeCloseTo(22.32);
-  expect(baseResidents.recyclableSourceValueProduced).toBeCloseTo(44.64);
+  expect(actualOutput(baseResidents, "recyclables")).toBeCloseTo(expectedRecyclables);
+  expect(baseResidents.recyclableSourceValueProduced)
+    .toBeCloseTo(expectedRecyclables * 2);
   expect(actualOutput(baseResidents, "biomass")).toBeGreaterThan(householdGoodsBiomass);
 
   const biomassMixer = modified.regularResults.find(
@@ -59,4 +78,27 @@ it("applies settlement demand modifiers to Factory Total flows", () => {
     .toBeCloseTo(actualOutput(modifiedResidents, "biomass"));
   expect(modified.allResourceFlows.find((flow) => flow.resourceId === "biomass")?.net)
     .toBeCloseTo(0);
+});
+
+it("scales full-population housing electricity with capacity research", () => {
+  const build = (level: number) => {
+    const housingModule = createHousingModule(defaultHousingCount, level);
+    const preset = housingModule.presets.find(
+      (candidate) => candidate.id === housingModule.defaultPresetId,
+    )!;
+    const { lines } = buildModuleLines(housingModule, preset);
+    const residentLines = lines.filter(
+      (line) => line.recipe.id === settlementRecipeIds.residents,
+    );
+    const result = calculateNet(residentLines);
+
+    return calculateBuildingStats(residentLines, result).electricityKw;
+  };
+  const level = defaultInfiniteResearchLevels.housingCapacity;
+  const multiplier = calculateHousingCapacity(level).multiplier;
+  const baseHousingElectricity = buildings[activeHousingType.name]!.electricityKw;
+
+  expect(build(level) - build(0)).toBeCloseTo(
+    baseHousingElectricity * defaultHousingCount * (multiplier - 1),
+  );
 });

@@ -31,8 +31,21 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
       Factory Total
     </SwitchButton>
     {modules.map((mod) => (
-      <SwitchButton key={mod.id} active={active === mod.id} onClick={() => onChange(mod.id)}>
-        {mod.name}
+      <SwitchButton
+        key={mod.id}
+        active={active === mod.id}
+        onClick={() => onChange(mod.id)}
+      >
+        <span
+          aria-label={mod.includedInFactoryTotals === false
+            ? `${mod.name}, excluded from Factory Total`
+            : undefined}
+          className={mod.includedInFactoryTotals === false
+            ? "text-muted-foreground line-through"
+            : undefined}
+        >
+          {mod.name}
+        </span>
       </SwitchButton>
     ))}
     <SwitchButton active={active === modifiersId} onClick={() => onChange(modifiersId)}>

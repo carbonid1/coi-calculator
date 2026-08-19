@@ -58,6 +58,7 @@ interface ContractUnityInput {
 export const calculateUnityBudget = ({
   housing,
   housingCount,
+  housingCapacityMultiplier,
   unityCapacityMultiplier,
   edictLevels,
   contracts,
@@ -66,6 +67,7 @@ export const calculateUnityBudget = ({
 }: {
   housing: HousingType;
   housingCount: number;
+  housingCapacityMultiplier: number;
   unityCapacityMultiplier: number;
   edictLevels: Record<EdictId, EdictLevel>;
   contracts: ContractUnityInput[];
@@ -73,7 +75,8 @@ export const calculateUnityBudget = ({
   buildingGeneration?: UnityBreakdownItem[];
 }): UnityBudget => {
   const normalizedHousingCount = Math.max(0, Math.trunc(housingCount));
-  const population = normalizedHousingCount * housing.populationCapacity;
+  const population = normalizedHousingCount
+    * Math.round(housing.populationCapacity * housingCapacityMultiplier);
   const activeServices = unityServiceDefinitions.filter((service) => service.active);
   const activeServiceNames = new Set(activeServices.map((service) => service.name));
   const housingMultiplier = housing.unityBonusTiers

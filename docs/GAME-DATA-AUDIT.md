@@ -6,10 +6,11 @@ normalized to one 60-second production cycle.
 ## Research efficiency
 
 Research efficiency bonuses are additive on top of the base 100% output. The
-current plan combines Research Efficiency V (+60%), Space Station IV (+25%),
-and planned population. Population contributes
+current non-space plan combines Research Efficiency V (+60%) with planned
+population. Population contributes
 `trunc((population * 5 + 500) / 1000)%`; at 2,880 residents this is +14%.
-Combined research output is therefore 199% of the base lab output.
+Combined research output is therefore 174% of the base lab output. The disabled
+Space Station IV planning module would add another 25% when activated.
 
 Verified in installed v0.8.7 `SettlementsManager`, `SpaceStation`,
 `SpaceStationProto`, `EdictsData`, `PropertiesData`, and `ResearchLab`.
@@ -88,9 +89,12 @@ two Unit Module (L) exports and two Loose Module (L) imports.
   carry 1,600 Uranium Ore per trip. The shore module's 1,600 storage capacity is
   not a shipload.
 - Base trip fuel is `90 + 60 × occupied modules`.
-- Hydrogen applies the game's 125% diesel-energy ratio.
-- Save Fuel applies 70%, so this plan uses
-  `ceil((90 + 60 × 4) × 1.25 × 0.70) = 289 Hydrogen` per trip.
+- Hydrogen applies the game's 125% diesel-energy ratio, with each prototype
+  quantity rounded: `90 → 113` and `60 → 75`.
+- Repeatable Ship Fuel Use research reduces the loaded ship total by 1% per
+  level. The quantity is rounded after this multiplier.
+- Save Fuel then applies 70% and rounds again, so the level-zero plan uses
+  `round((113 + 75 × 4) × 0.70) = 289 Hydrogen` per trip.
 - At 54 Uranium Ore per cycle, average ship fuel is
   `54 / 1,600 × 289 = 9.75375 Hydrogen` per cycle.
 
@@ -130,10 +134,12 @@ Current save counts represented by the static Infrastructure module:
 The three module types therefore add 330 workers and 16.5 MW. The locomotives
 add another 21 workers. Their traction power is throttle- and movement-dependent,
 so the calculator does not misrepresent the 52.5 MW fleet maximum as a constant
-factory load.
+factory load. Repeatable Train Fuel Use research nevertheless reduces electric
+locomotive traction power by 1% per level: `ElectricLocomotive` applies the
+train fuel-consumption multiplier directly to its throttle-scaled power draw.
 
 Verified against installed v0.8.7 `TrainStationsData`, `Costs.Buildings`,
-`LocomotivesDataDlc`, and `TrainDlcCosts`.
+`LocomotivesDataDlc`, `ElectricLocomotive`, and `TrainDlcCosts`.
 
 ## Mining and logistics vehicles
 
@@ -169,12 +175,29 @@ The primary chain's full-building rates are:
 | Aluminum Cell | 24 Alumina + 6 Graphite | 24 Molten Aluminum + 18 Carbon Dioxide |
 | Cooled Caster II | 24 Molten Aluminum | 24 Aluminum |
 
-These recipes are database-only for now; no Aluminum production buildings were
-added to an active factory module.
+The disabled Space Points Exp. planning module owns the new primary Aluminum
+chain. When activated, its two parallel lines consume 142.4921 Bauxite and
+produce 43.6190 Aluminum for recurring Rocket II construction, while also
+supplying the Molten Aluminum and Alumina used by Titanium Alloy and Sapphire
+Wafers. Bauxite is represented as a demand-mined terrain resource in Mines;
+installed terrain data confirms that Bauxite is directly mineable in addition
+to the world-map Bauxite quarry.
+Four Settling Tanks use the installed acid route to consume the resulting
+71.2460 Red Mud with 47.4974 Acid and 7.9162 Limestone, recovering 15.8325 Iron
+Ore Crushed and producing 31.6649 Slag per production cycle. Red Mud is not
+dumped by this expansion plan.
 
 ## Titanium recipes
 
-All eight installed Titanium recipes were already present and their rates match
-v0.8.7: ore crushing, ore smelting, chlorination, chloride purification,
-chloride reduction, sponge smelting, alloy mixing, and cooled casting. Their
-version annotation and regression coverage now reflect the installed build.
+All eight installed Titanium recipes are assigned to the Space Points Exp.
+module: ore crushing, ore smelting, chlorination, chloride purification,
+chloride reduction, sponge smelting, alloy mixing, and cooled casting. The
+single chain consumes 38.7725 Titanium Ore and exports 10.9048 Titanium Alloy
+per production cycle for recurring Rocket II construction. Titanium Ore is a
+demand-mined terrain resource in Mines. Installed terrain data confirms both
+Bauxite and Titanium Ore terrain materials and their directly mined products.
+
+Established inputs such as Electronics III and Graphite are deliberately not
+produced inside Space Points Exp. Their deficits remain local to the isolated
+planning tab while it is disabled; activating the module exposes them in
+Factory Total.

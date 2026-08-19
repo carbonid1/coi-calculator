@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
-import { activeContracts } from "./contracts";
-import { modules } from "./modules/modules";
+import { createResearchModule } from "./modules/research";
+import { spacePointsExpansion } from "./modules/space-points-expansion";
+import { spaceStation } from "./modules/space-station";
 import { recipes } from "./recipes";
 import {
   calculateSpaceStationConstruction,
@@ -91,8 +92,12 @@ describe("Space Station", () => {
       });
   });
 
-  it("balances level four against two full-speed space-research labs", () => {
-    const result = calculateFactoryTotal(modules, activeContracts);
+  it("retains a balanced space plan when the planning modules are inspected in isolation", () => {
+    const result = calculateFactoryTotal([
+      createResearchModule({ activeResearchLabIvCount: 2, mode: "space" }),
+      { ...spaceStation, includedInFactoryTotals: true },
+      { ...spacePointsExpansion, includedInFactoryTotals: true },
+    ]);
     const orbitalResearch = result.calculation.regularResults.find(
       (line) => line.recipe.id === "space-station-orbital-research",
     );

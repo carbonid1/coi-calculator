@@ -402,6 +402,7 @@ export const calculateFactoryTotal = (
   contracts: ActiveContract[] = [],
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
   outputModifiers: RecipeModifierMultipliers = {},
+  shipsFuelUseMultiplier = 1,
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
@@ -410,6 +411,8 @@ export const calculateFactoryTotal = (
   const electricityDispatchTargets: Record<string, number> = {};
 
   for (const mod of modules) {
+    if (mod.includedInFactoryTotals === false) continue;
+
     const preset = mod.defaultPresetId
       ? mod.presets.find((p) => p.id === mod.defaultPresetId) ?? mod.presets[0] ?? null
       : null;
@@ -473,6 +476,7 @@ export const calculateFactoryTotal = (
       (flow) => !localResourceIds.has(flow.resourceId),
     ),
     contracts,
+    shipsFuelUseMultiplier,
   );
   const inputsWithContracts = { ...externalInputs };
   const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };

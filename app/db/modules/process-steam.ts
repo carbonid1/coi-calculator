@@ -9,23 +9,12 @@ export const PROCESS_STEAM_MODULE_ID = "process-steam";
 export const processSteam: Module = {
   id: PROCESS_STEAM_MODULE_ID,
   name: "Process Steam",
-  description: "Incinerator-backed steam for titanium purification and sour-water recovery",
+  description: "Incinerator-backed steam for paper and sour-water recovery",
   builtBuildings: {
     "chemical-plant-ii-paper": 2,
-    "distillation-stage-iii-titanium-purification": 1,
     "sour-water-stripper": 1,
     "incineration-plant-waste": 1,
   },
-  presets: [
-    {
-      id: "titanium-purification-paused",
-      name: "Titanium purification paused",
-      description: "Keeps the built Titanium purification column switched off",
-      activeBuildings: {
-        "distillation-stage-iii-titanium-purification": 0,
-      },
-      fixed: [],
-    },
-  ],
-  defaultPresetId: "titanium-purification-paused",
+  presets: [],
+  defaultPresetId: null,
 };

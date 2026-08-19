@@ -16,7 +16,15 @@ export interface ContractResult {
   fuelPerProductionCycle: number;
 }
 
-export const calculateContractShipping = (contract: ActiveContract) => {
+/** v0.8.7 Quantity.ScaledBy(Percent) rounds to the nearest whole unit. */
+const scaleQuantityLikeGame = (quantity: number, multiplier: number) => (
+  Math.round(quantity * multiplier)
+);
+
+export const calculateContractShipping = (
+  contract: ActiveContract,
+  shipsFuelUseMultiplier = 1,
+) => {
   const shipSize = contract.plan.infrastructure.cargoDepotSize;
   const capacityMultiplier = cargoShipping.capacityMultiplierByShipSize[shipSize];
   const installedModuleCount = contract.plan.infrastructure.cargoModules.reduce(
@@ -33,13 +41,26 @@ export const calculateContractShipping = (contract: ActiveContract) => {
   const fuelResourceMultiplier = contract.plan.shipping.fuelResourceId === "hydrogen"
     ? cargoShipping.hydrogenDieselEnergyRatio
     : 1;
+  const fuelPerJourneyBase = scaleQuantityLikeGame(
+    cargoShipping.fuelPerJourneyBase,
+    fuelResourceMultiplier,
+  );
+  const fuelPerJourneyPerModule = scaleQuantityLikeGame(
+    cargoShipping.fuelPerJourneyPerModule,
+    fuelResourceMultiplier,
+  );
   const saveFuelMultiplier = contract.plan.shipping.saveFuel
     ? cargoShipping.saveFuelMultiplier
     : 1;
-  const fuelPerTrip = Math.ceil((
-    cargoShipping.fuelPerJourneyBase
-    + cargoShipping.fuelPerJourneyPerModule * installedModuleCount * capacityMultiplier
-  ) * fuelResourceMultiplier * saveFuelMultiplier);
+  const loadedShipFuel = fuelPerJourneyBase + scaleQuantityLikeGame(
+    fuelPerJourneyPerModule * installedModuleCount,
+    capacityMultiplier,
+  );
+  const researchedFuel = scaleQuantityLikeGame(
+    loadedShipFuel,
+    shipsFuelUseMultiplier,
+  );
+  const fuelPerTrip = scaleQuantityLikeGame(researchedFuel, saveFuelMultiplier);
   const fuelPerProductionCycle = importedPerTrip > 0
     ? contract.plan.importedPerProductionCycle / importedPerTrip * fuelPerTrip
     : 0;
@@ -81,6 +102,7 @@ const getFlow = (
 export const applyContracts = (
   resourceFlows: ResourceFlow[],
   contracts: ActiveContract[],
+  shipsFuelUseMultiplier = 1,
 ): { flows: ResourceFlow[]; contractResults: ContractResult[] } => {
   const combined = new Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>(
     resourceFlows.map((flow) => [flow.resourceId, {
@@ -96,7 +118,7 @@ export const applyContracts = (
     const requiredImported = Math.max(0, importedFlow.consumed - importedFlow.produced);
     const imported = contract.plan.importedPerProductionCycle;
     const exported = imported * contract.exchange.exported.quantity / contract.exchange.imported.quantity;
-    const shipping = calculateContractShipping(contract);
+    const shipping = calculateContractShipping(contract, shipsFuelUseMultiplier);
 
     importedFlow.produced += imported;
     getFlow(combined, contract.exchange.exported.resourceId).consumed += exported;

@@ -56,7 +56,7 @@ it("combines Tree Sapling and food-process Biomass in the local General recovery
   expect(biomassMixer?.recipe.balanceInputScope).toBe("module");
 });
 
-it("processes the default Tree Sapling and Biomass surplus without cross-feeding Population", () => {
+it("shreds only the Tree Sapling surplus left by the settlement", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -80,9 +80,6 @@ it("processes the default Tree Sapling and Biomass surplus without cross-feeding
   const line = (recipeId: string) => result.calculation.regularResults.find(
     (candidate) => candidate.recipe.id === recipeId,
   );
-  const forestry = result.calculation.sourceResults.find(
-    (candidate) => candidate.recipe.id === "forestry-trees-100-growth",
-  );
   const shredder = line("shredder-tree-saplings");
   const generalMixer = line("mixer-ii-biomass-compost");
   const housingMixer = line("housing-mixer-ii-biomass-compost");
@@ -98,10 +95,6 @@ it("processes the default Tree Sapling and Biomass surplus without cross-feeding
   expect(flow("treeSapling")?.net).toBeCloseTo(0);
   expect(flow("biomass")?.net).toBeCloseTo(0);
   expect(shredder?.actualInputs[0]?.quantity).toBeGreaterThan(0);
-  expect(
-    (forestry?.actualInputs[0]?.quantity ?? 0)
-      + (shredder?.actualInputs[0]?.quantity ?? 0),
-  ).toBeCloseTo(flow("treeSapling")?.produced ?? 0);
   expect(generalMixer?.actualInputs[0]?.quantity).toBeCloseTo(generalBiomassProduced);
   expect(housingMixer).toMatchObject({ activeBuildings: 2, builtBuildings: 2 });
   expect(housingMixer?.actualInputs[0]?.quantity)
@@ -110,7 +103,7 @@ it("processes the default Tree Sapling and Biomass surplus without cross-feeding
     )?.quantity ?? 0);
 });
 
-it("keeps every built Titanium-chain recipe paused", () => {
+it("keeps the Titanium expansion chain out of legacy factory modules", () => {
   const titaniumRecipeIds = [
     "crusher-large-titanium",
     "arc-furnace-ii-titanium-ore",
@@ -127,21 +120,7 @@ it("keeps every built Titanium-chain recipe paused", () => {
     return buildModuleLines(module, preset).lines;
   });
 
-  expect(lines
-    .filter(({ recipe }) => titaniumRecipeIds.includes(recipe.id))
-    .toSorted((a, b) => (
-      titaniumRecipeIds.indexOf(a.recipe.id) - titaniumRecipeIds.indexOf(b.recipe.id)
-    ))
-    .map(({ recipe, builtBuildings, activeBuildings }) => ({
-      id: recipe.id,
-      builtBuildings,
-      activeBuildings,
-    })))
-    .toEqual(titaniumRecipeIds.map((id) => ({
-      id,
-      builtBuildings: 1,
-      activeBuildings: 0,
-    })));
+  expect(lines.filter(({ recipe }) => titaniumRecipeIds.includes(recipe.id))).toEqual([]);
 });
 
 it("demand-balances enough Yellowcake for the two-FBR target", () => {

@@ -18,6 +18,7 @@ import {
 } from "./modules/space-points-expansion";
 import { recipes } from "./recipes";
 import { defaultInfiniteResearchLevels } from "./research";
+import { defaultRocketIiRecurringLogistics } from "./space-station";
 
 const getRecipe = (id: string) => {
   const recipe = recipes.find((candidate) => candidate.id === id);
@@ -103,27 +104,46 @@ describe("Space Points expansion module", () => {
 
     expect(modules).toContain(spacePointsExpansion);
     expect(spacePointsExpansionBuiltBuildings).toEqual({
-      "crusher-large-bauxite": 1,
-      "chemical-plant-ii-bauxite-digestion": 1,
-      "rotary-kiln-alumina-fuel-gas": 1,
+      "crusher-large-bauxite": 2,
+      "chemical-plant-ii-bauxite-digestion": 2,
+      "rotary-kiln-alumina-fuel-gas": 2,
+      "aluminum-cell-electrolysis": 2,
+      "cooled-caster-ii-aluminum": 2,
       "crystallizer-alumina": 1,
-      "liquid-dump-red-mud": 1,
-      "chemical-plant-ii-graphite-coal": 1,
+      "settling-tank-red-mud-acid": 4,
+      "crusher-large-titanium": 1,
+      "arc-furnace-ii-titanium-ore": 1,
+      "chemical-plant-ii-titanium-chlorination": 1,
+      "distillation-stage-iii-titanium-purification": 1,
+      "chemical-plant-ii-titanium-reduction": 1,
+      "arc-furnace-ii-titanium-sponge": 1,
+      "alloy-mixer-titanium": 1,
+      "cooled-caster-ii-titanium-alloy": 1,
       "diamond-reactor-synthesis": 1,
       "chemical-plant-ii-diamond-paste-cooking-oil": 1,
       "chemical-plant-ii-diamond-paste-heavy-oil": 1,
       "lens-polisher": 2,
-      "assembly-v-electronics-iii": 1,
       "assembly-v-electronics-iv": 1,
     });
     expect(preset?.builtBuildings).toEqual(spacePointsExpansionBuiltBuildings);
     expect(preset?.activeBuildings).toEqual(spacePointsExpansionBuiltBuildings);
-    expect(preset?.outputTargets).toEqual({ electronicsIv: 4 });
+    expect(preset?.outputTargets).toEqual({
+      aluminum: defaultRocketIiRecurringLogistics.aluminumPerCycle,
+      titaniumAlloy: defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle,
+      electronicsIv: 4,
+      ironOreCrushed: 15.832451499118164,
+    });
+    expect(spacePointsExpansionBuiltBuildings).not.toHaveProperty(
+      "assembly-v-electronics-iii",
+    );
+    expect(spacePointsExpansionBuiltBuildings).not.toHaveProperty(
+      "chemical-plant-ii-graphite-coal",
+    );
   });
 
   it("renders the planned chain through normal module results", () => {
     const factory = calculateFactoryTotal(
-      modules,
+      [{ ...spacePointsExpansion, includedInFactoryTotals: true }],
       [],
       calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
       outputModifiers,
@@ -138,19 +158,39 @@ describe("Space Points expansion module", () => {
     const electronicsIv = result.regularResults.find(
       (line) => line.recipe.id === "assembly-v-electronics-iv",
     );
-    const redMudDump = result.sinkResults.find(
-      (line) => line.recipe.id === "liquid-dump-red-mud",
+    const redMudRecovery = result.regularResults.find(
+      (line) => line.recipe.id === "settling-tank-red-mud-acid",
     );
     const stats = calculateBuildingStats(lines, result, outputModifiers);
+    const flow = (resourceId: string) => result.resourceFlows.find(
+      (candidate) => candidate.resourceId === resourceId,
+    );
 
     expect(electronicsIv?.actualOutputs).toContainEqual({
       resourceId: "electronicsIv",
       quantity: 4,
     });
-    expect(result.resourceFlows.find((flow) => flow.resourceId === "bauxite")?.net)
-      .toBeCloseTo(-8, 6);
-    expect(redMudDump?.actualInputs).toContainEqual({ resourceId: "redMud", quantity: 4 });
-    expect(stats.workers).toBe(87);
-    expect(stats.computingTflops).toBe(26);
+    expect(flow("aluminum")?.net)
+      .toBeCloseTo(defaultRocketIiRecurringLogistics.aluminumPerCycle, 6);
+    expect(flow("titaniumAlloy")?.net)
+      .toBeCloseTo(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle, 6);
+    expect(flow("electronicsIv")?.net).toBeCloseTo(4, 6);
+    expect(flow("electronicsIII")?.net).toBeCloseTo(-4, 6);
+    expect(flow("bauxite")?.net).toBeCloseTo(-142.492063, 6);
+    expect(flow("titaniumOre")?.net).toBeCloseTo(-38.772487, 6);
+    expect(redMudRecovery?.actualInputs.find(({ resourceId }) => resourceId === "redMud")?.quantity)
+      .toBeCloseTo(71.246032, 6);
+    expect(flow("ironOreCrushed")?.net).toBeCloseTo(15.832451, 6);
+    expect(stats.workers).toBe(242);
+    expect(stats.computingTflops).toBe(20);
+  });
+
+  it("stays available as a plan while remaining outside Factory Total", () => {
+    const factory = calculateFactoryTotal(modules);
+
+    expect(spacePointsExpansion.includedInFactoryTotals).toBe(false);
+    expect(factory.allLines.some(
+      (line) => line.moduleId === SPACE_POINTS_EXPANSION_MODULE_ID,
+    )).toBe(false);
   });
 });

@@ -110,6 +110,8 @@ export interface Recipe {
   sinkPriority?: number;
   /** Recipe-specific multiplier applied to the building's base electricity draw. */
   electricityMultiplier?: number;
+  /** Scale the building's electricity demand by speedLevel (used for per-population housing). */
+  electricityScalesWithSpeed?: boolean;
   /** Scale the building's computing demand by speedLevel (used for per-100-population services). */
   computingScalesWithSpeed?: boolean;
   /** Generators in one group share utilization; lower priorities serve demand first. */
@@ -274,6 +276,16 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "gold", quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "virtual-provision",
+  },
+  {
+    id: "bauxite-map-mine",
+    name: "Bauxite (Map Mine)",
+    building: "Bauxite Mine",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "bauxite", quantity: 0 }],
+    sourceMode: "demand",
+    sourceKind: "map-mine",
   },
   {
     id: "titanium-map-mine",
@@ -494,6 +506,7 @@ export const recipes: Recipe[] = [
     // v0.8.6 settlement collection converts tracked recyclable sources with
     // its own 2:1 rule; the global recycling modifier is not applied here.
     appliesRecyclingEfficiency: false,
+    electricityScalesWithSpeed: true,
   },
   {
     id: settlementRecipeIds.internetModule,
@@ -1428,6 +1441,8 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 30,
     balanceBy: "input",
     balanceInputIds: ["redMud"],
+    allocation: "surplus",
+    allocationPriority: 10,
     sharedCapacity: { id: "settling-tank-red-mud", priority: 1 },
     inputs: [
       { resourceId: "redMud", quantity: 18 },
@@ -1444,6 +1459,8 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 30,
     balanceBy: "input",
     balanceInputIds: ["redMud"],
+    allocation: "surplus",
+    allocationPriority: 10,
     sharedCapacity: { id: "settling-tank-red-mud", priority: 2 },
     inputs: [
       { resourceId: "redMud", quantity: 18 },
@@ -1973,6 +1990,14 @@ export const recipes: Recipe[] = [
   {
     id: "research-lab-iv",
     name: "Research Lab IV",
+    building: "Research Lab IV",
+    group: "production",
+    inputs: [{ resourceId: "labEquipmentIv", quantity: 48 }],
+    outputs: [{ resourceId: "recyclables", quantity: 48 }],
+  },
+  {
+    id: "research-lab-iv-space",
+    name: "Research Lab IV (Space Research)",
     building: "Research Lab IV",
     group: "production",
     inputs: [

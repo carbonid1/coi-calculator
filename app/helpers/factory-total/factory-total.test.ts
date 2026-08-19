@@ -5,6 +5,7 @@ import { maintenanceDemandPerMonth } from "../../db/modules/maintenance";
 import { modules } from "../../db/modules/modules";
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
+import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { calculateFactoryTotal } from "./factory-total";
 
 describe("Factory Total contracts", () => {
@@ -51,6 +52,22 @@ describe("Factory Total contracts", () => {
     expect(uranium).toMatchObject({ consumed: 54, produced: 36, net: -18 });
   });
 
+  it("passes Ship Fuel Use research into recurring contract fuel", () => {
+    const shipsFuelUse = calculateShipsFuelUse(5);
+    const result = calculateFactoryTotal(
+      modules,
+      activeContracts,
+      undefined,
+      {},
+      shipsFuelUse.multiplier,
+    );
+
+    expect(result.contractResults.at(0)).toMatchObject({
+      fuelPerTrip: 274,
+      fuelPerProductionCycle: 9.2475,
+    });
+  });
+
   it("uses the measured maintenance demand and exposes the saturated recycler", () => {
     const maintenanceOutput = calculateMaintenanceOutput(
       defaultInfiniteResearchLevels.maintenanceOutput,
@@ -86,6 +103,12 @@ describe("Factory Total contracts", () => {
       resourceId: "recyclables",
       quantity: 96,
     });
+    expect(researchLab?.actualInputs).not.toContainEqual({
+      resourceId: "spaceResearchPoints",
+      quantity: 96,
+    });
+    expect(result.flows.find((flow) => flow.resourceId === "spaceResearchPoints"))
+      .toBeUndefined();
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
     expect(wasteSorter?.supplyRatio).toBeCloseTo(0.5964583333);
     expect(recyclables?.consumed).toBeCloseTo(171.78);

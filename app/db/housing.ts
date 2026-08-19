@@ -63,7 +63,7 @@ export const housingTypes = {
 } as const satisfies Record<string, HousingType>;
 
 export const activeHousingType = housingTypes.housingIII;
-export const defaultHousingCount = 12;
+export const defaultHousingCount = 10;
 
 export const activeHousingServices = {
   householdGoods: true,
@@ -74,4 +74,6 @@ export const activeHousingServices = {
 export const calculatePopulationCapacity = (
   housing: HousingType,
   buildingCount: number,
-) => housing.populationCapacity * Math.max(0, Math.trunc(buildingCount));
+  capacityMultiplier = 1,
+) => Math.round(housing.populationCapacity * capacityMultiplier)
+  * Math.max(0, Math.trunc(buildingCount));

@@ -1,4 +1,6 @@
+import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
 import { activeHousingType, defaultHousingCount } from "../housing";
+import { defaultInfiniteResearchLevels } from "../research";
 import {
   settlementRecipeIds,
   settlementServiceBuildings,
@@ -7,8 +9,12 @@ import { type Module } from "./modules";
 
 export const HOUSING_MODULE_ID = "housing";
 
-export const createHousingModule = (housingCount: number): Module => {
+export const createHousingModule = (
+  housingCount: number,
+  housingCapacityLevel = defaultInfiniteResearchLevels.housingCapacity,
+): Module => {
   const residents = Math.max(0, Math.trunc(housingCount));
+  const capacityMultiplier = calculateHousingCapacity(housingCapacityLevel).multiplier;
   const serviceFactor = residents > 0 ? 1 : 0;
   const builtBuildings = {
     [settlementRecipeIds.residents]: residents,
@@ -44,8 +50,10 @@ export const createHousingModule = (housingCount: number): Module => {
           && recipeId !== settlementRecipeIds.biomassCompostMixer
         )),
         speedLevels: {
+          [settlementRecipeIds.residents]: capacityMultiplier,
           [settlementRecipeIds.internetModule]: housingCount
             * activeHousingType.populationCapacity
+            * capacityMultiplier
             / 100,
         },
       },

@@ -59,6 +59,7 @@ export const calculateBuildingStats = (
       + building.electricityKw
       * result.activeBuildings
       * result.supplyRatio
+      * (result.recipe.electricityScalesWithSpeed ? result.speedLevel : 1)
       * (result.recipe.electricityMultiplier ?? 1);
   }, 0);
 

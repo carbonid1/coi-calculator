@@ -7,6 +7,8 @@ import {
 
 interface Props {
   buildingCount: number;
+  capacityBonusPercent: number;
+  capacityMultiplier: number;
   housing: HousingType;
   serviceMultiplier: number;
 }
@@ -15,10 +17,21 @@ const formatQuantity = (quantity: number) => quantity.toLocaleString("en-US");
 
 export const HousingView: React.FC<Props> = ({
   buildingCount,
+  capacityBonusPercent,
+  capacityMultiplier,
   housing,
   serviceMultiplier,
 }) => {
-  const populationCapacity = calculatePopulationCapacity(housing, buildingCount);
+  const capacityPerBuilding = calculatePopulationCapacity(
+    housing,
+    1,
+    capacityMultiplier,
+  );
+  const populationCapacity = calculatePopulationCapacity(
+    housing,
+    buildingCount,
+    capacityMultiplier,
+  );
   const activeUnityTier = housing.unityBonusTiers.find(
     (tier) => tier.multiplier === serviceMultiplier,
   );
@@ -41,9 +54,11 @@ export const HousingView: React.FC<Props> = ({
             </p>
           </div>
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Capacity per building</p>
+            <p className="text-xs text-muted-foreground">
+              Capacity per building (+{capacityBonusPercent}%)
+            </p>
             <p className="font-mono font-semibold text-foreground">
-              {formatQuantity(housing.populationCapacity)}
+              {formatQuantity(capacityPerBuilding)}
             </p>
           </div>
           <div className="space-y-1">
