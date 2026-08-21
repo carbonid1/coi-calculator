@@ -31,6 +31,27 @@ interface ElectricityDispatchGroup {
 
 const MAX_DISPATCH_ITERATIONS = 32;
 const DISPATCH_TOLERANCE = 0.000001;
+const MAX_CONTRACT_BALANCE_ITERATIONS = 32;
+const CONTRACT_BALANCE_TOLERANCE = 0.000001;
+
+const getDemandSourceProduction = (
+  calculation: ReturnType<typeof calculateNet>,
+) => {
+  const production = new Map<ResourceId, number>();
+
+  for (const result of calculation.sourceResults) {
+    if (result.recipe.sourceMode !== "demand") continue;
+
+    for (const output of result.actualOutputs) {
+      production.set(
+        output.resourceId,
+        (production.get(output.resourceId) ?? 0) + output.quantity,
+      );
+    }
+  }
+
+  return production;
+};
 
 const calculateWithDispatch = (
   lines: ProductionLine[],
@@ -442,18 +463,9 @@ export const calculateFactoryTotal = (
     fixedDemands,
     electricityDispatchTargets,
   );
-  const demandSourceProduction = new Map<ResourceId, number>();
-
-  for (const result of withoutContracts.calculation.sourceResults) {
-    if (result.recipe.sourceMode !== "demand") continue;
-
-    for (const output of result.actualOutputs) {
-      demandSourceProduction.set(
-        output.resourceId,
-        (demandSourceProduction.get(output.resourceId) ?? 0) + output.quantity,
-      );
-    }
-  }
+  const demandSourceProduction = getDemandSourceProduction(
+    withoutContracts.calculation,
+  );
 
   // Demand sources (map mines, world mines, and forestry) backfill deficits in
   // calculateNet. Hide that fallback production while sizing enabled contracts
@@ -471,44 +483,117 @@ export const calculateFactoryTotal = (
       net: produced - flow.consumed,
     };
   });
-  const contractPlan = applyContracts(
-    contractPlanningFlows.filter(
-      (flow) => !localResourceIds.has(flow.resourceId),
-    ),
+  const globalContractPlanningFlows = contractPlanningFlows.filter(
+    (flow) => !localResourceIds.has(flow.resourceId),
+  );
+  const calculateWithContractPlan = (
+    contractPlan: ReturnType<typeof applyContracts>,
+  ) => {
+    const inputsWithContracts = { ...externalInputs };
+    const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
+    const contractInputIds = new Set<ResourceId>();
+
+    for (const result of contractPlan.contractResults) {
+      const importedId = result.contract.exchange.imported.resourceId;
+      const exportedId = result.contract.exchange.exported.resourceId;
+
+      inputsWithContracts[importedId] = (inputsWithContracts[importedId] ?? 0)
+        + result.imported;
+      contractDemands[exportedId] = (contractDemands[exportedId] ?? 0)
+        + result.exported;
+      contractInputIds.add(importedId);
+    }
+
+    return calculateWithDispatch(
+      allLines,
+      inputsWithContracts,
+      recyclingEfficiencyPercent,
+      outputModifiers,
+      contractDemands,
+      electricityDispatchTargets,
+      contractInputIds,
+    );
+  };
+  let demandBalancedImports = new Map<string, number>();
+  let contractPlan = applyContracts(
+    globalContractPlanningFlows,
     contracts,
     shipsFuelUseMultiplier,
+    demandBalancedImports,
   );
-  const inputsWithContracts = { ...externalInputs };
-  const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
-  const fixedContractInputIds = new Set<ResourceId>();
+  let dispatched = calculateWithContractPlan(contractPlan);
 
-  for (const result of contractPlan.contractResults) {
-    const importedId = result.contract.exchange.imported.resourceId;
-    const exportedId = result.contract.exchange.exported.resourceId;
+  for (
+    let iteration = 0;
+    iteration < MAX_CONTRACT_BALANCE_ITERATIONS;
+    iteration += 1
+  ) {
+    const finalDemandSources = getDemandSourceProduction(
+      dispatched.calculation,
+    );
+    const finalFlows = new Map(
+      dispatched.calculation.allResourceFlows.map((flow) => [flow.resourceId, flow]),
+    );
+    const nextDemandBalancedImports = new Map(demandBalancedImports);
+    let converged = true;
 
-    inputsWithContracts[importedId] = (inputsWithContracts[importedId] ?? 0) + result.imported;
-    contractDemands[exportedId] = (contractDemands[exportedId] ?? 0) + result.exported;
-    fixedContractInputIds.add(importedId);
+    for (const result of contractPlan.contractResults) {
+      if (result.contract.plan.importedPerProductionCycle !== null) continue;
+
+      const importedId = result.contract.exchange.imported.resourceId;
+      const finalNet = finalFlows.get(importedId)?.net ?? 0;
+      const demandSourceRemainder = finalDemandSources.get(importedId) ?? 0;
+      const nextImported = Math.max(
+        0,
+        result.imported + demandSourceRemainder - finalNet,
+      );
+
+      nextDemandBalancedImports.set(result.contract.id, nextImported);
+      if (
+        Math.abs(nextImported - result.requestedImported)
+        > CONTRACT_BALANCE_TOLERANCE
+      ) {
+        converged = false;
+      }
+    }
+
+    if (converged) break;
+
+    demandBalancedImports = nextDemandBalancedImports;
+    contractPlan = applyContracts(
+      globalContractPlanningFlows,
+      contracts,
+      shipsFuelUseMultiplier,
+      demandBalancedImports,
+    );
+    dispatched = calculateWithContractPlan(contractPlan);
   }
-
-  const dispatched = calculateWithDispatch(
-    allLines,
-    inputsWithContracts,
-    recyclingEfficiencyPercent,
-    outputModifiers,
-    contractDemands,
-    electricityDispatchTargets,
-    fixedContractInputIds,
-  );
   const { calculation } = dispatched;
   const flows = calculation.allResourceFlows.filter(
     (flow) => !localResourceIds.has(flow.resourceId),
   );
+  const finalDemandSources = getDemandSourceProduction(calculation);
+  const finalFlowsById = new Map(flows.map((flow) => [flow.resourceId, flow]));
+  const contractResults = contractPlan.contractResults.map((result) => {
+    const importedId = result.contract.exchange.imported.resourceId;
+    const finalNet = finalFlowsById.get(importedId)?.net ?? 0;
+    const demandSourceRemainder = finalDemandSources.get(importedId) ?? 0;
+    const requiredImported = Math.max(
+      0,
+      result.imported + demandSourceRemainder - finalNet,
+    );
+
+    return {
+      ...result,
+      requiredImported,
+      uncoveredImported: Math.max(0, requiredImported - result.imported),
+    };
+  });
 
   return {
     flows,
     allLines: dispatched.lines,
-    contractResults: contractPlan.contractResults,
+    contractResults,
     calculation,
     electricityDemandMw: dispatched.electricityDemandMw,
     computingDemandTflops: dispatched.computingDemandTflops,

@@ -40,8 +40,8 @@ export interface ContractCargoModulePlan {
 }
 
 export interface ActiveContractPlan {
-  /** Fixed shipment allocation. Factory demand never resizes an active contract. */
-  importedPerProductionCycle: number;
+  /** Fixed shipment allocation, or null to balance imports against live demand. */
+  importedPerProductionCycle: number | null;
   infrastructure: {
     cargoDepotSize: 2 | 4 | 6 | 8;
     cargoModules: readonly ContractCargoModulePlan[];
@@ -51,6 +51,8 @@ export interface ActiveContractPlan {
   shipping: {
     fuelResourceId: ResourceId;
     saveFuel: boolean;
+    /** Observed full round trip for this route and fuel mode. Null until measured in-game. */
+    roundTripDurationProductionCycles: number | null;
   };
 }
 
@@ -190,8 +192,8 @@ const defineActiveContract = (
 };
 
 /**
- * Locked physical contract plan. The 54 Uranium Ore allocation exactly covers
- * the current two-FBR checkpoint and stays fixed when factory demand changes.
+ * Physical contract plans. Each allocation can remain fixed or follow the
+ * factory's live demand while its ship and cargo-module layout stays locked.
  */
 export const activeContracts: ActiveContract[] = [
   defineActiveContract("uranium-ore-for-food-pack", {
@@ -219,6 +221,35 @@ export const activeContracts: ActiveContract[] = [
     shipping: {
       fuelResourceId: "hydrogen",
       saveFuel: true,
+      roundTripDurationProductionCycles: 427 / 60,
+    },
+  }),
+  defineActiveContract("iron-ore-for-vehicle-parts-ii", {
+    importedPerProductionCycle: null,
+    infrastructure: {
+      cargoDepotSize: 4,
+      cargoShipWorkers: 22,
+      cargoModules: [
+        {
+          buildingName: "Unit Module (L)",
+          count: 2,
+          direction: "export",
+          resourceId: "vehiclePartsII",
+          workersPerModule: 5,
+        },
+        {
+          buildingName: "Loose Module (L)",
+          count: 2,
+          direction: "import",
+          resourceId: "ironOre",
+          workersPerModule: 5,
+        },
+      ],
+    },
+    shipping: {
+      fuelResourceId: "hydrogen",
+      saveFuel: true,
+      roundTripDurationProductionCycles: 426 / 60,
     },
   }),
 ];

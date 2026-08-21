@@ -120,6 +120,7 @@ export const resources = {
   cement: { id: "cement", name: "Cement", state: "loose" },
   constructionPartsII: { id: "constructionPartsII", name: "Construction Parts II", state: "unit" },
   constructionPartsIV: { id: "constructionPartsIV", name: "Construction Parts IV", state: "unit" },
+  vehiclePartsI: { id: "vehiclePartsI", name: "Vehicle Parts I", state: "unit" },
   vehiclePartsII: { id: "vehiclePartsII", name: "Vehicle Parts II", state: "unit" },
   vehiclePartsIII: { id: "vehiclePartsIII", name: "Vehicle Parts III", state: "unit" },
   householdGoods: {

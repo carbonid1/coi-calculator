@@ -47,6 +47,7 @@ const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) =>
     exported,
     fuelPerProductionCycle,
     imported,
+    maxImportedPerProductionCycle,
   } = result;
   const exportedResource = resources[contract.exchange.exported.resourceId];
   const importedResource = resources[contract.exchange.imported.resourceId];
@@ -63,7 +64,11 @@ const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) =>
             <Card.Title>{contract.name}</Card.Title>
           </div>
           <Card.Action>
-            <span className="text-xs font-medium text-foreground">Active</span>
+            <span className="text-xs font-medium text-foreground">
+              Active · {contract.plan.importedPerProductionCycle === null
+                ? "Demand-balanced"
+                : "Fixed"}
+            </span>
           </Card.Action>
         </Card.Header>
 
@@ -106,6 +111,12 @@ const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) =>
               <DataRow
                 label="Ship fuel"
                 value={`${formatQuantity(fuelPerProductionCycle)} ${fuelResource.name} / month`}
+              />
+              <DataRow
+                label="Max import"
+                value={maxImportedPerProductionCycle === null
+                  ? "Not measured"
+                  : `${formatQuantity(maxImportedPerProductionCycle)} ${importedResource.name} / cycle`}
               />
             </dl>
           </section>
@@ -160,7 +171,7 @@ export const ContractsView: React.FC<Props> = ({
       <div>
         <h2 className="text-xl font-semibold text-foreground">Contracts</h2>
         <p className="text-sm text-muted-foreground">
-          Fixed import plans. Factory growth leaves uncovered demand visible.
+          Fixed infrastructure with fixed or demand-balanced shipment rates.
         </p>
       </div>
 

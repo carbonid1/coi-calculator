@@ -9,9 +9,12 @@ export interface ContractResult {
   contract: ActiveContract;
   exported: number;
   imported: number;
+  requestedImported: number;
   requiredImported: number;
   uncoveredImported: number;
+  capacityLimitedImported: number;
   importedPerTrip: number;
+  maxImportedPerProductionCycle: number | null;
   fuelPerTrip: number;
   fuelPerProductionCycle: number;
 }
@@ -61,11 +64,13 @@ export const calculateContractShipping = (
     shipsFuelUseMultiplier,
   );
   const fuelPerTrip = scaleQuantityLikeGame(researchedFuel, saveFuelMultiplier);
-  const fuelPerProductionCycle = importedPerTrip > 0
-    ? contract.plan.importedPerProductionCycle / importedPerTrip * fuelPerTrip
-    : 0;
+  const roundTripDuration = contract.plan.shipping.roundTripDurationProductionCycles;
+  const maxImportedPerProductionCycle = roundTripDuration !== null
+    && roundTripDuration > 0
+    ? importedPerTrip / roundTripDuration
+    : null;
 
-  return { importedPerTrip, fuelPerTrip, fuelPerProductionCycle };
+  return { importedPerTrip, maxImportedPerProductionCycle, fuelPerTrip };
 };
 
 export const calculateContractWorkerBreakdown = (contract: ActiveContract) => {
@@ -103,6 +108,7 @@ export const applyContracts = (
   resourceFlows: ResourceFlow[],
   contracts: ActiveContract[],
   shipsFuelUseMultiplier = 1,
+  demandBalancedImports: ReadonlyMap<string, number> = new Map(),
 ): { flows: ResourceFlow[]; contractResults: ContractResult[] } => {
   const combined = new Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>(
     resourceFlows.map((flow) => [flow.resourceId, {
@@ -116,9 +122,17 @@ export const applyContracts = (
   for (const contract of contracts) {
     const importedFlow = getFlow(combined, contract.exchange.imported.resourceId);
     const requiredImported = Math.max(0, importedFlow.consumed - importedFlow.produced);
-    const imported = contract.plan.importedPerProductionCycle;
-    const exported = imported * contract.exchange.exported.quantity / contract.exchange.imported.quantity;
+    const requestedImported = contract.plan.importedPerProductionCycle
+      ?? demandBalancedImports.get(contract.id)
+      ?? requiredImported;
     const shipping = calculateContractShipping(contract, shipsFuelUseMultiplier);
+    const imported = shipping.maxImportedPerProductionCycle === null
+      ? requestedImported
+      : Math.min(requestedImported, shipping.maxImportedPerProductionCycle);
+    const exported = imported * contract.exchange.exported.quantity / contract.exchange.imported.quantity;
+    const fuelPerProductionCycle = shipping.importedPerTrip > 0
+      ? imported / shipping.importedPerTrip * shipping.fuelPerTrip
+      : 0;
 
     importedFlow.produced += imported;
     getFlow(combined, contract.exchange.exported.resourceId).consumed += exported;
@@ -127,9 +141,12 @@ export const applyContracts = (
       contract,
       exported,
       imported,
+      requestedImported,
       requiredImported,
       uncoveredImported: Math.max(0, requiredImported - imported),
+      capacityLimitedImported: Math.max(0, requestedImported - imported),
       ...shipping,
+      fuelPerProductionCycle,
     });
   }
 

@@ -2894,6 +2894,33 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "mechanicalParts", quantity: 96 }],
   },
   {
+    id: "assembly-v-vehicle-parts-i",
+    name: "Assembly V (Vehicle Parts I)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "mechanicalParts", quantity: 96 },
+      { resourceId: "electronicsI", quantity: 32 },
+    ],
+    outputs: [{ resourceId: "vehiclePartsI", quantity: 64 }],
+  },
+  {
+    id: "assembly-v-vehicle-parts-ii",
+    name: "Assembly V (Vehicle Parts II)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "vehiclePartsI", quantity: 32 },
+      { resourceId: "steel", quantity: 16 },
+      { resourceId: "glass", quantity: 8 },
+    ],
+    outputs: [{ resourceId: "vehiclePartsII", quantity: 16 }],
+  },
+  {
     id: "cooled-caster-ii-steel",
     name: "Cooled Caster II (Steel)",
     building: "Cooled Caster II",

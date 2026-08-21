@@ -25,6 +25,35 @@ describe("Factory Total contracts", () => {
 
   });
 
+  it("balances the Iron Ore contract against live factory demand", () => {
+    const result = calculateFactoryTotal(modules, activeContracts);
+    const contractResult = result.contractResults.find(
+      ({ contract }) => contract.id === "iron-ore-for-vehicle-parts-ii",
+    );
+    const ironOre = result.flows.find((flow) => flow.resourceId === "ironOre");
+    const ironMine = result.calculation.sourceResults.find(
+      ({ recipe }) => recipe.id === "iron-map-mine",
+    );
+
+    expect(contractResult).toMatchObject({
+      imported: 92.971225,
+      requiredImported: 92.971225,
+      uncoveredImported: 0,
+      importedPerTrip: 1_600,
+      fuelPerTrip: 289,
+      fuelPerProductionCycle: 16.792927515625,
+    });
+    expect(ironOre).toMatchObject({
+      consumed: 92.971225,
+      produced: 92.971225,
+      net: 0,
+    });
+    expect(ironMine?.actualOutputs).toContainEqual({
+      resourceId: "ironOre",
+      quantity: 0,
+    });
+  });
+
   it("keeps uncovered Uranium demand visible instead of resizing the contract", () => {
     const contract = activeContracts[0];
 
@@ -50,6 +79,40 @@ describe("Factory Total contracts", () => {
       uncoveredImported: 18,
     });
     expect(uranium).toMatchObject({ consumed: 54, produced: 36, net: -18 });
+  });
+
+  it("does not let demand balancing exceed observed contract throughput", () => {
+    const contract = activeContracts[0];
+
+    expect(contract).toBeDefined();
+
+    const result = calculateFactoryTotal(
+      modules,
+      contract
+        ? [{
+            ...contract,
+            plan: {
+              ...contract.plan,
+              importedPerProductionCycle: null,
+              shipping: {
+                ...contract.plan.shipping,
+                roundTripDurationProductionCycles: 40,
+              },
+            },
+          }]
+        : [],
+    );
+    const uranium = result.flows.find((flow) => flow.resourceId === "uraniumOre");
+
+    expect(result.contractResults.at(0)).toMatchObject({
+      imported: 40,
+      requestedImported: 54,
+      requiredImported: 54,
+      uncoveredImported: 14,
+      capacityLimitedImported: 14,
+      maxImportedPerProductionCycle: 40,
+    });
+    expect(uranium).toMatchObject({ consumed: 54, produced: 40, net: -14 });
   });
 
   it("passes Ship Fuel Use research into recurring contract fuel", () => {

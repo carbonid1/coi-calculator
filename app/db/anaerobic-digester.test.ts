@@ -15,10 +15,11 @@ const digestionRecipeIds = [
 ] as const;
 
 describe("surplus-organics digestion", () => {
-  it("shares two v0.8.7 digesters across every configured surplus recipe", () => {
+  it("shares one active and one paused digester across every configured surplus recipe", () => {
     const digestionRecipes = digestionRecipeIds.map((id) => (
       recipes.find((recipe) => recipe.id === id)
     ));
+    const preset = general.presets.find(({ id }) => id === general.defaultPresetId);
 
     expect(digestionRecipes).toHaveLength(8);
     expect(digestionRecipes.every((recipe) => (
@@ -26,6 +27,7 @@ describe("surplus-organics digestion", () => {
       && recipe.allocation === "fallback"
     ))).toBe(true);
     expect(digestionRecipeIds.every((id) => general.builtBuildings[id] === 2)).toBe(true);
+    expect(digestionRecipeIds.every((id) => preset?.activeBuildings[id] === 1)).toBe(true);
     expect(digestionRecipes.map((recipe) => ({
       input: recipe?.inputs[0],
       outputs: recipe?.outputs,

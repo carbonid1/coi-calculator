@@ -20,7 +20,7 @@ it("includes recurring Unity for every active contract", () => {
       ? [{
           id: contract.id,
           name: contract.name,
-          importedPerCycle: contract.plan.importedPerProductionCycle,
+          importedPerCycle: contract.plan.importedPerProductionCycle ?? 0,
           fixedUnityPerCycle: contract.unity.perProductionCycle,
           unityPer100Imported: contract.unity.per100Imported,
         }]

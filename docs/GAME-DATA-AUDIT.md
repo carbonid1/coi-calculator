@@ -80,8 +80,8 @@ Verified in installed v0.8.7 `WorldMapEntitiesData`, `WorldMapMineProto`, and
 
 ## Cargo contracts
 
-The active size-4 cargo plan has one ship and four occupied large modules:
-two Unit Module (L) exports and two Loose Module (L) imports.
+The active Uranium size-4 cargo plan has one ship and four occupied large
+modules: two Unit Module (L) exports and two Loose Module (L) imports.
 
 - Cargo Ship T2: 22 workers.
 - Each large cargo module: 5 workers, for 42 workers total.
@@ -97,13 +97,60 @@ two Unit Module (L) exports and two Loose Module (L) imports.
   `round((113 + 75 × 4) × 0.70) = 289 Hydrogen` per trip.
 - At 54 Uranium Ore per cycle, average ship fuel is
   `54 / 1,600 × 289 = 9.75375 Hydrogen` per cycle.
+- The current save reports a 427-second round trip with Save Fuel enabled,
+  equal to `427 / 60 = 7.1167` production cycles. One 1,600-unit shipload per
+  trip therefore caps the route at `1,600 / 7.1167 = 224.8244 Uranium Ore`
+  per cycle before any loading, unloading, or cargo-waiting delays.
 
-The calculator displays that value on the contract card for reference only.
-Factory Hydrogen demand remains the manually configured planning target, so
-contract fuel is not added a second time.
+The calculator displays the average ship fuel and maximum import rate on the
+contract card. Factory Hydrogen demand remains the manually configured planning
+target, so contract fuel is not added a second time.
 
-Verified in `CargoShipsData`, `TrucksData`, `CargoShipV2`,
-`CargoShipAssignedToDockJobProviderBase`, and the large cargo-module prototypes.
+The observed round-trip value also limits the calculator's effective Uranium
+imports. Fixed or demand-balanced requests above 224.8244 per cycle remain
+visible as uncovered demand instead of creating impossible contract throughput.
+Other routes remain uncapped until their current-save round-trip duration has
+been measured; the calculator does not infer save-specific map travel times.
+
+The active Iron Ore plan uses a size-4 ship with two Unit Modules (L) for
+Vehicle Parts II export and two Loose Modules (L) for Iron Ore import.
+
+The supporting Vehicle Parts chain uses one active Assembly V for each tier.
+Installed v0.8.7 data gives these full-load rates per production cycle:
+
+- Vehicle Parts I: 96 Mechanical Parts + 32 Electronics I -> 64 Vehicle Parts I.
+- Vehicle Parts II: 32 Vehicle Parts I + 16 Steel + 8 Glass -> 16 Vehicle Parts II.
+
+- Cargo Ship size 4: 22 workers; the four large modules add 20 workers.
+- Two import sections carry 1,600 Iron Ore per trip.
+- The current save reports a 426-second round trip with Save Fuel enabled,
+  capping the route at `1,600 / (426 / 60) = 225.3521 Iron Ore` per cycle
+  before loading, unloading, or cargo-waiting delays.
+- Save Fuel costs 289 Hydrogen per trip at level zero.
+- Its shipment rate is demand-balanced. The calculator iterates the import and
+  corresponding Vehicle Parts II export demand until the remaining map-mine
+  requirement and Iron Ore surplus both reach zero.
+- With the audit's base modifiers, 92.971225 Iron Ore per cycle requires 6.6408
+  Vehicle Parts II and averages 16.7929 Hydrogen per cycle. Active recycling
+  and other runtime modifiers can reduce that rate.
+
+The Copper Ore contract is currently paused. The evaluated Medical Supplies III
+candidate and Household Appliances alternative both exchange 10 export goods
+for 65 Copper Ore, but Medical Supplies III has the lower fixed Unity cost (0.2
+rather than 0.3).
+
+- Producing the 153.8462 Household Appliances needed per 1,000 Copper Ore
+  consumes 217.9487 Copper, 51.2821 Steel, 25.6410 Poly Silicon, 34.1880 Rubber,
+  25.6410 Plastic, and 12.8205 Glass after expanding Electronics I, Electronics
+  II, and PCB inputs.
+- Producing the same 153.8462 Medical Supplies III consumes no Copper. Its
+  expanded intermediate bill is 86.5385 Steel, 96.1538 Plastic, 28.8462
+  Ethanol, 38.4615 Sugar, 28.8462 Ammonia, 76.9231 Oxygen, 38.4615 Hydrogen
+  Fluoride, 38.4615 Poppy, 19.2308 Acid, and 19.2308 Glass.
+
+Verified in `CargoShipsData`, `TrucksData`, `CargoShipV1`, `CargoShipV2`,
+`CargoShipAssignedToDockJobProviderBase`, the large cargo-module prototypes,
+`AssemblyData`, `FermentationTankData`, and `ChemicalPlantData`.
 
 ## Ore sorting plants
 
