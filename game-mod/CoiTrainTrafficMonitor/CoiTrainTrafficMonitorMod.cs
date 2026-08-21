@@ -62,7 +62,7 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
             .SetType(NotificationType.Continuous)
             .SetStyle(NotificationStyle.Critical)
             .HideInInspector()
-            .BuildAndAdd();
+            .BuildAndAdd(true);
         m_groupedFleetJamNotificationProto = new NotificationProtoBuilder(registrator)
             .Start(
                 "Train traffic jam",
@@ -72,7 +72,7 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
             .SetStyle(NotificationStyle.Critical)
             .HideInInspector()
             .MuteAudio()
-            .BuildAndAdd();
+            .BuildAndAdd(true);
     }
 
     public void RegisterDependencies(
