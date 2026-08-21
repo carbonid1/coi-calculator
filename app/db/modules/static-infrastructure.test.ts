@@ -4,24 +4,34 @@ import { calculateBuildingStats } from "../../helpers/building-stats/building-st
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { createStaticInfrastructureModule } from "./static-infrastructure";
 
-it("adds configured ore-sorter loads and the maintenance-statue fuel drain", () => {
-  const infrastructureModule = createStaticInfrastructureModule({
+it("uses running counts for loads while retaining completed building capacity", () => {
+  const built = {
     oreSortingPlant: 1,
     oreSortingPlantLarge: 1,
     electricLocomotiveII: 21,
     unitStationModuleElectrified: 108,
     fluidStationModuleElectrified: 79,
     looseStationModuleElectrified: 143,
-    truck: 18,
-    haulTruckDump: 16,
-    megaExcavator: 11,
+    moltenStationModuleElectrified: 6,
+    stackerTower: 2,
+    vehicles: 39,
     maintenanceStatue: 3,
+  };
+  const infrastructureModule = createStaticInfrastructureModule(built, {
+    ...built,
+    oreSortingPlantLarge: 0,
+    electricLocomotiveII: 20,
+    unitStationModuleElectrified: 100,
+    stackerTower: 1,
+    maintenanceStatue: 2,
   });
   const result = calculateFactoryTotal([infrastructureModule]);
   const stats = calculateBuildingStats(result.allLines, result.calculation);
   const fuelGas = result.flows.find((flow) => flow.resourceId === "fuelGas");
 
-  expect(stats.workers).toBe(432);
-  expect(stats.electricityKw).toBe(17_300);
-  expect(fuelGas).toMatchObject({ consumed: 6, produced: 0, net: -6 });
+  expect(stats.workers).toBe(403);
+  expect(stats.electricityKw).toBe(0);
+  expect(fuelGas).toMatchObject({ consumed: 4, produced: 0, net: -4 });
+  expect(infrastructureModule.builtBuildings?.["static-ore-sorting-plant-large"])
+    .toBe(1);
 });

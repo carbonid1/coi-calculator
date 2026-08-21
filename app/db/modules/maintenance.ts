@@ -1,14 +1,19 @@
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
 
-// Inferred from the 10-year average building loads at Maintenance Output IV.
-// The game rounds each recipe-cycle output before converting it to a /60 rate:
-// I: 2 depots * 498 * 55%, II: 498 * 39%, III: 249 * 95%.
-export const maintenanceDemandPerMonth = {
-  maintenanceI: 547.8,
-  maintenanceII: 194.22,
-  maintenanceIII: 236.55,
-} as const satisfies Partial<Record<ResourceId, number>>;
+export interface MaintenanceDemand {
+  maintenanceI: number;
+  maintenanceII: number;
+  maintenanceIII: number;
+}
+
+export const emptyMaintenanceDemand = {
+  maintenanceI: 0,
+  maintenanceII: 0,
+  maintenanceIII: 0,
+} as const satisfies MaintenanceDemand & Partial<Record<ResourceId, number>>;
+
+export const MAINTENANCE_MODULE_ID = "maintenance";
 
 const activeRecipeIds = {
   maintenanceI: "maintenance-i-recycling",
@@ -22,10 +27,12 @@ const activeBuildings = {
   [activeRecipeIds.maintenanceIII]: 1,
 };
 
-export const maintenance: Module = {
-  id: "maintenance",
+export const createMaintenanceModule = (
+  demand: MaintenanceDemand = emptyMaintenanceDemand,
+): Module => ({
+  id: MAINTENANCE_MODULE_ID,
   name: "Maintenance",
-  description: "Manual factory demand using the highest-tier recycling recipes",
+  description: "Observed factory demand using the highest-tier recycling recipes",
   builtBuildings: {
     [activeRecipeIds.maintenanceI]: 2,
     [activeRecipeIds.maintenanceII]: 1,
@@ -35,12 +42,14 @@ export const maintenance: Module = {
     {
       id: "current-demand",
       name: "Current demand",
-      description: "10-year average: two Maintenance I depots at 55%, Maintenance II at 39%, and Maintenance III at 95% load",
+      description: "Rolling game average from synced history",
       activeBuildings,
       fixed: Object.values(activeRecipeIds),
-      outputTargets: maintenanceDemandPerMonth,
+      outputTargets: demand,
     },
   ],
   defaultPresetId: "current-demand",
   localResources: ["maintenanceI", "maintenanceII", "maintenanceIII"],
-};
+});
+
+export const maintenance: Module = createMaintenanceModule();

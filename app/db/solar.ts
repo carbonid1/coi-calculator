@@ -2,7 +2,6 @@ export interface SolarPanelDefinition {
   recipeId: string;
   name: string;
   building: string;
-  installedCount: number;
   sunnyOutputKw: number;
   maintenanceIIPerMonth: number;
 }
@@ -14,7 +13,6 @@ export const solarPanels = {
     recipeId: "solar-panel",
     name: "Solar Panel",
     building: "Solar Panel",
-    installedCount: 38,
     sunnyOutputKw: 150,
     maintenanceIIPerMonth: 0.2,
   },
@@ -22,7 +20,6 @@ export const solarPanels = {
     recipeId: "solar-panel-mono",
     name: "Solar Panel (Mono)",
     building: "Solar Panel (Mono)",
-    installedCount: 158,
     sunnyOutputKw: 200,
     maintenanceIIPerMonth: 0.2,
   },
@@ -31,7 +28,7 @@ export const solarPanels = {
 export type SolarPanelCounts = Record<keyof typeof solarPanels, number>;
 export const solarPanelOrder: ReadonlyArray<keyof SolarPanelCounts> = ["standard", "mono"];
 
-export const defaultSolarPanelCounts: SolarPanelCounts = {
-  standard: solarPanels.standard.installedCount,
-  mono: solarPanels.mono.installedCount,
+export const emptySolarPanelCounts: SolarPanelCounts = {
+  standard: 0,
+  mono: 0,
 };

@@ -1,5 +1,5 @@
 import {
-  defaultPlanningBaselines,
+  emptyPlanningBaselines,
   type PlanningBaselines,
 } from "../planning-baselines";
 import { type Module } from "./modules";
@@ -32,7 +32,7 @@ export const defaultNuclearConfig: NuclearConfig = {
 
 export const createNuclearModule = (
   config: NuclearConfig,
-  baselines: PlanningBaselines = defaultPlanningBaselines,
+  baselines: PlanningBaselines = emptyPlanningBaselines,
 ): Module => {
   const breederReactors = Math.max(0, Math.trunc(config.breederReactors));
   const nonBreederReactors = Math.max(0, Math.trunc(config.nonBreederReactors));
@@ -46,7 +46,7 @@ export const createNuclearModule = (
   const generationCapacityMw = powerReactorSuperSteam
     * (15 + 10 + 5)
     / 48;
-  const generationTargetMw = Math.max(0, baselines.averageNuclearGenerationMw);
+  const generationTargetMw = Math.max(0, baselines.averageGeneratorOutputMw);
   const dispatchedGenerationMw = Math.min(
     generationCapacityMw,
     generationTargetMw,
@@ -140,5 +140,5 @@ export const createNuclearModule = (
 
 export const nuclear = createNuclearModule(
   defaultNuclearConfig,
-  defaultPlanningBaselines,
+  emptyPlanningBaselines,
 );

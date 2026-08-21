@@ -32,7 +32,7 @@ export interface Contract {
 }
 
 export interface ContractCargoModulePlan {
-  buildingName: "Loose Module (L)" | "Unit Module (L)";
+  buildingName: "Fluid Module (L)" | "Loose Module (L)" | "Unit Module (L)";
   count: number;
   direction: "export" | "import";
   resourceId: ResourceId;
@@ -51,7 +51,7 @@ export interface ActiveContractPlan {
   shipping: {
     fuelResourceId: ResourceId;
     saveFuel: boolean;
-    /** Observed full round trip for this route and fuel mode. Null until measured in-game. */
+    /** Observed full round trip, or a conservative route estimate until measured in-game. */
     roundTripDurationProductionCycles: number | null;
   };
 }
@@ -250,6 +250,35 @@ export const activeContracts: ActiveContract[] = [
       fuelResourceId: "hydrogen",
       saveFuel: true,
       roundTripDurationProductionCycles: 426 / 60,
+    },
+  }),
+  defineActiveContract("ammonia-for-food-pack", {
+    importedPerProductionCycle: null,
+    infrastructure: {
+      cargoDepotSize: 4,
+      cargoShipWorkers: 22,
+      cargoModules: [
+        {
+          buildingName: "Unit Module (L)",
+          count: 2,
+          direction: "export",
+          resourceId: "foodPack",
+          workersPerModule: 5,
+        },
+        {
+          buildingName: "Fluid Module (L)",
+          count: 2,
+          direction: "import",
+          resourceId: "ammonia",
+          workersPerModule: 5,
+        },
+      ],
+    },
+    shipping: {
+      fuelResourceId: "hydrogen",
+      saveFuel: true,
+      // Conservative proxy from the measured 427-second Uranium route.
+      roundTripDurationProductionCycles: 427 / 60,
     },
   }),
 ];

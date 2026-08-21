@@ -4,13 +4,18 @@ import { solarPanelOrder, solarPanels, type SolarPanelCounts } from "../db/solar
 import { planningWeather } from "../db/weather";
 
 interface Props {
-  counts: SolarPanelCounts;
   averageGenerationMw: number;
+  builtCounts: SolarPanelCounts;
+  runningCounts: SolarPanelCounts;
 }
 
 const formatPower = (megawatts: number) => `${parseFloat(megawatts.toFixed(1))} MW`;
 
-export const SolarPowerSettings: React.FC<Props> = ({ counts, averageGenerationMw }) => (
+export const SolarPowerSettings: React.FC<Props> = ({
+  averageGenerationMw,
+  builtCounts,
+  runningCounts,
+}) => (
   <Card.Root className="max-w-xl">
     <Card.Content className="space-y-5">
       <Card.Header>
@@ -24,7 +29,12 @@ export const SolarPowerSettings: React.FC<Props> = ({ counts, averageGenerationM
         {solarPanelOrder.map((panel) => (
           <div key={panel} className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
             <p className="text-sm text-muted-foreground">{solarPanels[panel].name}</p>
-            <p className="font-mono font-semibold text-foreground">{counts[panel].toLocaleString()}</p>
+            <p className="font-mono font-semibold tabular-nums text-foreground">
+              {runningCounts[panel].toLocaleString()} running
+            </p>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {builtCounts[panel].toLocaleString()} built
+            </p>
           </div>
         ))}
       </div>

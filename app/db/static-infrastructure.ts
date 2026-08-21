@@ -5,7 +5,7 @@ export const staticInfrastructureItems = [
     id: "oreSortingPlant",
     recipeId: "static-ore-sorting-plant",
     name: "Ore sorting plant",
-    detail: "6 workers and 100 kW each",
+    detail: "6 workers each; activity-dependent power is excluded",
     building: "Ore sorting plant",
     workers: 6,
   },
@@ -13,7 +13,7 @@ export const staticInfrastructureItems = [
     id: "oreSortingPlantLarge",
     recipeId: "static-ore-sorting-plant-large",
     name: "Ore sorting plant (large)",
-    detail: "30 workers and 700 kW each",
+    detail: "30 workers each; activity-dependent power is excluded",
     building: "Ore sorting plant (large)",
     workers: 30,
   },
@@ -21,7 +21,7 @@ export const staticInfrastructureItems = [
     id: "electricLocomotiveII",
     recipeId: "static-electric-locomotive-ii",
     name: "Electric locomotive II",
-    detail: "1 worker each; variable traction power is excluded",
+    detail: "1 worker each; activity-dependent power is excluded",
     building: "Electric locomotive II",
     workers: 1,
   },
@@ -29,7 +29,7 @@ export const staticInfrastructureItems = [
     id: "unitStationModuleElectrified",
     recipeId: "static-unit-station-module-electrified",
     name: "Unit station module (electrified)",
-    detail: "1 worker and 50 kW each",
+    detail: "1 worker each; activity-dependent power is excluded",
     building: "Unit station module (electrified)",
     workers: 1,
   },
@@ -37,7 +37,7 @@ export const staticInfrastructureItems = [
     id: "fluidStationModuleElectrified",
     recipeId: "static-fluid-station-module-electrified",
     name: "Fluid station module (electrified)",
-    detail: "1 worker and 50 kW each",
+    detail: "1 worker each; activity-dependent power is excluded",
     building: "Fluid station module (electrified)",
     workers: 1,
   },
@@ -45,32 +45,32 @@ export const staticInfrastructureItems = [
     id: "looseStationModuleElectrified",
     recipeId: "static-loose-station-module-electrified",
     name: "Loose station module (electrified)",
-    detail: "1 worker and 50 kW each",
+    detail: "1 worker each; activity-dependent power is excluded",
     building: "Loose station module (electrified)",
     workers: 1,
   },
   {
-    id: "truck",
-    recipeId: "static-truck",
-    name: "Truck",
-    detail: "1 worker each; movement-dependent fuel is excluded",
-    building: "Truck",
-    workers: 1,
+    id: "moltenStationModuleElectrified",
+    recipeId: "static-molten-station-module-electrified",
+    name: "Molten station module (electrified)",
+    detail: "2 workers each; activity-dependent power is excluded",
+    building: "Molten station module (electrified)",
+    workers: 2,
   },
   {
-    id: "haulTruckDump",
-    recipeId: "static-haul-truck-dump",
-    name: "Haul truck (dump)",
-    detail: "1 worker each; movement-dependent fuel is excluded",
-    building: "Haul truck (dump)",
-    workers: 1,
+    id: "stackerTower",
+    recipeId: "static-stacker-tower",
+    name: "Stacker tower",
+    detail: "4 workers each; activity-dependent power is excluded",
+    building: "Stacker tower",
+    workers: 4,
   },
   {
-    id: "megaExcavator",
-    recipeId: "static-mega-excavator",
-    name: "Mega excavator",
-    detail: "1 worker each; movement- and mining-dependent fuel is excluded",
-    building: "Mega excavator",
+    id: "vehicles",
+    recipeId: "static-vehicles",
+    name: "Vehicles",
+    detail: "1 worker each; movement- and work-dependent fuel is excluded",
+    building: "Vehicles",
     workers: 1,
   },
   {
@@ -86,17 +86,17 @@ export const staticInfrastructureItems = [
 export type StaticInfrastructureId = typeof staticInfrastructureItems[number]["id"];
 export type StaticInfrastructureConfig = Record<StaticInfrastructureId, number>;
 
-export const defaultStaticInfrastructureConfig: StaticInfrastructureConfig = {
-  oreSortingPlant: 7,
+export const emptyStaticInfrastructureConfig: StaticInfrastructureConfig = {
+  oreSortingPlant: 0,
   oreSortingPlantLarge: 0,
-  electricLocomotiveII: 21,
-  unitStationModuleElectrified: 108,
-  fluidStationModuleElectrified: 79,
-  looseStationModuleElectrified: 143,
-  truck: 18,
-  haulTruckDump: 16,
-  megaExcavator: 11,
-  maintenanceStatue: 3,
+  electricLocomotiveII: 0,
+  unitStationModuleElectrified: 0,
+  fluidStationModuleElectrified: 0,
+  looseStationModuleElectrified: 0,
+  moltenStationModuleElectrified: 0,
+  stackerTower: 0,
+  vehicles: 0,
+  maintenanceStatue: 0,
 };
 
 export const normalizeStaticInfrastructureConfig = (
@@ -117,22 +117,51 @@ export const normalizeStaticInfrastructureConfig = (
     0,
     Math.trunc(config.looseStationModuleElectrified),
   ),
-  truck: Math.max(0, Math.trunc(config.truck)),
-  haulTruckDump: Math.max(0, Math.trunc(config.haulTruckDump)),
-  megaExcavator: Math.max(0, Math.trunc(config.megaExcavator)),
+  moltenStationModuleElectrified: Math.max(
+    0,
+    Math.trunc(config.moltenStationModuleElectrified),
+  ),
+  stackerTower: Math.max(0, Math.trunc(config.stackerTower)),
+  vehicles: Math.max(0, Math.trunc(config.vehicles)),
   maintenanceStatue: Math.max(0, Math.trunc(config.maintenanceStatue)),
 });
 
 export const calculateStaticInfrastructureTotals = (
-  config: StaticInfrastructureConfig,
+  builtConfig: StaticInfrastructureConfig,
+  runningConfig: StaticInfrastructureConfig = builtConfig,
 ) => {
-  const normalized = normalizeStaticInfrastructureConfig(config);
+  const running = clampStaticInfrastructureRunningConfig(
+    builtConfig,
+    runningConfig,
+  );
 
   return {
     workers: staticInfrastructureItems.reduce(
-      (total, item) => total + normalized[item.id] * item.workers,
+      (total, item) => total + running[item.id] * item.workers,
       0,
     ),
-    fuelGasPerCycle: normalized.maintenanceStatue * maintenanceStatue.fuelGasPerCycle,
+    fuelGasPerCycle: running.maintenanceStatue * maintenanceStatue.fuelGasPerCycle,
+  };
+};
+
+export const clampStaticInfrastructureRunningConfig = (
+  builtConfig: StaticInfrastructureConfig,
+  runningConfig: StaticInfrastructureConfig,
+): StaticInfrastructureConfig => {
+  const built = normalizeStaticInfrastructureConfig(builtConfig);
+  const running = normalizeStaticInfrastructureConfig(runningConfig);
+  const clamp = (id: StaticInfrastructureId) => Math.min(built[id], running[id]);
+
+  return {
+    oreSortingPlant: clamp("oreSortingPlant"),
+    oreSortingPlantLarge: clamp("oreSortingPlantLarge"),
+    electricLocomotiveII: clamp("electricLocomotiveII"),
+    unitStationModuleElectrified: clamp("unitStationModuleElectrified"),
+    fluidStationModuleElectrified: clamp("fluidStationModuleElectrified"),
+    looseStationModuleElectrified: clamp("looseStationModuleElectrified"),
+    moltenStationModuleElectrified: clamp("moltenStationModuleElectrified"),
+    stackerTower: clamp("stackerTower"),
+    vehicles: clamp("vehicles"),
+    maintenanceStatue: clamp("maintenanceStatue"),
   };
 };

@@ -157,7 +157,7 @@ it("caps the five Greenhouse Groundwater Pumps without covering Chicken Farms", 
     modules
       .filter((module) => module.id !== NUCLEAR_MODULE_ID)
       .concat(createFbrPowerPlantModule({
-        averageNuclearGenerationMw: 30.2,
+        averageGeneratorOutputMw: 30.2,
         hydrogenFuelDemandPerCycle: 50,
       })),
     activeContracts,

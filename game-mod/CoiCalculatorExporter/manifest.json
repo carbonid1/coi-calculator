@@ -1,0 +1,15 @@
+{
+  "id": "CoiCalculatorExporter",
+  "version": "0.7.0",
+  "display_name": "CoI Calculator Exporter",
+  "description_short": "Exports read-only factory counts, operating history, and train traffic health to the local CoI calculator.",
+  "description_long": "Writes a local JSON snapshot containing vehicle totals, selected completed/running entity counts, completed-cycle operating averages, and sustained train track waits. It does not modify gameplay state or expose a network service.",
+  "authors": "carbonid1",
+  "min_game_version": "0.8.7",
+  "max_verified_game_version": "0.8.7",
+  "primary_dlls": ["CoiCalculatorExporter.dll"],
+  "non_locking_dll_load": true,
+  "can_add_to_saved_game": true,
+  "can_remove_from_saved_game": true,
+  "primary_mod_class_name": "CoiCalculatorExporterMod"
+}

@@ -10,15 +10,39 @@ import { calculateTreeGrowthSpeed } from "../../helpers/modifiers/calculate-tree
 import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
+import { createMaintenanceModule, MAINTENANCE_MODULE_ID } from "./maintenance";
 import { modules } from "./modules";
+import {
+  createNuclearModule,
+  defaultNuclearConfig,
+  NUCLEAR_MODULE_ID,
+} from "./nuclear";
 
 it("balances graphite production with the planned carbon dioxide capacity", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
   );
+  const configuredModules = modules.map(module => {
+    if (module.id === NUCLEAR_MODULE_ID) {
+      return createNuclearModule(defaultNuclearConfig, {
+        averageGeneratorOutputMw: 77,
+        hydrogenFuelDemandPerCycle: 46.5,
+      });
+    }
+
+    if (module.id === MAINTENANCE_MODULE_ID) {
+      return createMaintenanceModule({
+        maintenanceI: 547.8,
+        maintenanceII: 194.22,
+        maintenanceIII: 236.55,
+      });
+    }
+
+    return module;
+  });
   const result = calculateFactoryTotal(
-    modules,
+    configuredModules,
     activeContracts,
     calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
     {

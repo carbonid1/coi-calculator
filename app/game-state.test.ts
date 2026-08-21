@@ -1,0 +1,235 @@
+import { describe, expect, it } from "vitest";
+
+import { isGameStateSnapshot, normalizeGameStateSnapshot } from "./game-state";
+
+const snapshot = {
+  schemaVersion: 7,
+  exportedAtUtc: "2026-08-21T18:00:00.0000000Z",
+  buildings: {
+    electricLocomotiveII: { built: 21, running: 19 },
+    looseStationModuleElectrified: { built: 143, running: 140 },
+    fluidStationModuleElectrified: { built: 79, running: 79 },
+    unitStationModuleElectrified: { built: 108, running: 100 },
+    moltenStationModuleElectrified: { built: 6, running: 6 },
+    oreSortingPlant: { built: 7, running: 6 },
+    oreSortingPlantLarge: { built: 1, running: 1 },
+    stackerTower: { built: 4, running: 3 },
+    solarPanel: { built: 38, running: 38 },
+    solarPanelMono: { built: 195, running: 195 },
+    maintenanceStatue: { built: 3, running: 3 },
+  },
+  vehicles: {
+    total: 39,
+    workersAssigned: 34,
+    trucks: 25,
+    excavators: 10,
+    treeHarvesters: 3,
+    treePlanters: 1,
+    quotaUsed: 39,
+    quotaLimit: 45,
+    quotaRemaining: 6,
+  },
+  history: {
+    windowMonths: 120,
+    maintenance: {
+      maintenanceI: { averagePerCycle: 540.25, sampleMonths: 120 },
+      maintenanceII: { averagePerCycle: 190.5, sampleMonths: 120 },
+      maintenanceIII: { averagePerCycle: 230.75, sampleMonths: 120 },
+    },
+    hydrogenFuel: {
+      total: { averagePerCycle: 46.5, sampleMonths: 120 },
+      byUse: {
+        vehicles: { averagePerCycle: 12.5, sampleMonths: 120 },
+        cargoShips: { averagePerCycle: 34, sampleMonths: 120 },
+        battleShip: { averagePerCycle: 0, sampleMonths: 120 },
+        powerGenerators: { averagePerCycle: 0, sampleMonths: 120 },
+        trains: { averagePerCycle: 0, sampleMonths: 120 },
+      },
+    },
+    electricityGeneration: {
+      byType: [
+        {
+          prototypeId: "PowerGeneratorT2",
+          name: "Power Generator II",
+          averageMw: 77,
+          sampleMonths: 120,
+        },
+      ],
+    },
+  },
+};
+
+const trainTraffic = {
+  totalTrains: 25,
+  activeTrains: 25,
+  waitingForTrack: 5,
+  stuckTrains: 4,
+  criticalThreshold: 3,
+  severity: "critical",
+  sustainedWaitCycles: 1,
+  trains: [
+    {
+      id: 63,
+      name: "Train #63",
+      state: "WaitingForFreeTrack",
+      blockedForCycles: 2.5,
+      blockingTrainId: 65,
+    },
+    {
+      id: 64,
+      name: "Train #64",
+      state: "WaitingForSuperBlock",
+      blockedForCycles: 2,
+      blockingTrainId: null,
+    },
+    {
+      id: 65,
+      name: "Train #65",
+      state: "WaitingForBidirectionalSuperBlock",
+      blockedForCycles: 1.5,
+      blockingTrainId: 67,
+    },
+    {
+      id: 67,
+      name: "Train #67",
+      state: "WaitingForFreeTrack",
+      blockedForCycles: 1,
+      blockingTrainId: 63,
+    },
+  ],
+};
+
+const currentSnapshot = {
+  ...snapshot,
+  schemaVersion: 8,
+  trainTraffic,
+};
+
+describe("game-state snapshot validation", () => {
+  it("accepts the vehicle and infrastructure exporter schema", () => {
+    expect(isGameStateSnapshot(snapshot)).toBe(true);
+    expect(normalizeGameStateSnapshot(snapshot)?.trainTraffic).toBeNull();
+  });
+
+  it("accepts sustained train traffic and derives a critical fleet threshold", () => {
+    expect(isGameStateSnapshot(currentSnapshot)).toBe(true);
+    expect(normalizeGameStateSnapshot(currentSnapshot)?.trainTraffic).toEqual(trainTraffic);
+  });
+
+  it("rejects inconsistent train traffic severity and durations", () => {
+    expect(
+      isGameStateSnapshot({
+        ...currentSnapshot,
+        trainTraffic: { ...trainTraffic, severity: "warning" },
+      }),
+    ).toBe(false);
+    expect(
+      isGameStateSnapshot({
+        ...currentSnapshot,
+        trainTraffic: {
+          ...trainTraffic,
+          trains: [
+            { ...trainTraffic.trains[0], blockedForCycles: 0.5 },
+            ...trainTraffic.trains.slice(1),
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("normalizes schema 6 and leaves only the unavailable Molten count at zero", () => {
+    const buildings = Object.fromEntries(
+      Object.entries(snapshot.buildings).filter(([id]) => id !== "moltenStationModuleElectrified"),
+    );
+
+    expect(
+      normalizeGameStateSnapshot({
+        ...snapshot,
+        schemaVersion: 6,
+        buildings,
+      }),
+    ).toMatchObject({
+      schemaVersion: 6,
+      buildings: {
+        solarPanelMono: { built: 195, running: 195 },
+        unitStationModuleElectrified: { built: 108, running: 100 },
+        moltenStationModuleElectrified: { built: 0, running: 0 },
+      },
+      history: snapshot.history,
+    });
+  });
+
+  it("rejects impossible quota arithmetic", () => {
+    expect(
+      isGameStateSnapshot({
+        ...snapshot,
+        vehicles: { ...snapshot.vehicles, quotaRemaining: 7 },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects negative or fractional counts", () => {
+    expect(
+      isGameStateSnapshot({
+        ...snapshot,
+        vehicles: { ...snapshot.vehicles, total: -1 },
+      }),
+    ).toBe(false);
+    expect(
+      isGameStateSnapshot({
+        ...snapshot,
+        vehicles: { ...snapshot.vehicles, trucks: 2.5 },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects more assigned workers than physical vehicles", () => {
+    expect(
+      isGameStateSnapshot({
+        ...snapshot,
+        vehicles: { ...snapshot.vehicles, workersAssigned: 40 },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects more running buildings than completed buildings", () => {
+    expect(
+      isGameStateSnapshot({
+        ...snapshot,
+        buildings: {
+          ...snapshot.buildings,
+          oreSortingPlant: { built: 7, running: 8 },
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects invalid or duplicate history series", () => {
+    expect(
+      isGameStateSnapshot({
+        ...snapshot,
+        history: {
+          ...snapshot.history,
+          maintenance: {
+            ...snapshot.history.maintenance,
+            maintenanceII: { averagePerCycle: -1, sampleMonths: 120 },
+          },
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isGameStateSnapshot({
+        ...snapshot,
+        history: {
+          ...snapshot.history,
+          electricityGeneration: {
+            byType: [
+              ...snapshot.history.electricityGeneration.byType,
+              ...snapshot.history.electricityGeneration.byType,
+            ],
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+});

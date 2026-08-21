@@ -1,0 +1,15 @@
+{
+  "id": "CoiTrainTrafficMonitor",
+  "version": "0.1.0",
+  "display_name": "Train Traffic Monitor",
+  "description_short": "Raises a critical in-game alert when a significant share of the train fleet is traffic-blocked.",
+  "description_long": "Monitors the game's explicit train traffic states. A train counts as stuck after waiting for track clearance for one production cycle; a continuous critical notification appears when at least three and at least ten percent of active trains are stuck. The alert clears automatically when traffic recovers. An opt-in setting can pause the game once when a red alert begins.",
+  "authors": "carbonid1",
+  "min_game_version": "0.8.7",
+  "max_verified_game_version": "0.8.7",
+  "primary_dlls": ["CoiTrainTrafficMonitor.dll"],
+  "non_locking_dll_load": true,
+  "can_add_to_saved_game": true,
+  "can_remove_from_saved_game": true,
+  "primary_mod_class_name": "CoiTrainTrafficMonitorMod"
+}

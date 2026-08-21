@@ -1,16 +1,43 @@
 import { describe, expect, it } from "vitest";
 
 import { activeContracts } from "../../db/contracts";
-import { maintenanceDemandPerMonth } from "../../db/modules/maintenance";
+import {
+  createMaintenanceModule,
+  MAINTENANCE_MODULE_ID,
+} from "../../db/modules/maintenance";
 import { modules } from "../../db/modules/modules";
+import {
+  createNuclearModule,
+  defaultNuclearConfig,
+  NUCLEAR_MODULE_ID,
+} from "../../db/modules/nuclear";
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { calculateFactoryTotal } from "./factory-total";
 
+const modulesWithSyncedHistory = modules.map(module => {
+  if (module.id === NUCLEAR_MODULE_ID) {
+    return createNuclearModule(defaultNuclearConfig, {
+      averageGeneratorOutputMw: 77,
+      hydrogenFuelDemandPerCycle: 46.5,
+    });
+  }
+
+  if (module.id === MAINTENANCE_MODULE_ID) {
+    return createMaintenanceModule({
+      maintenanceI: 547.8,
+      maintenanceII: 194.22,
+      maintenanceIII: 236.55,
+    });
+  }
+
+  return module;
+});
+
 describe("Factory Total contracts", () => {
   it("uses the fixed active Uranium import plan", () => {
-    const result = calculateFactoryTotal(modules, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
     const contractResult = result.contractResults.at(0);
 
     expect(contractResult).toMatchObject({
@@ -26,7 +53,7 @@ describe("Factory Total contracts", () => {
   });
 
   it("balances the Iron Ore contract against live factory demand", () => {
-    const result = calculateFactoryTotal(modules, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
     const contractResult = result.contractResults.find(
       ({ contract }) => contract.id === "iron-ore-for-vehicle-parts-ii",
     );
@@ -54,13 +81,31 @@ describe("Factory Total contracts", () => {
     });
   });
 
+  it("replaces local Ammonia production with the demand-balanced contract", () => {
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const ammoniaContract = result.contractResults.find(
+      ({ contract }) => contract.id === "ammonia-for-food-pack",
+    );
+    const localAmmonia = result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "chemical-plant-ii-ammonia",
+    );
+    const localNitrogen = result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "air-separator-nitrogen",
+    );
+
+    expect(ammoniaContract?.imported).toBeGreaterThan(0);
+    expect(ammoniaContract?.uncoveredImported).toBe(0);
+    expect(localAmmonia).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
+    expect(localNitrogen).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
+  });
+
   it("keeps uncovered Uranium demand visible instead of resizing the contract", () => {
     const contract = activeContracts[0];
 
     expect(contract).toBeDefined();
 
     const result = calculateFactoryTotal(
-      modules,
+      modulesWithSyncedHistory,
       contract
         ? [{
             ...contract,
@@ -87,7 +132,7 @@ describe("Factory Total contracts", () => {
     expect(contract).toBeDefined();
 
     const result = calculateFactoryTotal(
-      modules,
+      modulesWithSyncedHistory,
       contract
         ? [{
             ...contract,
@@ -118,7 +163,7 @@ describe("Factory Total contracts", () => {
   it("passes Ship Fuel Use research into recurring contract fuel", () => {
     const shipsFuelUse = calculateShipsFuelUse(5);
     const result = calculateFactoryTotal(
-      modules,
+      modulesWithSyncedHistory,
       activeContracts,
       undefined,
       {},
@@ -131,12 +176,12 @@ describe("Factory Total contracts", () => {
     });
   });
 
-  it("uses the measured maintenance demand and exposes the saturated recycler", () => {
+  it("uses synced maintenance demand and exposes the saturated recycler", () => {
     const maintenanceOutput = calculateMaintenanceOutput(
       defaultInfiniteResearchLevels.maintenanceOutput,
     );
     const result = calculateFactoryTotal(
-      modules,
+      modulesWithSyncedHistory,
       activeContracts,
       undefined,
       { maintenanceOutput: maintenanceOutput.multiplier },
@@ -153,11 +198,6 @@ describe("Factory Total contracts", () => {
       (flow) => flow.resourceId === "recyclables",
     );
 
-    expect(maintenanceDemandPerMonth).toEqual({
-      maintenanceI: 547.8,
-      maintenanceII: 194.22,
-      maintenanceIII: 236.55,
-    });
     expect(maintenanceI).toMatchObject({ activeBuildings: 2, builtBuildings: 2 });
     expect(maintenanceI?.supplyRatio).toBeCloseTo(0.55);
     expect(maintenanceII?.supplyRatio).toBeCloseTo(0.39);

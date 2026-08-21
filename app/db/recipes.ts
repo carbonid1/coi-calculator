@@ -3135,8 +3135,8 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: "goldOrePowder", quantity: 72 }],
   },
 
-  // Static infrastructure. Ore sorting throughput is not part of production-chain
-  // balancing; these no-flow rows account for its workers and electricity only.
+  // Static infrastructure. Runtime utilization is not available, so these
+  // no-flow rows account for workers only and explicitly exclude electricity.
   {
     id: "static-ore-sorting-plant",
     name: "Ore sorting plant",
@@ -3144,6 +3144,7 @@ export const recipes: Recipe[] = [
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
     id: "static-ore-sorting-plant-large",
@@ -3152,6 +3153,7 @@ export const recipes: Recipe[] = [
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
     id: "static-electric-locomotive-ii",
@@ -3160,6 +3162,7 @@ export const recipes: Recipe[] = [
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
     id: "static-unit-station-module-electrified",
@@ -3168,6 +3171,7 @@ export const recipes: Recipe[] = [
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
     id: "static-fluid-station-module-electrified",
@@ -3176,6 +3180,7 @@ export const recipes: Recipe[] = [
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
     id: "static-loose-station-module-electrified",
@@ -3184,27 +3189,30 @@ export const recipes: Recipe[] = [
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
-    id: "static-truck",
-    name: "Truck",
-    building: "Truck",
+    id: "static-molten-station-module-electrified",
+    name: "Molten station module (electrified)",
+    building: "Molten station module (electrified)",
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
-    id: "static-haul-truck-dump",
-    name: "Haul truck (dump)",
-    building: "Haul truck (dump)",
+    id: "static-stacker-tower",
+    name: "Stacker tower",
+    building: "Stacker tower",
     group: "production",
     inputs: [],
     outputs: [],
+    electricityMultiplier: 0,
   },
   {
-    id: "static-mega-excavator",
-    name: "Mega excavator",
-    building: "Mega excavator",
+    id: "static-vehicles",
+    name: "Vehicles",
+    building: "Vehicles",
     group: "production",
     inputs: [],
     outputs: [],

@@ -1,5 +1,6 @@
 import {
-  defaultStaticInfrastructureConfig,
+  emptyStaticInfrastructureConfig,
+  clampStaticInfrastructureRunningConfig,
   normalizeStaticInfrastructureConfig,
   staticInfrastructureItems,
   type StaticInfrastructureConfig,
@@ -9,11 +10,19 @@ import { type Module } from "./modules";
 export const STATIC_INFRASTRUCTURE_MODULE_ID = "static-infrastructure";
 
 export const createStaticInfrastructureModule = (
-  config: StaticInfrastructureConfig,
+  builtConfig: StaticInfrastructureConfig,
+  runningConfig: StaticInfrastructureConfig = builtConfig,
 ): Module => {
-  const normalized = normalizeStaticInfrastructureConfig(config);
+  const normalized = normalizeStaticInfrastructureConfig(builtConfig);
+  const running = clampStaticInfrastructureRunningConfig(
+    normalized,
+    runningConfig,
+  );
   const builtBuildings = Object.fromEntries(
     staticInfrastructureItems.map((item) => [item.recipeId, normalized[item.id]]),
+  );
+  const activeBuildings = Object.fromEntries(
+    staticInfrastructureItems.map((item) => [item.recipeId, running[item.id]]),
   );
 
   return {
@@ -25,9 +34,9 @@ export const createStaticInfrastructureModule = (
       {
         id: "configured-infrastructure",
         name: "Configured infrastructure",
-        description: "Manually counted active infrastructure",
+        description: "Completed infrastructure with non-paused entities active",
         builtBuildings,
-        activeBuildings: builtBuildings,
+        activeBuildings,
         fixed: staticInfrastructureItems.map((item) => item.recipeId),
       },
     ],
@@ -36,5 +45,5 @@ export const createStaticInfrastructureModule = (
 };
 
 export const staticInfrastructure = createStaticInfrastructureModule(
-  defaultStaticInfrastructureConfig,
+  emptyStaticInfrastructureConfig,
 );

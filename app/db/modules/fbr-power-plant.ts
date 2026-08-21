@@ -1,5 +1,5 @@
 import {
-  defaultPlanningBaselines,
+  emptyPlanningBaselines,
   type PlanningBaselines,
 } from "../planning-baselines";
 import { type Module } from "./modules";
@@ -59,7 +59,7 @@ export const createFbrPowerPlantModule = (baselines: PlanningBaselines): Module 
       electricityDispatchTargets: {
         [FBR_ELECTRICITY_DISPATCH_GROUP_ID]: Math.max(
           0,
-          baselines.averageNuclearGenerationMw,
+          baselines.averageGeneratorOutputMw,
         ),
       },
     },
@@ -67,4 +67,4 @@ export const createFbrPowerPlantModule = (baselines: PlanningBaselines): Module 
   defaultPresetId: "1fbr-yc",
 });
 
-export const fbrPowerPlant = createFbrPowerPlantModule(defaultPlanningBaselines);
+export const fbrPowerPlant = createFbrPowerPlantModule(emptyPlanningBaselines);

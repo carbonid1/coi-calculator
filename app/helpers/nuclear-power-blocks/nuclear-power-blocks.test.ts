@@ -2,12 +2,24 @@ import { expect, it } from "vitest";
 
 import { activeContracts } from "../../db/contracts";
 import { modules } from "../../db/modules/modules";
-import { NUCLEAR_MODULE_ID } from "../../db/modules/nuclear";
+import {
+  createNuclearModule,
+  defaultNuclearConfig,
+  NUCLEAR_MODULE_ID,
+} from "../../db/modules/nuclear";
 import { calculateFactoryTotal } from "../factory-total/factory-total";
 import { createNuclearPowerBlocks } from "./nuclear-power-blocks";
 
 it("presents the breeder without turbines and the power reactor with its turbine bank", () => {
-  const factory = calculateFactoryTotal(modules, activeContracts);
+  const configuredModules = modules.map(module =>
+    module.id === NUCLEAR_MODULE_ID
+      ? createNuclearModule(defaultNuclearConfig, {
+          averageGeneratorOutputMw: 77,
+          hydrogenFuelDemandPerCycle: 46.5,
+        })
+      : module,
+  );
+  const factory = calculateFactoryTotal(configuredModules, activeContracts);
   const electricityLines = factory.allLines.filter((line) => (
     line.moduleId === NUCLEAR_MODULE_ID && line.recipe.group === "electricity"
   ));
@@ -30,7 +42,7 @@ it("presents the breeder without turbines and the power reactor with its turbine
     )?.line.builtBuildings,
   }))).toEqual([
     { reactor: "fbr-3x", trains: undefined, activeTrains: undefined, generators: undefined },
-    { reactor: "fbr-0x", trains: 8, activeTrains: 2, generators: 16 },
+    { reactor: "fbr-0x", trains: 8, activeTrains: 3, generators: 16 },
   ]);
 
   expect(blocks.map((block) => block.reactor.result?.actualOutputs)).toEqual([

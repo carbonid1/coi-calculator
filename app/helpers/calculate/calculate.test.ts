@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { general } from "../../db/modules/general";
-import { maintenance } from "../../db/modules/maintenance";
+import { createMaintenanceModule } from "../../db/modules/maintenance";
 import { type Recipe, recipes } from "../../db/recipes";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
@@ -22,6 +22,12 @@ const balancedLine = (recipe: Recipe, moduleId: string, activeBuildings = 1) => 
   builtBuildings: activeBuildings,
   speedLevel: 1,
   operatingMode: "balanced" as const,
+});
+
+const maintenance = createMaintenanceModule({
+  maintenanceI: 547.8,
+  maintenanceII: 194.22,
+  maintenanceIII: 236.55,
 });
 
 it("reserves Forestry saplings and keeps Biomass conversion inside each physical module", () => {

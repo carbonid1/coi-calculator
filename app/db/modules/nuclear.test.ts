@@ -4,8 +4,14 @@ import { calculateBuildingStats } from "../../helpers/building-stats/building-st
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateSolarPower } from "../../helpers/modifiers/calculate-solar-power";
 import { defaultInfiniteResearchLevels } from "../research";
-import { defaultNuclearConfig, nuclear } from "./nuclear";
-import { solarPower } from "./solar-power";
+import { createNuclearModule, defaultNuclearConfig } from "./nuclear";
+import { createSolarPowerModule } from "./solar-power";
+
+const nuclear = createNuclearModule(defaultNuclearConfig, {
+  averageGeneratorOutputMw: 77,
+  hydrogenFuelDemandPerCycle: 46.5,
+});
+const solarPower = createSolarPowerModule({ standard: 38, mono: 195 });
 
 it("models the two-FBR checkpoint and its external requirements", () => {
   const result = calculateFactoryTotal([nuclear]);
@@ -59,10 +65,10 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "seawater-pump": 3,
     "enrichment-plant": 2,
     "chemical-plant-yellowcake": 2,
-    "turbine-super": 2,
-    "turbine-high": 2,
-    "turbine-low": 2,
-    "power-generator-ii-nuclear": 4,
+    "turbine-super": 3,
+    "turbine-high": 3,
+    "turbine-low": 3,
+    "power-generator-ii-nuclear": 6,
     "hydrogen-reformer-super": 4,
     "thermal-desalinator-depleted": 4,
     "thermal-desalinator-super": 5,
@@ -83,8 +89,8 @@ it("models the two-FBR checkpoint and its external requirements", () => {
   expect(flow("water")?.net).toBeCloseTo(0, 10);
   expect(flow("brine")?.net).toBeCloseTo(0, 10);
   expect(flow("oxygen")?.net).toBeCloseTo(0, 10);
-  expect(flow("electricity")?.produced).toBeCloseTo(50, 10);
-  expect(result.electricityDemandMw).toBe(50);
+  expect(flow("electricity")?.produced).toBeCloseTo(77, 10);
+  expect(result.electricityDemandMw).toBe(77);
   expect(liquidDumpLines).toHaveLength(2);
   expect(liquidDumpLines).toEqual(expect.arrayContaining([
     expect.objectContaining({ activeBuildings: 1, builtBuildings: 1 }),
@@ -126,6 +132,6 @@ it("treats the baseline as nuclear generation in addition to solar", () => {
     (flow) => flow.resourceId === "electricity",
   );
 
-  expect(electricity?.produced).toBeCloseTo(86.52416, 6);
-  expect(result.electricityDemandMw).toBeCloseTo(86.52416, 6);
+  expect(electricity?.produced).toBeCloseTo(120.77024, 6);
+  expect(result.electricityDemandMw).toBeCloseTo(120.77024, 6);
 });

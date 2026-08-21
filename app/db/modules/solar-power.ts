@@ -1,13 +1,26 @@
-import { defaultSolarPanelCounts, solarPanels, type SolarPanelCounts } from "../solar";
+import { emptySolarPanelCounts, solarPanels, type SolarPanelCounts } from "../solar";
 import { planningWeather } from "../weather";
 import { type Module } from "./modules";
 
 export const SOLAR_POWER_MODULE_ID = "solar-power";
 
-export const createSolarPowerModule = (counts: SolarPanelCounts): Module => {
+export const createSolarPowerModule = (
+  builtCounts: SolarPanelCounts,
+  runningCounts: SolarPanelCounts = builtCounts,
+): Module => {
   const builtBuildings = {
-    [solarPanels.standard.recipeId]: counts.standard,
-    [solarPanels.mono.recipeId]: counts.mono,
+    [solarPanels.standard.recipeId]: builtCounts.standard,
+    [solarPanels.mono.recipeId]: builtCounts.mono,
+  };
+  const activeBuildings = {
+    [solarPanels.standard.recipeId]: Math.min(
+      builtCounts.standard,
+      runningCounts.standard,
+    ),
+    [solarPanels.mono.recipeId]: Math.min(
+      builtCounts.mono,
+      runningCounts.mono,
+    ),
   };
 
   return {
@@ -20,7 +33,7 @@ export const createSolarPowerModule = (counts: SolarPanelCounts): Module => {
         id: "installed",
         name: "Installed",
         description: "Installed solar panels",
-        activeBuildings: builtBuildings,
+        activeBuildings,
         fixed: Object.keys(builtBuildings),
       },
     ],
@@ -28,4 +41,4 @@ export const createSolarPowerModule = (counts: SolarPanelCounts): Module => {
   };
 };
 
-export const solarPower = createSolarPowerModule(defaultSolarPanelCounts);
+export const solarPower = createSolarPowerModule(emptySolarPanelCounts);

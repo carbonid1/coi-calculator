@@ -204,6 +204,8 @@ export const general: Module = {
         "wastewater-treatment-toxic-slurry": 1,
       },
       activeBuildings: {
+        "air-separator-nitrogen": 0,
+        "chemical-plant-ii-ammonia": 0,
         "settling-tank": 2,
         "settling-tank-gold": 1,
         "glass-maker-ii": 3,

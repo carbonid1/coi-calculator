@@ -94,8 +94,34 @@ describe("contract plans", () => {
       .toBeCloseTo(-(300 - 1_600 / (427 / 60)));
   });
 
+  it("balances the four-module Ammonia ship against current demand", () => {
+    const { contractResults } = applyContracts([{
+      resourceId: "ammonia",
+      name: "Ammonia",
+      consumed: 120,
+      produced: 0,
+      net: -120,
+    }], activeContracts);
+    const ammonia = contractResults.find(
+      (result) => result.contract.id === "ammonia-for-food-pack",
+    );
+
+    expect(ammonia).toMatchObject({
+      exported: 20,
+      imported: 120,
+      requiredImported: 120,
+      uncoveredImported: 0,
+      importedPerTrip: 1_600,
+      fuelPerTrip: 289,
+    });
+    expect(ammonia?.maxImportedPerProductionCycle).toBeCloseTo(
+      1_600 / (427 / 60),
+    );
+    expect(ammonia?.fuelPerProductionCycle).toBeCloseTo(21.675);
+  });
+
   it("counts all planned ships and their cargo modules", () => {
-    expect(calculateContractWorkers(activeContracts)).toBe(84);
+    expect(calculateContractWorkers(activeContracts)).toBe(126);
   });
 
   it("applies Ship Fuel Use research before the ship's Save Fuel mode", () => {

@@ -9,7 +9,10 @@ import {
 import { ChickenFarmSettings } from "./components/ChickenFarmSettings";
 import { ComputingSettings } from "./components/ComputingSettings";
 import { ContractsView } from "./components/ContractsView";
+import { GameSyncStatus } from "./components/GameSyncStatus";
 import { HousingView } from "./components/HousingView";
+import { InfrastructureWorkforceView } from "./components/InfrastructureWorkforceView";
+import { MaintenancePlanningSettings } from "./components/MaintenancePlanningSettings";
 import { MinesView } from "./components/MinesView";
 import { ModifiersView } from "./components/ModifiersView";
 import { ModuleSwitcher } from "./components/ModuleSwitcher";
@@ -26,6 +29,7 @@ import { SinkCard } from "./components/SinkCard";
 import { SolarPowerSettings } from "./components/SolarPowerSettings";
 import { SpaceStationView } from "./components/SpaceStationView";
 import { StorageCard } from "./components/StorageCard";
+import { TrainTrafficAlert } from "./components/TrainTrafficAlert";
 import { buildings } from "./db/buildings";
 import { defaultChickenFarmSettings } from "./db/chicken-farm";
 import { defaultComputingConfig } from "./db/computing";
@@ -53,24 +57,43 @@ import {
   GREENHOUSES_MODULE_ID,
 } from "./db/modules/farms";
 import { HOUSING_MODULE_ID } from "./db/modules/housing";
+import {
+  createMaintenanceModule,
+  MAINTENANCE_MODULE_ID,
+} from "./db/modules/maintenance";
 import { MINES_MODULE_ID } from "./db/modules/mines";
 import { modules } from "./db/modules/modules";
-import { NUCLEAR_MODULE_ID } from "./db/modules/nuclear";
+import {
+  createNuclearModule,
+  defaultNuclearConfig,
+  NUCLEAR_MODULE_ID,
+} from "./db/modules/nuclear";
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from "./db/modules/research";
-import { SOLAR_POWER_MODULE_ID } from "./db/modules/solar-power";
+import {
+  createSolarPowerModule,
+  SOLAR_POWER_MODULE_ID,
+} from "./db/modules/solar-power";
 import { SPACE_STATION_MODULE_ID } from "./db/modules/space-station";
-import { defaultPlanningBaselines } from "./db/planning-baselines";
+import {
+  createStaticInfrastructureModule,
+  STATIC_INFRASTRUCTURE_MODULE_ID,
+} from "./db/modules/static-infrastructure";
+import { resolvePlanningBaselines } from "./db/planning-baselines";
 import { type RecipeGroup } from "./db/recipes";
 import {
   defaultInfiniteResearchLevels,
 } from "./db/research";
-import { defaultSolarPanelCounts } from "./db/solar";
+import { emptySolarPanelCounts } from "./db/solar";
 import {
   defaultSpaceStationConfig,
   defaultSpaceStationLevel,
 } from "./db/space-station";
-import { defaultStaticInfrastructureConfig } from "./db/static-infrastructure";
+import {
+  emptyStaticInfrastructureConfig,
+  type StaticInfrastructureConfig,
+} from "./db/static-infrastructure";
 import { calculateUnityBudget } from "./db/unity";
+import { syncedInfrastructureBuildingIds } from "./game-state";
 import {
   calculateBuildingDiagnostics,
   type BuildingDiagnostic,
@@ -93,6 +116,7 @@ import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-gro
 import { calculateUnityCapacity } from "./helpers/modifiers/calculate-unity-capacity";
 import { getRecipeOutputQuantity } from "./helpers/modifiers/recipe-output";
 import { extractModuleResult } from "./helpers/module-result/module-result";
+import { useGameState } from "./hooks/use-game-state";
 
 const groupLabels: Record<RecipeGroup, string> = {
   source: "Sources",
@@ -205,12 +229,89 @@ const Page = () => {
     setActiveModuleId(diagnostic.moduleId);
   };
 
-  const configuredModules = modules;
+  const gameState = useGameState();
+  const staticInfrastructureBuiltConfig: StaticInfrastructureConfig = {
+    ...emptyStaticInfrastructureConfig,
+  };
+  const staticInfrastructureRunningConfig: StaticInfrastructureConfig = {
+    ...emptyStaticInfrastructureConfig,
+  };
+
+  if (gameState.snapshot) {
+    for (const id of syncedInfrastructureBuildingIds) {
+      const count = gameState.snapshot.buildings[id];
+
+      staticInfrastructureBuiltConfig[id] = count.built;
+      staticInfrastructureRunningConfig[id] = count.running;
+    }
+
+    staticInfrastructureBuiltConfig.vehicles = gameState.snapshot.vehicles.workersAssigned;
+    staticInfrastructureRunningConfig.vehicles = gameState.snapshot.vehicles.workersAssigned;
+  }
+
+  const solarPanelBuiltCounts = gameState.snapshot
+    ? {
+        standard: gameState.snapshot.buildings.solarPanel.built,
+        mono: gameState.snapshot.buildings.solarPanelMono.built,
+      }
+    : emptySolarPanelCounts;
+  const solarPanelRunningCounts = gameState.snapshot
+    ? {
+        standard: gameState.snapshot.buildings.solarPanel.running,
+        mono: gameState.snapshot.buildings.solarPanelMono.running,
+      }
+    : emptySolarPanelCounts;
+  const planningBaselines = resolvePlanningBaselines(gameState.snapshot);
+  const syncedHistory = gameState.snapshot?.history;
+  const syncedMaintenance = syncedHistory?.maintenance;
+  const maintenanceDemand = {
+    maintenanceI: syncedMaintenance?.maintenanceI.averagePerCycle ?? 0,
+    maintenanceII: syncedMaintenance?.maintenanceII.averagePerCycle ?? 0,
+    maintenanceIII: syncedMaintenance?.maintenanceIII.averagePerCycle ?? 0,
+  };
+  const hasOperatingHistory = Boolean(
+    syncedHistory && (
+      syncedHistory.hydrogenFuel.total.sampleMonths > 0
+      || syncedHistory.electricityGeneration.byType.some(
+        generation => generation.sampleMonths > 0,
+      )
+    ),
+  );
+  const hasMaintenanceHistory = Boolean(
+    syncedMaintenance && Object.values(syncedMaintenance).some(
+      average => average.sampleMonths > 0,
+    ),
+  );
+
+  const configuredModules = modules.map(module => {
+    if (module.id === STATIC_INFRASTRUCTURE_MODULE_ID) {
+      return createStaticInfrastructureModule(
+        staticInfrastructureBuiltConfig,
+        staticInfrastructureRunningConfig,
+      );
+    }
+
+    if (module.id === SOLAR_POWER_MODULE_ID) {
+      return createSolarPowerModule(
+        solarPanelBuiltCounts,
+        solarPanelRunningCounts,
+      );
+    }
+
+    if (module.id === NUCLEAR_MODULE_ID) {
+      return createNuclearModule(defaultNuclearConfig, planningBaselines);
+    }
+
+    if (module.id === MAINTENANCE_MODULE_ID) {
+      return createMaintenanceModule(maintenanceDemand);
+    }
+
+    return module;
+  });
   const edictLevels: Record<EdictId, EdictLevel> = defaultEdictLevels;
   const activeContractIds = defaultActiveContractIds;
   const researchModuleConfig = defaultResearchModuleConfig;
-  const maintenanceStatueCount = defaultStaticInfrastructureConfig.maintenanceStatue;
-  const planningBaselines = defaultPlanningBaselines;
+  const maintenanceStatueCount = staticInfrastructureRunningConfig.maintenanceStatue;
   const maintenanceOutputLevel = defaultInfiniteResearchLevels.maintenanceOutput;
   const solarPowerLevel = defaultInfiniteResearchLevels.solarPower;
   const cropYieldLevel = defaultInfiniteResearchLevels.cropYield;
@@ -221,7 +322,6 @@ const Page = () => {
   const unityCapacityLevel = defaultInfiniteResearchLevels.unityCapacity;
   const housingCapacityLevel = defaultInfiniteResearchLevels.housingCapacity;
   const shipsFuelUseLevel = defaultInfiniteResearchLevels.shipsFuelUse;
-  const solarPanelCounts = defaultSolarPanelCounts;
   const computingConfig = defaultComputingConfig;
   const chickenFarmSettings = defaultChickenFarmSettings;
   const housingCount = defaultHousingCount;
@@ -422,14 +522,27 @@ const Page = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          Captain of Industry
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Production Chain Calculator
-        </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Captain of Industry
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Production Chain Calculator
+          </p>
+        </div>
+        <GameSyncStatus
+          isFresh={gameState.isFresh}
+          snapshot={gameState.snapshot}
+          source={gameState.source}
+          status={gameState.status}
+        />
       </div>
+
+      <TrainTrafficAlert
+        isFresh={gameState.isFresh}
+        snapshot={gameState.snapshot}
+      />
 
       <ModuleSwitcher modules={configuredModules} active={activeModuleId} modifiersId={MODIFIERS_ID} contractsId={CONTRACTS_ID} factoryTotalId={FACTORY_TOTAL_ID} onChange={setActiveModuleId} />
 
@@ -481,19 +594,40 @@ const Page = () => {
 
       {activeModule?.id === SOLAR_POWER_MODULE_ID && (
         <SolarPowerSettings
-          counts={solarPanelCounts}
           averageGenerationMw={solarGenerationCapacityMw}
+          builtCounts={solarPanelBuiltCounts}
+          runningCounts={solarPanelRunningCounts}
         />
       )}
 
-      {activeModule?.id === NUCLEAR_MODULE_ID && (
-        <NuclearPlanningSettings values={planningBaselines} />
+      {activeModule?.id === NUCLEAR_MODULE_ID && syncedHistory && hasOperatingHistory && (
+        <NuclearPlanningSettings
+          history={syncedHistory}
+          values={planningBaselines}
+        />
+      )}
+
+      {activeModule?.id === MAINTENANCE_MODULE_ID
+        && syncedMaintenance
+        && hasMaintenanceHistory && (
+        <MaintenancePlanningSettings
+          demand={maintenanceDemand}
+          history={syncedMaintenance}
+        />
       )}
 
       {activeModule?.id === COMPUTING_MODULE_ID && (
         <ComputingSettings
           config={computingConfig}
           computingCapacityTflops={computingCapacityTflops}
+        />
+      )}
+
+      {activeModule?.id === STATIC_INFRASTRUCTURE_MODULE_ID && (
+        <InfrastructureWorkforceView
+          builtConfig={staticInfrastructureBuiltConfig}
+          runningConfig={staticInfrastructureRunningConfig}
+          gameState={gameState.snapshot}
         />
       )}
 
@@ -524,7 +658,8 @@ const Page = () => {
 
       {moduleResult
         && activeModule
-        && activeModule.id !== SOLAR_POWER_MODULE_ID && (
+        && activeModule.id !== SOLAR_POWER_MODULE_ID
+        && activeModule.id !== STATIC_INFRASTRUCTURE_MODULE_ID && (
         <>
           {activeModule.id === MINES_MODULE_ID && (
             <MinesView

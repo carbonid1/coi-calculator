@@ -9,6 +9,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "game-mod:build": "powershell -ExecutionPolicy Bypass -File scripts/build-game-mod.ps1",
+    "game-mod:install": "powershell -ExecutionPolicy Bypass -File scripts/build-game-mod.ps1 -Install",
+    "train-monitor:build": "powershell -ExecutionPolicy Bypass -File scripts/build-train-traffic-mod.ps1",
+    "train-monitor:install": "powershell -ExecutionPolicy Bypass -File scripts/build-train-traffic-mod.ps1 -Install",
     "start": "next start",
     "lint": "eslint . --fix",
     "ts": "tsc --noEmit"

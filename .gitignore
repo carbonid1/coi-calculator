@@ -9,6 +9,7 @@ out
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+game-mod/**/bin/
 
 .claude/skills/design-system
 .claude/skills/design-system-package

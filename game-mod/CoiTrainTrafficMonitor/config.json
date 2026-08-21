@@ -1,0 +1,6 @@
+{
+  "pause_on_red_alert": {
+    "default": false,
+    "description": "Pause the game once when train traffic enters a red alert. The game will never resume automatically."
+  }
+}
