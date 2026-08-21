@@ -38,6 +38,10 @@ New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 $references = @(
     "Mafi.dll",
     "Mafi.Core.dll",
+    "Mafi.Unity.dll",
+    "Mafi.UnityCore.dll",
+    "UnityEngine.CoreModule.dll",
+    "UnityEngine.UIElementsModule.dll",
     "netstandard.dll"
 ) | ForEach-Object { Join-Path $managed $_ }
 

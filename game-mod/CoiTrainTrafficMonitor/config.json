@@ -1,6 +1,13 @@
 {
+  "stuck_after_cycles": {
+    "default": 1,
+    "min": 1,
+    "max": 120,
+    "is_integer": true,
+    "description": "Train considered stuck after this many consecutive production cycles waiting for track clearance."
+  },
   "pause_on_red_alert": {
     "default": false,
-    "description": "Pause the game once when train traffic enters a red alert. The game will never resume automatically."
+    "description": "Pause once when the Train Traffic Monitor red alert begins. Other game alerts are not affected, and the game never resumes automatically."
   }
 }

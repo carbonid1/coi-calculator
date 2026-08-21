@@ -4,12 +4,19 @@ using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
 using Mafi.Core.Game;
+using Mafi.Core.GameLoop;
 using Mafi.Core.Input;
 using Mafi.Core.Mods;
 using Mafi.Core.Notifications;
 using Mafi.Core.Prototypes;
 using Mafi.Core.Simulation;
 using Mafi.Core.Trains;
+using Mafi.Localization;
+using Mafi.Unity.InputControl;
+using Mafi.Unity.InputControl.GameMenu.Settings;
+using Mafi.Unity.Ui.Hud;
+using Mafi.Unity.UiStatic.Toolbar;
+using Mafi.Unity.UiToolkit.Library;
 
 public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
 {
@@ -20,7 +27,9 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
     private Notificator m_fleetJamNotificator;
     private bool m_fleetJamNotificatorInitialized;
     private bool m_pauseHandledForCurrentAlert;
+    private IGameLoopEvents m_gameLoopEvents;
     private IInputScheduler m_inputScheduler;
+    private TrainTrafficSettingsController m_settingsController;
     private TrainsManager m_trainsManager;
     private ISimLoopEvents m_simLoopEvents;
 
@@ -71,6 +80,8 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
         m_fleetJamNotificatorInitialized = true;
         m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
         m_simLoopEvents.UpdateAfterCmdProc.AddNonSaveable(this, onSimUpdate);
+        m_gameLoopEvents = resolver.Resolve<IGameLoopEvents>();
+        m_gameLoopEvents.RegisterRendererInitState(this, () => initializeSettingsUi(resolver));
 
         updateNotification();
         Log.Info("Train Traffic Monitor: fleet traffic alerts enabled.");
@@ -82,6 +93,19 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
 
     public void Dispose()
     {
+        if (m_settingsController != null)
+        {
+            try
+            {
+                m_settingsController.DeactivateSelf();
+            }
+            catch
+            {
+            }
+
+            m_settingsController = null;
+        }
+
         if (m_simLoopEvents != null)
         {
             try
@@ -110,8 +134,25 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
         }
 
         m_inputScheduler = null;
+        m_gameLoopEvents = null;
         m_trainsManager = null;
         m_pauseHandledForCurrentAlert = false;
+    }
+
+    private void initializeSettingsUi(DependencyResolver resolver)
+    {
+        try
+        {
+            m_settingsController = new TrainTrafficSettingsController(
+                resolver.Resolve<ControllerContext>(),
+                resolver.Resolve<ToolbarHud>(),
+                JsonConfig);
+            Log.Info("Train Traffic Monitor: in-game settings button enabled.");
+        }
+        catch (Exception exception)
+        {
+            Log.Info("Train Traffic Monitor: in-game settings UI unavailable: " + exception);
+        }
     }
 
     private void onSimUpdate()
@@ -128,6 +169,10 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
 
         int activeTrains = 0;
         int stuckTrains = 0;
+        int stuckAfterCycles = Math.Min(
+            120,
+            Math.Max(1, JsonConfig.GetInt("stuck_after_cycles")));
+        Duration stuckAfter = Duration.OneMonth * stuckAfterCycles;
 
         foreach (Train train in m_trainsManager.Trains)
         {
@@ -141,7 +186,7 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
 
             activeTrains++;
             if (isWaitingForTrack(train.StateForUi)
-                && train.ReservationWaitTime.Ticks >= Duration.OneMonth.Ticks)
+                && train.ReservationWaitTime >= stuckAfter)
             {
                 stuckTrains++;
             }
@@ -173,5 +218,55 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
         return state == TrainStateForUi.WaitingForFreeTrack
             || state == TrainStateForUi.WaitingForSuperBlock
             || state == TrainStateForUi.WaitingForBidirectionalSuperBlock;
+    }
+}
+
+internal sealed class TrainTrafficSettingsController
+    : WindowController<TrainTrafficSettingsWindow>, IToolbarItemController
+{
+    private const string SettingsIconPath =
+        "Assets/Unity/UserInterface/General/Configure.svg";
+
+    private readonly ModJsonConfig m_jsonConfig;
+
+    public TrainTrafficSettingsController(
+        ControllerContext context,
+        ToolbarHud toolbarHud,
+        ModJsonConfig jsonConfig)
+        : base(context, null)
+    {
+        m_jsonConfig = jsonConfig;
+        toolbarHud.AddMainMenuButton(
+            new LocStrFormatted("Train Traffic Monitor settings"),
+            this,
+            SettingsIconPath,
+            221f,
+            null);
+    }
+
+    public event Action<IToolbarItemController> VisibilityChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public bool IsVisible { get { return true; } }
+
+    public bool DeactivateShortcutsIfNotVisible { get { return false; } }
+
+    protected override TrainTrafficSettingsWindow CreateWindow()
+    {
+        return new TrainTrafficSettingsWindow(m_jsonConfig);
+    }
+}
+
+internal sealed class TrainTrafficSettingsWindow : Window
+{
+    public TrainTrafficSettingsWindow(ModJsonConfig jsonConfig)
+        : base(new LocStrFormatted("Train Traffic Monitor"), false)
+    {
+        WindowSize(560.px(), 240.px());
+        CloseOnClickOutside();
+        AddBodySingle(new ModJsonConfigPanel(jsonConfig));
     }
 }
