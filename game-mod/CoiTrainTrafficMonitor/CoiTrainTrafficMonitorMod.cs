@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using Mafi;
 using Mafi.Collections;
@@ -20,12 +21,17 @@ using Mafi.Unity.UiToolkit.Library;
 
 public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
 {
-    private static readonly GeneralNotificationProto.ID FleetJamNotificationId =
-        new GeneralNotificationProto.ID("CoiTrainTrafficMonitor_FleetJam");
+    private static readonly EntityNotificationProto.ID FleetJamNotificationId =
+        new EntityNotificationProto.ID("CoiTrainTrafficMonitor_FleetJam");
+    private static readonly EntityNotificationProto.ID GroupedFleetJamNotificationId =
+        new EntityNotificationProto.ID("CoiTrainTrafficMonitor_FleetJam_Grouped");
 
     private NotificationProto m_fleetJamNotificationProto;
-    private Notificator m_fleetJamNotificator;
-    private bool m_fleetJamNotificatorInitialized;
+    private NotificationProto m_groupedFleetJamNotificationProto;
+    private readonly Dictionary<TrainId, EntityNotificator> m_trainJamNotificators =
+        new Dictionary<TrainId, EntityNotificator>();
+    private bool m_isRedAlertActive;
+    private INotificationsManager m_notificationsManager;
     private bool m_pauseHandledForCurrentAlert;
     private IGameLoopEvents m_gameLoopEvents;
     private IInputScheduler m_inputScheduler;
@@ -55,6 +61,17 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
                 "Critical alert shown when many active trains remain blocked by rail traffic.")
             .SetType(NotificationType.Continuous)
             .SetStyle(NotificationStyle.Critical)
+            .HideInInspector()
+            .BuildAndAdd();
+        m_groupedFleetJamNotificationProto = new NotificationProtoBuilder(registrator)
+            .Start(
+                "Train traffic jam",
+                GroupedFleetJamNotificationId,
+                "Grouped critical alert for trains blocked by rail traffic.")
+            .SetType(NotificationType.Continuous)
+            .SetStyle(NotificationStyle.Critical)
+            .HideInInspector()
+            .MuteAudio()
             .BuildAndAdd();
     }
 
@@ -73,11 +90,9 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
     {
         m_inputScheduler = resolver.Resolve<IInputScheduler>();
         m_trainsManager = resolver.Resolve<TrainsManager>();
-        INotificationsManager notificationsManager = resolver.Resolve<INotificationsManager>();
-        m_fleetJamNotificator = new Notificator(
-            notificationsManager,
-            m_fleetJamNotificationProto);
-        m_fleetJamNotificatorInitialized = true;
+        m_notificationsManager = resolver.Resolve<INotificationsManager>();
+        m_notificationsManager.ClearAllNotificationsWithId(FleetJamNotificationId);
+        m_notificationsManager.ClearAllNotificationsWithId(GroupedFleetJamNotificationId);
         m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
         m_simLoopEvents.UpdateAfterCmdProc.AddNonSaveable(this, onSimUpdate);
         m_gameLoopEvents = resolver.Resolve<IGameLoopEvents>();
@@ -119,23 +134,13 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
             m_simLoopEvents = null;
         }
 
-        if (m_fleetJamNotificatorInitialized)
-        {
-            try
-            {
-                m_fleetJamNotificator.Deactivate();
-            }
-            catch
-            {
-            }
-
-            m_fleetJamNotificator = default(Notificator);
-            m_fleetJamNotificatorInitialized = false;
-        }
+        deactivateAllTrainNotifications();
 
         m_inputScheduler = null;
         m_gameLoopEvents = null;
+        m_notificationsManager = null;
         m_trainsManager = null;
+        m_isRedAlertActive = false;
         m_pauseHandledForCurrentAlert = false;
     }
 
@@ -162,13 +167,13 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
 
     private void updateNotification()
     {
-        if (m_trainsManager == null || !m_fleetJamNotificatorInitialized)
+        if (m_trainsManager == null || m_notificationsManager == null)
         {
             return;
         }
 
         int activeTrains = 0;
-        int stuckTrains = 0;
+        List<Train> stuckTrains = new List<Train>();
         int stuckAfterCycles = Math.Min(
             12,
             Math.Max(1, JsonConfig.GetInt("stuck_after_cycles")));
@@ -188,13 +193,13 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
             if (isWaitingForTrack(train.StateForUi)
                 && train.ReservationWaitTime >= stuckAfter)
             {
-                stuckTrains++;
+                stuckTrains.Add(train);
             }
         }
 
         int criticalThreshold = Math.Max(3, (int)Math.Ceiling(activeTrains * 0.1));
-        bool isRedAlert = stuckTrains >= criticalThreshold;
-        m_fleetJamNotificator.NotifyIff(isRedAlert);
+        bool isRedAlert = stuckTrains.Count >= criticalThreshold;
+        syncTrainNotifications(stuckTrains, isRedAlert);
 
         if (!isRedAlert)
         {
@@ -211,6 +216,76 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
                 m_inputScheduler.ScheduleInputCmd(new SetSimPauseStateCmd(true));
             }
         }
+    }
+
+    private void syncTrainNotifications(List<Train> stuckTrains, bool isRedAlert)
+    {
+        if (!isRedAlert)
+        {
+            deactivateAllTrainNotifications();
+            m_isRedAlertActive = false;
+            return;
+        }
+
+        HashSet<TrainId> stuckTrainIds = new HashSet<TrainId>();
+        for (int i = 0; i < stuckTrains.Count; i++)
+        {
+            stuckTrainIds.Add(stuckTrains[i].TrainId);
+        }
+
+        List<TrainId> notificationIdsToRemove = new List<TrainId>();
+        foreach (KeyValuePair<TrainId, EntityNotificator> pair in m_trainJamNotificators)
+        {
+            if (!stuckTrainIds.Contains(pair.Key))
+            {
+                notificationIdsToRemove.Add(pair.Key);
+            }
+        }
+
+        for (int i = 0; i < notificationIdsToRemove.Count; i++)
+        {
+            TrainId trainId = notificationIdsToRemove[i];
+            EntityNotificator notificator = m_trainJamNotificators[trainId];
+            notificator.Deactivate(m_notificationsManager);
+            m_trainJamNotificators.Remove(trainId);
+        }
+
+        stuckTrains.Sort((left, right) =>
+            right.ReservationWaitTime.Ticks.CompareTo(left.ReservationWaitTime.Ticks));
+
+        bool shouldPlayAlertAudio = !m_isRedAlertActive;
+        for (int i = 0; i < stuckTrains.Count; i++)
+        {
+            Train train = stuckTrains[i];
+            if (m_trainJamNotificators.ContainsKey(train.TrainId))
+            {
+                continue;
+            }
+
+            NotificationProto proto = shouldPlayAlertAudio
+                ? m_fleetJamNotificationProto
+                : m_groupedFleetJamNotificationProto;
+            shouldPlayAlertAudio = false;
+            EntityNotificator notificator = new EntityNotificator(proto);
+            notificator.Activate(train, m_notificationsManager);
+            m_trainJamNotificators.Add(train.TrainId, notificator);
+        }
+
+        m_isRedAlertActive = true;
+    }
+
+    private void deactivateAllTrainNotifications()
+    {
+        if (m_notificationsManager != null)
+        {
+            foreach (EntityNotificator notificator in m_trainJamNotificators.Values)
+            {
+                EntityNotificator activeNotificator = notificator;
+                activeNotificator.Deactivate(m_notificationsManager);
+            }
+        }
+
+        m_trainJamNotificators.Clear();
     }
 
     private static bool isWaitingForTrack(TrainStateForUi state)

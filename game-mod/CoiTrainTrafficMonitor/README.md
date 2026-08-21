@@ -8,6 +8,9 @@ A train counts as stuck only when it has remained in `Waiting for free track`,
 configured number of production cycles. The default is one cycle. The red alert
 starts when the stuck count reaches both three trains and 10% of active, spawned
 trains. It clears automatically when the stuck count drops below that threshold.
+The alert panel groups all affected trains into one visible row with an `(Nx)`
+counter. Clicking the row cycles the camera through the currently stuck trains,
+starting with the longest-waiting train when a new jam begins.
 
 The in-game settings button opens two save-scoped settings:
 
