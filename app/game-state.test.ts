@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { defaultEdictLevels, edictCatalog } from "./db/edicts";
+import { defaultInfiniteResearchLevels } from "./db/research";
 import { isGameStateSnapshot, normalizeGameStateSnapshot } from "./game-state";
 
 const snapshot = {
@@ -99,10 +101,28 @@ const trainTraffic = {
   ],
 };
 
-const currentSnapshot = {
+const schema8Snapshot = {
   ...snapshot,
   schemaVersion: 8,
   trainTraffic,
+};
+
+const research = { ...defaultInfiniteResearchLevels };
+const edicts = Object.fromEntries(edictCatalog.map((edict) => {
+  const level = defaultEdictLevels[edict.id];
+
+  return [edict.id, {
+    enabledLevel: level,
+    activeLevel: level,
+    inactiveReason: null,
+  }];
+}));
+
+const currentSnapshot = {
+  ...schema8Snapshot,
+  schemaVersion: 9,
+  research,
+  edicts,
 };
 
 describe("game-state snapshot validation", () => {
@@ -112,8 +132,57 @@ describe("game-state snapshot validation", () => {
   });
 
   it("accepts sustained train traffic and derives a critical fleet threshold", () => {
+    expect(isGameStateSnapshot(schema8Snapshot)).toBe(true);
+    expect(normalizeGameStateSnapshot(schema8Snapshot)).toMatchObject({
+      research: null,
+      edicts: null,
+    });
     expect(isGameStateSnapshot(currentSnapshot)).toBe(true);
     expect(normalizeGameStateSnapshot(currentSnapshot)?.trainTraffic).toEqual(trainTraffic);
+    expect(normalizeGameStateSnapshot(currentSnapshot)).toMatchObject({ research, edicts });
+  });
+
+  it("accepts an enabled edict whose effect is currently inactive", () => {
+    expect(
+      normalizeGameStateSnapshot({
+        ...currentSnapshot,
+        edicts: {
+          ...edicts,
+          maintenanceReducer: {
+            enabledLevel: 3,
+            activeLevel: 0,
+            inactiveReason: "Not enough Unity",
+          },
+        },
+      })?.edicts?.maintenanceReducer,
+    ).toEqual({
+      enabledLevel: 3,
+      activeLevel: 0,
+      inactiveReason: "Not enough Unity",
+    });
+  });
+
+  it("rejects missing or impossible synced research and edict values", () => {
+    expect(isGameStateSnapshot({ ...currentSnapshot, research: undefined })).toBe(false);
+    expect(
+      isGameStateSnapshot({
+        ...currentSnapshot,
+        research: { ...research, solarPower: 201 },
+      }),
+    ).toBe(false);
+    expect(
+      isGameStateSnapshot({
+        ...currentSnapshot,
+        edicts: {
+          ...edicts,
+          farmingBoost: {
+            enabledLevel: 1,
+            activeLevel: 4,
+            inactiveReason: null,
+          },
+        },
+      }),
+    ).toBe(false);
   });
 
   it("rejects inconsistent train traffic severity and durations", () => {

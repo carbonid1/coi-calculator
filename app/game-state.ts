@@ -1,3 +1,15 @@
+import {
+  edictCatalog,
+  type EdictId,
+  type EdictLevel,
+  mapEdictValues,
+} from "./db/edicts";
+import {
+  emptyInfiniteResearchLevels,
+  infiniteResearchCatalog,
+  type InfiniteResearchId,
+} from "./db/research";
+
 export const syncedInfrastructureBuildingIds = [
   "electricLocomotiveII",
   "looseStationModuleElectrified",
@@ -71,8 +83,18 @@ export interface SyncedTrainTraffic {
   trains: SyncedTrainDelay[];
 }
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 8 as const;
-export type SupportedGameStateSchemaVersion = 6 | 7 | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
+export type SyncedResearchLevels = Record<InfiniteResearchId, number>;
+
+export interface SyncedEdictState {
+  enabledLevel: EdictLevel;
+  activeLevel: EdictLevel;
+  inactiveReason: string | null;
+}
+
+export type SyncedEdictStates = Record<EdictId, SyncedEdictState>;
+
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 9 as const;
+export type SupportedGameStateSchemaVersion = 6 | 7 | 8 | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
 
 export interface GameStateSnapshot {
   schemaVersion: SupportedGameStateSchemaVersion;
@@ -90,6 +112,8 @@ export interface GameStateSnapshot {
     quotaRemaining: number;
   };
   trainTraffic: SyncedTrainTraffic | null;
+  research: SyncedResearchLevels | null;
+  edicts: SyncedEdictStates | null;
   history: {
     windowMonths: 120;
     maintenance: Record<"maintenanceI" | "maintenanceII" | "maintenanceIII", SyncedHistoryAverage>;
@@ -218,6 +242,65 @@ const isTrainTraffic = (value: unknown): value is SyncedTrainTraffic => {
   );
 };
 
+const normalizeResearchLevels = (value: unknown): SyncedResearchLevels | null => {
+  if (!isUnknownRecord(value)) return null;
+
+  const levels: SyncedResearchLevels = { ...emptyInfiniteResearchLevels };
+
+  for (const research of infiniteResearchCatalog) {
+    const level = value[research.id];
+
+    if (!isNonNegativeInteger(level) || level > research.maxLevel) return null;
+
+    levels[research.id] = level;
+  }
+
+  return levels;
+};
+
+const isEdictLevel = (
+  value: unknown,
+  levels: readonly { level: EdictLevel }[],
+): value is EdictLevel => (
+  isNonNegativeInteger(value) && levels.some((candidate) => candidate.level === value)
+);
+
+const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
+  if (!isUnknownRecord(value)) return null;
+
+  const states: SyncedEdictStates = mapEdictValues(() => ({
+    enabledLevel: 0,
+    activeLevel: 0,
+    inactiveReason: null,
+  }));
+
+  for (const edict of edictCatalog) {
+    const state = value[edict.id];
+
+    if (!isUnknownRecord(state)) return null;
+
+    const enabledLevel = state.enabledLevel;
+    const activeLevel = state.activeLevel;
+    const inactiveReason = state.inactiveReason;
+
+    if (
+      !isEdictLevel(enabledLevel, edict.levels) ||
+      !isEdictLevel(activeLevel, edict.levels) ||
+      (inactiveReason !== null && typeof inactiveReason !== "string")
+    ) {
+      return null;
+    }
+
+    states[edict.id] = {
+      enabledLevel,
+      activeLevel,
+      inactiveReason,
+    };
+  }
+
+  return states;
+};
+
 export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | null => {
   if (!isUnknownRecord(value)) return null;
 
@@ -227,6 +310,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   if (
     schemaVersion !== 6 &&
     schemaVersion !== 7 &&
+    schemaVersion !== 8 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null;
@@ -244,6 +328,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const quotaLimit = vehicles?.quotaLimit;
   const quotaRemaining = vehicles?.quotaRemaining;
   const trainTraffic = isTrainTraffic(snapshot.trainTraffic) ? snapshot.trainTraffic : null;
+  const research = normalizeResearchLevels(snapshot.research);
+  const edicts = normalizeEdictStates(snapshot.edicts);
   const history = isUnknownRecord(snapshot.history) ? snapshot.history : null;
 
   if (
@@ -263,7 +349,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     !isNonNegativeInteger(quotaLimit) ||
     !isNonNegativeInteger(quotaRemaining) ||
     quotaUsed + quotaRemaining !== quotaLimit ||
-    (schemaVersion === CURRENT_GAME_STATE_SCHEMA_VERSION && !trainTraffic) ||
+    (schemaVersion >= 8 && !trainTraffic) ||
+    (schemaVersion === CURRENT_GAME_STATE_SCHEMA_VERSION && (!research || !edicts)) ||
     !history ||
     history.windowMonths !== 120
   ) {
@@ -340,6 +427,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
       quotaRemaining,
     },
     trainTraffic,
+    research: schemaVersion === CURRENT_GAME_STATE_SCHEMA_VERSION ? research : null,
+    edicts: schemaVersion === CURRENT_GAME_STATE_SCHEMA_VERSION ? edicts : null,
     history: {
       windowMonths: 120,
       maintenance: { maintenanceI, maintenanceII, maintenanceIII },

@@ -2,14 +2,19 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.7 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.8 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
 actual Maintenance I/II/III consumption, Hydrogen fuel use by category, and
 average electricity generation by producer prototype. Train traffic health is
-derived from the game's explicit track-waiting states and involuntary stationary
-duration. Running means completed and not manually paused.
+derived from the game's explicit track-waiting states and reservation wait time.
+Running means completed and not manually paused.
+
+The exporter also supplies completed levels for the calculator's 18 repeatable
+research categories and selected/active levels for its 19 modeled edicts. An
+edict selected in the game but prevented from running retains its inactivity
+reason; calculator effects use only the active level.
 
 A train counts as stuck after waiting for track clearance for at least one
 production cycle (one in-game month). The calculator shows a warning for any

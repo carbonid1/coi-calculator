@@ -63,22 +63,21 @@ describe("Factory Total contracts", () => {
     );
 
     expect(contractResult).toMatchObject({
-      imported: 92.971225,
-      requiredImported: 92.971225,
-      uncoveredImported: 0,
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
-      fuelPerProductionCycle: 16.792927515625,
     });
-    expect(ironOre).toMatchObject({
-      consumed: 92.971225,
-      produced: 92.971225,
-      net: 0,
-    });
-    expect(ironMine?.actualOutputs).toContainEqual({
-      resourceId: "ironOre",
-      quantity: 0,
-    });
+    expect(contractResult?.imported).toBeCloseTo(136.16571, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(136.16571, 5);
+    expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(24.59493135, 8);
+    expect(ironOre?.consumed).toBeCloseTo(136.16571, 5);
+    expect(ironOre?.produced).toBeCloseTo(136.16571, 5);
+    expect(ironOre?.net).toBeCloseTo(0, 5);
+    const ironMineOutput = ironMine?.actualOutputs.find(
+      (output) => output.resourceId === "ironOre",
+    );
+
+    expect(ironMineOutput?.quantity).toBeCloseTo(0, 5);
   });
 
   it("replaces local Ammonia production with the demand-balanced contract", () => {

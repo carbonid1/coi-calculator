@@ -20,6 +20,7 @@ interface ResearchSettingsProps {
 
 interface InfiniteResearchSettingsProps {
   levels: Readonly<Record<InfiniteResearchId, number>>;
+  synced: boolean;
 }
 
 type ResearchProgressMode = "before-space" | "full-range";
@@ -177,6 +178,7 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({
 
 export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> = ({
   levels,
+  synced,
 }) => {
   const [mode, setMode] = useState<ResearchProgressMode>("before-space");
   const completedCount = infiniteResearchCatalog.filter((research) => (
@@ -191,7 +193,9 @@ export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> =
             Infinite research
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {completedCount} of {infiniteResearchCatalog.length} targets reached
+            {synced
+              ? `${completedCount} of ${infiniteResearchCatalog.length} targets reached · Synced from game`
+              : "Waiting for research data from the exporter"}
           </p>
         </div>
 

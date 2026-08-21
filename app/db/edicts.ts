@@ -98,6 +98,28 @@ export const getEdict = (id: EdictId): EdictDefinition => {
   return edict;
 };
 
+export const mapEdictValues = <T>(getValue: (id: EdictId) => T) => ({
+  growthPause: getValue("growthPause"),
+  growthBoost: getValue("growthBoost"),
+  eviction: getValue("eviction"),
+  quarantine: getValue("quarantine"),
+  foodSaver: getValue("foodSaver"),
+  healthBoost: getValue("healthBoost"),
+  plentyOfFood: getValue("plentyOfFood"),
+  moreHouseholdGoods: getValue("moreHouseholdGoods"),
+  moreAirConditioners: getValue("moreAirConditioners"),
+  moreConsumerElectronics: getValue("moreConsumerElectronics"),
+  vehiclesFuelSaver: getValue("vehiclesFuelSaver"),
+  shipsFuelSaver: getValue("shipsFuelSaver"),
+  overloadedTrucks: getValue("overloadedTrucks"),
+  maintenanceReducer: getValue("maintenanceReducer"),
+  recyclingIncrease: getValue("recyclingIncrease"),
+  farmingBoost: getValue("farmingBoost"),
+  waterSaver: getValue("waterSaver"),
+  cleanPanels: getValue("cleanPanels"),
+  researchEfficiency: getValue("researchEfficiency"),
+});
+
 export const defaultEdictLevels: Record<EdictId, EdictLevel> = {
   growthPause: 0,
   growthBoost: 0,
@@ -118,6 +140,29 @@ export const defaultEdictLevels: Record<EdictId, EdictLevel> = {
   waterSaver: 0,
   cleanPanels: 0,
   researchEfficiency: 5,
+};
+
+/** Inactive state used until the exporter has supplied save-owned edicts. */
+export const inactiveEdictLevels: Record<EdictId, EdictLevel> = {
+  growthPause: 0,
+  growthBoost: 0,
+  eviction: 0,
+  quarantine: 0,
+  foodSaver: 0,
+  healthBoost: 0,
+  plentyOfFood: 0,
+  moreHouseholdGoods: 0,
+  moreAirConditioners: 0,
+  moreConsumerElectronics: 0,
+  vehiclesFuelSaver: 0,
+  shipsFuelSaver: 0,
+  overloadedTrucks: 0,
+  maintenanceReducer: 0,
+  recyclingIncrease: 0,
+  farmingBoost: 0,
+  waterSaver: 0,
+  cleanPanels: 0,
+  researchEfficiency: 0,
 };
 
 const getLevel = (id: EdictId, value: EdictLevel): EdictLevelDefinition => {

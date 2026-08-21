@@ -32,6 +32,8 @@ $modSource = Join-Path $repositoryRoot "game-mod\CoiTrainTrafficMonitor"
 $outputDirectory = Join-Path $modSource "bin\Release"
 $outputDll = Join-Path $outputDirectory "CoiTrainTrafficMonitor.dll"
 $sourceFile = Join-Path $modSource "CoiTrainTrafficMonitorMod.cs"
+$sharedSettingsSource = Join-Path $repositoryRoot "game-mod\Shared\CoI.AutoHelpers.Settings.cs"
+$sharedSettingsLicense = Join-Path $repositoryRoot "game-mod\Shared\CoI.AutoHelpers.Settings.LICENSE.txt"
 
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 
@@ -41,6 +43,7 @@ $references = @(
     "Mafi.Unity.dll",
     "Mafi.UnityCore.dll",
     "UnityEngine.CoreModule.dll",
+    "UnityEngine.InputLegacyModule.dll",
     "UnityEngine.UIElementsModule.dll",
     "netstandard.dll"
 ) | ForEach-Object { Join-Path $managed $_ }
@@ -59,7 +62,7 @@ $compilerArguments = @(
     "/out:$outputDll"
 )
 $compilerArguments += $references | ForEach-Object { "/reference:$_" }
-$compilerArguments += $sourceFile
+$compilerArguments += @($sourceFile, $sharedSettingsSource)
 
 & $compiler @compilerArguments
 if ($LASTEXITCODE -ne 0) {
@@ -75,5 +78,6 @@ if ($Install) {
     Copy-Item -LiteralPath $outputDll -Destination $installDirectory -Force
     Copy-Item -LiteralPath (Join-Path $modSource "manifest.json") -Destination $installDirectory -Force
     Copy-Item -LiteralPath (Join-Path $modSource "config.json") -Destination $installDirectory -Force
+    Copy-Item -LiteralPath $sharedSettingsLicense -Destination (Join-Path $installDirectory "CoI.AutoHelpers.Settings.LICENSE.txt") -Force
     Write-Output "Installed $installDirectory"
 }

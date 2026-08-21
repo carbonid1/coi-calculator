@@ -8,6 +8,7 @@ import { recipes } from "./recipes";
 import {
   calculateSpaceStationConstruction,
   calculateSpaceStationLevel,
+  calculateRocketIiRecurringLogistics,
   defaultRocketIiRecurringLogistics,
   defaultSpaceStationConfig,
   getStationPartsKind,
@@ -90,6 +91,33 @@ describe("Space Station", () => {
           { resourceId: "oxygen", quantity: 8.178571428571429 },
         ],
       });
+  });
+
+  it("applies synced rocket-capacity research to recurring launch demand", () => {
+    const levelTen = calculateRocketIiRecurringLogistics(
+      calculateSpaceStationLevel(4, 4),
+      10,
+    );
+    const result = calculateFactoryTotal(
+      [{ ...spaceStation, includedInFactoryTotals: true }],
+      [],
+      undefined,
+      {
+        rocketLaunches: levelTen.launchesPerCycle
+          / defaultRocketIiRecurringLogistics.launchesPerCycle,
+      },
+    );
+    const launch = result.calculation.regularResults.find(
+      (line) => line.recipe.id === "rocket-ii-launch-amortized",
+    );
+    const input = (resourceId: string) => launch?.actualInputs.find(
+      (candidate) => candidate.resourceId === resourceId,
+    )?.quantity;
+
+    expect(input("rocketII")).toBeCloseTo(levelTen.launchesPerCycle, 9);
+    expect(input("water")).toBeCloseTo(levelTen.waterPerCycle, 9);
+    expect(input("hydrogen")).toBeCloseTo(levelTen.hydrogenPerCycle, 9);
+    expect(input("oxygen")).toBeCloseTo(levelTen.oxygenPerCycle, 9);
   });
 
   it("retains a balanced space plan when the planning modules are inspected in isolation", () => {

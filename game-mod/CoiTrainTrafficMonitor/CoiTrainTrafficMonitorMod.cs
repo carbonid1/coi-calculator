@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using CoI.AutoHelpers.Settings;
 using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
@@ -13,14 +14,20 @@ using Mafi.Core.Prototypes;
 using Mafi.Core.Simulation;
 using Mafi.Core.Trains;
 using Mafi.Localization;
+using Mafi.Unity;
 using Mafi.Unity.InputControl;
-using Mafi.Unity.InputControl.GameMenu.Settings;
 using Mafi.Unity.Ui.Hud;
 using Mafi.Unity.UiStatic.Toolbar;
+using Mafi.Unity.UiToolkit;
+using Mafi.Unity.UiToolkit.Component;
 using Mafi.Unity.UiToolkit.Library;
+using Mafi.Unity.UiToolkit.Themes;
 
 public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
 {
+    private const string SettingsIconPath =
+        "Assets/Unity/UserInterface/General/Configure.svg";
+
     private static readonly EntityNotificationProto.ID FleetJamNotificationId =
         new EntityNotificationProto.ID("CoiTrainTrafficMonitor_FleetJam");
     private static readonly EntityNotificationProto.ID GroupedFleetJamNotificationId =
@@ -148,15 +155,45 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
     {
         try
         {
+            ModSettings.EnsureInitialized(
+                resolver.Resolve<HudController>(),
+                resolver.Resolve<UiRoot>(),
+                resolver.Resolve<IRootEscapeManager>());
+            ModSettings.RegisterTab(new ModSettingsTab(
+                "CoiTrainTrafficMonitor",
+                new LocStrFormatted("Train Traffic Monitor"),
+                new LocStrFormatted("Settings"),
+                300,
+                () => new TrainTrafficSettingsPanel(JsonConfig),
+                SettingsIconPath,
+                SettingsIconPath));
+            Log.Info(
+                "Train Traffic Monitor: registered in cooperative Mod Settings hub.");
+            return;
+        }
+        catch (Exception exception)
+        {
+            Log.Info(
+                "Train Traffic Monitor: cooperative Mod Settings hub failed; "
+                + "using standalone settings: "
+                + exception);
+        }
+
+        try
+        {
             m_settingsController = new TrainTrafficSettingsController(
                 resolver.Resolve<ControllerContext>(),
                 resolver.Resolve<ToolbarHud>(),
                 JsonConfig);
-            Log.Info("Train Traffic Monitor: in-game settings button enabled.");
+            Log.Info(
+                "Train Traffic Monitor: shared Mod Settings hub not found; "
+                + "standalone settings button enabled.");
         }
         catch (Exception exception)
         {
-            Log.Info("Train Traffic Monitor: in-game settings UI unavailable: " + exception);
+            Log.Info(
+                "Train Traffic Monitor: standalone settings UI unavailable: "
+                + exception);
         }
     }
 
@@ -342,6 +379,112 @@ internal sealed class TrainTrafficSettingsWindow : Window
     {
         WindowSize(560.px(), 240.px());
         CloseOnClickOutside();
-        AddBodySingle(new ModJsonConfigPanel(jsonConfig));
+        AddBodySingle(new TrainTrafficSettingsPanel(jsonConfig));
+    }
+}
+
+internal sealed class TrainTrafficSettingsPanel : Column
+{
+    private const string StuckAfterKey = "stuck_after_cycles";
+    private const string PauseOnAlertKey = "pause_on_red_alert";
+    private const int DefaultStuckAfterMonths = 1;
+
+    private static readonly Px InnerGap = 2.pt();
+    private static readonly Px ModifiedBorder = 1.pt();
+
+    private readonly ModJsonConfig m_jsonConfig;
+
+    public TrainTrafficSettingsPanel(ModJsonConfig jsonConfig)
+        : base(8.pt())
+    {
+        m_jsonConfig = jsonConfig;
+        this.AlignItemsStretch().PaddingBottom(10.pt());
+        Add(createStuckAfterControl());
+        Add(createPauseControl());
+    }
+
+    private UiComponent createStuckAfterControl()
+    {
+        Label errorLabel = new Label()
+            .Color(Theme.DangerColor)
+            .FontSize(12)
+            .Hide();
+        TextField field = new TextField()
+            .Text(m_jsonConfig.GetInt(StuckAfterKey).ToString())
+            .PositiveIntegersOnly();
+        Column row = new Column(InnerGap);
+        row.AlignItemsStretch().PaddingLeft(2.pt());
+        row.Add(createHeader(
+            "Alert after waiting",
+            "How long a train may wait for a free track: 1–12 in-game months (12 months = 1 year)."));
+        row.Add(new Row(1.pt()) { field });
+        row.Add(errorLabel);
+
+        updateModifiedBorder(
+            row,
+            m_jsonConfig.GetInt(StuckAfterKey) != DefaultStuckAfterMonths);
+        field.OnEditEnd(delegate(string text)
+        {
+            int value;
+            string error;
+            if (!Int32.TryParse(text, out value))
+            {
+                errorLabel.Value(new LocStrFormatted("A whole number is required.")).Show();
+            }
+            else if (!m_jsonConfig.TrySetValue(StuckAfterKey, value, out error))
+            {
+                errorLabel.Value(new LocStrFormatted(
+                    error.Replace(" for '" + StuckAfterKey + "'", ""))).Show();
+            }
+            else
+            {
+                errorLabel.Hide();
+            }
+
+            updateModifiedBorder(
+                row,
+                m_jsonConfig.GetInt(StuckAfterKey) != DefaultStuckAfterMonths);
+        });
+        return row;
+    }
+
+    private UiComponent createPauseControl()
+    {
+        Toggle toggle = new Toggle()
+            .JustifyItemsStart()
+            .Value(m_jsonConfig.GetBool(PauseOnAlertKey));
+        Column row = new Column(InnerGap);
+        row.AlignItemsStretch().PaddingLeft(2.pt());
+        row.Add(createHeader(
+            "Pause on red alert",
+            "Pause once when this mod's train traffic red alert begins. Other alerts are unaffected, and the game never resumes automatically."));
+        row.Add(new Row(1.pt()) { toggle });
+
+        updateModifiedBorder(row, m_jsonConfig.GetBool(PauseOnAlertKey));
+        toggle.OnValueChanged(delegate(bool value)
+        {
+            string error;
+            m_jsonConfig.TrySetValue(PauseOnAlertKey, value, out error);
+            updateModifiedBorder(row, m_jsonConfig.GetBool(PauseOnAlertKey));
+        });
+        return row;
+    }
+
+    private static UiComponent createHeader(string title, string description)
+    {
+        return new Column(1.pt())
+        {
+            new Label(new LocStrFormatted(title)).FontBold(),
+            new Label(new LocStrFormatted(description))
+                .Color(Theme.InactiveColor)
+                .FontSize(12)
+        };
+    }
+
+    private static void updateModifiedBorder(Column row, bool isModified)
+    {
+        row.BorderLeft(
+            ModifiedBorder,
+            isModified ? Theme.ImportantColor : ColorRgba.Empty);
     }
 }

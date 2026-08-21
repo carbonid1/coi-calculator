@@ -11,7 +11,7 @@ export const HOUSING_MODULE_ID = "housing";
 
 export const createHousingModule = (
   housingCount: number,
-  housingCapacityLevel = defaultInfiniteResearchLevels.housingCapacity,
+  housingCapacityLevel: number = defaultInfiniteResearchLevels.housingCapacity,
 ): Module => {
   const residents = Math.max(0, Math.trunc(housingCount));
   const capacityMultiplier = calculateHousingCapacity(housingCapacityLevel).multiplier;

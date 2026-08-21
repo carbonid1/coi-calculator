@@ -39,8 +39,9 @@ import {
   defaultActiveContractIds,
 } from "./db/contracts";
 import {
-  defaultEdictLevels,
   getEdict,
+  inactiveEdictLevels,
+  mapEdictValues,
   type EdictId,
   type EdictLevel,
   normalizeCleanPanelsLevel,
@@ -56,7 +57,7 @@ import {
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
 } from "./db/modules/farms";
-import { HOUSING_MODULE_ID } from "./db/modules/housing";
+import { createHousingModule, HOUSING_MODULE_ID } from "./db/modules/housing";
 import {
   createMaintenanceModule,
   MAINTENANCE_MODULE_ID,
@@ -81,10 +82,12 @@ import {
 import { resolvePlanningBaselines } from "./db/planning-baselines";
 import { type RecipeGroup } from "./db/recipes";
 import {
-  defaultInfiniteResearchLevels,
+  emptyInfiniteResearchLevels,
 } from "./db/research";
 import { emptySolarPanelCounts } from "./db/solar";
 import {
+  calculateRocketIiRecurringLogistics,
+  defaultRocketIiRecurringLogistics,
   defaultSpaceStationConfig,
   defaultSpaceStationLevel,
 } from "./db/space-station";
@@ -282,6 +285,28 @@ const Page = () => {
       average => average.sampleMonths > 0,
     ),
   );
+  const syncedResearchLevels = gameState.snapshot?.research;
+  const researchLevels = syncedResearchLevels ?? emptyInfiniteResearchLevels;
+  const syncedEdictStates = gameState.snapshot?.edicts;
+  const edictLevels: Record<EdictId, EdictLevel> = syncedEdictStates
+    ? mapEdictValues((edictId) => syncedEdictStates[edictId].activeLevel)
+    : inactiveEdictLevels;
+  const activeContractIds = defaultActiveContractIds;
+  const researchModuleConfig = defaultResearchModuleConfig;
+  const maintenanceStatueCount = staticInfrastructureRunningConfig.maintenanceStatue;
+  const maintenanceOutputLevel = researchLevels.maintenanceOutput;
+  const solarPowerLevel = researchLevels.solarPower;
+  const cropYieldLevel = researchLevels.cropYield;
+  const rainwaterYieldLevel = researchLevels.rainwaterYield;
+  const settlementWaterUseLevel = researchLevels.settlementWaterUse;
+  const treeGrowthSpeedLevel = researchLevels.treeGrowthSpeed;
+  const worldMineOutputLevel = researchLevels.worldMineOutput;
+  const unityCapacityLevel = researchLevels.unityCapacity;
+  const housingCapacityLevel = researchLevels.housingCapacity;
+  const shipsFuelUseLevel = researchLevels.shipsFuelUse;
+  const computingConfig = defaultComputingConfig;
+  const chickenFarmSettings = defaultChickenFarmSettings;
+  const housingCount = defaultHousingCount;
 
   const configuredModules = modules.map(module => {
     if (module.id === STATIC_INFRASTRUCTURE_MODULE_ID) {
@@ -306,25 +331,12 @@ const Page = () => {
       return createMaintenanceModule(maintenanceDemand);
     }
 
+    if (module.id === HOUSING_MODULE_ID) {
+      return createHousingModule(housingCount, housingCapacityLevel);
+    }
+
     return module;
   });
-  const edictLevels: Record<EdictId, EdictLevel> = defaultEdictLevels;
-  const activeContractIds = defaultActiveContractIds;
-  const researchModuleConfig = defaultResearchModuleConfig;
-  const maintenanceStatueCount = staticInfrastructureRunningConfig.maintenanceStatue;
-  const maintenanceOutputLevel = defaultInfiniteResearchLevels.maintenanceOutput;
-  const solarPowerLevel = defaultInfiniteResearchLevels.solarPower;
-  const cropYieldLevel = defaultInfiniteResearchLevels.cropYield;
-  const rainwaterYieldLevel = defaultInfiniteResearchLevels.rainwaterYield;
-  const settlementWaterUseLevel = defaultInfiniteResearchLevels.settlementWaterUse;
-  const treeGrowthSpeedLevel = defaultInfiniteResearchLevels.treeGrowthSpeed;
-  const worldMineOutputLevel = defaultInfiniteResearchLevels.worldMineOutput;
-  const unityCapacityLevel = defaultInfiniteResearchLevels.unityCapacity;
-  const housingCapacityLevel = defaultInfiniteResearchLevels.housingCapacity;
-  const shipsFuelUseLevel = defaultInfiniteResearchLevels.shipsFuelUse;
-  const computingConfig = defaultComputingConfig;
-  const chickenFarmSettings = defaultChickenFarmSettings;
-  const housingCount = defaultHousingCount;
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel);
   const populationCapacity = calculatePopulationCapacity(
     activeHousingType,
@@ -383,6 +395,10 @@ const Page = () => {
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel);
   const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel);
+  const rocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
+    defaultSpaceStationLevel,
+    researchLevels.rocketsCapacity,
+  );
   const outputModifiers = {
     foodConsumption: foodConsumption.multiplier,
     maintenanceOutput: maintenanceOutput.multiplier,
@@ -392,6 +408,10 @@ const Page = () => {
     rainwaterYield: rainwaterYield.multiplier,
     settlementWater: settlementWaterUse.multiplier * waterSaverMultiplier,
     treeGrowthSpeed: treeGrowthSpeed.multiplier,
+    rocketLaunches: defaultRocketIiRecurringLogistics.launchesPerCycle > 0
+      ? rocketIiRecurringLogistics.launchesPerCycle
+        / defaultRocketIiRecurringLogistics.launchesPerCycle
+      : 1,
   };
   const enabledContracts = activeContracts;
   const factoryResult = calculateFactoryTotal(
@@ -510,6 +530,9 @@ const Page = () => {
   const solarGenerationCapacityMw = calculateGenerationCapacityMw(
     factoryResult.allLines.filter((line) => line.moduleId === SOLAR_POWER_MODULE_ID),
   );
+  const nuclearGenerationCapacityMw = activeModule?.id === NUCLEAR_MODULE_ID && moduleResult
+    ? calculateGenerationCapacityMw(moduleResult.lines)
+    : undefined;
   const grouped = moduleResult
     ? groupOrder
         .map((group) => ({
@@ -555,6 +578,7 @@ const Page = () => {
       {isModifiers && (
         <ModifiersView
           edictLevels={edictLevels}
+          edictStates={syncedEdictStates ?? null}
           unityBudget={unityBudget}
           maintenanceStatueCount={maintenanceStatueCount}
           maintenanceOutputLevel={maintenanceOutputLevel}
@@ -639,7 +663,10 @@ const Page = () => {
       )}
 
       {activeModule?.id === SPACE_STATION_MODULE_ID && (
-        <SpaceStationView config={defaultSpaceStationConfig} />
+        <SpaceStationView
+          config={defaultSpaceStationConfig}
+          logistics={rocketIiRecurringLogistics}
+        />
       )}
 
       {activeModule?.id === CHICKEN_FARMS_MODULE_ID && (
@@ -678,6 +705,7 @@ const Page = () => {
               externalInputs={resolvedExternalInputs}
               workers={buildingStats.workers}
               electricityConsumptionKw={buildingStats.electricityKw}
+              electricityGenerationCapacityMw={nuclearGenerationCapacityMw}
               computingConsumptionTflops={buildingStats.computingTflops}
               computingGenerationCapacityTflops={activeModule.id === COMPUTING_MODULE_ID
                 ? computingCapacityTflops
@@ -832,7 +860,10 @@ const Page = () => {
       )}
 
       {activeModule?.id === RESEARCH_MODULE_ID && (
-        <InfiniteResearchSettings levels={defaultInfiniteResearchLevels} />
+        <InfiniteResearchSettings
+          levels={researchLevels}
+          synced={Boolean(syncedResearchLevels)}
+        />
       )}
     </div>
   );

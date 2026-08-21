@@ -344,3 +344,25 @@ export const defaultInfiniteResearchLevels = {
   worldMineOutput: 5,
   solarPower: 10,
 } as const satisfies Record<InfiniteResearchId, number>;
+
+/** Zero state used until the exporter has supplied save-owned research levels. */
+export const emptyInfiniteResearchLevels = {
+  vehiclesPollution: 0,
+  shipsPollution: 0,
+  trainsPollution: 0,
+  cropYield: 0,
+  treeGrowthSpeed: 0,
+  rainwaterYield: 0,
+  settlementWaterUse: 0,
+  unityCapacity: 0,
+  housingCapacity: 0,
+  focusPoints: 0,
+  vehicleLimit: 0,
+  vehiclesFuelUse: 0,
+  shipsFuelUse: 0,
+  trainsFuelUse: 0,
+  rocketsCapacity: 0,
+  maintenanceOutput: 0,
+  worldMineOutput: 0,
+  solarPower: 0,
+} as const satisfies Record<InfiniteResearchId, number>;

@@ -14,6 +14,7 @@ import {
 } from "../db/edicts";
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
+import { type SyncedEdictState, type SyncedEdictStates } from "../game-state";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
@@ -27,6 +28,7 @@ import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-m
 
 interface Props {
   edictLevels: Record<EdictId, EdictLevel>;
+  edictStates: SyncedEdictStates | null;
   unityBudget: UnityBudget;
   maintenanceStatueCount: number;
   maintenanceOutputLevel: number;
@@ -45,15 +47,24 @@ const formatSignedPercent = (value: number) => (
 
 const EdictCard = ({
   edict,
+  state,
   value,
 }: {
   edict: EdictDefinition;
+  state: SyncedEdictState | null;
   value: EdictLevel;
 }) => {
   const active = edict.levels.find((candidate) => candidate.level === value)
     ?? edict.levels.at(0);
 
   if (!active) return null;
+
+  const enabled = state
+    ? edict.levels.find((candidate) => candidate.level === state.enabledLevel)
+    : null;
+  const selectedButInactive = Boolean(
+    state && state.enabledLevel > 0 && state.activeLevel !== state.enabledLevel,
+  );
 
   let unitySummary = "No direct Unity cost";
 
@@ -90,6 +101,12 @@ const EdictCard = ({
         <p className="text-xs text-muted-foreground">
           {unitySummary}
         </p>
+        {selectedButInactive && enabled && (
+          <p className="text-xs text-muted-foreground">
+            Selected {enabled.label}, currently inactive
+            {state?.inactiveReason ? ` · ${state.inactiveReason}` : ""}
+          </p>
+        )}
       </Card.Content>
     </Card.Root>
   );
@@ -97,6 +114,7 @@ const EdictCard = ({
 
 export const ModifiersView: React.FC<Props> = ({
   edictLevels,
+  edictStates,
   unityBudget,
   maintenanceStatueCount,
   maintenanceOutputLevel,
@@ -142,6 +160,7 @@ export const ModifiersView: React.FC<Props> = ({
         <h2 className="text-xl font-semibold text-foreground">Unity &amp; Policies</h2>
         <p className="text-sm text-muted-foreground">
           Steady-state Unity generation, recurring demand, edicts, and global bonuses.
+          {edictStates ? " Edicts are synced from the game." : " Waiting for synced edict data."}
         </p>
       </div>
 
@@ -206,6 +225,7 @@ export const ModifiersView: React.FC<Props> = ({
               <EdictCard
                 key={edict.id}
                 edict={edict}
+                state={edictStates?.[edict.id] ?? null}
                 value={edictLevels[edict.id]}
               />
             ))}

@@ -4,7 +4,7 @@
     "min": 1,
     "max": 12,
     "is_integer": true,
-    "description": "Train considered stuck after this many consecutive production cycles waiting for track clearance."
+    "description": "How long a train may wait for a free track: 1–12 in-game months (12 months = 1 year)."
   },
   "pause_on_red_alert": {
     "default": false,

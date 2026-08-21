@@ -36,6 +36,7 @@ export type RecipeGroup = "source" | "electricity" | "production" | "waste" | "s
 export type InputModifierId =
   | "cropWater"
   | "foodConsumption"
+  | "rocketLaunches"
   | "settlementWater"
   | "treeGrowthSpeed";
 export type OutputModifierId =
@@ -2098,18 +2099,22 @@ export const recipes: Recipe[] = [
       {
         resourceId: "rocketII",
         quantity: defaultRocketIiRecurringLogistics.launchesPerCycle,
+        inputModifierId: "rocketLaunches",
       },
       {
         resourceId: "water",
         quantity: defaultRocketIiRecurringLogistics.waterPerCycle,
+        inputModifierId: "rocketLaunches",
       },
       {
         resourceId: "hydrogen",
         quantity: defaultRocketIiRecurringLogistics.hydrogenPerCycle,
+        inputModifierId: "rocketLaunches",
       },
       {
         resourceId: "oxygen",
         quantity: defaultRocketIiRecurringLogistics.oxygenPerCycle,
+        inputModifierId: "rocketLaunches",
       },
     ],
     outputs: [],

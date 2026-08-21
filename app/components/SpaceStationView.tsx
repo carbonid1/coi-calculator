@@ -2,12 +2,13 @@ import { Card } from "@carbonid1/design-system";
 
 import {
   calculateSpaceStationLevel,
-  defaultRocketIiRecurringLogistics,
+  type RocketIiRecurringLogistics,
   type SpaceStationConfig,
 } from "../db/space-station";
 
 interface Props {
   config: SpaceStationConfig;
+  logistics: RocketIiRecurringLogistics;
 }
 
 const formatQuantity = (value: number) => parseFloat(value.toFixed(2)).toLocaleString("en-US");
@@ -19,7 +20,7 @@ const Metric = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-export const SpaceStationView: React.FC<Props> = ({ config }) => {
+export const SpaceStationView: React.FC<Props> = ({ config, logistics }) => {
   const station = calculateSpaceStationLevel(
     config.targetLevel,
     config.highestLevelAchieved,
@@ -78,19 +79,19 @@ export const SpaceStationView: React.FC<Props> = ({ config }) => {
             <div className="grid grid-cols-2 gap-3">
               <Metric
                 label="Payload"
-                value={`${formatQuantity(defaultRocketIiRecurringLogistics.cargoCapacity)} / launch`}
+                value={`${formatQuantity(logistics.cargoCapacity)} / launch`}
               />
               <Metric
                 label="Capacity research"
-                value={`Level ${defaultRocketIiRecurringLogistics.researchLevel} (+${formatQuantity(defaultRocketIiRecurringLogistics.payloadCapacityBonusPercent)}%)`}
+                value={`Level ${logistics.researchLevel} (+${formatQuantity(logistics.payloadCapacityBonusPercent)}%)`}
               />
               <Metric
                 label="Average launches"
-                value={`${formatQuantity(defaultRocketIiRecurringLogistics.launchesPerCycle)} / cycle`}
+                value={`${formatQuantity(logistics.launchesPerCycle)} / cycle`}
               />
               <Metric
                 label="Average cadence"
-                value={`${formatQuantity(defaultRocketIiRecurringLogistics.cyclesPerLaunch)} cycles / launch`}
+                value={`${formatQuantity(logistics.cyclesPerLaunch)} cycles / launch`}
               />
             </div>
           </section>
@@ -104,35 +105,35 @@ export const SpaceStationView: React.FC<Props> = ({ config }) => {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Metric
               label="Aluminum"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.aluminumPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.aluminumPerCycle)} / cycle`}
             />
             <Metric
               label="Titanium Alloy"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.titaniumAlloyPerCycle)} / cycle`}
             />
             <Metric
               label="Water"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.waterPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.waterPerCycle)} / cycle`}
             />
             <Metric
               label="Hydrogen"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.hydrogenPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.hydrogenPerCycle)} / cycle`}
             />
             <Metric
               label="Oxygen"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.oxygenPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.oxygenPerCycle)} / cycle`}
             />
             <Metric
               label="Steel"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.steelPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.steelPerCycle)} / cycle`}
             />
             <Metric
               label="Plastic"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.plasticPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.plasticPerCycle)} / cycle`}
             />
             <Metric
               label="Electronics III"
-              value={`${formatQuantity(defaultRocketIiRecurringLogistics.electronicsIiiPerCycle)} / cycle`}
+              value={`${formatQuantity(logistics.electronicsIiiPerCycle)} / cycle`}
             />
           </div>
         </section>

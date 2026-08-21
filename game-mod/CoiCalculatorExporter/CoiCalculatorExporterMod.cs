@@ -16,7 +16,9 @@ using Mafi.Core.GameLoop;
 using Mafi.Core.Maintenance;
 using Mafi.Core.Mods;
 using Mafi.Core.Population;
+using Mafi.Core.Population.Edicts;
 using Mafi.Core.Prototypes;
+using Mafi.Core.Research;
 using Mafi.Core.Simulation;
 using Mafi.Core.Stats;
 using Mafi.Core.Trains;
@@ -60,6 +62,53 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     };
     private static readonly Dictionary<string, int> TrackedPrototypeIndices =
         createTrackedPrototypeIndices();
+    private static readonly TrackedResearchDefinition[] TrackedResearch = new[]
+    {
+        new TrackedResearchDefinition("vehiclesPollution", "ResearchVehiclesPollutionDec"),
+        new TrackedResearchDefinition("shipsPollution", "ResearchShipsPollutionDec"),
+        new TrackedResearchDefinition("trainsPollution", "ResearchTrainsPollutionDec"),
+        new TrackedResearchDefinition("cropYield", "ResearchCropYieldInc"),
+        new TrackedResearchDefinition("treeGrowthSpeed", "ResearchTreesGrowthSpeedInc"),
+        new TrackedResearchDefinition("rainwaterYield", "ResearchRainwaterYieldInc"),
+        new TrackedResearchDefinition("settlementWaterUse", "ResearchSettlementWaterDec"),
+        new TrackedResearchDefinition("unityCapacity", "ResearchUnityCapInc"),
+        new TrackedResearchDefinition("housingCapacity", "ResearchHousingCapInc"),
+        new TrackedResearchDefinition("focusPoints", "ResearchFocusIncreaseInc"),
+        new TrackedResearchDefinition("vehicleLimit", "ResearchVehicleLimitsInc"),
+        new TrackedResearchDefinition("vehiclesFuelUse", "ResearchVehiclesFuelDec"),
+        new TrackedResearchDefinition("shipsFuelUse", "ResearchShipsFuelDec"),
+        new TrackedResearchDefinition("trainsFuelUse", "ResearchTrainsFuelDec"),
+        new TrackedResearchDefinition("rocketsCapacity", "ResearchRocketsCapacityInc"),
+        new TrackedResearchDefinition("maintenanceOutput", "ResearchMaintenanceProductionInc"),
+        new TrackedResearchDefinition("worldMineOutput", "ResearchWorldMinesEfficiencyInc"),
+        new TrackedResearchDefinition("solarPower", "ResearchSolarPowerInc"),
+    };
+    private static readonly TrackedEdictDefinition[] TrackedEdicts = new[]
+    {
+        new TrackedEdictDefinition("growthPause", "Edict_GrowthPause"),
+        new TrackedEdictDefinition("growthBoost", "Edict_PopsBoostT1", "Edict_PopsBoostT2", "Edict_PopsBoostT3"),
+        new TrackedEdictDefinition("eviction", "Edict_PopsEviction"),
+        new TrackedEdictDefinition("quarantine", "Edict_PopsQuarantine"),
+        new TrackedEdictDefinition("foodSaver", "Edict_FoodConsumptionReduction", "Edict_FoodConsumptionReductionT2"),
+        new TrackedEdictDefinition("healthBoost", "Edict_HealthBonus", "Edict_HealthBonusT2"),
+        new TrackedEdictDefinition("plentyOfFood", "Edict_FoodConsumptionIncrease", "Edict_FoodConsumptionIncreaseT2"),
+        new TrackedEdictDefinition("moreHouseholdGoods", "Edict_HouseholdGoodsConsumptionIncrease", "Edict_HouseholdGoodsConsumptionIncreaseT2", "Edict_HouseholdGoodsConsumptionIncreaseT3"),
+        new TrackedEdictDefinition("moreAirConditioners", "Edict_HouseholdAppliancesConsumptionIncrease", "Edict_HouseholdAppliancesConsumptionIncreaseT2", "Edict_HouseholdAppliancesConsumptionIncreaseT3"),
+        new TrackedEdictDefinition("moreConsumerElectronics", "Edict_ConsumerElectronicsConsumptionIncrease", "Edict_ConsumerElectronicsConsumptionIncreaseT2", "Edict_ConsumerElectronicsConsumptionIncreaseT3"),
+        new TrackedEdictDefinition("vehiclesFuelSaver", "Edict_FuelReduction", "Edict_FuelReductionT2"),
+        new TrackedEdictDefinition("shipsFuelSaver", "Edict_ShipFuelReduction"),
+        new TrackedEdictDefinition("overloadedTrucks", "Edict_TruckCapacityIncrease", "Edict_TruckCapacityIncreaseT2"),
+        new TrackedEdictDefinition("maintenanceReducer", "Edict_MaintenanceReduction", "Edict_MaintenanceReductionT2", "Edict_MaintenanceReductionT3"),
+        new TrackedEdictDefinition("recyclingIncrease", "Edict_RecyclingIncrease", "Edict_RecyclingIncreaseT2", "Edict_RecyclingIncreaseT3", "Edict_RecyclingIncreaseT4", "Edict_RecyclingIncreaseT5"),
+        new TrackedEdictDefinition("farmingBoost", "Edict_FarmYieldIncrease", "Edict_FarmYieldIncreaseT2", "Edict_FarmYieldIncreaseT3"),
+        new TrackedEdictDefinition("waterSaver", "Edict_WaterConsumptionReduction", "Edict_WaterConsumptionReductionT2", "Edict_WaterConsumptionReductionT3"),
+        new TrackedEdictDefinition("cleanPanels", "Edict_SolarPowerIncrease", "Edict_SolarPowerIncreaseT2", "Edict_SolarPowerIncreaseT3"),
+        new TrackedEdictDefinition("researchEfficiency", "Edict_ResearchEfficiencyInc", "Edict_ResearchEfficiencyIncT2", "Edict_ResearchEfficiencyIncT3", "Edict_ResearchEfficiencyIncT4", "Edict_ResearchEfficiencyIncT5"),
+    };
+    private static readonly Dictionary<string, int> TrackedResearchIndices =
+        createTrackedResearchIndices();
+    private static readonly Dictionary<string, TrackedEdictTier> TrackedEdictTiers =
+        createTrackedEdictTiers();
 
     private IVehiclesManager m_vehiclesManager;
     private IEntitiesManager m_entitiesManager;
@@ -68,6 +117,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private FuelStatsCollector m_fuelStatsCollector;
     private MaintenanceManager m_maintenanceManager;
     private TrainsManager m_trainsManager;
+    private ResearchManager m_researchManager;
+    private EdictsManager m_edictsManager;
     private ICalendar m_calendar;
     private ISimLoopEvents m_simLoopEvents;
     private readonly int[] m_builtBuildings = new int[TrackedBuildingKeys.Length];
@@ -87,7 +138,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 7; } }
+    public int Version { get { return 8; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -124,6 +175,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_fuelStatsCollector = resolver.Resolve<FuelStatsCollector>();
         m_maintenanceManager = resolver.Resolve<MaintenanceManager>();
         m_trainsManager = resolver.Resolve<TrainsManager>();
+        m_researchManager = resolver.Resolve<ResearchManager>();
+        m_edictsManager = resolver.Resolve<EdictsManager>();
         m_calendar = resolver.Resolve<ICalendar>();
         m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
         initializeTrackedBuildingCounts();
@@ -220,6 +273,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_fuelStatsCollector = null;
         m_maintenanceManager = null;
         m_trainsManager = null;
+        m_researchManager = null;
+        m_edictsManager = null;
         m_calendar = null;
     }
 
@@ -242,7 +297,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             || m_electricityManager == null
             || m_fuelStatsCollector == null
             || m_maintenanceManager == null
-            || m_trainsManager == null)
+            || m_trainsManager == null
+            || m_researchManager == null
+            || m_edictsManager == null)
         {
             return;
         }
@@ -254,15 +311,17 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             int quotaUsed = Math.Max(0, quotaLimit - quotaRemaining);
             int workersAssigned = 0;
             TrainTrafficSnapshot trainTraffic = getTrainTrafficSnapshot();
+            int[] researchLevels = getResearchLevels();
+            EdictState[] edictStates = getEdictStates();
 
             foreach (var vehicle in m_vehiclesManager.AllVehicles)
             {
                 workersAssigned += EntityWithWorkersExtensions.WorkersAssigned(vehicle);
             }
 
-            StringBuilder json = new StringBuilder(1800);
+            StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":8,");
+            json.Append("\"schemaVersion\":9,");
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");
@@ -317,6 +376,33 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 }
             }
             json.Append("]},");
+            json.Append("\"research\":{");
+            for (int i = 0; i < TrackedResearch.Length; i++)
+            {
+                appendNumber(
+                    json,
+                    TrackedResearch[i].Key,
+                    researchLevels[i],
+                    i < TrackedResearch.Length - 1);
+            }
+            json.Append("},");
+            json.Append("\"edicts\":{");
+            for (int i = 0; i < TrackedEdicts.Length; i++)
+            {
+                EdictState state = edictStates[i];
+                json.Append('\"');
+                json.Append(TrackedEdicts[i].Key);
+                json.Append("\":{");
+                appendNumber(json, "enabledLevel", state.EnabledLevel, true);
+                appendNumber(json, "activeLevel", state.ActiveLevel, true);
+                appendNullableString(json, "inactiveReason", state.InactiveReason, false);
+                json.Append('}');
+                if (i < TrackedEdicts.Length - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("},");
             json.Append("\"history\":{");
             appendNumber(json, "windowMonths", HistoryWindowMonths, true);
             json.Append("\"maintenance\":{");
@@ -368,6 +454,95 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
 
         return result;
+    }
+
+    private static Dictionary<string, int> createTrackedResearchIndices()
+    {
+        Dictionary<string, int> result = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < TrackedResearch.Length; i++)
+        {
+            result.Add(TrackedResearch[i].PrototypeId, i);
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, TrackedEdictTier> createTrackedEdictTiers()
+    {
+        Dictionary<string, TrackedEdictTier> result =
+            new Dictionary<string, TrackedEdictTier>(StringComparer.Ordinal);
+
+        for (int edictIndex = 0; edictIndex < TrackedEdicts.Length; edictIndex++)
+        {
+            string[] prototypeIds = TrackedEdicts[edictIndex].TierPrototypeIds;
+            for (int tierIndex = 0; tierIndex < prototypeIds.Length; tierIndex++)
+            {
+                result.Add(
+                    prototypeIds[tierIndex],
+                    new TrackedEdictTier(edictIndex, tierIndex + 1));
+            }
+        }
+
+        return result;
+    }
+
+    private int[] getResearchLevels()
+    {
+        int[] levels = new int[TrackedResearch.Length];
+
+        foreach (ResearchNode node in m_researchManager.AllNodes)
+        {
+            int index;
+            if (TrackedResearchIndices.TryGetValue(node.Proto.Id.ToString(), out index))
+            {
+                levels[index] = Math.Max(0, node.TimesResearched);
+            }
+        }
+
+        return levels;
+    }
+
+    private EdictState[] getEdictStates()
+    {
+        EdictState[] states = new EdictState[TrackedEdicts.Length];
+        for (int i = 0; i < states.Length; i++)
+        {
+            states[i] = new EdictState();
+        }
+
+        foreach (Edict edict in m_edictsManager.AllEdicts)
+        {
+            TrackedEdictTier tier;
+            if (!TrackedEdictTiers.TryGetValue(edict.Prototype.Id.ToString(), out tier))
+            {
+                continue;
+            }
+
+            EdictState state = states[tier.EdictIndex];
+            if (edict.IsEnabled && tier.Level >= state.EnabledLevel)
+            {
+                state.EnabledLevel = tier.Level;
+                state.InactiveReason = edict.IsActive
+                    || String.IsNullOrWhiteSpace(edict.LastReasonForNotBeingActive)
+                    ? null
+                    : edict.LastReasonForNotBeingActive;
+            }
+
+            if (edict.IsActive && tier.Level > state.ActiveLevel)
+            {
+                state.ActiveLevel = tier.Level;
+            }
+        }
+
+        for (int i = 0; i < states.Length; i++)
+        {
+            if (states[i].ActiveLevel == states[i].EnabledLevel)
+            {
+                states[i].InactiveReason = null;
+            }
+        }
+
+        return states;
     }
 
     private void initializeTrackedBuildingCounts()
@@ -823,6 +998,32 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
+    private static void appendNullableString(
+        StringBuilder json,
+        string name,
+        string value,
+        bool trailingComma)
+    {
+        json.Append('\"');
+        json.Append(name);
+        json.Append("\":");
+        if (value == null)
+        {
+            json.Append("null");
+        }
+        else
+        {
+            json.Append('\"');
+            appendEscapedString(json, value);
+            json.Append('\"');
+        }
+
+        if (trailingComma)
+        {
+            json.Append(',');
+        }
+    }
+
     private static void appendEscapedString(StringBuilder json, string value)
     {
         for (int i = 0; i < value.Length; i++)
@@ -864,6 +1065,49 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             Value = value;
             SampleMonths = sampleMonths;
         }
+    }
+
+    private sealed class TrackedResearchDefinition
+    {
+        public readonly string Key;
+        public readonly string PrototypeId;
+
+        public TrackedResearchDefinition(string key, string prototypeId)
+        {
+            Key = key;
+            PrototypeId = prototypeId;
+        }
+    }
+
+    private sealed class TrackedEdictDefinition
+    {
+        public readonly string Key;
+        public readonly string[] TierPrototypeIds;
+
+        public TrackedEdictDefinition(string key, params string[] tierPrototypeIds)
+        {
+            Key = key;
+            TierPrototypeIds = tierPrototypeIds;
+        }
+    }
+
+    private sealed class TrackedEdictTier
+    {
+        public readonly int EdictIndex;
+        public readonly int Level;
+
+        public TrackedEdictTier(int edictIndex, int level)
+        {
+            EdictIndex = edictIndex;
+            Level = level;
+        }
+    }
+
+    private sealed class EdictState
+    {
+        public int EnabledLevel;
+        public int ActiveLevel;
+        public string InactiveReason;
     }
 
     private sealed class TrackedEntityState
