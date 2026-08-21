@@ -170,7 +170,7 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
         int activeTrains = 0;
         int stuckTrains = 0;
         int stuckAfterCycles = Math.Min(
-            120,
+            12,
             Math.Max(1, JsonConfig.GetInt("stuck_after_cycles")));
         Duration stuckAfter = Duration.OneMonth * stuckAfterCycles;
 

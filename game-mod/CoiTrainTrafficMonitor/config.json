@@ -2,7 +2,7 @@
   "stuck_after_cycles": {
     "default": 1,
     "min": 1,
-    "max": 120,
+    "max": 12,
     "is_integer": true,
     "description": "Train considered stuck after this many consecutive production cycles waiting for track clearance."
   },
