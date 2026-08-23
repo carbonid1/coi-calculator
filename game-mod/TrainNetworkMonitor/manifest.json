@@ -12,7 +12,6 @@
     "https://github.com/carbonid1/coi-calculator/issues"
   ],
   "mod_dependencies": ["COI-TrainsDlc"],
-  "incompatible_mods": ["CoiTrainTrafficMonitor"],
   "primary_dlls": ["TrainNetworkMonitor.dll"],
   "non_locking_dll_load": true,
   "can_add_to_saved_game": true,
