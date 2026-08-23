@@ -19,6 +19,7 @@ export const syncedInfrastructureBuildingIds = [
   "oreSortingPlant",
   "oreSortingPlantLarge",
   "stackerTower",
+  "trainDepot",
   "maintenanceStatue",
 ] as const;
 
@@ -93,8 +94,12 @@ export interface SyncedEdictState {
 
 export type SyncedEdictStates = Record<EdictId, SyncedEdictState>;
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 9 as const;
-export type SupportedGameStateSchemaVersion = 6 | 7 | 8 | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
+export interface SyncedReserves {
+  gold: number;
+}
+
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 11 as const;
+export type SupportedGameStateSchemaVersion = 6 | 7 | 8 | 9 | 10 | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
 
 export interface GameStateSnapshot {
   schemaVersion: SupportedGameStateSchemaVersion;
@@ -114,6 +119,7 @@ export interface GameStateSnapshot {
   trainTraffic: SyncedTrainTraffic | null;
   research: SyncedResearchLevels | null;
   edicts: SyncedEdictStates | null;
+  reserves: SyncedReserves | null;
   history: {
     windowMonths: 120;
     maintenance: Record<"maintenanceI" | "maintenanceII" | "maintenanceIII", SyncedHistoryAverage>;
@@ -145,9 +151,12 @@ const isBuildingCount = (value: unknown): value is SyncedBuildingCount =>
   isNonNegativeInteger(value.running) &&
   value.running <= value.built;
 
-type LegacySyncedBuildingId = Exclude<SyncedBuildingId, "moltenStationModuleElectrified">;
+type LegacySyncedBuildingId = Exclude<
+  SyncedBuildingId,
+  "moltenStationModuleElectrified" | "trainDepot"
+>;
 type CompatibleBuildingCounts = Record<LegacySyncedBuildingId, SyncedBuildingCount> &
-  Partial<Record<"moltenStationModuleElectrified", SyncedBuildingCount>>;
+  Partial<Record<"moltenStationModuleElectrified" | "trainDepot", SyncedBuildingCount>>;
 
 const isCompatibleBuildingCounts = (
   value: unknown,
@@ -158,7 +167,13 @@ const isCompatibleBuildingCounts = (
   return syncedBuildingIds.every(id => {
     const count = value[id];
 
-    return schemaVersion === 6 && id === "moltenStationModuleElectrified"
+    const isOptionalLegacyCount = (
+      schemaVersion === 6 && id === "moltenStationModuleElectrified"
+    ) || (
+      schemaVersion <= 10 && id === "trainDepot"
+    );
+
+    return isOptionalLegacyCount
       ? count === undefined || isBuildingCount(count)
       : isBuildingCount(count);
   });
@@ -301,6 +316,12 @@ const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
   return states;
 };
 
+const normalizeReserves = (value: unknown): SyncedReserves | null => {
+  if (!isUnknownRecord(value) || !isNonNegativeInteger(value.gold)) return null;
+
+  return { gold: value.gold };
+};
+
 export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | null => {
   if (!isUnknownRecord(value)) return null;
 
@@ -311,6 +332,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 6 &&
     schemaVersion !== 7 &&
     schemaVersion !== 8 &&
+    schemaVersion !== 9 &&
+    schemaVersion !== 10 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null;
@@ -330,6 +353,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const trainTraffic = isTrainTraffic(snapshot.trainTraffic) ? snapshot.trainTraffic : null;
   const research = normalizeResearchLevels(snapshot.research);
   const edicts = normalizeEdictStates(snapshot.edicts);
+  const reserves = normalizeReserves(snapshot.reserves);
   const history = isUnknownRecord(snapshot.history) ? snapshot.history : null;
 
   if (
@@ -350,7 +374,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     !isNonNegativeInteger(quotaRemaining) ||
     quotaUsed + quotaRemaining !== quotaLimit ||
     (schemaVersion >= 8 && !trainTraffic) ||
-    (schemaVersion === CURRENT_GAME_STATE_SCHEMA_VERSION && (!research || !edicts)) ||
+    (schemaVersion >= 9 && (!research || !edicts)) ||
+    (schemaVersion >= 10 && !reserves) ||
     !history ||
     history.windowMonths !== 120
   ) {
@@ -414,6 +439,10 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
         built: 0,
         running: 0,
       },
+      trainDepot: syncedBuildings.trainDepot ?? {
+        built: 0,
+        running: 0,
+      },
     },
     vehicles: {
       total,
@@ -427,8 +456,9 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
       quotaRemaining,
     },
     trainTraffic,
-    research: schemaVersion === CURRENT_GAME_STATE_SCHEMA_VERSION ? research : null,
-    edicts: schemaVersion === CURRENT_GAME_STATE_SCHEMA_VERSION ? edicts : null,
+    research: schemaVersion >= 9 ? research : null,
+    edicts: schemaVersion >= 9 ? edicts : null,
+    reserves: schemaVersion >= 10 ? reserves : null,
     history: {
       windowMonths: 120,
       maintenance: { maintenanceI, maintenanceII, maintenanceIII },
@@ -447,8 +477,5 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   };
 };
 
-export const isGameStateSnapshot = (value: unknown): value is GameStateSnapshot =>
-  isUnknownRecord(value) &&
-  isUnknownRecord(value.buildings) &&
-  isBuildingCount(value.buildings.moltenStationModuleElectrified) &&
+export const isGameStateSnapshot = (value: unknown): boolean =>
   normalizeGameStateSnapshot(value) !== null;

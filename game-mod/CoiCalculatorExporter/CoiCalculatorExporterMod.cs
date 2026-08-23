@@ -8,6 +8,7 @@ using System.Threading;
 using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
+using Mafi.Core.Buildings.Storages;
 using Mafi.Core.Entities;
 using Mafi.Core.Entities.Static;
 using Mafi.Core.Factory.ElectricPower;
@@ -28,6 +29,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 {
     private static readonly TimeSpan ExportInterval = TimeSpan.FromSeconds(5);
     private const int HistoryWindowMonths = 120;
+    private const string GoldProductId = "Product_Gold";
     private const string HydrogenProductId = "Product_Hydrogen";
     private const string MaintenanceT1ProductId = "Product_Virtual_MaintenanceT1";
     private const string MaintenanceT2ProductId = "Product_Virtual_MaintenanceT2";
@@ -42,6 +44,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         "oreSortingPlant",
         "oreSortingPlantLarge",
         "stackerTower",
+        "trainDepot",
         "solarPanel",
         "solarPanelMono",
         "maintenanceStatue",
@@ -56,6 +59,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         "OreSortingPlantT1",
         "OreSortingPlantT2",
         "StackerTower",
+        "TrainDepot",
         "SolarPanel",
         "SolarPanelMono",
         "StatueOfMaintenanceGolden",
@@ -138,7 +142,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 8; } }
+    public int Version { get { return 10; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -313,6 +317,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             TrainTrafficSnapshot trainTraffic = getTrainTrafficSnapshot();
             int[] researchLevels = getResearchLevels();
             EdictState[] edictStates = getEdictStates();
+            int goldReserve = getGoldReserveQuantity();
 
             foreach (var vehicle in m_vehiclesManager.AllVehicles)
             {
@@ -321,7 +326,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":9,");
+            json.Append("\"schemaVersion\":11,");
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");
@@ -402,6 +407,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     json.Append(',');
                 }
             }
+            json.Append("},");
+            json.Append("\"reserves\":{");
+            appendNumber(json, "gold", goldReserve, false);
             json.Append("},");
             json.Append("\"history\":{");
             appendNumber(json, "windowMonths", HistoryWindowMonths, true);
@@ -543,6 +551,52 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
 
         return states;
+    }
+
+    private int getGoldReserveQuantity()
+    {
+        HashSet<EntityId> stationLinkedStorageIds = new HashSet<EntityId>();
+
+        foreach (IEntity entity in m_entitiesManager.Entities)
+        {
+            ITrainStationModule stationModule = entity as ITrainStationModule;
+            if (stationModule == null)
+            {
+                continue;
+            }
+
+            foreach (StorageBase connectedStorage in stationModule.GetConnectedStorages())
+            {
+                stationLinkedStorageIds.Add(connectedStorage.Id);
+            }
+        }
+
+        long total = 0;
+        foreach (IEntity entity in m_entitiesManager.Entities)
+        {
+            Storage storage = entity as Storage;
+            if (storage == null
+                || storage.IsDestroyed
+                || !storage.IsConstructed
+                || stationLinkedStorageIds.Contains(storage.Id)
+                || storage.AssignedInputs.Count > 0
+                || !storage.StoredProduct.HasValue
+                || !String.Equals(
+                    storage.StoredProduct.Value.Id.ToString(),
+                    GoldProductId,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            total += storage.CurrentQuantity.Value;
+            if (total >= Int32.MaxValue)
+            {
+                return Int32.MaxValue;
+            }
+        }
+
+        return (int)total;
     }
 
     private void initializeTrackedBuildingCounts()

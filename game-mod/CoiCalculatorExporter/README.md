@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.8 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.10 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -16,6 +16,12 @@ research categories and selected/active levels for its 19 modeled edicts. An
 edict selected in the game but prevented from running retains its inactivity
 reason; calculator effects use only the active level.
 
+Schema 10 and newer also export the actual Gold quantity in completed standalone storage.
+Storage connected to a train station and storage with an assigned incoming truck
+route are excluded, so dedicated import buffers are not treated as freely
+available reserves. Older cached snapshots remain valid but report reserves as
+unavailable rather than as a fabricated zero.
+
 A train counts as stuck after waiting for track clearance for at least one
 production cycle (one in-game month). The calculator shows a warning for any
 sustained wait and a red alert once the count reaches both three trains and 10%
@@ -26,7 +32,9 @@ metadata; the manifest explicitly allows the mod to be removed again.
 
 Tracked infrastructure currently includes Electric locomotive II, all four
 electrified station module types, both ore sorting plants, Stacker towers, and
-The Statue of Maintenance (Golden), plus both solar-panel types. Existing
+Train depots, and The Statue of Maintenance (Golden), plus both solar-panel
+types. Train depots contribute their eight assigned workers to calculator
+workforce demand; their intermittent 250 kW draw is intentionally excluded. Existing
 snapshots remain readable across additive exporter updates; without any synced
 snapshot, calculator-owned counts start at zero.
 

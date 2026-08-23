@@ -124,6 +124,7 @@ export const buildings: Record<string, BuildingData> = {
   "Loose station module (electrified)": { workers: 1, electricityKw: 50 },
   "Molten station module (electrified)": { workers: 2, electricityKw: 150 },
   "Stacker tower": { workers: 4, electricityKw: 0 },
+  "Train depot": { workers: 8, electricityKw: 0 },
   "Vehicles": { workers: 1, electricityKw: 0 },
   "Cooling Tower (Large)": {
     workers: 0,

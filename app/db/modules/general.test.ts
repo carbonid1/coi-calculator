@@ -36,6 +36,29 @@ it("models the physical General Low Steam recovery cluster", () => {
   });
 });
 
+it("recycles Gold Scrap while keeping the mined-Gold chain paused", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const pausedGoldRecipeIds = [
+    "gold-furnace-concentrate",
+    "settling-tank-gold",
+    "crusher-large-gold-crushing",
+    "crusher-large-gold-milling",
+  ];
+  const goldLines = buildModuleLines(general, preset ?? null).lines.filter(
+    ({ recipe }) => recipe.id === "gold-furnace-scrap"
+      || pausedGoldRecipeIds.includes(recipe.id),
+  );
+  const scrapFurnace = goldLines.find(({ recipe }) => recipe.id === "gold-furnace-scrap");
+  const pausedLines = goldLines.filter(({ recipe }) => pausedGoldRecipeIds.includes(recipe.id));
+
+  expect(goldLines).toHaveLength(pausedGoldRecipeIds.length + 1);
+  expect(scrapFurnace).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+  expect(pausedLines.every(({ activeBuildings }) => activeBuildings === 0)).toBe(true);
+  expect(pausedLines.every(({ builtBuildings }) => builtBuildings > 0)).toBe(true);
+});
+
 it("combines Tree Sapling and food-process Biomass in the local General recovery line", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId

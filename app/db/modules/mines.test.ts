@@ -19,24 +19,3 @@ it("demand-mines Bauxite and Titanium Ore for the expansion chains", () => {
   expect(source("titanium-map-mine")?.actualOutputs)
     .toEqual([{ resourceId: "titaniumOre", quantity: 38.8 }]);
 });
-
-it("uses the virtual Gold provision only for the unresolved deficit", () => {
-  const lines = buildModuleLines(mines, null).lines;
-  const result = calculateNet(lines, { gold: 2 }, 90, {}, { gold: 5 });
-  const provision = result.sourceResults.find(({ recipe }) => (
-    recipe.id === "gold-virtual-provision"
-  ));
-
-  expect(provision?.recipe.outputs).toEqual([{ resourceId: "gold", quantity: 0 }]);
-  expect(provision?.actualOutputs).toEqual([{ resourceId: "gold", quantity: 3 }]);
-});
-
-it("stops the virtual Gold provision when there is no deficit", () => {
-  const lines = buildModuleLines(mines, null).lines;
-  const result = calculateNet(lines, { gold: 5 }, 90, {}, { gold: 5 });
-  const provision = result.sourceResults.find(({ recipe }) => (
-    recipe.id === "gold-virtual-provision"
-  ));
-
-  expect(provision?.actualOutputs).toEqual([{ resourceId: "gold", quantity: 0 }]);
-});

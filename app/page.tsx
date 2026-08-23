@@ -24,6 +24,7 @@ import {
   InfiniteResearchSettings,
   ResearchSettings,
 } from "./components/ResearchSettings";
+import { ReservesView } from "./components/ReservesView";
 import { SharedRecipeCard } from "./components/SharedRecipeCard";
 import { SinkCard } from "./components/SinkCard";
 import { SolarPowerSettings } from "./components/SolarPowerSettings";
@@ -70,6 +71,11 @@ import {
   NUCLEAR_MODULE_ID,
 } from "./db/modules/nuclear";
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from "./db/modules/research";
+import {
+  createReservesModule,
+  GOLD_RESERVE_RECIPE_ID,
+  RESERVES_MODULE_ID,
+} from "./db/modules/reserves";
 import {
   createSolarPowerModule,
   SOLAR_POWER_MODULE_ID,
@@ -119,6 +125,7 @@ import { calculateTreeGrowthSpeed } from "./helpers/modifiers/calculate-tree-gro
 import { calculateUnityCapacity } from "./helpers/modifiers/calculate-unity-capacity";
 import { getRecipeOutputQuantity } from "./helpers/modifiers/recipe-output";
 import { extractModuleResult } from "./helpers/module-result/module-result";
+import { getReserveDrawPerProductionCycle } from "./helpers/reserves/reserves";
 import { useGameState } from "./hooks/use-game-state";
 
 const groupLabels: Record<RecipeGroup, string> = {
@@ -335,6 +342,10 @@ const Page = () => {
       return createHousingModule(housingCount, housingCapacityLevel);
     }
 
+    if (module.id === RESERVES_MODULE_ID) {
+      return createReservesModule(gameState.snapshot?.reserves ?? null);
+    }
+
     return module;
   });
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel);
@@ -420,6 +431,11 @@ const Page = () => {
     recyclingEfficiencyPercent,
     outputModifiers,
     shipsFuelUse.multiplier,
+  );
+  const goldReserveDrawPerProductionCycle = getReserveDrawPerProductionCycle(
+    factoryResult.calculation.sourceResults,
+    GOLD_RESERVE_RECIPE_ID,
+    "gold",
   );
   const unityBudget = calculateUnityBudget({
     housing: activeHousingType,
@@ -683,10 +699,18 @@ const Page = () => {
         />
       )}
 
+      {activeModule?.id === RESERVES_MODULE_ID && (
+        <ReservesView
+          goldBalance={gameState.snapshot?.reserves?.gold ?? null}
+          goldDrawPerProductionCycle={goldReserveDrawPerProductionCycle}
+        />
+      )}
+
       {moduleResult
         && activeModule
         && activeModule.id !== SOLAR_POWER_MODULE_ID
-        && activeModule.id !== STATIC_INFRASTRUCTURE_MODULE_ID && (
+        && activeModule.id !== STATIC_INFRASTRUCTURE_MODULE_ID
+        && activeModule.id !== RESERVES_MODULE_ID && (
         <>
           {activeModule.id === MINES_MODULE_ID && (
             <MinesView

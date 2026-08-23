@@ -66,6 +66,14 @@ export const staticInfrastructureItems = [
     workers: 4,
   },
   {
+    id: "trainDepot",
+    recipeId: "static-train-depot",
+    name: "Train depot",
+    detail: "8 workers each; intermittent power is excluded",
+    building: "Train depot",
+    workers: 8,
+  },
+  {
     id: "vehicles",
     recipeId: "static-vehicles",
     name: "Vehicles",
@@ -95,6 +103,7 @@ export const emptyStaticInfrastructureConfig: StaticInfrastructureConfig = {
   looseStationModuleElectrified: 0,
   moltenStationModuleElectrified: 0,
   stackerTower: 0,
+  trainDepot: 0,
   vehicles: 0,
   maintenanceStatue: 0,
 };
@@ -122,6 +131,7 @@ export const normalizeStaticInfrastructureConfig = (
     Math.trunc(config.moltenStationModuleElectrified),
   ),
   stackerTower: Math.max(0, Math.trunc(config.stackerTower)),
+  trainDepot: Math.max(0, Math.trunc(config.trainDepot)),
   vehicles: Math.max(0, Math.trunc(config.vehicles)),
   maintenanceStatue: Math.max(0, Math.trunc(config.maintenanceStatue)),
 });
@@ -161,6 +171,7 @@ export const clampStaticInfrastructureRunningConfig = (
     looseStationModuleElectrified: clamp("looseStationModuleElectrified"),
     moltenStationModuleElectrified: clamp("moltenStationModuleElectrified"),
     stackerTower: clamp("stackerTower"),
+    trainDepot: clamp("trainDepot"),
     vehicles: clamp("vehicles"),
     maintenanceStatue: clamp("maintenanceStatue"),
   };

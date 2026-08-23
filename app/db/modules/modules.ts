@@ -9,6 +9,7 @@ import { mines } from "./mines";
 import { nuclear } from "./nuclear";
 import { processSteam } from "./process-steam";
 import { research } from "./research";
+import { reserves } from "./reserves";
 import { solarPower } from "./solar-power";
 import { spacePointsExpansion } from "./space-points-expansion";
 import { spaceStation } from "./space-station";
@@ -59,6 +60,7 @@ export const modules: [Module, ...Module[]] = [
   housing,
   staticInfrastructure,
   mines,
+  reserves,
   nuclear,
   solarPower,
   computing,

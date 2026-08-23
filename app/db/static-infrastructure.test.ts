@@ -15,6 +15,7 @@ const syncedConfig: StaticInfrastructureConfig = {
   looseStationModuleElectrified: 143,
   moltenStationModuleElectrified: 0,
   stackerTower: 0,
+  trainDepot: 2,
   vehicles: 39,
   maintenanceStatue: 3,
 };
@@ -28,7 +29,7 @@ describe("static infrastructure workforce", () => {
   it("includes the aggregate vehicle workers in the infrastructure total", () => {
     expect(calculateStaticInfrastructureTotals(
       syncedConfig,
-    ).workers).toBe(432);
+    ).workers).toBe(448);
   });
 
   it("uses only running buildings for workforce and fuel drains", () => {
@@ -42,11 +43,12 @@ describe("static infrastructure workforce", () => {
         oreSortingPlant: 6,
         electricLocomotiveII: 19,
         stackerTower: 2,
+        trainDepot: 1,
         maintenanceStatue: 2,
       },
     );
 
-    expect(totals.workers).toBe(432);
+    expect(totals.workers).toBe(440);
     expect(totals.fuelGasPerCycle).toBe(4);
   });
 });

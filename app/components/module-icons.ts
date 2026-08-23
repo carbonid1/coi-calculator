@@ -1,6 +1,7 @@
 import {
   Atom,
   Bird,
+  Archive,
   Boxes,
   Cloud,
   Construction,
@@ -29,6 +30,7 @@ export const moduleIcons: Partial<Record<string, LucideIcon>> = {
   housing: Users,
   "static-infrastructure": Construction,
   mines: Pickaxe,
+  reserves: Archive,
   nuclear: Atom,
   "solar-power": Sun,
   computing: Server,

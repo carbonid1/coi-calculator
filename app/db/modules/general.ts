@@ -206,8 +206,12 @@ export const general: Module = {
       activeBuildings: {
         "air-separator-nitrogen": 0,
         "chemical-plant-ii-ammonia": 0,
+        "gold-furnace-scrap": 1,
+        "gold-furnace-concentrate": 0,
+        "settling-tank-gold": 0,
+        "crusher-large-gold-crushing": 0,
+        "crusher-large-gold-milling": 0,
         "settling-tank": 2,
-        "settling-tank-gold": 1,
         "glass-maker-ii": 3,
         "silicon-reactor-poly-silicon": 4,
         "copper-electrolysis-acid": 8,
