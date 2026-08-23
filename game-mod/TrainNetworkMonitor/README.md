@@ -64,3 +64,8 @@ Train Network Monitor is an unofficial, community-made mod for Captain of
 Industry. Captain of Industry, MaFi Games, and related names and assets belong
 to their respective owners. This mod is not affiliated with or endorsed by
 MaFi Games.
+
+## Support and feedback
+
+Report bugs, ask questions, or suggest features through
+[GitHub Issues](https://github.com/carbonid1/coi-calculator/issues).

@@ -7,6 +7,7 @@
 - Source license: **MIT**. The mod's own `LICENSE.txt` and Kayser's separate helper attribution must both remain in every release.
 - Hub terms: uploading also licenses the uploaded content under the COI Hub's required **CC BY 4.0** user-content terms. This coexists with the MIT source license.
 - Source code: `https://github.com/carbonid1/coi-calculator/tree/main/game-mod/TrainNetworkMonitor`
+- Support and feedback: `https://github.com/carbonid1/coi-calculator/issues`
 
 The Hub reads the title, short description, detailed HTML description, game versions, dependencies, authors, and source link from `manifest.json`. It reads the release notes from `changelog.txt` and the square card image from `Thumbnail.png`.
 

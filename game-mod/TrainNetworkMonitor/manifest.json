@@ -6,8 +6,11 @@
   "description_long": "<b>Train Network Monitor</b>\n\nA red alert for rail networks too large to watch one train at a time.\n\n<b>Why this mod exists</b>\nMy island runs on trains. Many routes share the same stations, junctions, and stretches of track, so one blockage can quietly spread through an interdependent logistics network. The train list tells you what individual trains are doing, but it does not raise a fleet-wide warning when the network starts locking up. This mod does.\n\n<b>One jam, one alert</b>\nWhen sustained congestion affects at least three trains and at least 10% of the active fleet, the mod raises one critical alert in the game's normal Alerts panel. Its (Nx) counter shows how many trains are affected, without flooding the panel with one notification per train. The alert clears automatically when traffic recovers.\n\n<b>Find the blockage</b>\nClick the alert to focus the longest-waiting train. Click again to cycle through the other affected trains.\n\n<b>Choose how long to wait</b>\nSet the delay from 1 to 12 in-game months; 12 months is one in-game year. The default is one month.\n\n<b>Optional automatic pause</b>\nEnable Pause on red alert to pause once when this mod's traffic-jam alert begins. Other game alerts are unaffected. The mod never resumes the game automatically, and manually resuming during the same jam will not immediately pause it again.\n\n<b>What it changes</b>\nThe monitor watches the game's explicit waiting-for-track states. It does not alter train routing, priorities, schedules, or behavior. Settings are stored per save, and the mod can be added to or removed from an existing game.\n\n<i>Requires the Trains expansion.</i>",
   "authors": "carbonid1",
   "min_game_version": "0.8.7",
-  "max_verified_game_version": "0.8.7",
-  "links": ["https://github.com/carbonid1/coi-calculator/tree/main/game-mod/TrainNetworkMonitor"],
+  "max_verified_game_version": "0.8.7a",
+  "links": [
+    "https://github.com/carbonid1/coi-calculator/tree/main/game-mod/TrainNetworkMonitor",
+    "https://github.com/carbonid1/coi-calculator/issues"
+  ],
   "mod_dependencies": ["COI-TrainsDlc"],
   "incompatible_mods": ["CoiTrainTrafficMonitor"],
   "primary_dlls": ["TrainNetworkMonitor.dll"],
