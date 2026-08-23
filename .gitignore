@@ -2,6 +2,7 @@ node_modules
 .next
 dist
 out
+Builds/
 .DS_Store
 *.log
 .env
@@ -10,6 +11,7 @@ out
 next-env.d.ts
 .vercel
 game-mod/**/bin/
+game-mod/TrainNetworkMonitor/portal-assets/
 
 .claude/skills/design-system
 .claude/skills/design-system-package

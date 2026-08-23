@@ -1,4 +1,4 @@
-# Train Traffic Monitor
+# Train Network Monitor
 
 Standalone Captain of Industry 0.8.7 mod that raises a continuous critical
 notification when the train fleet is traffic-jammed.
@@ -25,22 +25,42 @@ The mod never resumes the game automatically, and manually resuming while the
 same alert remains active does not immediately pause the game again.
 
 The settings hub follows the `CoI.AutoHelpers.Settings` convention used by
-other Captain of Industry mods. Train Traffic Monitor joins an existing hub or
+other Captain of Industry mods. Train Network Monitor joins an existing hub or
 creates it when loaded first, so compatible mods share one button and window.
 The standalone settings button remains as a fallback if the cooperative hub
 cannot initialize.
 
 The mod changes no train behavior. It stores only these two settings in the
-save and can be used without the CoI Calculator Exporter.
+save and can be used without the CoI Calculator Exporter. It requires the
+official Trains expansion.
 
 Build from the repository root:
 
 ```powershell
-.\scripts\build-train-traffic-mod.ps1
+.\scripts\build-train-network-monitor.ps1
 ```
 
-Build and install to `%APPDATA%\Captain of Industry\Mods\CoiTrainTrafficMonitor`:
+Build and install to `%APPDATA%\Captain of Industry\Mods\TrainNetworkMonitor`:
 
 ```powershell
-.\scripts\build-train-traffic-mod.ps1 -Install
+.\scripts\build-train-network-monitor.ps1 -Install
 ```
+
+Build the COI Hub upload ZIP without installing it:
+
+```powershell
+.\scripts\build-train-network-monitor.ps1 -Package
+```
+
+The upload archive is written to `Builds/TrainNetworkMonitor-<version>.zip`.
+
+## License and attribution
+
+Train Network Monitor is licensed under the MIT License; see `LICENSE.txt`.
+The bundled cooperative settings helper remains covered by Kayser's separate
+MIT notice in `CoI.AutoHelpers.Settings.LICENSE.txt`.
+
+Train Network Monitor is an unofficial, community-made mod for Captain of
+Industry. Captain of Industry, MaFi Games, and related names and assets belong
+to their respective owners. This mod is not affiliated with or endorsed by
+MaFi Games.

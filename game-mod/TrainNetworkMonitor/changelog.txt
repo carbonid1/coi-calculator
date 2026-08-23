@@ -1,0 +1,8 @@
+0.3.7
+- Added a fleet-wide traffic monitor for trains that remain in the game's explicit waiting-for-track states.
+- Added one grouped critical alert when at least three trains and at least 10% of the active fleet are affected. The alert's (Nx) counter shows the current number of blocked trains.
+- Clicking the alert focuses the longest-waiting train first, then cycles through the other affected trains.
+- Added a save-scoped delay setting from 1 to 12 in-game months (12 months = 1 in-game year).
+- Added an opt-in setting that pauses once when this mod's red alert begins. Other alerts are unaffected, and the mod never resumes the game automatically.
+- Added cooperative Mod Settings integration using the CoI.AutoHelpers.Settings convention.
+- The mod can be added to or removed from existing saves and does not alter train routing or behavior.

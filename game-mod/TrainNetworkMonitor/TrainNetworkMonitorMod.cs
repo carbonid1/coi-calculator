@@ -23,15 +23,15 @@ using Mafi.Unity.UiToolkit.Component;
 using Mafi.Unity.UiToolkit.Library;
 using Mafi.Unity.UiToolkit.Themes;
 
-public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
+public sealed class TrainNetworkMonitorMod : IMod, IDisposable
 {
     private const string SettingsIconPath =
         "Assets/Unity/UserInterface/General/Configure.svg";
 
     private static readonly EntityNotificationProto.ID FleetJamNotificationId =
-        new EntityNotificationProto.ID("CoiTrainTrafficMonitor_FleetJam");
+        new EntityNotificationProto.ID("TrainNetworkMonitor_FleetJam");
     private static readonly EntityNotificationProto.ID GroupedFleetJamNotificationId =
-        new EntityNotificationProto.ID("CoiTrainTrafficMonitor_FleetJam_Grouped");
+        new EntityNotificationProto.ID("TrainNetworkMonitor_FleetJam_Grouped");
 
     private NotificationProto m_fleetJamNotificationProto;
     private NotificationProto m_groupedFleetJamNotificationProto;
@@ -42,18 +42,18 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
     private bool m_pauseHandledForCurrentAlert;
     private IGameLoopEvents m_gameLoopEvents;
     private IInputScheduler m_inputScheduler;
-    private TrainTrafficSettingsController m_settingsController;
+    private TrainNetworkSettingsController m_settingsController;
     private TrainsManager m_trainsManager;
     private ISimLoopEvents m_simLoopEvents;
 
-    public string Name { get { return "Train Traffic Monitor"; } }
+    public string Name { get { return "Train Network Monitor"; } }
     public int Version { get { return 1; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
     public ModJsonConfig JsonConfig { get; private set; }
 
-    public CoiTrainTrafficMonitorMod(ModManifest manifest)
+    public TrainNetworkMonitorMod(ModManifest manifest)
     {
         Manifest = manifest;
         JsonConfig = new ModJsonConfig(this);
@@ -106,7 +106,7 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
         m_gameLoopEvents.RegisterRendererInitState(this, () => initializeSettingsUi(resolver));
 
         updateNotification();
-        Log.Info("Train Traffic Monitor: fleet traffic alerts enabled.");
+        Log.Info("Train Network Monitor: fleet traffic alerts enabled.");
     }
 
     public void MigrateJsonConfig(VersionSlim savedVersion, Dict<string, object> savedValues)
@@ -160,39 +160,39 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
                 resolver.Resolve<UiRoot>(),
                 resolver.Resolve<IRootEscapeManager>());
             ModSettings.RegisterTab(new ModSettingsTab(
-                "CoiTrainTrafficMonitor",
-                new LocStrFormatted("Train Traffic Monitor"),
+                "TrainNetworkMonitor",
+                new LocStrFormatted("Train Network Monitor"),
                 new LocStrFormatted("Settings"),
                 300,
-                () => new TrainTrafficSettingsPanel(JsonConfig),
+                () => new TrainNetworkSettingsPanel(JsonConfig),
                 SettingsIconPath,
                 SettingsIconPath));
             Log.Info(
-                "Train Traffic Monitor: registered in cooperative Mod Settings hub.");
+                "Train Network Monitor: registered in cooperative Mod Settings hub.");
             return;
         }
         catch (Exception exception)
         {
             Log.Info(
-                "Train Traffic Monitor: cooperative Mod Settings hub failed; "
+                "Train Network Monitor: cooperative Mod Settings hub failed; "
                 + "using standalone settings: "
                 + exception);
         }
 
         try
         {
-            m_settingsController = new TrainTrafficSettingsController(
+            m_settingsController = new TrainNetworkSettingsController(
                 resolver.Resolve<ControllerContext>(),
                 resolver.Resolve<ToolbarHud>(),
                 JsonConfig);
             Log.Info(
-                "Train Traffic Monitor: shared Mod Settings hub not found; "
+                "Train Network Monitor: shared Mod Settings hub not found; "
                 + "standalone settings button enabled.");
         }
         catch (Exception exception)
         {
             Log.Info(
-                "Train Traffic Monitor: standalone settings UI unavailable: "
+                "Train Network Monitor: standalone settings UI unavailable: "
                 + exception);
         }
     }
@@ -333,15 +333,15 @@ public sealed class CoiTrainTrafficMonitorMod : IMod, IDisposable
     }
 }
 
-internal sealed class TrainTrafficSettingsController
-    : WindowController<TrainTrafficSettingsWindow>, IToolbarItemController
+internal sealed class TrainNetworkSettingsController
+    : WindowController<TrainNetworkSettingsWindow>, IToolbarItemController
 {
     private const string SettingsIconPath =
         "Assets/Unity/UserInterface/General/Configure.svg";
 
     private readonly ModJsonConfig m_jsonConfig;
 
-    public TrainTrafficSettingsController(
+    public TrainNetworkSettingsController(
         ControllerContext context,
         ToolbarHud toolbarHud,
         ModJsonConfig jsonConfig)
@@ -349,7 +349,7 @@ internal sealed class TrainTrafficSettingsController
     {
         m_jsonConfig = jsonConfig;
         toolbarHud.AddMainMenuButton(
-            new LocStrFormatted("Train Traffic Monitor settings"),
+            new LocStrFormatted("Train Network Monitor settings"),
             this,
             SettingsIconPath,
             221f,
@@ -366,24 +366,24 @@ internal sealed class TrainTrafficSettingsController
 
     public bool DeactivateShortcutsIfNotVisible { get { return false; } }
 
-    protected override TrainTrafficSettingsWindow CreateWindow()
+    protected override TrainNetworkSettingsWindow CreateWindow()
     {
-        return new TrainTrafficSettingsWindow(m_jsonConfig);
+        return new TrainNetworkSettingsWindow(m_jsonConfig);
     }
 }
 
-internal sealed class TrainTrafficSettingsWindow : Window
+internal sealed class TrainNetworkSettingsWindow : Window
 {
-    public TrainTrafficSettingsWindow(ModJsonConfig jsonConfig)
-        : base(new LocStrFormatted("Train Traffic Monitor"), false)
+    public TrainNetworkSettingsWindow(ModJsonConfig jsonConfig)
+        : base(new LocStrFormatted("Train Network Monitor"), false)
     {
         WindowSize(560.px(), 240.px());
         CloseOnClickOutside();
-        AddBodySingle(new TrainTrafficSettingsPanel(jsonConfig));
+        AddBodySingle(new TrainNetworkSettingsPanel(jsonConfig));
     }
 }
 
-internal sealed class TrainTrafficSettingsPanel : Column
+internal sealed class TrainNetworkSettingsPanel : Column
 {
     private const string StuckAfterKey = "stuck_after_cycles";
     private const string PauseOnAlertKey = "pause_on_red_alert";
@@ -394,7 +394,7 @@ internal sealed class TrainTrafficSettingsPanel : Column
 
     private readonly ModJsonConfig m_jsonConfig;
 
-    public TrainTrafficSettingsPanel(ModJsonConfig jsonConfig)
+    public TrainNetworkSettingsPanel(ModJsonConfig jsonConfig)
         : base(8.pt())
     {
         m_jsonConfig = jsonConfig;
