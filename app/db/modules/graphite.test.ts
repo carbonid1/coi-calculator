@@ -89,5 +89,5 @@ it("balances graphite production with the planned carbon dioxide capacity", () =
   expect(coalResult.supplyRatio).toBeCloseTo(1);
   expect(carbonDioxide.net).toBeCloseTo(0);
   expect(graphite.produced).toBeLessThan(graphite.consumed);
-  expect(graphite.net).toBeCloseTo(-1.8977818595);
+  expect(graphite.net).toBeCloseTo(-3.3293834306);
 });

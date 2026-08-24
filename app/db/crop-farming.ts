@@ -344,33 +344,33 @@ export interface CropFarmGroupRates {
 /**
  * Fixed end-game layout sized for the current factory snapshot.
  * Identical fertility-consuming crops are never adjacent, including across
- * the wrap. Six Greenhouse II buildings remain sufficient after the twelfth
- * Housing III and 1,800-chicken expansion; each crop's primary surplus stays
- * at or below 5 per production cycle before surplus digestion.
+ * the wrap. Six Greenhouse II buildings remain sufficient for the current
+ * factory, including Poppy for the Medical Supplies III chain. Each crop's
+ * primary surplus stays at or below 5 per production cycle before digestion.
  */
 export const activeCropFarmGroups: readonly CropFarmGroup[] = [
   {
-    id: "greenhouse-ii-wheat-canola-wheat-corn",
-    name: "Wheat / Canola / Wheat / Corn",
+    id: "greenhouse-ii-vegetables-corn-vegetables-soybean",
+    name: "Vegetables / Corn / Vegetables / Soybean",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["wheat", "canola", "wheat", "corn"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 120 },
-  },
-  {
-    id: "greenhouse-ii-corn-soybean-corn-wheat",
-    name: "Corn / Soybean / Corn / Wheat",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["corn", "soybean", "corn", "wheat"],
+    schedule: ["vegetables", "corn", "vegetables", "soybean"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-corn-vegetables-corn-vegetables",
-    name: "Corn / Vegetables / Corn / Vegetables",
+    id: "greenhouse-ii-potato-fruit-canola-wheat",
+    name: "Potato / Fruit / Canola / Wheat",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["corn", "vegetables", "corn", "vegetables"],
+    schedule: ["potato", "fruit", "canola", "wheat"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-wheat-corn-wheat-corn",
+    name: "Wheat / Corn / Wheat / Corn",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["wheat", "corn", "wheat", "corn"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
@@ -382,20 +382,20 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 130 },
   },
   {
-    id: "greenhouse-ii-fruit-potato-fruit-wheat",
-    name: "Fruit / Potato / Fruit / Wheat",
+    id: "greenhouse-ii-corn-poppy-corn-wheat",
+    name: "Corn / Poppy / Corn / Wheat",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["fruit", "potato", "fruit", "wheat"],
+    schedule: ["corn", "poppy", "corn", "wheat"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-wheat-sugar-cane-wheat-tree-sapling",
-    name: "Wheat / Sugar Cane / Wheat / Tree Sapling",
+    id: "greenhouse-ii-fruit-sugar-cane-wheat-tree-sapling",
+    name: "Fruit / Sugar Cane / Wheat / Tree Sapling",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["wheat", "sugarCane", "wheat", "treeSapling"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
+    schedule: ["fruit", "sugarCane", "wheat", "treeSapling"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
 ] as const;
 

@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { calculateCropFarmingModifiers } from "../../helpers/modifiers/calculate-crop-farming";
+import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food-consumption";
+import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
 import { defaultChickenFarmSettings } from "../chicken-farm";
+import { activeContracts } from "../contracts";
 import {
   activeCropFarmGroups,
   crops,
 } from "../crop-farming";
+import { defaultActiveEdicts } from "../edicts";
 import { recipes } from "../recipes";
+import { defaultInfiniteResearchLevels } from "../research";
 import {
   createChickenFarmsModule,
   greenhouses,
@@ -81,6 +88,58 @@ describe("active crop farm plan", () => {
           expect(nextCropId, `${group.name}, slot ${index + 1}`).not.toBe(cropId);
         }
       });
+    }
+  });
+
+  it("keeps all active crops supplied with no more than 5 surplus per month", () => {
+    const cropFarming = calculateCropFarmingModifiers(
+      defaultInfiniteResearchLevels.cropYield,
+      defaultActiveEdicts.farmingBoost,
+    );
+    const result = calculateFactoryTotal(
+      modules,
+      activeContracts,
+      calculateRecyclingEfficiency(
+        defaultActiveEdicts.recyclingIncrease,
+      ).effectivePercent,
+      {
+        cropYield: cropFarming.yieldMultiplier,
+        cropWater: cropFarming.waterDemandMultiplier,
+        foodConsumption: calculateFoodConsumption(0, 2).multiplier,
+      },
+    );
+    const cropFlows = new Map(
+      result.calculation.allResourceFlows.map((flow) => [flow.resourceId, flow]),
+    );
+    const fallbackConsumption = new Map<string, number>();
+
+    for (const line of result.calculation.regularResults) {
+      if (line.recipe.allocation !== "fallback" && line.recipe.allocation !== "surplus") {
+        continue;
+      }
+
+      for (const input of line.actualInputs) {
+        fallbackConsumption.set(
+          input.resourceId,
+          (fallbackConsumption.get(input.resourceId) ?? 0) + input.quantity,
+        );
+      }
+    }
+
+    expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(6);
+
+    for (const crop of Object.values(crops)) {
+      if (!crop.productId) continue;
+
+      const flow = cropFlows.get(crop.productId);
+
+      if (!flow || flow.produced <= 0) continue;
+
+      const primarySurplus = Math.max(0, flow.net)
+        + (fallbackConsumption.get(crop.productId) ?? 0);
+
+      expect(flow.net, crop.name).toBeGreaterThanOrEqual(-0.001);
+      expect(primarySurplus, crop.name).toBeLessThanOrEqual(5.001);
     }
   });
 

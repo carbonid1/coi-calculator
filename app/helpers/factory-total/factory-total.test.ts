@@ -66,18 +66,47 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.imported).toBeCloseTo(136.16571, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(136.16571, 5);
+    expect(contractResult?.imported).toBeCloseTo(140.971225, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(140.971225, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(24.59493135, 8);
-    expect(ironOre?.consumed).toBeCloseTo(136.16571, 5);
-    expect(ironOre?.produced).toBeCloseTo(136.16571, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(25.46292752, 8);
+    expect(ironOre?.consumed).toBeCloseTo(140.971225, 5);
+    expect(ironOre?.produced).toBeCloseTo(140.971225, 5);
     expect(ironOre?.net).toBeCloseTo(0, 5);
     const ironMineOutput = ironMine?.actualOutputs.find(
       (output) => output.resourceId === "ironOre",
     );
 
     expect(ironMineOutput?.quantity).toBeCloseTo(0, 5);
+  });
+
+  it("balances the Copper Ore contract against live factory demand", () => {
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const contractResult = result.contractResults.find(
+      ({ contract }) => contract.id === "copper-ore-for-medical-supplies-iii",
+    );
+    const copperOre = result.flows.find((flow) => flow.resourceId === "copperOre");
+    const copperMine = result.calculation.sourceResults.find(
+      ({ recipe }) => recipe.id === "copper-map-mine",
+    );
+
+    expect(contractResult).toMatchObject({
+      importedPerTrip: 1_600,
+      fuelPerTrip: 289,
+    });
+    expect(contractResult?.exported).toBeCloseTo(23.84079231, 8);
+    expect(contractResult?.imported).toBeCloseTo(154.96515, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(154.96515, 5);
+    expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(27.99058022, 8);
+    expect(copperOre?.consumed).toBeCloseTo(154.96515, 5);
+    expect(copperOre?.produced).toBeCloseTo(154.96515, 5);
+    expect(copperOre?.net).toBeCloseTo(0, 5);
+    const copperMineOutput = copperMine?.actualOutputs.find(
+      (output) => output.resourceId === "copperOre",
+    );
+
+    expect(copperMineOutput?.quantity).toBeCloseTo(0, 5);
   });
 
   it("replaces local Ammonia production with the demand-balanced contract", () => {

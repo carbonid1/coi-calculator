@@ -252,6 +252,35 @@ export const activeContracts: ActiveContract[] = [
       roundTripDurationProductionCycles: 426 / 60,
     },
   }),
+  defineActiveContract("copper-ore-for-medical-supplies-iii", {
+    importedPerProductionCycle: null,
+    infrastructure: {
+      cargoDepotSize: 4,
+      cargoShipWorkers: 22,
+      cargoModules: [
+        {
+          buildingName: "Unit Module (L)",
+          count: 2,
+          direction: "export",
+          resourceId: "medicalSuppliesIII",
+          workersPerModule: 5,
+        },
+        {
+          buildingName: "Loose Module (L)",
+          count: 2,
+          direction: "import",
+          resourceId: "copperOre",
+          workersPerModule: 5,
+        },
+      ],
+    },
+    shipping: {
+      fuelResourceId: "hydrogen",
+      saveFuel: true,
+      // Conservative proxy from the measured 426-second Iron Ore route.
+      roundTripDurationProductionCycles: 426 / 60,
+    },
+  }),
   defineActiveContract("ammonia-for-food-pack", {
     importedPerProductionCycle: null,
     infrastructure: {

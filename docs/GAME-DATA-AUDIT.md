@@ -144,10 +144,18 @@ paused. Until this route is measured in the current save, its throughput limit
 uses the measured 427-second Uranium trip as a conservative proxy, capping the
 route at 224.8244 Ammonia per cycle.
 
-The Copper Ore contract is currently paused. The evaluated Medical Supplies III
-candidate and Household Appliances alternative both exchange 10 export goods
-for 65 Copper Ore, but Medical Supplies III has the lower fixed Unity cost (0.2
-rather than 0.3).
+The active Medical Supplies III -> Copper Ore plan uses the same size-4 layout:
+two Unit Module (L) exports and two Loose Module (L) imports. Its shipment rate
+is demand-balanced, so the Copper Ore map mine is paused once the contract
+covers current consumption. Until this route is measured in the current save,
+its throughput limit uses the measured 426-second Iron Ore trip as a conservative
+proxy, capping the route at 225.3521 Copper Ore per cycle. With the audit's
+synced factory history, current demand is 154.9652 Copper Ore per cycle. That
+requires 23.8408 Medical Supplies III and averages 27.9906 Hydrogen per cycle.
+
+Medical Supplies III and the Household Appliances alternative both exchange 10
+export goods for 65 Copper Ore, but Medical Supplies III has the lower fixed
+Unity cost (0.2 rather than 0.3).
 
 - Producing the 153.8462 Household Appliances needed per 1,000 Copper Ore
   consumes 217.9487 Copper, 51.2821 Steel, 25.6410 Poly Silicon, 34.1880 Rubber,
@@ -218,6 +226,25 @@ counts completed and non-paused entities using the installed prototype ID
 
 Verified against installed v0.8.7 `Ids.Transports.StackerTower` and
 `Costs.Buildings.StackerTower`.
+
+## Vehicle depots
+
+The Infrastructure module tracks all three vehicle-depot tiers as population-only
+loads:
+
+| Building             | Workers each | Prototype ID       |
+| -------------------- | -----------: | ------------------ |
+| Vehicles depot       |            6 | `VehiclesDepot`    |
+| Vehicles depot II    |           10 | `VehiclesDepotT2`  |
+| Vehicles depot III   |           16 | `VehiclesDepotT3`  |
+
+Exporter schema v12 supplies completed and non-paused entity counts. Only the
+reserved workforce is included in calculator totals; vehicle construction and
+other activity-dependent costs remain excluded. Schema v11 and older snapshots
+normalize the three unavailable counts to zero.
+
+Verified against installed v0.8.7 `VehicleDepotsData`, `Ids.Buildings`, and
+`Costs.Buildings`.
 
 ## Solar panels
 

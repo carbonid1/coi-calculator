@@ -28,9 +28,8 @@ interface Props {
 
 export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
-  const effective = Math.round(buildingMultiplier * 100) / 100;
   const ioMultiplier = buildingMultiplier * speedLevel;
-  const inactive = effective === 0;
+  const inactive = buildingMultiplier === 0;
   const hasFlows = recipe.inputs.length > 0 || recipe.outputs.length > 0;
   const tflopsPerMachine = buildings[recipe.building]?.computingTflops ?? 0;
   const computingTflops = recipe.computingScalesWithSpeed
@@ -79,7 +78,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuil
           )}
         </div>
         <BuildingCount
-          load={effective}
+          load={buildingMultiplier}
           active={activeBuildings}
           built={builtBuildings}
           attention={diagnostic?.attention}

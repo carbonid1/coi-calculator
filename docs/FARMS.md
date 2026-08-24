@@ -42,7 +42,7 @@ The structured source of truth is `app/db/crop-farming.ts`. Base crop quantities
 
 At full water and constant 100% fertility, monthly crop output is simply tier-adjusted harvest quantity divided by growth months. The active plan also applies its rotation, fertilizer, research, edict, and seeded-weather rules.
 
-The current global settings are Crop Yield research level 11 and Farming Boost I. Together they add 26% crop yield and 17.75% crop water demand. They do not change Fertilizer II consumption.
+The current global settings are Crop Yield research level 20 and Farming Boost I. Together they add 35% crop yield and 20% crop water demand. They do not change Fertilizer II consumption.
 
 ## Weather and rain
 
@@ -54,12 +54,12 @@ In v0.8.6, farm crop growth does not read sunlight. Weather affects crops throug
 
 ## Current planning layout
 
-The active crop plan uses six Greenhouse IIs across five fixed rotations,
-Fertilizer II at targets from 100% to 140%, and full irrigation. Six is the
-minimum building count that supports the current factory: every crop deficit is
-closed and every crop surplus remains at or below 5 per production cycle. The
-Food Pack expansion uses
-1,700 chickens across four farms, three Baking Units, and four Mills. Carcass
+The active crop plan uses six Greenhouse IIs across six fixed rotations,
+Fertilizer II at 140% except for one 130% rotation, and full irrigation. Six is
+the minimum building count that supports the current factory, including Poppy
+for Morphine: every crop deficit is closed and every crop surplus remains at or
+below 5 per production cycle. The Food Pack expansion uses 1,800 chickens
+across four farms, three Baking Units, and four Mills. Carcass
 processing belongs to the General module, not Chicken Farms: one dedicated Food
 Processor makes Meat + Trimmings, and a second dedicated Food Processor converts
 only surplus Carcasses into Trimmings. Surplus Trimmings continue through Fuel
@@ -76,11 +76,12 @@ from Factory Total and can never increase those pumps' modeled output.
 
 | Farms | Rotation | Fertilizer II target |
 | ---: | --- | ---: |
-| 1 | Fruit / Sugar Cane / Fruit / Tree Sapling | 100% |
-| 1 | Canola / Wheat / Fruit / Wheat | 130% |
-| 2 | Wheat / Corn / Vegetables / Corn | 140% |
-| 1 | Wheat / Potato / Green Manure / Green Manure | 140% |
-| 1 | Wheat / Corn / Soybean / Corn | 130% |
+| 1 | Vegetables / Corn / Vegetables / Soybean | 140% |
+| 1 | Potato / Fruit / Canola / Wheat | 140% |
+| 1 | Wheat / Corn / Wheat / Corn | 140% |
+| 1 | Wheat / Corn / Wheat / Potato | 130% |
+| 1 | Corn / Poppy / Corn / Wheat | 140% |
+| 1 | Fruit / Sugar Cane / Wheat / Tree Sapling | 140% |
 
 Crop output and fertilizer are long-run cycle averages on the calculator's
 100-year horizon. Each farm card keeps gross crop demand visible for comparison

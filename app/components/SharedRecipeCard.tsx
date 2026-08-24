@@ -38,7 +38,6 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
   const effective = lines.reduce((total, line, index) => (
     total + line.activeBuildings * (results[index]?.supplyRatio ?? 0)
   ), 0);
-  const roundedEffective = Math.round(effective * 100) / 100;
   const totalBuildings = Math.max(...lines.map((line) => line.builtBuildings));
   const operatingMode = results.every((result) => (
     result && "operatingMode" in result && result.operatingMode === "fixed"
@@ -49,7 +48,7 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
   return (
     <ProductionCard
       operatingMode={operatingMode}
-      inactive={roundedEffective === 0}
+      inactive={effective === 0}
       className="p-3"
     >
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -57,7 +56,7 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
           {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
         </h3>
         <BuildingCount
-          load={roundedEffective}
+          load={effective}
           active={Math.max(...lines.map((line) => line.activeBuildings))}
           built={totalBuildings}
           attention={diagnostic?.attention}

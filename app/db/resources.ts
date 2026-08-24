@@ -185,6 +185,9 @@ export const resources = {
     recyclableSources: { ironScrap: 2 },
   },
   disinfectant: { id: "disinfectant", name: "Disinfectant", state: "unit" },
+  antibiotics: { id: "antibiotics", name: "Antibiotics", state: "unit" },
+  anesthetics: { id: "anesthetics", name: "Anesthetics", state: "unit" },
+  morphine: { id: "morphine", name: "Morphine", state: "unit" },
   medicalSupplies: {
     id: "medicalSupplies",
     name: "Medical Supplies",
@@ -192,6 +195,7 @@ export const resources = {
     // v0.8.6: each unit carries one Iron Scrap source through its Steel input.
     recyclableSources: { ironScrap: 1 },
   },
+  medicalSuppliesII: { id: "medicalSuppliesII", name: "Medical Supplies II", state: "unit" },
   medicalSuppliesIII: { id: "medicalSuppliesIII", name: "Medical Supplies III", state: "unit" },
   wasteWater: { id: "wasteWater", name: "Waste Water", state: "fluid" },
   pollutedWater: { id: "pollutedWater", name: "Polluted Water", state: "fluid" },

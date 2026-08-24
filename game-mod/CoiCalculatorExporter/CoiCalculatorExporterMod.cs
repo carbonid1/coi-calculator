@@ -45,6 +45,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         "oreSortingPlantLarge",
         "stackerTower",
         "trainDepot",
+        "vehiclesDepot",
+        "vehiclesDepotII",
+        "vehiclesDepotIII",
         "solarPanel",
         "solarPanelMono",
         "maintenanceStatue",
@@ -60,6 +63,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         "OreSortingPlantT2",
         "StackerTower",
         "TrainDepot",
+        "VehiclesDepot",
+        "VehiclesDepotT2",
+        "VehiclesDepotT3",
         "SolarPanel",
         "SolarPanelMono",
         "StatueOfMaintenanceGolden",
@@ -142,7 +148,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 10; } }
+    public int Version { get { return 11; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -326,7 +332,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":11,");
+            json.Append("\"schemaVersion\":12,");
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");

@@ -4,6 +4,7 @@ import {
   type AnimalPopulationDiagnostic,
   type BuildingAttention,
 } from "../helpers/building-diagnostics/building-diagnostics";
+import { formatBuildingLoad } from "../helpers/format-building-load";
 
 interface Props {
   load: number;
@@ -59,7 +60,7 @@ export const BuildingCount: React.FC<Props> = ({
           <span className="font-mono">
             {animalPopulation
               ? `${formatCount(animalPopulation.current)} / ${formatCount(animalPopulation.capacity)}`
-              : `${formatCount(load)} / ${formatCount(active)}`}
+              : `${formatBuildingLoad(load)} / ${formatCount(active)}`}
           </span>
         </span>
       </Tooltip>

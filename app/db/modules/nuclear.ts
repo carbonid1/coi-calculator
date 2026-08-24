@@ -14,7 +14,7 @@ const BUILT_BRINE_PROCESSING_COUNT = 2;
 const ACTIVE_CHLORINE_PROCESSING_COUNT = 1;
 const ACTIVE_SALT_PROCESSING_COUNT = 1;
 const BUILT_COOLING_TOWER_COUNT = 4;
-const ACTIVE_COOLING_TOWER_COUNT = 3;
+const ACTIVE_COOLING_TOWER_COUNT = 4;
 
 export interface NuclearConfig {
   breederReactors: number;

@@ -63,6 +63,32 @@ describe("contract plans", () => {
     expect(iron?.fuelPerProductionCycle).toBeCloseTo(12.64375);
   });
 
+  it("balances the four-module Copper Ore ship against current demand", () => {
+    const { contractResults } = applyContracts([{
+      resourceId: "copperOre",
+      name: "Copper Ore",
+      consumed: 65,
+      produced: 0,
+      net: -65,
+    }], activeContracts);
+    const copper = contractResults.find(
+      (result) => result.contract.id === "copper-ore-for-medical-supplies-iii",
+    );
+
+    expect(copper).toMatchObject({
+      exported: 10,
+      imported: 65,
+      requiredImported: 65,
+      uncoveredImported: 0,
+      importedPerTrip: 1_600,
+      fuelPerTrip: 289,
+    });
+    expect(copper?.maxImportedPerProductionCycle).toBeCloseTo(
+      1_600 / (426 / 60),
+    );
+    expect(copper?.fuelPerProductionCycle).toBeCloseTo(11.740625);
+  });
+
   it("caps imports at one shipload per observed round trip", () => {
     const uraniumContract = activeContracts[0];
 
@@ -121,7 +147,7 @@ describe("contract plans", () => {
   });
 
   it("counts all planned ships and their cargo modules", () => {
-    expect(calculateContractWorkers(activeContracts)).toBe(126);
+    expect(calculateContractWorkers(activeContracts)).toBe(168);
   });
 
   it("applies Ship Fuel Use research before the ship's Save Fuel mode", () => {

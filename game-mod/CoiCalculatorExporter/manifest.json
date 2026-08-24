@@ -1,6 +1,6 @@
 {
   "id": "CoiCalculatorExporter",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "display_name": "CoI Calculator Exporter",
   "description_short": "Exports read-only factory counts, reserves, operating history, and train traffic health to the local CoI calculator.",
   "description_long": "Writes a local JSON snapshot containing vehicle totals, selected completed/running entity counts, eligible standalone Gold reserves, current repeatable research and edicts, completed-cycle operating averages, and sustained train track waits. It does not modify gameplay state or expose a network service.",

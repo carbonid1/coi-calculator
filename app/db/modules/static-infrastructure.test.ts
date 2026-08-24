@@ -15,6 +15,9 @@ it("uses running counts for loads while retaining completed building capacity", 
     moltenStationModuleElectrified: 6,
     stackerTower: 2,
     trainDepot: 2,
+    vehiclesDepot: 2,
+    vehiclesDepotII: 1,
+    vehiclesDepotIII: 1,
     vehicles: 39,
     maintenanceStatue: 3,
   };
@@ -25,13 +28,16 @@ it("uses running counts for loads while retaining completed building capacity", 
     unitStationModuleElectrified: 100,
     stackerTower: 1,
     trainDepot: 1,
+    vehiclesDepot: 1,
+    vehiclesDepotII: 1,
+    vehiclesDepotIII: 0,
     maintenanceStatue: 2,
   });
   const result = calculateFactoryTotal([infrastructureModule]);
   const stats = calculateBuildingStats(result.allLines, result.calculation);
   const fuelGas = result.flows.find((flow) => flow.resourceId === "fuelGas");
 
-  expect(stats.workers).toBe(411);
+  expect(stats.workers).toBe(427);
   expect(stats.electricityKw).toBe(0);
   expect(fuelGas).toMatchObject({ consumed: 4, produced: 0, net: -4 });
   expect(infrastructureModule.builtBuildings?.["static-ore-sorting-plant-large"])

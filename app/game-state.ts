@@ -20,6 +20,9 @@ export const syncedInfrastructureBuildingIds = [
   "oreSortingPlantLarge",
   "stackerTower",
   "trainDepot",
+  "vehiclesDepot",
+  "vehiclesDepotII",
+  "vehiclesDepotIII",
   "maintenanceStatue",
 ] as const;
 
@@ -98,8 +101,15 @@ export interface SyncedReserves {
   gold: number;
 }
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 11 as const;
-export type SupportedGameStateSchemaVersion = 6 | 7 | 8 | 9 | 10 | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 12 as const;
+export type SupportedGameStateSchemaVersion =
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
 
 export interface GameStateSnapshot {
   schemaVersion: SupportedGameStateSchemaVersion;
@@ -153,10 +163,21 @@ const isBuildingCount = (value: unknown): value is SyncedBuildingCount =>
 
 type LegacySyncedBuildingId = Exclude<
   SyncedBuildingId,
-  "moltenStationModuleElectrified" | "trainDepot"
+  | "moltenStationModuleElectrified"
+  | "trainDepot"
+  | "vehiclesDepot"
+  | "vehiclesDepotII"
+  | "vehiclesDepotIII"
 >;
 type CompatibleBuildingCounts = Record<LegacySyncedBuildingId, SyncedBuildingCount> &
-  Partial<Record<"moltenStationModuleElectrified" | "trainDepot", SyncedBuildingCount>>;
+  Partial<Record<
+    | "moltenStationModuleElectrified"
+    | "trainDepot"
+    | "vehiclesDepot"
+    | "vehiclesDepotII"
+    | "vehiclesDepotIII",
+    SyncedBuildingCount
+  >>;
 
 const isCompatibleBuildingCounts = (
   value: unknown,
@@ -171,6 +192,12 @@ const isCompatibleBuildingCounts = (
       schemaVersion === 6 && id === "moltenStationModuleElectrified"
     ) || (
       schemaVersion <= 10 && id === "trainDepot"
+    ) || (
+      schemaVersion <= 11 && (
+        id === "vehiclesDepot" ||
+        id === "vehiclesDepotII" ||
+        id === "vehiclesDepotIII"
+      )
     );
 
     return isOptionalLegacyCount
@@ -334,6 +361,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 8 &&
     schemaVersion !== 9 &&
     schemaVersion !== 10 &&
+    schemaVersion !== 11 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null;
@@ -440,6 +468,18 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
         running: 0,
       },
       trainDepot: syncedBuildings.trainDepot ?? {
+        built: 0,
+        running: 0,
+      },
+      vehiclesDepot: syncedBuildings.vehiclesDepot ?? {
+        built: 0,
+        running: 0,
+      },
+      vehiclesDepotII: syncedBuildings.vehiclesDepotII ?? {
+        built: 0,
+        running: 0,
+      },
+      vehiclesDepotIII: syncedBuildings.vehiclesDepotIII ?? {
         built: 0,
         running: 0,
       },

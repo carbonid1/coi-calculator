@@ -28,7 +28,7 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
         const maxQuantity = referenceQuantity * result.activeBuildings;
 
         return maxQuantity > 0
-          ? parseFloat((result.activeBuildings * actualQuantity / maxQuantity).toFixed(2))
+          ? result.activeBuildings * actualQuantity / maxQuantity
           : result.activeBuildings;
       })()
     : 0;

@@ -141,6 +141,17 @@ const schema11Snapshot = {
   },
 };
 
+const schema12Snapshot = {
+  ...schema11Snapshot,
+  schemaVersion: 12,
+  buildings: {
+    ...schema11Snapshot.buildings,
+    vehiclesDepot: { built: 3, running: 2 },
+    vehiclesDepotII: { built: 2, running: 1 },
+    vehiclesDepotIII: { built: 1, running: 1 },
+  },
+};
+
 describe("game-state snapshot validation", () => {
   it("accepts the vehicle and infrastructure exporter schema", () => {
     expect(isGameStateSnapshot(snapshot)).toBe(true);
@@ -163,20 +174,32 @@ describe("game-state snapshot validation", () => {
       buildings: { trainDepot: { built: 0, running: 0 } },
       reserves: { gold: 6_000 },
     });
-    expect(isGameStateSnapshot(schema11Snapshot)).toBe(true);
-    expect(normalizeGameStateSnapshot(schema11Snapshot)?.trainTraffic).toEqual(trainTraffic);
     expect(normalizeGameStateSnapshot(schema11Snapshot)).toMatchObject({
+      buildings: {
+        vehiclesDepot: { built: 0, running: 0 },
+        vehiclesDepotII: { built: 0, running: 0 },
+        vehiclesDepotIII: { built: 0, running: 0 },
+      },
+    });
+    expect(isGameStateSnapshot(schema12Snapshot)).toBe(true);
+    expect(normalizeGameStateSnapshot(schema12Snapshot)?.trainTraffic).toEqual(trainTraffic);
+    expect(normalizeGameStateSnapshot(schema12Snapshot)).toMatchObject({
       research,
       edicts,
       reserves: { gold: 6_000 },
-      buildings: { trainDepot: { built: 2, running: 1 } },
+      buildings: {
+        trainDepot: { built: 2, running: 1 },
+        vehiclesDepot: { built: 3, running: 2 },
+        vehiclesDepotII: { built: 2, running: 1 },
+        vehiclesDepotIII: { built: 1, running: 1 },
+      },
     });
   });
 
   it("accepts an enabled edict whose effect is currently inactive", () => {
     expect(
       normalizeGameStateSnapshot({
-        ...schema11Snapshot,
+        ...schema12Snapshot,
         edicts: {
           ...edicts,
           maintenanceReducer: {
@@ -194,16 +217,16 @@ describe("game-state snapshot validation", () => {
   });
 
   it("rejects missing or impossible synced research and edict values", () => {
-    expect(isGameStateSnapshot({ ...schema11Snapshot, research: undefined })).toBe(false);
+    expect(isGameStateSnapshot({ ...schema12Snapshot, research: undefined })).toBe(false);
     expect(
       isGameStateSnapshot({
-        ...schema11Snapshot,
+        ...schema12Snapshot,
         research: { ...research, solarPower: 201 },
       }),
     ).toBe(false);
     expect(
       isGameStateSnapshot({
-        ...schema11Snapshot,
+        ...schema12Snapshot,
         edicts: {
           ...edicts,
           farmingBoost: {
@@ -217,9 +240,9 @@ describe("game-state snapshot validation", () => {
   });
 
   it("requires a confirmed non-negative integer reserve balance from schema 10 onward", () => {
-    expect(isGameStateSnapshot({ ...schema11Snapshot, reserves: undefined })).toBe(false);
-    expect(isGameStateSnapshot({ ...schema11Snapshot, reserves: { gold: -1 } })).toBe(false);
-    expect(isGameStateSnapshot({ ...schema11Snapshot, reserves: { gold: 1.5 } })).toBe(false);
+    expect(isGameStateSnapshot({ ...schema12Snapshot, reserves: undefined })).toBe(false);
+    expect(isGameStateSnapshot({ ...schema12Snapshot, reserves: { gold: -1 } })).toBe(false);
+    expect(isGameStateSnapshot({ ...schema12Snapshot, reserves: { gold: 1.5 } })).toBe(false);
     expect(normalizeGameStateSnapshot(schema9Snapshot)?.reserves).toBeNull();
   });
 
@@ -250,16 +273,43 @@ describe("game-state snapshot validation", () => {
     ).toBeNull();
   });
 
+  it("requires Vehicles depot counts in schema 12 without invalidating schema 11 snapshots", () => {
+    const depotIds = new Set(["vehiclesDepot", "vehiclesDepotII", "vehiclesDepotIII"]);
+    const schema11Buildings = Object.fromEntries(
+      Object.entries(schema11Snapshot.buildings).filter(([id]) => !depotIds.has(id)),
+    );
+    const schema12Buildings = Object.fromEntries(
+      Object.entries(schema12Snapshot.buildings).filter(([id]) => !depotIds.has(id)),
+    );
+
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema11Snapshot,
+        buildings: schema11Buildings,
+      })?.buildings,
+    ).toMatchObject({
+      vehiclesDepot: { built: 0, running: 0 },
+      vehiclesDepotII: { built: 0, running: 0 },
+      vehiclesDepotIII: { built: 0, running: 0 },
+    });
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema12Snapshot,
+        buildings: schema12Buildings,
+      }),
+    ).toBeNull();
+  });
+
   it("rejects inconsistent train traffic severity and durations", () => {
     expect(
       isGameStateSnapshot({
-        ...schema11Snapshot,
+        ...schema12Snapshot,
         trainTraffic: { ...trainTraffic, severity: "warning" },
       }),
     ).toBe(false);
     expect(
       isGameStateSnapshot({
-        ...schema11Snapshot,
+        ...schema12Snapshot,
         trainTraffic: {
           ...trainTraffic,
           trains: [
@@ -271,7 +321,7 @@ describe("game-state snapshot validation", () => {
     ).toBe(false);
   });
 
-  it("normalizes schema 6 and leaves only the unavailable Molten count at zero", () => {
+  it("normalizes schema 6 and fills unavailable additive building counts with zero", () => {
     const buildings = Object.fromEntries(
       Object.entries(snapshot.buildings).filter(
         ([id]) => id !== "moltenStationModuleElectrified" && id !== "trainDepot",
@@ -291,6 +341,9 @@ describe("game-state snapshot validation", () => {
         unitStationModuleElectrified: { built: 108, running: 100 },
         moltenStationModuleElectrified: { built: 0, running: 0 },
         trainDepot: { built: 0, running: 0 },
+        vehiclesDepot: { built: 0, running: 0 },
+        vehiclesDepotII: { built: 0, running: 0 },
+        vehiclesDepotIII: { built: 0, running: 0 },
       },
       history: snapshot.history,
     });

@@ -12,6 +12,7 @@ const digestionRecipeIds = [
   "anaerobic-digester-fruit",
   "anaerobic-digester-soybean",
   "anaerobic-digester-vegetables",
+  "anaerobic-digester-poppy",
 ] as const;
 
 describe("surplus-organics digestion", () => {
@@ -21,7 +22,7 @@ describe("surplus-organics digestion", () => {
     ));
     const preset = general.presets.find(({ id }) => id === general.defaultPresetId);
 
-    expect(digestionRecipes).toHaveLength(8);
+    expect(digestionRecipes).toHaveLength(9);
     expect(digestionRecipes.every((recipe) => (
       recipe?.sharedCapacity?.id === "anaerobic-digester-surplus-organics"
       && recipe.allocation === "fallback"
@@ -83,6 +84,13 @@ describe("surplus-organics digestion", () => {
       },
       {
         input: { resourceId: "vegetables", quantity: 14 },
+        outputs: [
+          { resourceId: "fuelGas", quantity: 8 },
+          { resourceId: "compost", quantity: 1 },
+        ],
+      },
+      {
+        input: { resourceId: "poppy", quantity: 14 },
         outputs: [
           { resourceId: "fuelGas", quantity: 8 },
           { resourceId: "compost", quantity: 1 },
