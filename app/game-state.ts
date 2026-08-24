@@ -9,6 +9,11 @@ import {
   infiniteResearchCatalog,
   type InfiniteResearchId,
 } from "./db/research";
+import {
+  mapReserveResources,
+  type ReserveBalances,
+  reserveResourceCatalog,
+} from "./db/reserve-resources";
 
 export const syncedInfrastructureBuildingIds = [
   "electricLocomotiveII",
@@ -97,11 +102,9 @@ export interface SyncedEdictState {
 
 export type SyncedEdictStates = Record<EdictId, SyncedEdictState>;
 
-export interface SyncedReserves {
-  gold: number;
-}
+export type SyncedReserves = ReserveBalances;
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 12 as const;
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 13 as const;
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -109,6 +112,7 @@ export type SupportedGameStateSchemaVersion =
   | 9
   | 10
   | 11
+  | 12
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
 
 export interface GameStateSnapshot {
@@ -343,10 +347,29 @@ const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
   return states;
 };
 
-const normalizeReserves = (value: unknown): SyncedReserves | null => {
-  if (!isUnknownRecord(value) || !isNonNegativeInteger(value.gold)) return null;
+const normalizeReserves = (
+  value: unknown,
+  schemaVersion: SupportedGameStateSchemaVersion,
+): SyncedReserves | null => {
+  if (!isUnknownRecord(value)) return null;
 
-  return { gold: value.gold };
+  for (const reserve of reserveResourceCatalog) {
+    if (schemaVersion < reserve.introducedInSchemaVersion) {
+      continue;
+    }
+
+    const balance = value[reserve.key];
+
+    if (!isNonNegativeInteger(balance)) return null;
+  }
+
+  return mapReserveResources(({ introducedInSchemaVersion, key }) => {
+    const balance = value[key];
+
+    return schemaVersion >= introducedInSchemaVersion && isNonNegativeInteger(balance)
+      ? balance
+      : null;
+  });
 };
 
 export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | null => {
@@ -362,6 +385,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 9 &&
     schemaVersion !== 10 &&
     schemaVersion !== 11 &&
+    schemaVersion !== 12 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null;
@@ -381,7 +405,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const trainTraffic = isTrainTraffic(snapshot.trainTraffic) ? snapshot.trainTraffic : null;
   const research = normalizeResearchLevels(snapshot.research);
   const edicts = normalizeEdictStates(snapshot.edicts);
-  const reserves = normalizeReserves(snapshot.reserves);
+  const reserves = normalizeReserves(snapshot.reserves, schemaVersion);
   const history = isUnknownRecord(snapshot.history) ? snapshot.history : null;
 
   if (

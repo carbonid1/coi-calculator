@@ -36,6 +36,21 @@ it("models the physical General Low Steam recovery cluster", () => {
   });
 });
 
+it("provides two Cracking Units for surplus Fuel Gas", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const crackingUnit = buildModuleLines(general, preset ?? null).lines.find(
+    (line) => line.recipe.id === "cracking-unit-fuel-gas-diesel",
+  );
+
+  expect(crackingUnit).toMatchObject({
+    activeBuildings: 2,
+    builtBuildings: 2,
+    operatingMode: "fixed",
+  });
+});
+
 it("recycles Gold Scrap while keeping the built Gold Ore crushers paused", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId

@@ -55,9 +55,8 @@ The initial 50 MW target dispatches two turbine trains at a combined 1.67 / 2
 average load from the Power IV reactor's eight-train bank. Solar output is
 additional.
 
-Keep all four existing Hydrogen Reformers installed, with three active and one
-paused. The active set covers the configured 46.5 Hydrogen Fuel target while
-remaining demand-balanced.
+Expand to six Hydrogen Reformers and keep all six active. The expanded set
+covers current factory-wide Hydrogen demand while remaining demand-balanced.
 
 Hydrogen demand is allocated first. The desalinators then run only as much as
 needed for Water and Brine, preferring four Depleted-Steam units before five
@@ -81,7 +80,7 @@ beyond the active capacity stays visible as excess in the calculator.
 | Chemical Plant II — Yellowcake | 2 | 2 |
 | Each turbine tier | 8 | 2 |
 | Power Generator II | 16 | 4 |
-| Hydrogen Reformer | 4 | 3 |
+| Hydrogen Reformer | 6 | 6 |
 | Electrolyzer II - Chlorine | 2 | 1 demand-balanced, 1 paused |
 | Evaporation Pond (Heated) - Brine to Salt | 2 | 1 demand-balanced, 1 paused |
 | Thermal Desalinator — Depleted | 4 | 4 |

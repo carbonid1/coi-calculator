@@ -6,12 +6,20 @@ import {
   type ActiveContract,
   contracts,
 } from "../contracts";
+import { reserveResourceCatalog } from "../reserve-resources";
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
-import {
-  createReservesModule,
-  GOLD_RESERVE_RECIPE_ID,
-} from "./reserves";
+import { createReservesModule } from "./reserves";
+
+const reserveRecipeId = (resourceId: "fuelGas" | "gold") => {
+  const reserve = reserveResourceCatalog.find(
+    (candidate) => candidate.resourceId === resourceId,
+  );
+
+  if (!reserve) throw new Error(`Missing reserve catalog entry for ${resourceId}`);
+
+  return reserve.recipeId;
+};
 
 const createDemandModule = (
   fixedDemands: Partial<Record<ResourceId, number>>,
@@ -80,21 +88,53 @@ const getGoldReserveDraw = (
 
   return getReserveDrawPerProductionCycle(
     result.calculation.sourceResults,
-    GOLD_RESERVE_RECIPE_ID,
+    reserveRecipeId("gold"),
     "gold",
   );
 };
 
 it("lets an active Gold import displace reserve draw", () => {
   expect(getGoldReserveDraw(
-    [createDemandModule({ gold: 10 }), createReservesModule({ gold: 6_000 })],
+    [createDemandModule({ gold: 10 }), createReservesModule({ gold: 6_000, fuelGas: 0 })],
     [activateContract("gold-for-diesel", 8)],
   )).toBeCloseTo(2);
 });
 
 it("counts Gold exported to an active contract as reserve draw", () => {
   expect(getGoldReserveDraw(
-    [createDemandModule({}), createReservesModule({ gold: 6_000 })],
+    [createDemandModule({}), createReservesModule({ gold: 6_000, fuelGas: 0 })],
     [activateContract("bauxite-for-gold", 130)],
   )).toBeCloseTo(10);
+});
+
+it("runs two fixed Cracking Units and draws their uncovered Fuel Gas from reserves", () => {
+  const crackingModule: Module = {
+    id: "fixed-cracking",
+    name: "Fixed cracking",
+    description: "",
+    builtBuildings: { "cracking-unit-fuel-gas-diesel": 2 },
+    presets: [{
+      id: "fixed",
+      name: "Fixed",
+      description: "",
+      activeBuildings: { "cracking-unit-fuel-gas-diesel": 2 },
+      fixed: ["cracking-unit-fuel-gas-diesel"],
+    }],
+    defaultPresetId: "fixed",
+  };
+  const result = calculateFactoryTotal([
+    crackingModule,
+    createReservesModule({ gold: 0, fuelGas: 12_000 }),
+  ]);
+  const reserveDraw = getReserveDrawPerProductionCycle(
+    result.calculation.sourceResults,
+    reserveRecipeId("fuelGas"),
+    "fuelGas",
+  );
+  const diesel = result.calculation.allResourceFlows.find(
+    (flow) => flow.resourceId === "diesel",
+  );
+
+  expect(reserveDraw).toBe(72);
+  expect(diesel?.net).toBe(48);
 });

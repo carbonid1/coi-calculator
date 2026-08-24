@@ -73,7 +73,6 @@ import {
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from "./db/modules/research";
 import {
   createReservesModule,
-  GOLD_RESERVE_RECIPE_ID,
   RESERVES_MODULE_ID,
 } from "./db/modules/reserves";
 import {
@@ -90,6 +89,9 @@ import { type RecipeGroup } from "./db/recipes";
 import {
   emptyInfiniteResearchLevels,
 } from "./db/research";
+import {
+  mapReserveResources,
+} from "./db/reserve-resources";
 import { emptySolarPanelCounts } from "./db/solar";
 import {
   calculateRocketIiRecurringLogistics,
@@ -439,10 +441,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     outputModifiers,
     shipsFuelUse.multiplier,
   );
-  const goldReserveDrawPerProductionCycle = getReserveDrawPerProductionCycle(
-    factoryResult.calculation.sourceResults,
-    GOLD_RESERVE_RECIPE_ID,
-    "gold",
+  const reserveDrawsPerProductionCycle = mapReserveResources(
+    ({ recipeId, resourceId }) => getReserveDrawPerProductionCycle(
+      factoryResult.calculation.sourceResults,
+      recipeId,
+      resourceId,
+    ),
   );
   const unityBudget = calculateUnityBudget({
     housing: activeHousingType,
@@ -708,8 +712,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       {activeModule?.id === RESERVES_MODULE_ID && (
         <ReservesView
-          goldBalance={gameState.snapshot?.reserves?.gold ?? null}
-          goldDrawPerProductionCycle={goldReserveDrawPerProductionCycle}
+          balances={gameState.snapshot?.reserves ?? null}
+          drawsPerProductionCycle={reserveDrawsPerProductionCycle}
         />
       )}
 

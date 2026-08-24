@@ -152,6 +152,12 @@ const schema12Snapshot = {
   },
 };
 
+const schema13Snapshot = {
+  ...schema12Snapshot,
+  schemaVersion: 13,
+  reserves: { gold: 6_000, fuelGas: 12_000 },
+};
+
 describe("game-state snapshot validation", () => {
   it("accepts the vehicle and infrastructure exporter schema", () => {
     expect(isGameStateSnapshot(snapshot)).toBe(true);
@@ -172,7 +178,7 @@ describe("game-state snapshot validation", () => {
     });
     expect(normalizeGameStateSnapshot(currentSnapshot)).toMatchObject({
       buildings: { trainDepot: { built: 0, running: 0 } },
-      reserves: { gold: 6_000 },
+      reserves: { gold: 6_000, fuelGas: null },
     });
     expect(normalizeGameStateSnapshot(schema11Snapshot)).toMatchObject({
       buildings: {
@@ -186,13 +192,17 @@ describe("game-state snapshot validation", () => {
     expect(normalizeGameStateSnapshot(schema12Snapshot)).toMatchObject({
       research,
       edicts,
-      reserves: { gold: 6_000 },
+      reserves: { gold: 6_000, fuelGas: null },
       buildings: {
         trainDepot: { built: 2, running: 1 },
         vehiclesDepot: { built: 3, running: 2 },
         vehiclesDepotII: { built: 2, running: 1 },
         vehiclesDepotIII: { built: 1, running: 1 },
       },
+    });
+    expect(normalizeGameStateSnapshot(schema13Snapshot)).toMatchObject({
+      schemaVersion: 13,
+      reserves: { gold: 6_000, fuelGas: 12_000 },
     });
   });
 
@@ -243,6 +253,22 @@ describe("game-state snapshot validation", () => {
     expect(isGameStateSnapshot({ ...schema12Snapshot, reserves: undefined })).toBe(false);
     expect(isGameStateSnapshot({ ...schema12Snapshot, reserves: { gold: -1 } })).toBe(false);
     expect(isGameStateSnapshot({ ...schema12Snapshot, reserves: { gold: 1.5 } })).toBe(false);
+    expect(isGameStateSnapshot({
+      ...schema13Snapshot,
+      reserves: { gold: 6_000 },
+    })).toBe(false);
+    expect(isGameStateSnapshot({
+      ...schema13Snapshot,
+      reserves: { gold: 6_000, fuelGas: -1 },
+    })).toBe(false);
+    expect(isGameStateSnapshot({
+      ...schema13Snapshot,
+      reserves: { gold: 6_000, fuelGas: 1.5 },
+    })).toBe(false);
+    expect(normalizeGameStateSnapshot(schema12Snapshot)?.reserves).toEqual({
+      gold: 6_000,
+      fuelGas: null,
+    });
     expect(normalizeGameStateSnapshot(schema9Snapshot)?.reserves).toBeNull();
   });
 

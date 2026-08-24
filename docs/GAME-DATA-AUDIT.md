@@ -3,6 +3,15 @@
 Target: Captain of Industry v0.8.7 installed under Steam. All rates below are
 normalized to one 60-second production cycle.
 
+## Synced reserve resources
+
+The installed v0.8.7 assemblies define Fuel Gas as `Ids.Products.FuelGas`
+with prototype ID `Product_FuelGas`. Fluid storage uses `FluidStorageProto`,
+which derives from `StorageProto` and is represented by the same `Storage`
+entity used by the existing Gold reserve scan. Eligible Fuel Gas therefore
+uses the same exclusions as Gold: train-linked storage and storage with an
+assigned incoming truck route are not counted as freely available reserves.
+
 ## Research efficiency
 
 Research efficiency bonuses are additive on top of the base 100% output. The

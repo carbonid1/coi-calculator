@@ -1,10 +1,15 @@
 import { Card } from "@carbonid1/design-system";
 
+import {
+  type ReserveBalances,
+  type ReserveValues,
+  reserveResourceCatalog,
+} from "../db/reserve-resources";
 import { calculateReserveRunway } from "../helpers/reserves/reserves";
 
 interface Props {
-  goldBalance: number | null;
-  goldDrawPerProductionCycle: number;
+  balances: ReserveBalances | null;
+  drawsPerProductionCycle: ReserveValues<number>;
 }
 
 const formatQuantity = (value: number) => value.toLocaleString("en-US", {
@@ -21,7 +26,7 @@ const statusPresentation = {
     valueClassName: "text-muted-foreground",
   },
   empty: {
-    label: "No eligible Gold is stored",
+    label: "",
     valueClassName: "text-destructive",
   },
   idle: {
@@ -34,12 +39,16 @@ const statusPresentation = {
   },
 } as const;
 
-export const ReservesView: React.FC<Props> = ({
-  goldBalance,
-  goldDrawPerProductionCycle,
-}) => {
-  const runway = calculateReserveRunway(goldBalance, goldDrawPerProductionCycle);
+const ReserveCard: React.FC<{
+  balance: number | null;
+  drawPerProductionCycle: number;
+  name: string;
+}> = ({ balance, drawPerProductionCycle, name }) => {
+  const runway = calculateReserveRunway(balance, drawPerProductionCycle);
   const status = statusPresentation[runway.status];
+  const statusLabel = runway.status === "empty"
+    ? `No eligible ${name} is stored`
+    : status.label;
   const metrics = [
     {
       label: "In-game years remaining",
@@ -48,7 +57,7 @@ export const ReservesView: React.FC<Props> = ({
         : formatYears(runway.inGameYearsRemaining),
     },
     {
-      label: "Eligible stored Gold",
+      label: `Eligible stored ${name}`,
       value: runway.balance === null ? "Unavailable" : formatQuantity(runway.balance),
     },
     {
@@ -63,10 +72,10 @@ export const ReservesView: React.FC<Props> = ({
     <Card.Root>
       <Card.Content className="gap-3 p-4">
         <Card.Header>
-          <Card.Title>Gold</Card.Title>
+          <Card.Title>{name}</Card.Title>
           <Card.Action>
             <span className={`text-xs font-medium ${status.valueClassName}`}>
-              {status.label}
+              {statusLabel}
             </span>
           </Card.Action>
         </Card.Header>
@@ -89,3 +98,19 @@ export const ReservesView: React.FC<Props> = ({
     </Card.Root>
   );
 };
+
+export const ReservesView: React.FC<Props> = ({
+  balances,
+  drawsPerProductionCycle,
+}) => (
+  <div className="grid gap-3 lg:grid-cols-2">
+    {reserveResourceCatalog.map(({ key, name }) => (
+      <ReserveCard
+        key={key}
+        balance={balances?.[key] ?? null}
+        drawPerProductionCycle={drawsPerProductionCycle[key]}
+        name={name}
+      />
+    ))}
+  </div>
+);

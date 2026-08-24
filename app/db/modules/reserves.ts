@@ -1,34 +1,37 @@
+import {
+  mapReserveResources,
+  type ReserveBalances,
+  reserveResourceCatalog,
+} from "../reserve-resources";
 import { type Module } from "./modules";
 
 export const RESERVES_MODULE_ID = "reserves";
-export const GOLD_RESERVE_RECIPE_ID = "gold-virtual-provision";
-
-export const selectedReserveResources = [
-  {
-    id: "gold",
-    name: "Gold",
-    recipeId: GOLD_RESERVE_RECIPE_ID,
-  },
-] as const;
-
-export interface ReserveBalances {
-  gold: number;
-}
 
 export const createReservesModule = (balances: ReserveBalances | null): Module => {
-  const hasGold = (balances?.gold ?? 0) > 0;
+  const activeByReserveKey = mapReserveResources(
+    ({ key }) => (balances?.[key] ?? 0) > 0 ? 1 : 0,
+  );
+  const builtBuildings = Object.fromEntries(
+    reserveResourceCatalog.map(({ recipeId }) => [recipeId, 1]),
+  );
+  const activeBuildings = Object.fromEntries(
+    reserveResourceCatalog.map(({ key, recipeId }) => [
+      recipeId,
+      activeByReserveKey[key],
+    ]),
+  );
 
   return {
     id: RESERVES_MODULE_ID,
     name: "Reserves",
     description: "Actual contents of selected standalone storage, excluding train-linked storage and storage with an assigned incoming truck route",
-    builtBuildings: { [GOLD_RESERVE_RECIPE_ID]: 1 },
+    builtBuildings,
     presets: [
       {
         id: "synced-reserves",
         name: "Synced reserves",
-        description: "Use eligible stored Gold only while the synced balance is positive.",
-        activeBuildings: { [GOLD_RESERVE_RECIPE_ID]: hasGold ? 1 : 0 },
+        description: "Use eligible stored resources only while each synced balance is positive.",
+        activeBuildings,
         fixed: [],
       },
     ],

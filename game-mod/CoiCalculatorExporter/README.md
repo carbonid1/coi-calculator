@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.11 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.12 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -16,7 +16,8 @@ research categories and selected/active levels for its 19 modeled edicts. An
 edict selected in the game but prevented from running retains its inactivity
 reason; calculator effects use only the active level.
 
-Schema 10 and newer also export the actual Gold quantity in completed standalone storage.
+Schema 10 and newer export the actual Gold quantity in completed standalone storage;
+schema 13 adds Fuel Gas stored under the same eligibility rules.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as

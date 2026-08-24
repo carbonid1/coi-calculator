@@ -6,7 +6,7 @@
 4. Build 8 Assembly V: 1 for Lab Equipment I, 2 for II, 2 for III, and 3 for IV.
 5. Activate 2 Chemical Plant II buildings for Paper.
 6. Unpause the Forestry wood Shredder.
-7. Unpause the fourth Nuclear Hydrogen Reformer.
+7. Build and activate the fifth and sixth Nuclear Hydrogen Reformers.
 8. Loop normal research until every non-space research item is complete.
 9. Start space research only after normal research is exhausted.
 10. Build 1 Assembly V for Household Goods.

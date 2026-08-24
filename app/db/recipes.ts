@@ -9,6 +9,7 @@ import {
 import { activeHousingType } from "./housing";
 import { maintenanceStatue } from "./maintenance-statue";
 import { TREE_FULL_GROWTH_CYCLES } from "./research";
+import { reserveResourceCatalog } from "./reserve-resources";
 import { type ResourceId } from "./resources";
 import {
   calculateSettlementPopulationFlows,
@@ -268,16 +269,16 @@ export const recipes: Recipe[] = [
     sourceMode: "demand",
     sourceKind: "map-mine",
   },
-  {
-    id: "gold-virtual-provision",
-    name: "Gold (Synced Reserve)",
+  ...reserveResourceCatalog.map(({ name, recipeId, resourceId }): Recipe => ({
+    id: recipeId,
+    name: `${name} (Synced Reserve)`,
     building: "Eligible Storage",
     group: "source",
     inputs: [],
-    outputs: [{ resourceId: "gold", quantity: 0 }],
+    outputs: [{ resourceId, quantity: 0 }],
     sourceMode: "demand",
     sourceKind: "virtual-provision",
-  },
+  })),
   {
     id: "bauxite-map-mine",
     name: "Bauxite (Map Mine)",

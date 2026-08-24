@@ -29,7 +29,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 {
     private static readonly TimeSpan ExportInterval = TimeSpan.FromSeconds(5);
     private const int HistoryWindowMonths = 120;
-    private const string GoldProductId = "Product_Gold";
     private const string HydrogenProductId = "Product_Hydrogen";
     private const string MaintenanceT1ProductId = "Product_Virtual_MaintenanceT1";
     private const string MaintenanceT2ProductId = "Product_Virtual_MaintenanceT2";
@@ -72,6 +71,13 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     };
     private static readonly Dictionary<string, int> TrackedPrototypeIndices =
         createTrackedPrototypeIndices();
+    private static readonly TrackedReserveDefinition[] TrackedReserves = new[]
+    {
+        new TrackedReserveDefinition("gold", "Product_Gold"),
+        new TrackedReserveDefinition("fuelGas", "Product_FuelGas"),
+    };
+    private static readonly Dictionary<string, int> TrackedReserveProductIndices =
+        createTrackedReserveProductIndices();
     private static readonly TrackedResearchDefinition[] TrackedResearch = new[]
     {
         new TrackedResearchDefinition("vehiclesPollution", "ResearchVehiclesPollutionDec"),
@@ -148,7 +154,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 11; } }
+    public int Version { get { return 12; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -323,7 +329,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             TrainTrafficSnapshot trainTraffic = getTrainTrafficSnapshot();
             int[] researchLevels = getResearchLevels();
             EdictState[] edictStates = getEdictStates();
-            int goldReserve = getGoldReserveQuantity();
+            int[] reserves = getReserveQuantities();
 
             foreach (var vehicle in m_vehiclesManager.AllVehicles)
             {
@@ -332,7 +338,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":12,");
+            json.Append("\"schemaVersion\":13,");
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");
@@ -415,7 +421,14 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             }
             json.Append("},");
             json.Append("\"reserves\":{");
-            appendNumber(json, "gold", goldReserve, false);
+            for (int i = 0; i < TrackedReserves.Length; i++)
+            {
+                appendNumber(
+                    json,
+                    TrackedReserves[i].Key,
+                    reserves[i],
+                    i < TrackedReserves.Length - 1);
+            }
             json.Append("},");
             json.Append("\"history\":{");
             appendNumber(json, "windowMonths", HistoryWindowMonths, true);
@@ -476,6 +489,17 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         for (int i = 0; i < TrackedResearch.Length; i++)
         {
             result.Add(TrackedResearch[i].PrototypeId, i);
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, int> createTrackedReserveProductIndices()
+    {
+        Dictionary<string, int> result = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < TrackedReserves.Length; i++)
+        {
+            result.Add(TrackedReserves[i].ProductId, i);
         }
 
         return result;
@@ -559,7 +583,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         return states;
     }
 
-    private int getGoldReserveQuantity()
+    private int[] getReserveQuantities()
     {
         HashSet<EntityId> stationLinkedStorageIds = new HashSet<EntityId>();
 
@@ -577,7 +601,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             }
         }
 
-        long total = 0;
+        long[] quantities = new long[TrackedReserves.Length];
         foreach (IEntity entity in m_entitiesManager.Entities)
         {
             Storage storage = entity as Storage;
@@ -586,23 +610,30 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 || !storage.IsConstructed
                 || stationLinkedStorageIds.Contains(storage.Id)
                 || storage.AssignedInputs.Count > 0
-                || !storage.StoredProduct.HasValue
-                || !String.Equals(
-                    storage.StoredProduct.Value.Id.ToString(),
-                    GoldProductId,
-                    StringComparison.Ordinal))
+                || !storage.StoredProduct.HasValue)
             {
                 continue;
             }
 
-            total += storage.CurrentQuantity.Value;
-            if (total >= Int32.MaxValue)
+            string productId = storage.StoredProduct.Value.Id.ToString();
+            int reserveIndex;
+            if (!TrackedReserveProductIndices.TryGetValue(productId, out reserveIndex))
             {
-                return Int32.MaxValue;
+                continue;
             }
+
+            quantities[reserveIndex] = Math.Min(
+                Int32.MaxValue,
+                quantities[reserveIndex] + storage.CurrentQuantity.Value);
         }
 
-        return (int)total;
+        int[] result = new int[TrackedReserves.Length];
+        for (int i = 0; i < quantities.Length; i++)
+        {
+            result[i] = (int)quantities[i];
+        }
+
+        return result;
     }
 
     private void initializeTrackedBuildingCounts()
@@ -1124,6 +1155,18 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             Value = value;
             SampleMonths = sampleMonths;
+        }
+    }
+
+    private sealed class TrackedReserveDefinition
+    {
+        public readonly string Key;
+        public readonly string ProductId;
+
+        public TrackedReserveDefinition(string key, string productId)
+        {
+            Key = key;
+            ProductId = productId;
         }
     }
 
