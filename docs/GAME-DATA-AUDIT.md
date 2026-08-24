@@ -17,8 +17,8 @@ assigned incoming truck route are not counted as freely available reserves.
 Research efficiency bonuses are additive on top of the base 100% output. The
 current non-space plan combines Research Efficiency V (+60%) with planned
 population. Population contributes
-`trunc((population * 5 + 500) / 1000)%`; at 2,880 residents this is +14%.
-Combined research output is therefore 174% of the base lab output. The disabled
+`trunc((population * 5 + 500) / 1000)%`; at 3,168 residents this is +16%.
+Combined research output is therefore 176% of the base lab output. The disabled
 Space Station IV planning module would add another 25% when activated.
 
 Verified in installed v0.8.7 `SettlementsManager`, `SpaceStation`,
@@ -377,3 +377,41 @@ Established inputs such as Electronics III and Graphite are deliberately not
 produced inside Space Points Exp. Their deficits remain local to the isolated
 planning tab while it is disabled; activating the module exposes them in
 Factory Total.
+
+## Offices and Focuses
+
+The Offices module models all three installed v0.8.7 tiers. Rates are per
+production cycle (60 seconds):
+
+| Building   | Workers | Electricity | Office Supplies | Recyclables | Computing base |
+| ---------- | ------: | ----------: | --------------: | ----------: | -------------: |
+| Office I   |     250 |      250 kW |               2 |           2 |      12 TFLOPS |
+| Office II  |     500 |      400 kW |               4 |           4 |      24 TFLOPS |
+| Office III |   1,000 |      600 kW |               8 |           8 |      48 TFLOPS |
+
+Computing boost steps 0, 1, and 2 add 0%, 20%, and 50% Office Focus capacity.
+Their computing demands are `step² × computing base`, so an Office III at step
+2 consumes 192 TFLOPS. Focus Points research adds 4% base capacity per level.
+The game rounds research-scaled base capacity and boost capacity separately for
+each Office before adding them.
+
+Focus step cost is the cumulative arithmetic series
+`step / 2 × (2 × base cost + (step - 1) × cost increment)`. The calculator
+models Research Efficiency, Maintenance Production, Crop Yield, Recycling
+Efficiency, Food Consumption, Goods & Services Consumption, Settlement Unity,
+Contracts Profitability, and Contracts Unity Cost. World Mines & Rigs and the
+truck and train capacity Focuses are displayed but remain informational because
+their production or throughput is not modeled in Factory Total.
+
+Assembly V produces 6 Office Supplies from 3 Paper, 2 Household Goods, and 1
+Electronics II every 7.5 seconds. The calculator stores the equivalent
+per-production-cycle rates of 48, 24, 16, and 8 respectively.
+
+Office configuration resolves in `default ≤ modeled ≤ synced ≤ planned` order.
+The current default is empty and no plan is set. A source-owned planned value
+will remain authoritative until it is explicitly changed; the calculator does
+not automatically clear a plan when synced values catch up.
+
+Verified against the installed v0.8.7 Office prototypes, `OfficeFocusProto`,
+Focus property implementations, Focus Points infinite research, and Assembly V
+Office Supplies recipe bindings.

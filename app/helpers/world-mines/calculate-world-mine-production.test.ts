@@ -45,6 +45,23 @@ describe('calculateWorldMineProduction', () => {
     })
   })
 
+  it('adds Focus output to the fractional bonus carry', () => {
+    expect(calculateWorldMineProduction(
+      worldMines.sulfurMine,
+      1,
+      0,
+      0,
+      10,
+    )).toMatchObject({
+      researchBonusPercent: 0,
+      focusBonusPercent: 10,
+      bonusPercent: 10,
+      averageBonusOutputPerCycle: 5.4,
+      bonusOutputThisCycle: 5,
+      bonusCarryHundredths: 40,
+    })
+  })
+
   it('applies the research to groundwater wells through the shared mine runtime', () => {
     expect(calculateWorldMineProduction(worldMines.groundwaterWell, 1, 5)).toMatchObject({
       baseOutputPerCycle: 48,

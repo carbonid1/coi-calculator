@@ -30,12 +30,22 @@ describe("active crop farm plan", () => {
     expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0);
   });
 
-  it("connects four active and one paused Groundwater Pump only to Greenhouses", () => {
+  it("runs 1,950 chickens within the four existing farms", () => {
+    const chickenFarmsModule = createChickenFarmsModule(defaultChickenFarmSettings);
+    const preset = chickenFarmsModule.presets.at(0);
+
+    expect(defaultChickenFarmSettings.totalChickenCount).toBe(1_950);
+    expect(chickenFarmsModule.builtBuildings["chicken-farm-slaughtering"]).toBe(4);
+    expect(preset?.activeBuildings["chicken-farm-slaughtering"]).toBe(4);
+    expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0.975);
+  });
+
+  it("connects five active Groundwater Pumps only to Greenhouses", () => {
     const greenhousePreset = greenhouses.presets.at(0);
     const chickenFarmsModule = createChickenFarmsModule(defaultChickenFarmSettings);
 
     expect(greenhouses.builtBuildings["groundwater-pump"]).toBe(5);
-    expect(greenhousePreset?.activeBuildings["groundwater-pump"]).toBe(4);
+    expect(greenhousePreset?.activeBuildings["groundwater-pump"]).toBe(5);
     expect(chickenFarmsModule.builtBuildings).not.toHaveProperty("groundwater-pump");
   });
 
@@ -126,7 +136,7 @@ describe("active crop farm plan", () => {
       }
     }
 
-    expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(6);
+    expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(7);
 
     for (const crop of Object.values(crops)) {
       if (!crop.productId) continue;

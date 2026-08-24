@@ -60,6 +60,9 @@ export const calculateBuildingStats = (
       * result.activeBuildings
       * result.supplyRatio
       * (result.recipe.electricityScalesWithSpeed ? result.speedLevel : 1)
+      * (result.recipe.electricityInputModifierId
+        ? recipeModifiers[result.recipe.electricityInputModifierId] ?? 1
+        : 1)
       * (result.recipe.electricityMultiplier ?? 1);
   }, 0);
 
@@ -106,7 +109,11 @@ export const calculateBuildingStats = (
 
   for (const result of results.regularResults) {
     const building = buildings[result.recipe.building];
-    const tflopsPerMachine = building?.computingTflops ?? 0;
+    const tflopsPerMachine = (building?.computingTflops ?? 0)
+      * (result.recipe.computingMultiplier ?? 1)
+      * (result.recipe.computingInputModifierId
+        ? recipeModifiers[result.recipe.computingInputModifierId] ?? 1
+        : 1);
 
     if (tflopsPerMachine <= 0 || result.supplyRatio <= 0) continue;
 

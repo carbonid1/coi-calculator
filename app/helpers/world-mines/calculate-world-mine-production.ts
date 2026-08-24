@@ -7,6 +7,8 @@ export interface WorldMineProductionResult {
   productionLevel: number
   researchLevel: number
   researchBonusPercent: number
+  focusBonusPercent: number
+  bonusPercent: number
   baseOutputPerCycle: number
   averageBonusOutputPerCycle: number
   averageOutputPerCycle: number
@@ -26,6 +28,7 @@ export const calculateWorldMineProduction = (
   productionLevel: number,
   researchLevel: number,
   bonusCarryHundredths = 0,
+  focusBonusPercent = 0,
 ): WorldMineProductionResult => {
   const normalizedProductionLevel = Math.min(
     mine.maxProductionLevel,
@@ -35,7 +38,7 @@ export const calculateWorldMineProduction = (
     BONUS_CARRY_SCALE - 1,
     Math.max(0, Math.trunc(bonusCarryHundredths)),
   )
-  const research = calculateWorldMineOutput(researchLevel)
+  const research = calculateWorldMineOutput(researchLevel, focusBonusPercent)
   const baseOutputPerCycle = getWorldMineBaseOutputPerCycle(mine, normalizedProductionLevel)
   const availableBonusHundredths = normalizedCarry + baseOutputPerCycle * research.bonusPercent
   const bonusOutputThisCycle = Math.floor(availableBonusHundredths / BONUS_CARRY_SCALE)
@@ -46,7 +49,9 @@ export const calculateWorldMineProduction = (
   return {
     productionLevel: normalizedProductionLevel,
     researchLevel: research.level,
-    researchBonusPercent: research.bonusPercent,
+    researchBonusPercent: research.researchBonusPercent,
+    focusBonusPercent: research.focusBonusPercent,
+    bonusPercent: research.bonusPercent,
     baseOutputPerCycle,
     averageBonusOutputPerCycle,
     averageOutputPerCycle: baseOutputPerCycle + averageBonusOutputPerCycle,

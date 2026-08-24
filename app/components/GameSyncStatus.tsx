@@ -12,8 +12,9 @@ interface Props {
   status: GameStateConnectionStatus;
 }
 
-const formatSnapshotTime = (value: string) => new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
+export const formatSnapshotTime = (value: string) => new Intl.DateTimeFormat("uk-UA", {
+  hour: "2-digit",
+  hour12: false,
   minute: "2-digit",
   second: "2-digit",
 }).format(new Date(value));

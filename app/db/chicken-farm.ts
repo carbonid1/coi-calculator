@@ -18,7 +18,7 @@ export const chickenFarm = {
 } as const;
 
 export const defaultChickenFarmSettings: ChickenFarmSettings = {
-  totalChickenCount: 1_800,
+  totalChickenCount: 1_950,
   slaughtering: true,
 };
 

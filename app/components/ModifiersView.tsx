@@ -12,6 +12,7 @@ import {
   normalizeFarmingBoostLevel,
   normalizeMaintenanceReducerLevel,
 } from "../db/edicts";
+import { type FocusEffectId } from "../db/offices";
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
 import { type SyncedEdictState, type SyncedEdictStates } from "../game-state";
@@ -38,6 +39,7 @@ interface Props {
   settlementWaterUseLevel: number;
   treeGrowthSpeedLevel: number;
   worldMineOutputLevel: number;
+  focusBonuses: Readonly<Record<FocusEffectId, number>>;
 }
 
 const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
@@ -124,15 +126,27 @@ export const ModifiersView: React.FC<Props> = ({
   settlementWaterUseLevel,
   treeGrowthSpeedLevel,
   worldMineOutputLevel,
+  focusBonuses,
 }) => {
-  const recyclingEfficiency = calculateRecyclingEfficiency(edictLevels.recyclingIncrease);
+  const recyclingEfficiency = calculateRecyclingEfficiency(
+    edictLevels.recyclingIncrease,
+    focusBonuses.recyclingEfficiency,
+  );
   const foodConsumption = calculateFoodConsumption(
     edictLevels.foodSaver,
     edictLevels.plentyOfFood,
+    focusBonuses.foodConsumption,
   );
-  const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
+  const maintenanceOutput = calculateMaintenanceOutput(
+    maintenanceOutputLevel,
+    focusBonuses.maintenanceProduction,
+  );
   const solarPower = calculateSolarPower(solarPowerLevel, normalizeCleanPanelsLevel(edictLevels.cleanPanels));
-  const cropFarming = calculateCropFarmingModifiers(cropYieldLevel, normalizeFarmingBoostLevel(edictLevels.farmingBoost));
+  const cropFarming = calculateCropFarmingModifiers(
+    cropYieldLevel,
+    normalizeFarmingBoostLevel(edictLevels.farmingBoost),
+    focusBonuses.cropYield,
+  );
   const waterSaver = getEdict("waterSaver").levels.find(
     (level) => level.level === edictLevels.waterSaver,
   );
@@ -148,7 +162,10 @@ export const ModifiersView: React.FC<Props> = ({
     1 - settlementWaterUse.multiplier * waterSaverMultiplier
   ) * 100;
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
-  const worldMineOutput = calculateWorldMineOutput(worldMineOutputLevel);
+  const worldMineOutput = calculateWorldMineOutput(
+    worldMineOutputLevel,
+    focusBonuses.worldMinesEfficiency,
+  );
   const maintenanceDemand = calculateMaintenanceDemandReduction(
     normalizeMaintenanceReducerLevel(edictLevels.maintenanceReducer),
     maintenanceStatueCount,
@@ -252,6 +269,14 @@ export const ModifiersView: React.FC<Props> = ({
               ["Rainwater yield", `+${rainwaterYield.bonusPercent}%`],
               ["Tree growth speed", `+${treeGrowthSpeed.bonusPercent}%`],
               ["World mine bonus output", `+${worldMineOutput.bonusPercent}%`],
+              ["Goods & services consumption", formatSignedPercent(
+                focusBonuses.settlementConsumption,
+              )],
+              ["Settlement Unity", `+${focusBonuses.unityProduction}%`],
+              ["Contracts profitability", `+${focusBonuses.contractsProfitability}%`],
+              ["Contracts Unity cost", formatSignedPercent(
+                focusBonuses.contractsUnityCost,
+              )],
               ["Maintenance demand", `-${maintenanceDemand.totalReductionPercent}% (informational)`],
             ].map(([label, value]) => (
               <div key={label} className="space-y-1">

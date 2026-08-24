@@ -7,6 +7,7 @@ import { housing } from "./housing";
 import { maintenance } from "./maintenance";
 import { mines } from "./mines";
 import { nuclear } from "./nuclear";
+import { offices } from "./offices";
 import { processSteam } from "./process-steam";
 import { research } from "./research";
 import { reserves } from "./reserves";
@@ -53,6 +54,7 @@ export const modules: [Module, ...Module[]] = [
   forestry,
   processSteam,
   research,
+  offices,
   spaceStation,
   spacePointsExpansion,
   greenhouses,

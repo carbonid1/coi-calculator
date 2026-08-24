@@ -54,8 +54,12 @@ export const getRecipeOutputQuantity = (
   modifiers: RecipeModifierMultipliers = {},
 ) => {
   const modifierExemptQuantity = output.modifierExemptQuantity ?? 0;
+  const modifierExemptMultiplier = output.modifierExemptOutputModifierId
+    ? modifiers[output.modifierExemptOutputModifierId] ?? 1
+    : 1;
+  const modifiedExemptQuantity = modifierExemptQuantity * modifierExemptMultiplier;
 
-  if (!output.outputModifierId) return output.quantity + modifierExemptQuantity;
+  if (!output.outputModifierId) return output.quantity + modifiedExemptQuantity;
 
   const multiplier = modifiers[output.outputModifierId] ?? 1;
 
@@ -64,12 +68,13 @@ export const getRecipeOutputQuantity = (
   // not rounded to a whole material unit per recipe cycle.
   if (
     output.outputModifierId === "foodConsumption"
+    || output.outputModifierId === "settlementConsumption"
     || output.outputModifierId === "settlementWater"
     || output.outputModifierId === "solarPower"
     || output.outputModifierId === "cropYield"
     || output.outputModifierId === "treeGrowthSpeed"
   ) {
-    return output.quantity * multiplier + modifierExemptQuantity;
+    return output.quantity * multiplier + modifiedExemptQuantity;
   }
 
   const cyclesPer60Seconds = recipe.cycleDurationSeconds
@@ -79,7 +84,7 @@ export const getRecipeOutputQuantity = (
 
   // The game scales each recipe-cycle output before reporting its /60 rate.
   return scaleGameQuantity(quantityPerCycle, multiplier) * cyclesPer60Seconds
-    + modifierExemptQuantity;
+    + modifiedExemptQuantity;
 };
 
 export const getRecipeInputQuantity = (

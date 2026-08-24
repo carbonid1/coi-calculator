@@ -11,7 +11,7 @@ export const GREENHOUSES_MODULE_ID = "greenhouses";
 export const CHICKEN_FARMS_MODULE_ID = "chicken-farms";
 
 const builtGroundwaterPumpCount = 5;
-const activeGroundwaterPumpCount = 4;
+const activeGroundwaterPumpCount = 5;
 const slaughteringRecipeId = "chicken-farm-slaughtering";
 const eggsOnlyRecipeId = "chicken-farm-eggs-only";
 
@@ -35,13 +35,13 @@ const activeGreenhouseBuildings = {
 export const greenhouses: Module = {
   id: GREENHOUSES_MODULE_ID,
   name: "Greenhouses",
-  description: `${cropFarmCount} fixed Greenhouse II rotations. Five directly connected Groundwater Pumps are built with four active; they balance only greenhouse demand, and any remaining Water is imported. Crop cards show imported water after weather and gross demand.`,
+  description: `${cropFarmCount} fixed Greenhouse II rotations. Five directly connected Groundwater Pumps are active; they balance only greenhouse demand, and any remaining Water is imported. Crop cards show imported water after weather and gross demand.`,
   builtBuildings: greenhouseBuildings,
   presets: [
     {
       id: "current-greenhouse-plan",
       name: "Current Greenhouse Plan",
-      description: `${cropFarmCount} Greenhouse IIs with four active and one paused Groundwater Pump`,
+      description: `${cropFarmCount} Greenhouse IIs with five active Groundwater Pumps`,
       activeBuildings: activeGreenhouseBuildings,
       fixed: fixedCropFarmIds,
     },

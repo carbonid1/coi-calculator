@@ -62,6 +62,8 @@ export const calculateUnityBudget = ({
   unityCapacityMultiplier,
   edictLevels,
   contracts,
+  contractsUnityCostPercent = 0,
+  settlementUnityBonusPercent = 0,
   buildingConsumption = [],
   buildingGeneration = [],
 }: {
@@ -71,6 +73,8 @@ export const calculateUnityBudget = ({
   unityCapacityMultiplier: number;
   edictLevels: Record<EdictId, EdictLevel>;
   contracts: ContractUnityInput[];
+  contractsUnityCostPercent?: number;
+  settlementUnityBonusPercent?: number;
   buildingConsumption?: UnityBreakdownItem[];
   buildingGeneration?: UnityBreakdownItem[];
 }): UnityBudget => {
@@ -85,6 +89,8 @@ export const calculateUnityBudget = ({
   const foodVariety = population > 0
     ? settlementFoods.reduce((total, food) => total + food.unityPerCycleWhenSupplied, 0)
     : 0;
+  const settlementUnityMultiplier = 1 + Math.max(0, settlementUnityBonusPercent) / 100;
+  const contractsUnityCostMultiplier = 1 + Math.min(0, contractsUnityCostPercent) / 100;
   const serviceGeneration = activeServices.map((service) => {
     const unityIncreasePercent = edictCatalog.reduce((total, edict) => {
       const active = edict.levels.find((candidate) => candidate.level === edictLevels[edict.id]);
@@ -94,13 +100,14 @@ export const calculateUnityBudget = ({
         : total;
     }, 0);
     const serviceWithEdict = service.baseUnityPerCycle * (1 + unityIncreasePercent / 100);
+    const serviceUnity = serviceWithEdict * housingMultiplier
+      + (service.id === "food" ? foodVariety : 0);
 
     return {
       id: service.id,
       name: service.name,
       amount: population > 0
-        ? serviceWithEdict * housingMultiplier
-          + (service.id === "food" ? foodVariety : 0)
+        ? serviceUnity * settlementUnityMultiplier
         : 0,
     };
   });
@@ -114,12 +121,16 @@ export const calculateUnityBudget = ({
     {
       id: "settlement-quality",
       name: "Settlements quality",
-      amount: population > 0 ? settlementQualityUnityPerCycle : 0,
+      amount: population > 0
+        ? settlementQualityUnityPerCycle * settlementUnityMultiplier
+        : 0,
     },
     {
       id: "health",
       name: "Health",
-      amount: population > 0 ? healthUnityPerCycleBaseline : 0,
+      amount: population > 0
+        ? healthUnityPerCycleBaseline * settlementUnityMultiplier
+        : 0,
     },
     ...(edictGeneration > 0
       ? [{
@@ -141,7 +152,7 @@ export const calculateUnityBudget = ({
     return {
       id: `contract-${contract.id}`,
       name: contract.name,
-      amount: contract.fixedUnityPerCycle + variable,
+      amount: (contract.fixedUnityPerCycle + variable) * contractsUnityCostMultiplier,
     };
   });
   const consumption: UnityBreakdownItem[] = [

@@ -424,6 +424,7 @@ export const calculateFactoryTotal = (
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
   outputModifiers: RecipeModifierMultipliers = {},
   shipsFuelUseMultiplier = 1,
+  contractsProfitMultiplier = 1,
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
@@ -520,6 +521,7 @@ export const calculateFactoryTotal = (
     contracts,
     shipsFuelUseMultiplier,
     demandBalancedImports,
+    contractsProfitMultiplier,
   );
   let dispatched = calculateWithContractPlan(contractPlan);
 
@@ -565,6 +567,7 @@ export const calculateFactoryTotal = (
       contracts,
       shipsFuelUseMultiplier,
       demandBalancedImports,
+      contractsProfitMultiplier,
     );
     dispatched = calculateWithContractPlan(contractPlan);
   }

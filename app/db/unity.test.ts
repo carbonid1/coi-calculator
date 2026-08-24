@@ -47,3 +47,47 @@ it("includes recurring Unity for every active contract", () => {
   });
   expect(budget.netPerCycle).toBeCloseTo(0.621, 10);
 });
+
+it("applies Office Focuses to settlement generation and contract cost", () => {
+  const contract = activeContracts[0];
+  const input = {
+    housing: activeHousingType,
+    housingCount: 1,
+    housingCapacityMultiplier: 1,
+    unityCapacityMultiplier: 1,
+    edictLevels: defaultEdictLevels,
+    contracts: contract
+      ? [{
+          id: contract.id,
+          name: contract.name,
+          importedPerCycle: contract.plan.importedPerProductionCycle ?? 0,
+          fixedUnityPerCycle: contract.unity.perProductionCycle,
+          unityPer100Imported: contract.unity.per100Imported,
+        }]
+      : [],
+  };
+  const baseline = calculateUnityBudget(input);
+  const focused = calculateUnityBudget({
+    ...input,
+    contractsUnityCostPercent: -25,
+    settlementUnityBonusPercent: 10,
+  });
+
+  const nonSettlementGeneration = baseline.generation
+    .filter((item) => item.id === "production-edicts")
+    .reduce((total, item) => total + item.amount, 0);
+  const contractConsumption = baseline.consumption
+    .filter((item) => item.id.startsWith("contract-"))
+    .reduce((total, item) => total + item.amount, 0);
+
+  expect(focused.generationPerCycle).toBeCloseTo(
+    (baseline.generationPerCycle - nonSettlementGeneration) * 1.1
+      + nonSettlementGeneration,
+    10,
+  );
+  expect(focused.consumptionPerCycle).toBeCloseTo(
+    baseline.consumptionPerCycle - contractConsumption
+      + contractConsumption * 0.75,
+    10,
+  );
+});

@@ -194,6 +194,46 @@ describe("byproduct building diagnostics", () => {
     expect(diagnostic?.affectedResources).toEqual([]);
     expect(diagnostic?.attention).toBeNull();
   });
+
+  it("does not recommend Cracking Units to cover a Water deficit", () => {
+    const crackingUnit = recipes.find(
+      (recipe) => recipe.id === "cracking-unit-fuel-gas-diesel",
+    );
+
+    expect(crackingUnit).toBeDefined();
+
+    if (!crackingUnit) return;
+
+    const generalModule: Module = {
+      id: "general",
+      name: "General",
+      description: "",
+      builtBuildings: { [crackingUnit.id]: 2 },
+      presets: [],
+      defaultPresetId: null,
+    };
+    const result: RegularResult = {
+      recipe: crackingUnit,
+      moduleId: generalModule.id,
+      activeBuildings: 2,
+      builtBuildings: 2,
+      operatingMode: "fixed",
+      supplyRatio: 1,
+      speedLevel: 1,
+      actualInputs: [],
+      actualOutputs: [],
+      appliedRecyclingEfficiencyPercent: null,
+      recyclableSourceValueProduced: 0,
+    };
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [generalModule],
+      [resourceFlow("water", -1), resourceFlow("diesel", 48)],
+      [result],
+    );
+
+    expect(diagnostic?.affectedResources).toEqual([]);
+    expect(diagnostic?.attention).toBeNull();
+  });
 });
 
 describe("cost-free capacity diagnostics", () => {

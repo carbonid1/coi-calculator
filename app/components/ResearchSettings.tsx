@@ -156,7 +156,7 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({
               {efficiency.totalOutputPercent.toLocaleString()}%
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <EfficiencyMetric
               label="Edict"
               value={`+${efficiency.edictBonusPercent}%`}
@@ -164,6 +164,10 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({
             <EfficiencyMetric
               label="Space station"
               value={`+${efficiency.stationBonusPercent}%`}
+            />
+            <EfficiencyMetric
+              label="Focus"
+              value={`+${efficiency.focusBonusPercent}%`}
             />
             <EfficiencyMetric
               label={`Population (${efficiency.population.toLocaleString()})`}

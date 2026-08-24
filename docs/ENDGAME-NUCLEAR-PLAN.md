@@ -34,7 +34,7 @@ without committing to the final factory layout now.
 - Build eight complete turbine trains, with two trains dispatched for the
   initial 50 MW average target. Hydrogen and desalination steam use part of the
   gross headroom when they run at the same time.
-- Expand to six Hydrogen Reformers and keep all six active while
+- Keep six Hydrogen Reformers built with five active and one paused while
   demand-balancing output against current factory-wide Hydrogen demand.
 - Keep research stations outside the initial material and electricity load.
 - Keep Maintenance III at its measured factory demand; the two-FBR checkpoint

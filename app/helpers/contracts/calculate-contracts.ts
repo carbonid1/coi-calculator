@@ -109,6 +109,7 @@ export const applyContracts = (
   contracts: ActiveContract[],
   shipsFuelUseMultiplier = 1,
   demandBalancedImports: ReadonlyMap<string, number> = new Map(),
+  contractsProfitMultiplier = 1,
 ): { flows: ResourceFlow[]; contractResults: ContractResult[] } => {
   const combined = new Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>(
     resourceFlows.map((flow) => [flow.resourceId, {
@@ -129,7 +130,13 @@ export const applyContracts = (
     const imported = shipping.maxImportedPerProductionCycle === null
       ? requestedImported
       : Math.min(requestedImported, shipping.maxImportedPerProductionCycle);
-    const exported = imported * contract.exchange.exported.quantity / contract.exchange.imported.quantity;
+    const effectiveImportedQuantity = scaleQuantityLikeGame(
+      contract.exchange.imported.quantity,
+      Math.max(0.01, contractsProfitMultiplier),
+    );
+    const exported = effectiveImportedQuantity > 0
+      ? imported * contract.exchange.exported.quantity / effectiveImportedQuantity
+      : 0;
     const fuelPerProductionCycle = shipping.importedPerTrip > 0
       ? imported / shipping.importedPerTrip * shipping.fuelPerTrip
       : 0;

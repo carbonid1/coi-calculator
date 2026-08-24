@@ -52,6 +52,24 @@ describe("Factory Total contracts", () => {
 
   });
 
+  it("keeps one Hydrogen Reformer paused while five cover full demand", () => {
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const reformer = result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "hydrogen-reformer-super",
+    );
+    const hydrogenOutput = reformer?.actualOutputs.find(
+      ({ resourceId }) => resourceId === "hydrogen",
+    )?.quantity ?? 0;
+    const hydrogen = result.calculation.allResourceFlows.find(
+      ({ resourceId }) => resourceId === "hydrogen",
+    );
+
+    expect(reformer).toMatchObject({ activeBuildings: 5, builtBuildings: 6 });
+    expect(hydrogenOutput).toBeGreaterThan(4 * 32);
+    expect(hydrogenOutput).toBeLessThan(5 * 32);
+    expect(hydrogen?.net).toBeCloseTo(0);
+  });
+
   it("balances the Iron Ore contract against live factory demand", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
     const contractResult = result.contractResults.find(
@@ -66,12 +84,12 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.imported).toBeCloseTo(140.971225, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(140.971225, 5);
+    expect(contractResult?.imported).toBeCloseTo(177.88709681, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(177.88709681, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(25.46292752, 8);
-    expect(ironOre?.consumed).toBeCloseTo(140.971225, 5);
-    expect(ironOre?.produced).toBeCloseTo(140.971225, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(32.13085686, 8);
+    expect(ironOre?.consumed).toBeCloseTo(177.88709681, 5);
+    expect(ironOre?.produced).toBeCloseTo(177.88709681, 5);
     expect(ironOre?.net).toBeCloseTo(0, 5);
     const ironMineOutput = ironMine?.actualOutputs.find(
       (output) => output.resourceId === "ironOre",
@@ -241,9 +259,9 @@ describe("Factory Total contracts", () => {
     expect(result.flows.find((flow) => flow.resourceId === "spaceResearchPoints"))
       .toBeUndefined();
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
-    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.5964583333);
-    expect(recyclables?.consumed).toBeCloseTo(171.78);
-    expect(recyclables?.produced).toBeCloseTo(171.78);
+    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.6042083333);
+    expect(recyclables?.consumed).toBeCloseTo(174.012);
+    expect(recyclables?.produced).toBeCloseTo(174.012);
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });

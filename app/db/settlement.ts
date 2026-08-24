@@ -145,9 +145,17 @@ export const calculateSettlementPopulationFlows = (
           * housing.serviceDemandMultipliers.water
           * normalizedPopulation,
       },
-      { resourceId: "medicalSupplies", quantity: medicalSupplies },
+      {
+        resourceId: "medicalSupplies",
+        inputModifierId: "settlementConsumption",
+        quantity: medicalSupplies,
+      },
       ...(activeHousingServices.householdGoods
-        ? [{ resourceId: "householdGoods" as const, quantity: householdGoods }]
+        ? [{
+            resourceId: "householdGoods" as const,
+            inputModifierId: "settlementConsumption" as const,
+            quantity: householdGoods,
+          }]
         : []),
     ],
     outputs: [
@@ -168,10 +176,12 @@ export const calculateSettlementPopulationFlows = (
         resourceId: "biomass",
         quantity: biomass,
         modifierExemptQuantity: householdGoodsBiomass,
+        modifierExemptOutputModifierId: "settlementConsumption",
         outputModifierId: "foodConsumption",
       },
       {
         resourceId: "recyclables",
+        outputModifierId: "settlementConsumption",
         quantity:
           medicalSupplies * settlementConfig.recyclablesPerMedicalSupply
           + (activeHousingServices.householdGoods

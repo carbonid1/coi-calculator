@@ -10,6 +10,7 @@ export interface CropFarmingModifiers {
   researchWaterDemandBonusPercent: number;
   edictYieldBonusPercent: number;
   edictWaterDemandBonusPercent: number;
+  focusYieldBonusPercent: number;
   yieldBonusPercent: number;
   waterDemandBonusPercent: number;
   yieldMultiplier: number;
@@ -19,6 +20,7 @@ export interface CropFarmingModifiers {
 export const calculateCropFarmingModifiers = (
   researchLevel: number,
   farmingBoostLevel: FarmingBoostLevel,
+  focusYieldBonusPercent = 0,
 ): CropFarmingModifiers => {
   const normalizedResearchLevel = Math.min(
     cropYieldResearch.maxLevel,
@@ -30,7 +32,8 @@ export const calculateCropFarmingModifiers = (
   const researchWaterDemandBonusPercent = normalizedResearchLevel
     * cropYieldResearch.waterDemandPercentPerLevel;
   const yieldBonusPercent = researchYieldBonusPercent
-    + activeEdict.yieldIncreasePercent;
+    + activeEdict.yieldIncreasePercent
+    + Math.max(0, focusYieldBonusPercent);
   const waterDemandBonusPercent = researchWaterDemandBonusPercent
     + activeEdict.waterDemandIncreasePercent;
 
@@ -40,6 +43,7 @@ export const calculateCropFarmingModifiers = (
     researchWaterDemandBonusPercent,
     edictYieldBonusPercent: activeEdict.yieldIncreasePercent,
     edictWaterDemandBonusPercent: activeEdict.waterDemandIncreasePercent,
+    focusYieldBonusPercent: Math.max(0, focusYieldBonusPercent),
     yieldBonusPercent,
     waterDemandBonusPercent,
     yieldMultiplier: 1 + yieldBonusPercent / 100,

@@ -8,6 +8,11 @@ import {
 } from "./crop-farming";
 import { activeHousingType } from "./housing";
 import { maintenanceStatue } from "./maintenance-statue";
+import {
+  getOfficeRecipeId,
+  officeCatalog,
+  type OfficeBoostStep,
+} from "./offices";
 import { TREE_FULL_GROWTH_CYCLES } from "./research";
 import { reserveResourceCatalog } from "./reserve-resources";
 import { type ResourceId } from "./resources";
@@ -27,6 +32,8 @@ export interface Ingredient {
   quantity: number; // per 60 seconds
   /** Additional output quantity that is not scaled by outputModifierId. */
   modifierExemptQuantity?: number;
+  /** Optional modifier for modifierExemptQuantity; defaults to no scaling. */
+  modifierExemptOutputModifierId?: OutputModifierId;
   inputModifierId?: InputModifierId;
   outputModifierId?: OutputModifierId;
   /** Applies the configured seed's finite-buffer farm rainfall simulation. */
@@ -38,11 +45,13 @@ export type InputModifierId =
   | "cropWater"
   | "foodConsumption"
   | "rocketLaunches"
+  | "settlementConsumption"
   | "settlementWater"
   | "treeGrowthSpeed";
 export type OutputModifierId =
   | "foodConsumption"
   | "maintenanceOutput"
+  | "settlementConsumption"
   | "settlementWater"
   | "solarPower"
   | "cropYield"
@@ -116,6 +125,12 @@ export interface Recipe {
   electricityScalesWithSpeed?: boolean;
   /** Scale the building's computing demand by speedLevel (used for per-100-population services). */
   computingScalesWithSpeed?: boolean;
+  /** Recipe-specific multiplier applied to the building's computing demand. */
+  computingMultiplier?: number;
+  /** Scales population-driven electricity demand with a global input modifier. */
+  electricityInputModifierId?: InputModifierId;
+  /** Scales population-driven computing demand with a global input modifier. */
+  computingInputModifierId?: InputModifierId;
   /** Generators in one group share utilization; lower priorities serve demand first. */
   electricityDispatch?: {
     groupId: string;
@@ -508,6 +523,7 @@ export const recipes: Recipe[] = [
     // v0.8.6 settlement collection converts tracked recyclable sources with
     // its own 2:1 rule; the global recycling modifier is not applied here.
     appliesRecyclingEfficiency: false,
+    electricityInputModifierId: "settlementConsumption",
     electricityScalesWithSpeed: true,
   },
   {
@@ -517,6 +533,7 @@ export const recipes: Recipe[] = [
     group: "production",
     inputs: [],
     outputs: [],
+    computingInputModifierId: "settlementConsumption",
     computingScalesWithSpeed: true,
   },
   {
@@ -1487,6 +1504,7 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 20,
     balanceBy: "input",
     balanceInputIds: ["fuelGas"],
+    balanceOutputIds: ["diesel"],
     allocation: "surplus",
     allocationPriority: 100,
     inputs: [
@@ -2120,6 +2138,42 @@ export const recipes: Recipe[] = [
     ],
     outputs: [{ resourceId: "recyclables", quantity: 48 }],
   },
+  {
+    // Installed v0.8.7 Assembly V binding: 3 Paper + 2 Household Goods
+    // + 1 Electronics II -> 6 Office Supplies every 7.5 seconds.
+    id: "assembly-v-office-supplies",
+    name: "Assembly V (Office Supplies)",
+    building: "Assembly V",
+    group: "production",
+    cycleDurationSeconds: 7.5,
+    balanceBy: "output",
+    balanceOutputIds: ["officeSupplies"],
+    inputs: [
+      { resourceId: "paper", quantity: 24 },
+      { resourceId: "householdGoods", quantity: 16 },
+      { resourceId: "electronicsII", quantity: 8 },
+    ],
+    outputs: [{ resourceId: "officeSupplies", quantity: 48 }],
+  },
+  ...officeCatalog.flatMap((office) => (
+    ([0, 1, 2] as const satisfies readonly OfficeBoostStep[]).map((boostStep): Recipe => ({
+      id: getOfficeRecipeId(office.id, boostStep),
+      name: `${office.name} (Computing boost ${boostStep})`,
+      building: office.name,
+      group: "production",
+      cycleDurationSeconds: 60,
+      balanceBy: "input",
+      inputs: [{
+        resourceId: "officeSupplies",
+        quantity: office.officeSuppliesPerCycle,
+      }],
+      outputs: [{
+        resourceId: "recyclables",
+        quantity: office.recyclablesPerCycle,
+      }],
+      computingMultiplier: boostStep ** 2,
+    }))
+  )),
   {
     id: "space-station-operations",
     name: "Space Station IV Operations",

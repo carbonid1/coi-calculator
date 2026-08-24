@@ -133,6 +133,17 @@ export const resources = {
   householdAppliances: { id: "householdAppliances", name: "Household Appliances", state: "unit" },
   consumerElectronics: { id: "consumerElectronics", name: "Consumer Electronics", state: "unit" },
   importedGoods: { id: "importedGoods", name: "Imported Goods", state: "unit" },
+  officeSupplies: {
+    id: "officeSupplies",
+    name: "Office Supplies",
+    state: "unit",
+    // One six-unit recipe contains 2 Household Goods and 1 Electronics II.
+    recyclableSources: {
+      ironScrap: 1 / 6,
+      copperScrap: 3 / 8,
+      brokenGlass: 5 / 24,
+    },
+  },
   diamond: { id: "diamond", name: "Diamond", state: "unit" },
   diamondPaste: { id: "diamondPaste", name: "Diamond Paste", state: "unit" },
   lens: { id: "lens", name: "Lens", state: "unit" },

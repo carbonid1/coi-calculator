@@ -54,11 +54,11 @@ In v0.8.6, farm crop growth does not read sunlight. Weather affects crops throug
 
 ## Current planning layout
 
-The active crop plan uses six Greenhouse IIs across six fixed rotations,
-Fertilizer II at 140% except for one 130% rotation, and full irrigation. Six is
+The active crop plan uses seven Greenhouse IIs across six fixed rotation configurations,
+Fertilizer II targets from 100% to 140%, and full irrigation. Seven is
 the minimum building count that supports the current factory, including Poppy
 for Morphine: every crop deficit is closed and every crop surplus remains at or
-below 5 per production cycle. The Food Pack expansion uses 1,800 chickens
+below 5 per production cycle. The Food Pack expansion uses 1,950 chickens
 across four farms, three Baking Units, and four Mills. Carcass
 processing belongs to the General module, not Chicken Farms: one dedicated Food
 Processor makes Meat + Trimmings, and a second dedicated Food Processor converts
@@ -71,17 +71,17 @@ surplus until the physical layout is revised.
 
 Greenhouses and Chicken Farms are separate calculator modules because they are
 separate physical water networks. Five Groundwater Pumps are installed for the
-Greenhouses, with four active and one paused. Chicken Farm water is imported
+Greenhouses, with all five active. Chicken Farm water is imported
 from Factory Total and can never increase those pumps' modeled output.
 
 | Farms | Rotation | Fertilizer II target |
 | ---: | --- | ---: |
-| 1 | Vegetables / Corn / Vegetables / Soybean | 140% |
+| 1 | Vegetables / Corn / Vegetables / Poppy | 110% |
 | 1 | Potato / Fruit / Canola / Wheat | 140% |
-| 1 | Wheat / Corn / Wheat / Corn | 140% |
-| 1 | Wheat / Corn / Wheat / Potato | 130% |
-| 1 | Corn / Poppy / Corn / Wheat | 140% |
-| 1 | Fruit / Sugar Cane / Wheat / Tree Sapling | 140% |
+| 1 | Wheat / Corn / Wheat / Potato | 120% |
+| 2 | Wheat / Corn / Wheat / Corn | 140% |
+| 1 | Corn / Tree Sapling / Soybean / Sugar Cane | 100% |
+| 1 | Corn / Soybean / Vegetables / Fruit | 110% |
 
 Crop output and fertilizer are long-run cycle averages on the calculator's
 100-year horizon. Each farm card keeps gross crop demand visible for comparison

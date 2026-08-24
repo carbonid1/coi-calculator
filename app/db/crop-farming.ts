@@ -344,18 +344,18 @@ export interface CropFarmGroupRates {
 /**
  * Fixed end-game layout sized for the current factory snapshot.
  * Identical fertility-consuming crops are never adjacent, including across
- * the wrap. Six Greenhouse II buildings remain sufficient for the current
+ * the wrap. Seven Greenhouse II buildings remain sufficient for the current
  * factory, including Poppy for the Medical Supplies III chain. Each crop's
  * primary surplus stays at or below 5 per production cycle before digestion.
  */
 export const activeCropFarmGroups: readonly CropFarmGroup[] = [
   {
-    id: "greenhouse-ii-vegetables-corn-vegetables-soybean",
-    name: "Vegetables / Corn / Vegetables / Soybean",
+    id: "greenhouse-ii-vegetables-corn-vegetables-poppy",
+    name: "Vegetables / Corn / Vegetables / Poppy",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["vegetables", "corn", "vegetables", "soybean"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    schedule: ["vegetables", "corn", "vegetables", "poppy"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
   },
   {
     id: "greenhouse-ii-potato-fruit-canola-wheat",
@@ -366,36 +366,36 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-wheat-corn-wheat-corn",
-    name: "Wheat / Corn / Wheat / Corn",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["wheat", "corn", "wheat", "corn"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
-  },
-  {
     id: "greenhouse-ii-wheat-corn-wheat-potato",
     name: "Wheat / Corn / Wheat / Potato",
     farmCount: 1,
     tierId: "greenhouseII",
     schedule: ["wheat", "corn", "wheat", "potato"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 130 },
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 120 },
   },
   {
-    id: "greenhouse-ii-corn-poppy-corn-wheat",
-    name: "Corn / Poppy / Corn / Wheat",
-    farmCount: 1,
+    id: "greenhouse-ii-wheat-corn-wheat-corn-140",
+    name: "Wheat / Corn / Wheat / Corn",
+    farmCount: 2,
     tierId: "greenhouseII",
-    schedule: ["corn", "poppy", "corn", "wheat"],
+    schedule: ["wheat", "corn", "wheat", "corn"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-fruit-sugar-cane-wheat-tree-sapling",
-    name: "Fruit / Sugar Cane / Wheat / Tree Sapling",
+    id: "greenhouse-ii-corn-tree-sapling-soybean-sugar-cane",
+    name: "Corn / Tree Sapling / Soybean / Sugar Cane",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["fruit", "sugarCane", "wheat", "treeSapling"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    schedule: ["corn", "treeSapling", "soybean", "sugarCane"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 100 },
+  },
+  {
+    id: "greenhouse-ii-corn-soybean-vegetables-fruit",
+    name: "Corn / Soybean / Vegetables / Fruit",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["corn", "soybean", "vegetables", "fruit"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
   },
 ] as const;
 

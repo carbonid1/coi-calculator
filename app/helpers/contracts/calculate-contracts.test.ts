@@ -164,4 +164,24 @@ describe("contract plans", () => {
     });
     expect(flows.find((flow) => flow.resourceId === "hydrogen")).toBeUndefined();
   });
+
+  it("uses Contracts Profitability Focus to reduce the required export", () => {
+    const uraniumContract = activeContracts[0];
+    const { contractResults } = applyContracts(
+      [{
+        resourceId: "uraniumOre",
+        name: "Uranium Ore",
+        consumed: 60,
+        produced: 0,
+        net: -60,
+      }],
+      uraniumContract ? [uraniumContract] : [],
+      1,
+      new Map(),
+      1.2,
+    );
+
+    // The fixed 54-unit plan costs 30 Food Packs at +20%, instead of 36.
+    expect(contractResults[0]?.exported).toBeCloseTo(30);
+  });
 });

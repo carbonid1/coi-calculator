@@ -19,6 +19,7 @@ import { ModuleSwitcher } from "./components/ModuleSwitcher";
 import { NetSummary } from "./components/NetSummary";
 import { NuclearModuleSections } from "./components/NuclearModuleSections";
 import { NuclearPlanningSettings } from "./components/NuclearPlanningSettings";
+import { OfficesView } from "./components/OfficesView";
 import { RecipeCard } from "./components/RecipeCard";
 import {
   InfiniteResearchSettings,
@@ -70,6 +71,10 @@ import {
   defaultNuclearConfig,
   NUCLEAR_MODULE_ID,
 } from "./db/modules/nuclear";
+import {
+  createOfficesModule,
+  OFFICES_MODULE_ID,
+} from "./db/modules/offices";
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from "./db/modules/research";
 import {
   createReservesModule,
@@ -84,6 +89,10 @@ import {
   createStaticInfrastructureModule,
   STATIC_INFRASTRUCTURE_MODULE_ID,
 } from "./db/modules/static-infrastructure";
+import {
+  calculateOfficePlan,
+  resolvedOfficePlan,
+} from "./db/offices";
 import { resolvePlanningBaselines } from "./db/planning-baselines";
 import { type RecipeGroup } from "./db/recipes";
 import {
@@ -303,6 +312,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   );
   const syncedResearchLevels = gameState.snapshot?.research;
   const researchLevels = syncedResearchLevels ?? emptyInfiniteResearchLevels;
+  const officePlan = resolvedOfficePlan.value;
+  const officePlanCalculation = calculateOfficePlan(
+    officePlan,
+    researchLevels.focusPoints,
+  );
+  const focusBonuses = officePlanCalculation.bonuses;
   const syncedEdictStates = gameState.snapshot?.edicts;
   const edictLevels: Record<EdictId, EdictLevel> = syncedEdictStates
     ? mapEdictValues((edictId) => syncedEdictStates[edictId].activeLevel)
@@ -347,6 +362,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       return createMaintenanceModule(maintenanceDemand);
     }
 
+    if (module.id === OFFICES_MODULE_ID) {
+      return createOfficesModule(officePlan);
+    }
+
     if (module.id === HOUSING_MODULE_ID) {
       return createHousingModule(housingCount, housingCapacityLevel);
     }
@@ -368,6 +387,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   )?.includedInFactoryTotals !== false;
   const researchEfficiency = calculateResearchEfficiency({
     edictLevel: edictLevels.researchEfficiency,
+    focusBonusPercent: focusBonuses.researchEfficiency,
     population: populationCapacity,
     stationBonusPercent: spaceStationIncludedInFactoryTotals
       ? defaultSpaceStationLevel.researchEfficiencyBonusPercent
@@ -390,12 +410,17 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const resolvedExternalInputs = preset?.externalInputs ?? activeModule?.externalInputs;
   const recyclingEfficiencyPercent = calculateRecyclingEfficiency(
     edictLevels.recyclingIncrease,
+    focusBonuses.recyclingEfficiency,
   ).effectivePercent;
   const foodConsumption = calculateFoodConsumption(
     edictLevels.foodSaver,
     edictLevels.plentyOfFood,
+    focusBonuses.foodConsumption,
   );
-  const maintenanceOutput = calculateMaintenanceOutput(maintenanceOutputLevel);
+  const maintenanceOutput = calculateMaintenanceOutput(
+    maintenanceOutputLevel,
+    focusBonuses.maintenanceProduction,
+  );
   const solarPowerOutput = calculateSolarPower(
     solarPowerLevel,
     normalizeCleanPanelsLevel(edictLevels.cleanPanels),
@@ -403,6 +428,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const cropFarming = calculateCropFarmingModifiers(
     cropYieldLevel,
     normalizeFarmingBoostLevel(edictLevels.farmingBoost),
+    focusBonuses.cropYield,
   );
   const waterSaverLevel = getEdict("waterSaver").levels.find(
     (level) => level.level === edictLevels.waterSaver,
@@ -412,6 +438,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   ) / 100;
   const rainwaterYield = calculateRainwaterYield(rainwaterYieldLevel);
   const settlementWaterUse = calculateSettlementWaterUse(settlementWaterUseLevel);
+  const settlementConsumptionMultiplier = 1
+    + focusBonuses.settlementConsumption / 100;
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel);
   const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel);
@@ -426,7 +454,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     cropYield: cropFarming.yieldMultiplier,
     cropWater: cropFarming.waterDemandMultiplier * waterSaverMultiplier,
     rainwaterYield: rainwaterYield.multiplier,
-    settlementWater: settlementWaterUse.multiplier * waterSaverMultiplier,
+    settlementConsumption: settlementConsumptionMultiplier,
+    settlementWater: settlementWaterUse.multiplier
+      * waterSaverMultiplier
+      * settlementConsumptionMultiplier,
     treeGrowthSpeed: treeGrowthSpeed.multiplier,
     rocketLaunches: defaultRocketIiRecurringLogistics.launchesPerCycle > 0
       ? rocketIiRecurringLogistics.launchesPerCycle
@@ -440,6 +471,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     recyclingEfficiencyPercent,
     outputModifiers,
     shipsFuelUse.multiplier,
+    1 + focusBonuses.contractsProfitability / 100,
   );
   const reserveDrawsPerProductionCycle = mapReserveResources(
     ({ recipeId, resourceId }) => getReserveDrawPerProductionCycle(
@@ -477,6 +509,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       fixedUnityPerCycle: result.contract.unity.perProductionCycle,
       unityPer100Imported: result.contract.unity.per100Imported,
     })),
+    contractsUnityCostPercent: focusBonuses.contractsUnityCost,
+    settlementUnityBonusPercent: focusBonuses.unityProduction,
   });
   const activeModuleFactoryResult = activeModule?.includedInFactoryTotals === false
     ? calculateFactoryTotal(
@@ -485,6 +519,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         recyclingEfficiencyPercent,
         outputModifiers,
         shipsFuelUse.multiplier,
+        1 + focusBonuses.contractsProfitability / 100,
       )
     : factoryResult;
   const moduleResult = activeModule
@@ -615,6 +650,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           settlementWaterUseLevel={settlementWaterUseLevel}
           treeGrowthSpeedLevel={treeGrowthSpeedLevel}
           worldMineOutputLevel={worldMineOutputLevel}
+          focusBonuses={focusBonuses}
         />
       )}
 
@@ -686,6 +722,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <ResearchSettings
           config={researchModuleConfig}
           efficiency={researchEfficiency}
+        />
+      )}
+
+      {activeModule?.id === OFFICES_MODULE_ID && (
+        <OfficesView
+          calculation={officePlanCalculation}
+          focusResearchLevel={researchLevels.focusPoints}
+          plan={officePlan}
+          source={resolvedOfficePlan.source}
         />
       )}
 

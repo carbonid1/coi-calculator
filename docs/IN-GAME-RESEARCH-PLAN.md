@@ -1,12 +1,12 @@
 # In-game Research Plan
 
 1. Keep Recycling Increase IV and Research Efficiency V enabled.
-2. Replace the current housing with 11 Housing III blocks (about 2,640 capacity).
+2. Maintain 11 Housing III blocks (3,168 capacity with Housing Capacity IV).
 3. Run 2 Research Lab IV buildings at 100%.
 4. Build 8 Assembly V: 1 for Lab Equipment I, 2 for II, 2 for III, and 3 for IV.
 5. Activate 2 Chemical Plant II buildings for Paper.
 6. Unpause the Forestry wood Shredder.
-7. Build and activate the fifth and sixth Nuclear Hydrogen Reformers.
+7. Keep all six Nuclear Hydrogen Reformers built with five active and one paused.
 8. Loop normal research until every non-space research item is complete.
 9. Start space research only after normal research is exhausted.
 10. Build 1 Assembly V for Household Goods.
@@ -19,4 +19,5 @@
 17. Run 3 General Assembly V buildings for Electronics III.
 18. Run 3 General Assembly V buildings for Electronics II.
 19. Build and activate a second General Assembly V for PCB production.
-20. Run all 4 General Silicon Reactors.
+20. Expand the General steel chain to 5 Arc Furnace II, 5 Oxygen Furnace II, and 5 Cooled Caster II buildings.
+21. Run all 4 General Silicon Reactors.

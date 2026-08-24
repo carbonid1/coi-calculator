@@ -16,9 +16,9 @@ export const dataCenter = {
 } as const;
 
 export const defaultComputingConfig: ComputingConfig = {
-  // Two full data centers and one half-full data center.
-  rackCount: 120,
-  waterChillers: 3,
+  // Two full data centers.
+  rackCount: 96,
+  waterChillers: 2,
 };
 
 export const getDataCenterCount = (rackCount: number) => (

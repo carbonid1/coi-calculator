@@ -51,6 +51,39 @@ it("provides two Cracking Units for surplus Fuel Gas", () => {
   });
 });
 
+it("provides two active Rubber Makers for the Ethanol route", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const rubberMaker = buildModuleLines(general, preset ?? null).lines.find(
+    (line) => line.recipe.id === "rubber-maker-ethanol",
+  );
+
+  expect(rubberMaker).toMatchObject({
+    activeBuildings: 2,
+    builtBuildings: 2,
+  });
+});
+
+it("provides five complete steel production blocks", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+
+  for (const recipeId of [
+    "arc-furnace-ii-iron-scrap",
+    "arc-furnace-ii-iron-ore",
+    "oxygen-furnace-ii-steel",
+    "cooled-caster-ii-steel",
+  ]) {
+    expect(lines.find((line) => line.recipe.id === recipeId)).toMatchObject({
+      activeBuildings: 5,
+      builtBuildings: 5,
+    });
+  }
+});
+
 it("recycles Gold Scrap while keeping the built Gold Ore crushers paused", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
@@ -250,9 +283,9 @@ it("caps the five Greenhouse Groundwater Pumps without covering Chicken Farms", 
       : total
   ), 0);
 
-  expect(groundwater?.activeBuildings).toBe(4);
+  expect(groundwater?.activeBuildings).toBe(5);
   expect(pumped).toBeGreaterThan(0);
-  expect(pumped).toBeLessThanOrEqual(4 * 48);
+  expect(pumped).toBeLessThanOrEqual(5 * 48);
   expect(minesGroundwater).toMatchObject({ activeBuildings: 0, builtBuildings: 0 });
   expect(chickenWaterConsumed).toBeGreaterThan(0);
   expect(pumped).toBeCloseTo(greenhouseWaterConsumed, 10);
