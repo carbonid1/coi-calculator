@@ -7,7 +7,7 @@ import {
   type GameStateSnapshot,
 } from "../game-state";
 
-interface GameStateResult {
+export interface GameStateResult {
   isFresh: boolean;
   snapshot: GameStateSnapshot | null;
   source: GameStateDataSource;
@@ -15,13 +15,6 @@ interface GameStateResult {
 }
 
 const GAME_STATE_CACHE_KEY = "coi-game-state-last-valid-v1";
-
-const initialResult: GameStateResult = {
-  isFresh: false,
-  snapshot: null,
-  source: "none",
-  status: "loading",
-};
 
 const readCachedSnapshot = (): GameStateSnapshot | null => {
   try {
@@ -40,7 +33,7 @@ const writeCachedSnapshot = (snapshot: GameStateSnapshot) => {
   }
 };
 
-export const useGameState = (): GameStateResult => {
+export const useGameState = (initialResult: GameStateResult): GameStateResult => {
   const [result, setResult] = useState(initialResult);
 
   useEffect(() => {
@@ -95,12 +88,25 @@ export const useGameState = (): GameStateResult => {
         }
 
         writeCachedSnapshot(snapshot);
-        if (isActive) setResult({
-          isFresh: Date.now() - Date.parse(snapshot.exportedAtUtc) < 20_000,
-          snapshot,
-          source: "live",
-          status: "available",
-        });
+        if (isActive) {
+          const isFresh = Date.now() - Date.parse(snapshot.exportedAtUtc) < 20_000;
+
+          setResult((current) => {
+            if (
+              current.isFresh === isFresh
+              && current.snapshot?.exportedAtUtc === snapshot.exportedAtUtc
+              && current.source === "live"
+              && current.status === "available"
+            ) return current;
+
+            return {
+              isFresh,
+              snapshot,
+              source: "live",
+              status: "available",
+            };
+          });
+        }
       } catch {
         setUnavailable("error");
       }

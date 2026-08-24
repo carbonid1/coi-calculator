@@ -48,7 +48,7 @@ export const GameSyncStatus: React.FC<Props> = ({ isFresh, snapshot, source, sta
       {snapshot && (
         <>
           {" · "}
-          <time dateTime={snapshot.exportedAtUtc}>
+          <time dateTime={snapshot.exportedAtUtc} suppressHydrationWarning>
             {formatSnapshotTime(snapshot.exportedAtUtc)}
           </time>
         </>
