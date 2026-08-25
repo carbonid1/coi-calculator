@@ -1,3 +1,4 @@
+import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import { type ResourceId } from "../resources";
 import { computing } from "./computing";
 import { chickenFarms, greenhouses } from "./farms";
@@ -22,6 +23,8 @@ export interface Preset {
   description: string;
   /** Buildings that are switched on. Omitted recipes use every built building. */
   activeBuildings: Record<string, number>;
+  /** Provenance for actionable recipe values that should receive state treatment. */
+  dataSources?: Partial<Record<string, ValueSource>>;
   /** Recipes forced to run at active capacity. Every other recipe is automatically balanced. */
   fixed: string[];
   externalInputs?: Partial<Record<ResourceId, number>>;

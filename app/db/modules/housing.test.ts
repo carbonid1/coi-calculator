@@ -9,25 +9,34 @@ import {
   activeHousingType,
   calculatePopulationCapacity,
   defaultHousingCount,
+  resolvedCurrentHousingCount,
+  resolvedHousingCount,
 } from "../housing";
 import { defaultInfiniteResearchLevels } from "../research";
 import { settlementConfig, settlementRecipeIds } from "../settlement";
 import { createHousingModule } from "./housing";
 
-it("plans eleven Housing III blocks at current capacity", () => {
+it("plans fifteen Housing III blocks for the Office III workforce", () => {
   const capacityMultiplier = calculateHousingCapacity(
     defaultInfiniteResearchLevels.housingCapacity,
   ).multiplier;
-  const housing = createHousingModule(defaultHousingCount);
+  const housing = createHousingModule(
+    resolvedHousingCount.value,
+    defaultInfiniteResearchLevels.housingCapacity,
+    resolvedCurrentHousingCount.value,
+    resolvedHousingCount.source,
+  );
 
   expect(activeHousingType.name).toBe("Housing III");
   expect(defaultHousingCount).toBe(11);
+  expect(resolvedHousingCount.value).toBe(15);
   expect(housing.builtBuildings[settlementRecipeIds.residents]).toBe(11);
+  expect(housing.presets[0]?.activeBuildings[settlementRecipeIds.residents]).toBe(15);
   expect(calculatePopulationCapacity(
     activeHousingType,
-    defaultHousingCount,
+    resolvedHousingCount.value,
     capacityMultiplier,
-  )).toBe(3_168);
+  )).toBe(4_320);
 });
 
 it("applies settlement demand modifiers to Factory Total flows", () => {

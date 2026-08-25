@@ -3,11 +3,14 @@ import { Card } from "@carbonid1/design-system";
 import { type DecayStorage, type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type OperatingMode } from "../helpers/calculate/calculate";
+import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
+import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   recipe: Recipe;
+  dataSource?: ValueSource;
   storage: DecayStorage;
   activeBuildings: number;
   builtBuildings: number;
@@ -16,7 +19,7 @@ interface Props {
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2)).toLocaleString();
 
-export const StorageCard: React.FC<Props> = ({ recipe, storage, activeBuildings, builtBuildings, operatingMode }) => {
+export const StorageCard: React.FC<Props> = ({ recipe, dataSource, storage, activeBuildings, builtBuildings, operatingMode }) => {
   const input = recipe.inputs[0];
 
   if (!input) return null;
@@ -24,7 +27,7 @@ export const StorageCard: React.FC<Props> = ({ recipe, storage, activeBuildings,
   const maxSustainedInput = storage.capacity / storage.decayCycles * activeBuildings;
 
   return (
-    <ProductionCard operatingMode={operatingMode}>
+    <ProductionCard dataSource={dataSource} operatingMode={operatingMode}>
       <Card.Content>
         <Card.Header>
           <Card.Title>{recipe.building}</Card.Title>
@@ -32,7 +35,10 @@ export const StorageCard: React.FC<Props> = ({ recipe, storage, activeBuildings,
             {resources[input.resourceId].name}
           </Card.Description>
           <Card.Action>
-            <BuildingCount load={activeBuildings} active={activeBuildings} built={builtBuildings} />
+            <div className="flex items-center gap-2">
+              {dataSource && <DataSourceBadge source={dataSource} />}
+              <BuildingCount load={activeBuildings} active={activeBuildings} built={builtBuildings} />
+            </div>
           </Card.Action>
         </Card.Header>
 

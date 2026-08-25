@@ -3,6 +3,7 @@ import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import { type OperatingMode } from "../helpers/calculate/calculate";
+import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import {
   getRecipeGrossInputQuantity,
   getRecipeInputQuantity,
@@ -10,10 +11,12 @@ import {
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
 import { BuildingCount } from "./BuildingCount";
+import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   recipe: Recipe;
+  dataSource?: ValueSource;
   activeBuildings: number;
   builtBuildings: number;
   supplyRatio: number;
@@ -26,7 +29,7 @@ interface Props {
   showConfigurationSummary?: boolean;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -37,12 +40,20 @@ export const RecipeCard: React.FC<Props> = ({ recipe, activeBuildings, builtBuil
     : tflopsPerMachine;
 
   return (
-    <ProductionCard operatingMode={operatingMode} inactive={inactive} className="p-3">
+    <ProductionCard
+      dataSource={dataSource}
+      operatingMode={operatingMode}
+      inactive={inactive}
+      className="p-3"
+    >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-            {recipe.building}
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+              {recipe.building}
+            </h3>
+            {!inactive && dataSource && <DataSourceBadge source={dataSource} />}
+          </div>
           {showConfigurationSummary && recipe.name !== recipe.building && (() => {
             const match = recipe.name.match(/\((.+)\)$/);
 

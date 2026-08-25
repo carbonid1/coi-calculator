@@ -152,6 +152,7 @@ const getAttention = ({
   canPause: number;
 }): BuildingAttention | null => {
   if (!tracksPhysicalCapacity) return null;
+  if (active > built + EPSILON) return "build";
   if (hasShortage && active === 0 && paused >= 1) return "unpause";
   if (hasShortage && active === 0 && built === 0) return "build";
 
@@ -167,13 +168,16 @@ const getAttentionCount = (
   canPause: number,
   paused: number,
   active: number,
+  built: number,
   load: number,
 ) => {
   if (attention === "can-pause") return canPause;
   if (attention === "unpause") {
     return Math.min(paused, Math.max(1, Math.ceil(load + EPSILON) - active));
   }
-  if (attention === "build") return 1;
+  if (attention === "build") {
+    return Math.max(1, Math.ceil(active - built - EPSILON));
+  }
 
   return 0;
 };
@@ -299,7 +303,14 @@ export const calculateBuildingDiagnostics = (
       atCapacity,
       canPause,
     });
-    const attentionCount = getAttentionCount(attention, canPause, paused, active, load);
+    const attentionCount = getAttentionCount(
+      attention,
+      canPause,
+      paused,
+      active,
+      built,
+      load,
+    );
 
     return {
       key,

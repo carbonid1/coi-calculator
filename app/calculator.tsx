@@ -52,7 +52,8 @@ import {
 import {
   activeHousingType,
   calculatePopulationCapacity,
-  defaultHousingCount,
+  resolvedCurrentHousingCount,
+  resolvedHousingCount,
 } from "./db/housing";
 import { COMPUTING_MODULE_ID } from "./db/modules/computing";
 import {
@@ -91,6 +92,7 @@ import {
 } from "./db/modules/static-infrastructure";
 import {
   calculateOfficePlan,
+  resolvedCurrentOfficePlan,
   resolvedOfficePlan,
 } from "./db/offices";
 import { resolvePlanningBaselines } from "./db/planning-baselines";
@@ -337,7 +339,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const shipsFuelUseLevel = researchLevels.shipsFuelUse;
   const computingConfig = defaultComputingConfig;
   const chickenFarmSettings = defaultChickenFarmSettings;
-  const housingCount = defaultHousingCount;
+  const housingCount = resolvedHousingCount.value;
 
   const configuredModules = modules.map(module => {
     if (module.id === STATIC_INFRASTRUCTURE_MODULE_ID) {
@@ -363,11 +365,20 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     }
 
     if (module.id === OFFICES_MODULE_ID) {
-      return createOfficesModule(officePlan);
+      return createOfficesModule(
+        officePlan,
+        resolvedCurrentOfficePlan.value,
+        resolvedOfficePlan.source,
+      );
     }
 
     if (module.id === HOUSING_MODULE_ID) {
-      return createHousingModule(housingCount, housingCapacityLevel);
+      return createHousingModule(
+        housingCount,
+        housingCapacityLevel,
+        resolvedCurrentHousingCount.value,
+        resolvedHousingCount.source,
+      );
     }
 
     if (module.id === RESERVES_MODULE_ID) {
@@ -844,7 +855,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
-                            <SinkCard result={result} role="source" />
+                            <SinkCard
+                              dataSource={line.dataSource}
+                              result={result}
+                              role="source"
+                            />
                           </BuildingCardTarget>
                         ) : null;
                       }
@@ -859,7 +874,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
-                            <SinkCard result={result} role="sink" />
+                            <SinkCard
+                              dataSource={line.dataSource}
+                              result={result}
+                              role="sink"
+                            />
                           </BuildingCardTarget>
                         ) : null;
                       }
@@ -872,6 +891,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             targetKey={targetKey}
                           >
                             <SharedRecipeCard
+                              dataSource={line.dataSource}
                               lines={lines}
                               results={lines.map((sharedLine) => (
                                 moduleResult.regularResults.find(
@@ -899,6 +919,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             targetKey={targetKey}
                           >
                             <StorageCard
+                              dataSource={line.dataSource}
                               recipe={line.recipe}
                               storage={line.recipe.decayStorage}
                               activeBuildings={line.activeBuildings}
@@ -916,6 +937,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                           targetKey={targetKey}
                         >
                           <RecipeCard
+                            dataSource={line.dataSource}
                             recipe={line.recipe}
                             activeBuildings={line.activeBuildings}
                             builtBuildings={line.builtBuildings}

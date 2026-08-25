@@ -54,6 +54,7 @@ export const NuclearPowerBlocks: React.FC<Props> = ({
                     : `${diagnosticKey}:${block.id}`}
                 >
                   <RecipeCard
+                    dataSource={line.dataSource}
                     recipe={line.recipe}
                     activeBuildings={line.activeBuildings}
                     builtBuildings={line.builtBuildings}

@@ -1,16 +1,19 @@
 import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
+import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
+import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   result: PassiveResult;
   role: "source" | "sink";
+  dataSource?: ValueSource;
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
-export const SinkCard: React.FC<Props> = ({ result }) => {
+export const SinkCard: React.FC<Props> = ({ dataSource, result }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.activeBuildings === 0 || !hasWork;
 
@@ -34,12 +37,21 @@ export const SinkCard: React.FC<Props> = ({ result }) => {
     : 0;
 
   return (
-    <ProductionCard operatingMode="balanced" inactive={inactive} passive className="p-3">
+    <ProductionCard
+      dataSource={dataSource}
+      operatingMode="balanced"
+      inactive={inactive}
+      passive
+      className="p-3"
+    >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-            {result.recipe.building}
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+              {result.recipe.building}
+            </h3>
+            {!inactive && dataSource && <DataSourceBadge source={dataSource} />}
+          </div>
           {result.recipe.name !== result.recipe.building && (() => {
             const match = result.recipe.name.match(/\((.+)\)$/);
 

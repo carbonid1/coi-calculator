@@ -2,6 +2,7 @@ import { cn } from "@carbonid1/design-system";
 
 import { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
+import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import {
   type PassiveResult,
   type ProductionLine,
@@ -13,10 +14,12 @@ import {
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
 import { BuildingCount } from "./BuildingCount";
+import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   lines: ProductionLine[];
+  dataSource?: ValueSource;
   results: (RegularResult | PassiveResult | undefined)[];
   outputModifiers?: RecipeModifierMultipliers;
   diagnostic?: BuildingDiagnostic;
@@ -30,7 +33,7 @@ const getRecipeLabel = (line: ProductionLine) => {
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
-export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifiers, diagnostic }) => {
+export const SharedRecipeCard: React.FC<Props> = ({ lines, dataSource, results, outputModifiers, diagnostic }) => {
   const firstLine = lines[0];
 
   if (!firstLine) return null;
@@ -47,14 +50,18 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, results, outputModifi
 
   return (
     <ProductionCard
+      dataSource={dataSource}
       operatingMode={operatingMode}
       inactive={effective === 0}
       className="p-3"
     >
       <div className="mb-2 flex items-start justify-between gap-3">
-        <h3 className="font-semibold text-foreground">
-          {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
-        </h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-semibold text-foreground">
+            {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
+          </h3>
+          {effective > 0 && dataSource && <DataSourceBadge source={dataSource} />}
+        </div>
         <BuildingCount
           load={effective}
           active={Math.max(...lines.map((line) => line.activeBuildings))}

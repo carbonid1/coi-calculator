@@ -1,3 +1,8 @@
+import {
+  type LayeredValue,
+  resolveCurrentLayeredValue,
+  resolveLayeredValue,
+} from "../helpers/resolve-layered-value/resolve-layered-value";
 import { type ResourceId } from "./resources";
 
 export type CropFarmTierId = "farm" | "irrigatedFarm" | "greenhouse" | "greenhouseII";
@@ -341,14 +346,8 @@ export interface CropFarmGroupRates {
   outputsPerMonth: ReadonlyMap<ResourceId, number>;
 }
 
-/**
- * Fixed end-game layout sized for the current factory snapshot.
- * Identical fertility-consuming crops are never adjacent, including across
- * the wrap. Seven Greenhouse II buildings remain sufficient for the current
- * factory, including Poppy for the Medical Supplies III chain. Each crop's
- * primary surplus stays at or below 5 per production cycle before digestion.
- */
-export const activeCropFarmGroups: readonly CropFarmGroup[] = [
+/** Current calculator-owned rotations before applying a future farm plan. */
+export const modeledCropFarmGroups: readonly CropFarmGroup[] = [
   {
     id: "greenhouse-ii-vegetables-corn-vegetables-poppy",
     name: "Vegetables / Corn / Vegetables / Poppy",
@@ -398,6 +397,87 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
   },
 ] as const;
+
+/**
+ * Future rotations sized for the planned 15-block settlement and boosted
+ * Office III. Each crop's primary surplus stays at or below 5 per production
+ * cycle before digestion.
+ */
+export const plannedCropFarmGroups: readonly CropFarmGroup[] | undefined = [
+  {
+    id: "greenhouse-ii-wheat-soybean-wheat-fruit",
+    name: "Wheat / Soybean / Wheat / Fruit",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["wheat", "soybean", "wheat", "fruit"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-vegetables-canola-potato-corn",
+    name: "Vegetables / Canola / Potato / Corn",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["vegetables", "canola", "potato", "corn"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-corn-soybean-fruit-wheat",
+    name: "Corn / Soybean / Fruit / Wheat",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["corn", "soybean", "fruit", "wheat"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-vegetables-corn-potato-corn",
+    name: "Vegetables / Corn / Potato / Corn",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["vegetables", "corn", "potato", "corn"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-wheat-vegetables-wheat-corn",
+    name: "Wheat / Vegetables / Wheat / Corn",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["wheat", "vegetables", "wheat", "corn"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-corn-wheat-corn-wheat",
+    name: "Corn / Wheat / Corn / Wheat",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["corn", "wheat", "corn", "wheat"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-sugar-cane-poppy-fruit-tree-sapling",
+    name: "Sugar Cane / Poppy / Fruit / Tree Sapling",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["sugarCane", "poppy", "fruit", "treeSapling"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+] as const;
+
+const cropFarmGroupLayers: LayeredValue<readonly CropFarmGroup[]> = {
+  default: modeledCropFarmGroups,
+  planned: plannedCropFarmGroups,
+};
+
+export const resolvedCurrentCropFarmGroups = resolveCurrentLayeredValue(
+  cropFarmGroupLayers,
+);
+export const resolvedCropFarmGroups = resolveLayeredValue(cropFarmGroupLayers);
+export const activeCropFarmGroups = resolvedCropFarmGroups.value;
+export const cropFarmGroups = [...new Map(
+  [
+    ...resolvedCurrentCropFarmGroups.value,
+    ...(plannedCropFarmGroups ?? []),
+  ].map((group) => [group.id, group] as const),
+).values()];
 
 /**
  * Returns long-run /60 rates for one farm in a group. With a full irrigation

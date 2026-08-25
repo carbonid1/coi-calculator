@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "../../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food-consumption";
+import { calculateMaintenanceOutput } from "../../helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
 import { defaultChickenFarmSettings } from "../chicken-farm";
 import { activeContracts } from "../contracts";
@@ -10,6 +11,7 @@ import {
   crops,
 } from "../crop-farming";
 import { defaultActiveEdicts } from "../edicts";
+import { calculateOfficePlan, resolvedOfficePlan } from "../offices";
 import { recipes } from "../recipes";
 import { defaultInfiniteResearchLevels } from "../research";
 import {
@@ -102,21 +104,38 @@ describe("active crop farm plan", () => {
   });
 
   it("keeps all active crops supplied with no more than 5 surplus per month", () => {
+    const focusBonuses = calculateOfficePlan(
+      resolvedOfficePlan.value,
+      defaultInfiniteResearchLevels.focusPoints,
+    ).bonuses;
     const cropFarming = calculateCropFarmingModifiers(
       defaultInfiniteResearchLevels.cropYield,
       defaultActiveEdicts.farmingBoost,
+      focusBonuses.cropYield,
     );
     const result = calculateFactoryTotal(
       modules,
       activeContracts,
       calculateRecyclingEfficiency(
         defaultActiveEdicts.recyclingIncrease,
+        focusBonuses.recyclingEfficiency,
       ).effectivePercent,
       {
         cropYield: cropFarming.yieldMultiplier,
         cropWater: cropFarming.waterDemandMultiplier,
-        foodConsumption: calculateFoodConsumption(0, 2).multiplier,
+        foodConsumption: calculateFoodConsumption(
+          0,
+          2,
+          focusBonuses.foodConsumption,
+        ).multiplier,
+        maintenanceOutput: calculateMaintenanceOutput(
+          defaultInfiniteResearchLevels.maintenanceOutput,
+          focusBonuses.maintenanceProduction,
+        ).multiplier,
+        settlementConsumption: 1 + focusBonuses.settlementConsumption / 100,
       },
+      1,
+      1 + focusBonuses.contractsProfitability / 100,
     );
     const cropFlows = new Map(
       result.calculation.allResourceFlows.map((flow) => [flow.resourceId, flow]),

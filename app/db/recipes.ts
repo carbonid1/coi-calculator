@@ -1,8 +1,8 @@
 import { chickenFarm } from "./chicken-farm";
 import { computingRecipeIds, dataCenter } from "./computing";
 import {
-  activeCropFarmGroups,
   calculateCropFarmGroupRates,
+  cropFarmGroups,
   cropFarmTiers,
   fertilizers,
 } from "./crop-farming";
@@ -157,7 +157,7 @@ const housingPopulationFlows = calculateSettlementPopulationFlows(
   activeHousingType,
 );
 
-export const cropFarmRecipes: Recipe[] = activeCropFarmGroups.map((group) => {
+export const cropFarmRecipes: Recipe[] = cropFarmGroups.map((group) => {
   const rates = calculateCropFarmGroupRates(group);
   const fertilizerDefinition = group.fertilizer
     ? fertilizers[group.fertilizer.id]

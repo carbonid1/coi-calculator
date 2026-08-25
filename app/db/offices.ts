@@ -1,4 +1,8 @@
-import { resolveLayeredValue } from "../helpers/resolve-layered-value/resolve-layered-value";
+import {
+  type LayeredValue,
+  resolveCurrentLayeredValue,
+  resolveLayeredValue,
+} from "../helpers/resolve-layered-value/resolve-layered-value";
 import { focusPointsResearch } from "./research";
 
 export type OfficeTierId = "officeI" | "officeII" | "officeIII";
@@ -133,12 +137,28 @@ export const defaultOfficePlan: OfficePlan = {
  * requested. It remains authoritative over future synced data until changed
  * here explicitly; there is intentionally no automatic plan clearing.
  */
-export const plannedOfficePlan: OfficePlan | undefined = undefined;
+export const plannedOfficePlan: OfficePlan | undefined = {
+  officeSuppliesAssemblyVCount: 1,
+  offices: {
+    officeI: { count: 0, computingBoostStep: 0 },
+    officeII: { count: 0, computingBoostStep: 0 },
+    officeIII: { count: 1, computingBoostStep: 2 },
+  },
+  focusSteps: {
+    ...emptyFocusSteps,
+    maintenanceProduction: 5,
+    recyclingEfficiency: 2,
+    contractsProfitability: 7,
+  },
+};
 
-export const resolvedOfficePlan = resolveLayeredValue<OfficePlan>({
+const officePlanLayers: LayeredValue<OfficePlan> = {
   default: defaultOfficePlan,
   planned: plannedOfficePlan,
-});
+};
+
+export const resolvedCurrentOfficePlan = resolveCurrentLayeredValue(officePlanLayers);
+export const resolvedOfficePlan = resolveLayeredValue(officePlanLayers);
 
 const clampBoostStep = (step: number): OfficeBoostStep => {
   const normalizedStep = Math.min(2, Math.max(0, Math.trunc(step)));

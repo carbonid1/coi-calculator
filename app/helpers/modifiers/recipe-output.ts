@@ -1,4 +1,4 @@
-import { activeCropFarmGroups } from "../../db/crop-farming";
+import { cropFarmGroups } from "../../db/crop-farming";
 import {
   type Ingredient,
   type InputModifierId,
@@ -17,7 +17,7 @@ const GAME_PERCENT_SCALE = 100_000;
 const getWeatherAdjustedFarm = (input: Ingredient) => {
   if (!input.weatherAdjustedFarmId) return null;
 
-  const farmGroup = activeCropFarmGroups.find(
+  const farmGroup = cropFarmGroups.find(
     (group) => group.id === input.weatherAdjustedFarmId,
   );
 

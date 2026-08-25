@@ -43,10 +43,9 @@ describe("offices and focuses", () => {
     )).toEqual(["trucksCapacity", "trainsCapacity", "worldMinesEfficiency"]);
   });
 
-  it("starts empty when no plan or sync value exists", () => {
-    const result = calculateOfficePlan(resolvedOfficePlan.value, 5);
+  it("keeps the default empty when no plan or sync value exists", () => {
+    const result = calculateOfficePlan(defaultOfficePlan, 5);
 
-    expect(resolvedOfficePlan.source).toBe("default");
     expect(result).toMatchObject({
       computingTflops: 0,
       electricityKw: 0,
@@ -59,6 +58,26 @@ describe("offices and focuses", () => {
       recyclablesPerCycle: 0,
       workers: 0,
     });
+  });
+
+  it("plans one maximally boosted Office III around contracts", () => {
+    const result = calculateOfficePlan(resolvedOfficePlan.value, 5);
+
+    expect(resolvedOfficePlan.source).toBe("planned");
+    expect(result).toMatchObject({
+      computingTflops: 192,
+      electricityKw: 600,
+      focusPointsAvailable: 5,
+      focusPointsCapacity: 1_700,
+      focusPointsRequired: 1_695,
+      isAffordable: true,
+      officeSuppliesPerCycle: 8,
+      recyclablesPerCycle: 8,
+      workers: 1_000,
+    });
+    expect(result.bonuses.maintenanceProduction).toBe(5);
+    expect(result.bonuses.recyclingEfficiency).toBe(2);
+    expect(result.bonuses.contractsProfitability).toBe(14);
   });
 
   it("calculates a source-owned future plan", () => {

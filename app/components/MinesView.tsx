@@ -3,6 +3,7 @@ import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
 import { BuildingCardTarget } from "./BuildingCardTarget";
 import { BuildingCount } from "./BuildingCount";
+import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
@@ -73,15 +74,21 @@ export const MinesView: React.FC<Props> = ({
                   targetKey={targetKey}
                 >
                   <ProductionCard
+                    dataSource={result.dataSource}
                     operatingMode="balanced"
                     passive
                     inactive={quantity <= 0.001}
                     className="p-3"
                   >
                     <div className="flex items-center justify-between gap-4 text-sm">
-                      <h3 className="font-semibold text-foreground">
-                        {title}
-                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-foreground">
+                          {title}
+                        </h3>
+                        {quantity > 0.001 && result.dataSource
+                          ? <DataSourceBadge source={result.dataSource} />
+                          : null}
+                      </div>
                       {isGroundwater ? (
                         <BuildingCount
                           load={result.activeBuildings * result.supplyRatio}
@@ -136,15 +143,21 @@ export const MinesView: React.FC<Props> = ({
                 targetKey={targetKey}
               >
                 <ProductionCard
+                  dataSource={result.dataSource}
                   operatingMode="balanced"
                   passive
                   inactive={quantity <= 0.001}
                   className="p-3"
                 >
                   <div className="flex items-center justify-between gap-4 text-sm">
-                    <h3 className="font-semibold text-foreground">
-                      {input ? resources[input.resourceId].name : result.recipe.building}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-foreground">
+                        {input ? resources[input.resourceId].name : result.recipe.building}
+                      </h3>
+                      {quantity > 0.001 && result.dataSource
+                        ? <DataSourceBadge source={result.dataSource} />
+                        : null}
+                    </div>
                     <span className="font-mono font-semibold text-foreground">
                       {formatQuantity(quantity)}
                     </span>

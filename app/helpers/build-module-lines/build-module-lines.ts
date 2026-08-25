@@ -9,14 +9,17 @@ export const buildModuleLines = (
   outputModifiers: RecipeModifierMultipliers = {},
 ): { lines: ProductionLine[] } => {
   const builtBuildings = preset?.builtBuildings ?? mod.builtBuildings;
-  const visibleRecipes = recipes.filter((recipe) => recipe.id in builtBuildings);
+  const visibleRecipes = recipes.filter((recipe) => (
+    recipe.id in builtBuildings
+    || Boolean(preset && recipe.id in preset.activeBuildings)
+  ));
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
   const lines: ProductionLine[] = visibleRecipes.map((recipe) => {
     const built = builtBuildings[recipe.id] ?? 0;
     const speedLevel = preset?.speedLevels?.[recipe.id] ?? 1;
-    const active = Math.min(
-      built,
+    const active = Math.max(
+      0,
       preset && recipe.id in preset.activeBuildings
         ? (preset.activeBuildings[recipe.id] ?? built)
         : built,
@@ -37,6 +40,7 @@ export const buildModuleLines = (
     return {
       recipe,
       moduleId: mod.id,
+      dataSource: preset?.dataSources?.[recipe.id],
       capacityPoolId: recipe.sharedCapacity
         ? `${mod.id}:${recipe.sharedCapacity.id}`
         : undefined,

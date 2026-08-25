@@ -1,6 +1,7 @@
 import { baseConfig } from "../../db/config";
 import { type Recipe } from "../../db/recipes";
 import { type Resource, type ResourceId, resources } from "../../db/resources";
+import { type ValueSource } from "../resolve-layered-value/resolve-layered-value";
 import {
   getRecipeInputQuantity,
   getRecipeOutputQuantity,
@@ -11,6 +12,8 @@ import { typedEntries } from "../typed-entries/typed-entries";
 export interface ProductionLine {
   recipe: Recipe;
   moduleId: string;
+  /** Provenance of this actionable recipe value, when explicitly layered. */
+  dataSource?: ValueSource;
   /** Module-scoped identity for recipes sharing the same installed buildings. */
   capacityPoolId?: string;
   /** Unpaused physical buildings available to this recipe or shared pool. */
@@ -38,6 +41,7 @@ export type OperatingMode = "fixed" | "balanced";
 export interface RegularResult {
   recipe: Recipe;
   moduleId: string;
+  dataSource?: ValueSource;
   capacityPoolId?: string;
   activeBuildings: number;
   builtBuildings: number;
@@ -53,6 +57,7 @@ export interface RegularResult {
 export interface PassiveResult {
   recipe: Recipe;
   moduleId: string;
+  dataSource?: ValueSource;
   capacityPoolId?: string;
   activeBuildings: number;
   builtBuildings: number;
@@ -913,6 +918,7 @@ export const calculateNet = (
   const regularResults: RegularResult[] = regularLines.map((line) => ({
     recipe: line.recipe,
     moduleId: line.moduleId,
+    dataSource: line.dataSource,
     capacityPoolId: line.capacityPoolId,
     activeBuildings: line.activeBuildings,
     builtBuildings: line.builtBuildings,
@@ -1055,6 +1061,7 @@ export const calculateNet = (
     return {
       recipe: line.recipe,
       moduleId: line.moduleId,
+      dataSource: line.dataSource,
       activeBuildings: line.activeBuildings,
       builtBuildings: line.builtBuildings,
       supplyRatio: line.activeBuildings > 0
@@ -1092,7 +1099,17 @@ export const calculateNet = (
 
   for (const line of orderedSinkLines) {
     if (line.activeBuildings === 0) {
-      sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, capacityPoolId: line.capacityPoolId, activeBuildings: 0, builtBuildings: line.builtBuildings, supplyRatio: 0, actualInputs: [], actualOutputs: [] });
+      sinkResults.push({
+        recipe: line.recipe,
+        moduleId: line.moduleId,
+        dataSource: line.dataSource,
+        capacityPoolId: line.capacityPoolId,
+        activeBuildings: 0,
+        builtBuildings: line.builtBuildings,
+        supplyRatio: 0,
+        actualInputs: [],
+        actualOutputs: [],
+      });
       continue;
     }
 
@@ -1140,7 +1157,17 @@ export const calculateNet = (
       }
     }
 
-    sinkResults.push({ recipe: line.recipe, moduleId: line.moduleId, capacityPoolId: line.capacityPoolId, activeBuildings: line.activeBuildings, builtBuildings: line.builtBuildings, supplyRatio: utilizationRatio, actualInputs, actualOutputs });
+    sinkResults.push({
+      recipe: line.recipe,
+      moduleId: line.moduleId,
+      dataSource: line.dataSource,
+      capacityPoolId: line.capacityPoolId,
+      activeBuildings: line.activeBuildings,
+      builtBuildings: line.builtBuildings,
+      supplyRatio: utilizationRatio,
+      actualInputs,
+      actualOutputs,
+    });
   }
 
   // Excess-processing recipes can create useful byproducts after sources were

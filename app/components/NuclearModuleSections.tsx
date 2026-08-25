@@ -79,7 +79,7 @@ export const NuclearModuleSections: React.FC<Props> = ({
           focused={focusedTargetKey === targetKey}
           targetKey={targetKey}
         >
-          <SinkCard result={result} role="source" />
+          <SinkCard dataSource={line.dataSource} result={result} role="source" />
         </BuildingCardTarget>
       ) : null;
     }
@@ -93,7 +93,7 @@ export const NuclearModuleSections: React.FC<Props> = ({
           focused={focusedTargetKey === targetKey}
           targetKey={targetKey}
         >
-          <SinkCard result={result} role="sink" />
+          <SinkCard dataSource={line.dataSource} result={result} role="sink" />
         </BuildingCardTarget>
       ) : null;
     }
@@ -108,6 +108,7 @@ export const NuclearModuleSections: React.FC<Props> = ({
           targetKey={targetKey}
         >
           <StorageCard
+            dataSource={line.dataSource}
             recipe={line.recipe}
             storage={line.recipe.decayStorage}
             activeBuildings={line.activeBuildings}
@@ -125,6 +126,7 @@ export const NuclearModuleSections: React.FC<Props> = ({
         targetKey={targetKey}
       >
         <RecipeCard
+          dataSource={line.dataSource}
           recipe={line.recipe}
           activeBuildings={line.activeBuildings}
           builtBuildings={line.builtBuildings}
@@ -212,6 +214,7 @@ export const NuclearModuleSections: React.FC<Props> = ({
               targetKey={coolingTargetKey}
             >
               <SharedRecipeCard
+                dataSource={coolingLines[0]?.dataSource}
                 lines={coolingLines}
                 results={coolingLines.map((line) => (
                   sinkResults.find((result) => result.recipe.id === line.recipe.id)

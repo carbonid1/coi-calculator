@@ -4,7 +4,10 @@ import {
   defaultChickenFarmSettings,
   getChickenFarmLayout,
 } from "../chicken-farm";
-import { activeCropFarmGroups } from "../crop-farming";
+import {
+  activeCropFarmGroups,
+  resolvedCropFarmGroups,
+} from "../crop-farming";
 import { type Module } from "./modules";
 
 export const GREENHOUSES_MODULE_ID = "greenhouses";
@@ -43,6 +46,9 @@ export const greenhouses: Module = {
       name: "Current Greenhouse Plan",
       description: `${cropFarmCount} Greenhouse IIs with five active Groundwater Pumps`,
       activeBuildings: activeGreenhouseBuildings,
+      dataSources: Object.fromEntries(
+        activeCropFarmGroups.map((group) => [group.id, resolvedCropFarmGroups.source]),
+      ),
       fixed: fixedCropFarmIds,
     },
   ],

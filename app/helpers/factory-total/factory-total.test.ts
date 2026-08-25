@@ -84,12 +84,12 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.imported).toBeCloseTo(177.88709681, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(177.88709681, 5);
+    expect(contractResult?.imported).toBeCloseTo(173.94455833, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(173.94455833, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(32.13085686, 8);
-    expect(ironOre?.consumed).toBeCloseTo(177.88709681, 5);
-    expect(ironOre?.produced).toBeCloseTo(177.88709681, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(31.41873585, 8);
+    expect(ironOre?.consumed).toBeCloseTo(173.94455833, 5);
+    expect(ironOre?.produced).toBeCloseTo(173.94455833, 5);
     expect(ironOre?.net).toBeCloseTo(0, 5);
     const ironMineOutput = ironMine?.actualOutputs.find(
       (output) => output.resourceId === "ironOre",
@@ -112,13 +112,13 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.exported).toBeCloseTo(23.84079231, 8);
-    expect(contractResult?.imported).toBeCloseTo(154.96515, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(154.96515, 5);
+    expect(contractResult?.exported).toBeCloseTo(23.74848462, 8);
+    expect(contractResult?.imported).toBeCloseTo(154.36515, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(154.36515, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(27.99058022, 8);
-    expect(copperOre?.consumed).toBeCloseTo(154.96515, 5);
-    expect(copperOre?.produced).toBeCloseTo(154.96515, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(27.88220522, 8);
+    expect(copperOre?.consumed).toBeCloseTo(154.36515, 5);
+    expect(copperOre?.produced).toBeCloseTo(154.36515, 5);
     expect(copperOre?.net).toBeCloseTo(0, 5);
     const copperMineOutput = copperMine?.actualOutputs.find(
       (output) => output.resourceId === "copperOre",
@@ -259,9 +259,9 @@ describe("Factory Total contracts", () => {
     expect(result.flows.find((flow) => flow.resourceId === "spaceResearchPoints"))
       .toBeUndefined();
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
-    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.6042083333);
-    expect(recyclables?.consumed).toBeCloseTo(174.012);
-    expect(recyclables?.produced).toBeCloseTo(174.012);
+    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.6629861111);
+    expect(recyclables?.consumed).toBeCloseTo(190.94);
+    expect(recyclables?.produced).toBeCloseTo(190.94);
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });

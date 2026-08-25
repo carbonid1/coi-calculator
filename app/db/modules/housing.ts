@@ -1,5 +1,10 @@
 import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
-import { activeHousingType, defaultHousingCount } from "../housing";
+import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
+import {
+  activeHousingType,
+  resolvedCurrentHousingCount,
+  resolvedHousingCount,
+} from "../housing";
 import { defaultInfiniteResearchLevels } from "../research";
 import {
   settlementRecipeIds,
@@ -12,11 +17,31 @@ export const HOUSING_MODULE_ID = "housing";
 export const createHousingModule = (
   housingCount: number,
   housingCapacityLevel: number = defaultInfiniteResearchLevels.housingCapacity,
+  builtHousingCount: number = housingCount,
+  dataSource: ValueSource = "modeled",
 ): Module => {
   const residents = Math.max(0, Math.trunc(housingCount));
+  const builtResidents = Math.max(0, Math.trunc(builtHousingCount));
   const capacityMultiplier = calculateHousingCapacity(housingCapacityLevel).multiplier;
   const serviceFactor = residents > 0 ? 1 : 0;
-  const builtBuildings = {
+  const builtServiceFactor = builtResidents > 0 ? 1 : 0;
+  const builtBuildings: Record<string, number> = {
+    [settlementRecipeIds.residents]: builtResidents,
+    [settlementRecipeIds.foodMarket]: settlementServiceBuildings.foodMarket * builtServiceFactor,
+    [settlementRecipeIds.foodMarketII]: settlementServiceBuildings.foodMarketII * builtServiceFactor,
+    [settlementRecipeIds.transformer]: settlementServiceBuildings.transformer * builtServiceFactor,
+    [settlementRecipeIds.waterFacility]: settlementServiceBuildings.waterFacility * builtServiceFactor,
+    [settlementRecipeIds.householdGoodsModule]: settlementServiceBuildings.householdGoodsModule * builtServiceFactor,
+    [settlementRecipeIds.wasteCollection]: settlementServiceBuildings.wasteCollection * builtServiceFactor,
+    [settlementRecipeIds.recyclablesCollection]: settlementServiceBuildings.recyclablesCollection * builtServiceFactor,
+    [settlementRecipeIds.biomassCollection]: settlementServiceBuildings.biomassCollection * builtServiceFactor,
+    [settlementRecipeIds.clinic]: settlementServiceBuildings.clinic * builtServiceFactor,
+    [settlementRecipeIds.internetModule]: settlementServiceBuildings.internetModule * builtServiceFactor,
+    [settlementRecipeIds.wastewaterTreatment]: settlementServiceBuildings.wastewaterTreatment * builtServiceFactor,
+    [settlementRecipeIds.anaerobicDigester]: settlementServiceBuildings.anaerobicDigester * builtServiceFactor,
+    [settlementRecipeIds.biomassCompostMixer]: settlementServiceBuildings.biomassCompostMixer * builtServiceFactor,
+  };
+  const activeBuildings: Record<string, number> = {
     [settlementRecipeIds.residents]: residents,
     [settlementRecipeIds.foodMarket]: settlementServiceBuildings.foodMarket * serviceFactor,
     [settlementRecipeIds.foodMarketII]: settlementServiceBuildings.foodMarketII * serviceFactor,
@@ -43,7 +68,15 @@ export const createHousingModule = (
         id: "housing-full-capacity",
         name: `${activeHousingType.name} — Full Capacity`,
         description: `${residents} ${activeHousingType.name} buildings at full population capacity`,
-        activeBuildings: builtBuildings,
+        activeBuildings,
+        dataSources: Object.fromEntries(
+          Object.keys(activeBuildings)
+            .filter((recipeId) => (
+              recipeId === settlementRecipeIds.residents
+              || activeBuildings[recipeId] !== builtBuildings[recipeId]
+            ))
+            .map((recipeId) => [recipeId, dataSource]),
+        ),
         fixed: Object.keys(builtBuildings).filter((recipeId) => (
           recipeId !== settlementRecipeIds.wastewaterTreatment
           && recipeId !== settlementRecipeIds.anaerobicDigester
@@ -62,4 +95,9 @@ export const createHousingModule = (
   };
 };
 
-export const housing = createHousingModule(defaultHousingCount);
+export const housing = createHousingModule(
+  resolvedHousingCount.value,
+  defaultInfiniteResearchLevels.housingCapacity,
+  resolvedCurrentHousingCount.value,
+  resolvedHousingCount.source,
+);

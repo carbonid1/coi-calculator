@@ -1,16 +1,18 @@
-import { Card, cn } from "@carbonid1/design-system";
+import { Card } from "@carbonid1/design-system";
 import { TriangleAlert } from "lucide-react";
 
 import {
   calculateFocusPointsCost,
-  calculateOfficeBoostBonusPercent,
-  calculateOfficeComputingTflops,
   focusCatalog,
-  officeCatalog,
   type OfficePlan,
   type OfficePlanCalculation,
 } from "../db/offices";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
+import {
+  DataSourceBadge,
+  getDataSourcePresentation,
+  getDataSourceSurfaceClassName,
+} from "./DataSourceState";
 
 interface Props {
   calculation: OfficePlanCalculation;
@@ -23,13 +25,6 @@ const formatNumber = (value: number) => parseFloat(value.toFixed(2)).toLocaleStr
 const formatSignedPercent = (value: number) => (
   `${value > 0 ? "+" : ""}${formatNumber(value)}%`
 );
-const sourceLabels: Record<ValueSource, string> = {
-  default: "Default",
-  modeled: "Modeled",
-  synced: "Synced",
-  planned: "Planned",
-};
-
 const Metric = ({ label, value }: { label: string; value: string }) => (
   <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
     <p className="text-xs text-muted-foreground">{label}</p>
@@ -51,8 +46,7 @@ export const OfficesView: React.FC<Props> = ({
         <Card.Header>
           <Card.Title>Focus budget</Card.Title>
           <Card.Description>
-            {sourceLabels[source]} configuration
-            {` · Focus Points research level ${focusResearchLevel}`}
+            Calculated result · Focus Points research level {focusResearchLevel}
           </Card.Description>
         </Card.Header>
 
@@ -86,78 +80,15 @@ export const OfficesView: React.FC<Props> = ({
     </Card.Root>
 
     <section className="space-y-3">
-      <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-        Office plan
-      </h2>
-      <div className="grid gap-3 md:grid-cols-3">
-        {officeCatalog.map((office) => {
-          const tierPlan = plan.offices[office.id];
-          const boostBonusPercent = calculateOfficeBoostBonusPercent(
-            tierPlan.computingBoostStep,
-          );
-          const baseFocusPerOffice = Math.round(
-            office.workers * (1 + calculation.focusResearchBonusPercent / 100),
-          );
-          const boostFocusPerOffice = Math.round(
-            office.workers * boostBonusPercent / 100,
-          );
-          const focusPerOffice = baseFocusPerOffice + boostFocusPerOffice;
-
-          return (
-            <Card.Root key={office.id}>
-              <Card.Content className="space-y-3">
-                <Card.Header>
-                  <Card.Title>{office.name}</Card.Title>
-                  <Card.Description>
-                    {tierPlan.count.toLocaleString("en-US")} planned
-                  </Card.Description>
-                  <Card.Action>
-                    <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                      {tierPlan.count}
-                    </span>
-                  </Card.Action>
-                </Card.Header>
-                <dl className="space-y-1 text-sm">
-                  <div className="flex justify-between gap-3 rounded-lg px-2 py-1">
-                    <dt className="text-muted-foreground">Focus each</dt>
-                    <dd className="font-mono font-medium tabular-nums text-foreground">
-                      {formatNumber(focusPerOffice)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-3 rounded-lg px-2 py-1">
-                    <dt className="text-muted-foreground">Computing boost</dt>
-                    <dd className="font-mono font-medium tabular-nums text-foreground">
-                      {tierPlan.computingBoostStep} · {formatNumber(
-                        calculateOfficeComputingTflops(
-                          office,
-                          tierPlan.computingBoostStep,
-                        ),
-                      )} TFLOPS
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-3 rounded-lg px-2 py-1">
-                    <dt className="text-muted-foreground">Workers each</dt>
-                    <dd className="font-mono font-medium tabular-nums text-foreground">
-                      {office.workers.toLocaleString("en-US")}
-                    </dd>
-                  </div>
-                </dl>
-              </Card.Content>
-            </Card.Root>
-          );
-        })}
-      </div>
-    </section>
-
-    <section className="space-y-3">
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Focus allocation
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
+          {getDataSourcePresentation(source).description}.
           {source === "planned"
-            ? "Planned steps remain authoritative until the source plan is explicitly changed."
-            : "No Office plan is set; the empty default remains active."}
+            ? " These steps override lower-precedence values until explicitly changed."
+            : ""}
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -171,7 +102,9 @@ export const OfficesView: React.FC<Props> = ({
           return (
             <Card.Root
               key={focus.id}
-              className={cn(active && "bg-primary/10 ring-1 ring-primary/20")}
+              className={active
+                ? getDataSourceSurfaceClassName(source)
+                : undefined}
             >
               <Card.Content className="space-y-3 p-3">
                 <Card.Header>
@@ -180,9 +113,12 @@ export const OfficesView: React.FC<Props> = ({
                     {focus.effectPerStep}
                   </Card.Description>
                   <Card.Action>
-                    <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                      {step} / {focus.maxStep}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {active && <DataSourceBadge source={source} />}
+                      <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                        {step} / {focus.maxStep}
+                      </span>
+                    </div>
                   </Card.Action>
                 </Card.Header>
                 <div className="flex items-end justify-between gap-3">
