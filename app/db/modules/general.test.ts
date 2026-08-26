@@ -14,10 +14,10 @@ import {
   GREENHOUSES_MODULE_ID,
 } from "./farms";
 import { createFbrPowerPlantModule } from "./fbr-power-plant";
-import { general } from "./general";
+import { general, plannedNewGeneralBuildings } from "./general";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
-import { processSteam } from "./process-steam";
+import { plannedProcessSteamBuildings, processSteam } from "./process-steam";
 
 it("models the physical General Low Steam recovery cluster", () => {
   const preset = general.presets.find((candidate) => (
@@ -65,7 +65,7 @@ it("provides two active Rubber Makers for the Ethanol route", () => {
   });
 });
 
-it("provides five complete steel production blocks", () => {
+it("keeps five steel blocks built while planning a sixth refining block", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -74,49 +74,55 @@ it("provides five complete steel production blocks", () => {
   for (const recipeId of [
     "arc-furnace-ii-iron-scrap",
     "arc-furnace-ii-iron-ore",
-    "oxygen-furnace-ii-steel",
-    "cooled-caster-ii-steel",
   ]) {
     expect(lines.find((line) => line.recipe.id === recipeId)).toMatchObject({
       activeBuildings: 5,
       builtBuildings: 5,
     });
   }
+  for (const recipeId of ["oxygen-furnace-ii-steel", "cooled-caster-ii-steel"]) {
+    expect(lines.find((line) => line.recipe.id === recipeId)).toMatchObject({
+      activeBuildings: 6,
+      builtBuildings: 5,
+      dataSource: "planned",
+    });
+  }
 });
 
-it("recycles Gold Scrap while keeping the built Gold Ore crushers paused", () => {
+it("runs one Gold Ore production line while keeping the spare Settling Tank paused", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
-  const pausedGoldRecipeIds = [
+  const goldOreRecipeIds = [
     "gold-furnace-concentrate",
     "settling-tank-gold",
-  ];
-  const pausedCrusherRecipeIds = [
     "crusher-large-gold-crushing",
     "crusher-large-gold-milling",
   ];
   const lines = buildModuleLines(general, preset ?? null).lines;
   const goldLines = lines.filter(
     ({ recipe }) => recipe.id === "gold-furnace-scrap"
-      || pausedGoldRecipeIds.includes(recipe.id)
-      || pausedCrusherRecipeIds.includes(recipe.id),
+      || goldOreRecipeIds.includes(recipe.id),
   );
   const scrapFurnace = goldLines.find(({ recipe }) => recipe.id === "gold-furnace-scrap");
-  const pausedLines = goldLines.filter(({ recipe }) => pausedGoldRecipeIds.includes(recipe.id));
-  const pausedCrushers = goldLines.filter(
-    ({ recipe }) => pausedCrusherRecipeIds.includes(recipe.id),
+  const concentrateFurnace = goldLines.find(
+    ({ recipe }) => recipe.id === "gold-furnace-concentrate",
+  );
+  const settlingTank = goldLines.find(
+    ({ recipe }) => recipe.id === "settling-tank-gold",
+  );
+  const crushers = goldLines.filter(
+    ({ recipe }) => recipe.id === "crusher-large-gold-crushing"
+      || recipe.id === "crusher-large-gold-milling",
   );
 
-  expect(goldLines).toHaveLength(
-    pausedGoldRecipeIds.length + pausedCrusherRecipeIds.length + 1,
-  );
+  expect(goldLines).toHaveLength(goldOreRecipeIds.length + 1);
   expect(scrapFurnace).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
-  expect(pausedLines.every(({ activeBuildings }) => activeBuildings === 0)).toBe(true);
-  expect(pausedLines.every(({ builtBuildings }) => builtBuildings > 0)).toBe(true);
-  expect(pausedCrushers).toMatchObject([
+  expect(concentrateFurnace).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+  expect(settlingTank).toMatchObject({ activeBuildings: 1, builtBuildings: 2 });
+  expect(crushers).toMatchObject([
     {
-      activeBuildings: 0,
+      activeBuildings: 1,
       builtBuildings: 1,
       recipe: {
         name: "Gold Ore Crushing (Gold Ore → Crushed Gold Ore)",
@@ -125,7 +131,7 @@ it("recycles Gold Scrap while keeping the built Gold Ore crushers paused", () =>
       },
     },
     {
-      activeBuildings: 0,
+      activeBuildings: 1,
       builtBuildings: 1,
       recipe: {
         name: "Gold Ore Milling (Crushed Gold Ore → Gold Ore Powder)",
@@ -203,24 +209,36 @@ it("shreds only the Tree Sapling surplus left by the settlement", () => {
     )?.quantity ?? 0);
 });
 
-it("keeps the Titanium expansion chain out of legacy factory modules", () => {
-  const titaniumRecipeIds = [
-    "crusher-large-titanium",
-    "arc-furnace-ii-titanium-ore",
-    "chemical-plant-ii-titanium-chlorination",
-    "distillation-stage-iii-titanium-purification",
-    "chemical-plant-ii-titanium-reduction",
-    "arc-furnace-ii-titanium-sponge",
-    "alloy-mixer-titanium",
-    "cooled-caster-ii-titanium-alloy",
-  ];
-  const lines = [general, processSteam].flatMap((module) => {
-    const preset = module.presets.find(({ id }) => id === module.defaultPresetId) ?? null;
+it("places steam-consuming planned production in Process Steam and the rest in General", () => {
+  const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId) ?? null;
+  const processSteamPreset = processSteam.presets.find(
+    ({ id }) => id === processSteam.defaultPresetId,
+  ) ?? null;
+  const generalLines = buildModuleLines(general, generalPreset).lines.filter(
+    ({ recipe }) => recipe.id in plannedNewGeneralBuildings,
+  );
+  const processSteamLines = buildModuleLines(processSteam, processSteamPreset).lines.filter(
+    ({ recipe }) => recipe.id in plannedProcessSteamBuildings,
+  );
 
-    return buildModuleLines(module, preset).lines;
-  });
-
-  expect(lines.filter(({ recipe }) => titaniumRecipeIds.includes(recipe.id))).toEqual([]);
+  expect(generalLines).toHaveLength(Object.keys(plannedNewGeneralBuildings).length);
+  expect(generalLines.every((line) => (
+    line.dataSource === "planned"
+    && line.builtBuildings === 0
+    && !line.recipe.inputs.some(({ resourceId }) => resourceId.startsWith("steam"))
+  ))).toBe(true);
+  expect(processSteamLines).toMatchObject([{
+    dataSource: "planned",
+    builtBuildings: 0,
+    activeBuildings: 1,
+    recipe: {
+      id: "distillation-stage-iii-titanium-purification",
+      inputs: [
+        { resourceId: "titaniumChloride", quantity: 12 },
+        { resourceId: "steamHigh", quantity: 3 },
+      ],
+    },
+  }]);
 });
 
 it("demand-balances enough Yellowcake for the two-FBR target", () => {
@@ -252,7 +270,7 @@ it("demand-balances enough Yellowcake for the two-FBR target", () => {
   });
 });
 
-it("caps the five Greenhouse Groundwater Pumps without covering Chicken Farms", () => {
+it("keeps Greenhouse Groundwater Pumps local while Mines supplies factory reserve", () => {
   const result = calculateFactoryTotal(
     modules
       .filter((module) => module.id !== NUCLEAR_MODULE_ID)
@@ -269,8 +287,9 @@ it("caps the five Greenhouse Groundwater Pumps without covering Chicken Farms", 
     ),
   );
   const pumped = groundwater?.actualOutputs[0]?.quantity ?? 0;
-  const minesGroundwater = result.allLines.find((line) => (
-    line.moduleId === "mines" && line.recipe.id === "groundwater-pump"
+  const minesGroundwater = result.calculation.sourceResults.find((candidate) => (
+    candidate.moduleId === "mines"
+    && candidate.recipe.id === "groundwater-pump-factory-reserve"
   ));
   const greenhouseWaterConsumed = result.calculation.regularResults.reduce((total, line) => (
     line.moduleId === GREENHOUSES_MODULE_ID
@@ -286,7 +305,9 @@ it("caps the five Greenhouse Groundwater Pumps without covering Chicken Farms", 
   expect(groundwater?.activeBuildings).toBe(5);
   expect(pumped).toBeGreaterThan(0);
   expect(pumped).toBeLessThanOrEqual(5 * 48);
-  expect(minesGroundwater).toMatchObject({ activeBuildings: 0, builtBuildings: 0 });
+  expect(minesGroundwater).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+  expect(minesGroundwater?.actualOutputs[0]?.quantity).toBeGreaterThan(0);
+  expect(minesGroundwater?.actualOutputs[0]?.quantity).toBeLessThanOrEqual(48);
   expect(chickenWaterConsumed).toBeGreaterThan(0);
   expect(pumped).toBeCloseTo(greenhouseWaterConsumed, 10);
 });

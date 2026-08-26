@@ -9,6 +9,7 @@ import {
   activeHousingType,
   calculatePopulationCapacity,
   defaultHousingCount,
+  plannedHousingCount,
   resolvedCurrentHousingCount,
   resolvedHousingCount,
 } from "../housing";
@@ -16,7 +17,7 @@ import { defaultInfiniteResearchLevels } from "../research";
 import { settlementConfig, settlementRecipeIds } from "../settlement";
 import { createHousingModule } from "./housing";
 
-it("models fifteen built Housing III blocks for the Office III workforce", () => {
+it("keeps fifteen Housing III blocks built and plans two more for the workforce", () => {
   const capacityMultiplier = calculateHousingCapacity(
     defaultInfiniteResearchLevels.housingCapacity,
   ).multiplier;
@@ -29,14 +30,22 @@ it("models fifteen built Housing III blocks for the Office III workforce", () =>
 
   expect(activeHousingType.name).toBe("Housing III");
   expect(defaultHousingCount).toBe(11);
-  expect(resolvedHousingCount.value).toBe(15);
+  expect(resolvedCurrentHousingCount).toEqual({ source: "modeled", value: 15 });
+  expect(resolvedHousingCount).toEqual({ source: "planned", value: plannedHousingCount });
   expect(housing.builtBuildings[settlementRecipeIds.residents]).toBe(15);
-  expect(housing.presets[0]?.activeBuildings[settlementRecipeIds.residents]).toBe(15);
+  expect(housing.presets[0]?.activeBuildings[settlementRecipeIds.residents]).toBe(17);
+  expect(housing.presets[0]?.dataSources?.[settlementRecipeIds.residents]).toBe("planned");
+  expect(housing.builtBuildings[settlementRecipeIds.wastewaterTreatment]).toBe(1);
+  expect(housing.presets[0]?.activeBuildings[settlementRecipeIds.wastewaterTreatment]).toBe(2);
+  expect(housing.presets[0]?.dataSources?.[settlementRecipeIds.wastewaterTreatment]).toBe("planned");
+  expect(housing.builtBuildings[settlementRecipeIds.anaerobicDigester]).toBe(2);
+  expect(housing.presets[0]?.activeBuildings[settlementRecipeIds.anaerobicDigester]).toBe(3);
+  expect(housing.presets[0]?.dataSources?.[settlementRecipeIds.anaerobicDigester]).toBe("planned");
   expect(calculatePopulationCapacity(
     activeHousingType,
     resolvedHousingCount.value,
     capacityMultiplier,
-  )).toBe(4_320);
+  )).toBe(4_896);
 });
 
 it("applies settlement demand modifiers to Factory Total flows", () => {

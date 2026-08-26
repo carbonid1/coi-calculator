@@ -71,7 +71,7 @@ export const housingTypes = {
 export const activeHousingType = housingTypes.housingIII;
 export const defaultHousingCount = 11;
 export const modeledHousingCount: number | undefined = 15;
-export const plannedHousingCount: number | undefined = undefined;
+export const plannedHousingCount: number | undefined = 17;
 
 const housingCountLayers: LayeredValue<number> = {
   default: defaultHousingCount,

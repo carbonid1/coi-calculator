@@ -1,3 +1,9 @@
+import {
+  type LayeredValue,
+  resolveCurrentLayeredValue,
+  resolveLayeredValue,
+} from "../helpers/resolve-layered-value/resolve-layered-value";
+
 export interface ComputingConfig {
   dataCenterCount: number;
   rackCount: number;
@@ -23,14 +29,14 @@ export const defaultComputingConfig: ComputingConfig = {
   waterChillers: 2,
 };
 
-export const modeledComputingConfig: ComputingConfig = {
-  // Three full rack banks plus 31 racks in the fourth data center.
-  dataCenterCount: 4,
-  rackCount: 175,
-  waterChillers: 4,
-};
+export const modeledComputingConfig: ComputingConfig | undefined = undefined;
 
-export const plannedComputingConfig: ComputingConfig | undefined = undefined;
+export const plannedComputingConfig: ComputingConfig = {
+  // Five-data-center plan that covers the complete projected factory demand.
+  dataCenterCount: 5,
+  rackCount: 202,
+  waterChillers: 5,
+};
 
 const computingConfigLayers: LayeredValue<ComputingConfig> = {
   default: defaultComputingConfig,
@@ -64,8 +70,3 @@ export const getRackAllocation = (
     )
   ));
 };
-import {
-  type LayeredValue,
-  resolveCurrentLayeredValue,
-  resolveLayeredValue,
-} from "../helpers/resolve-layered-value/resolve-layered-value";

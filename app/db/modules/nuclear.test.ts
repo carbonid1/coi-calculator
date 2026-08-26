@@ -4,7 +4,11 @@ import { calculateBuildingStats } from "../../helpers/building-stats/building-st
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateSolarPower } from "../../helpers/modifiers/calculate-solar-power";
 import { defaultInfiniteResearchLevels } from "../research";
-import { createNuclearModule, defaultNuclearConfig } from "./nuclear";
+import {
+  createNuclearModule,
+  defaultNuclearConfig,
+  plannedNuclearOperation,
+} from "./nuclear";
 import { createSolarPowerModule } from "./solar-power";
 
 const nuclear = createNuclearModule(defaultNuclearConfig, {
@@ -12,6 +16,47 @@ const nuclear = createNuclearModule(defaultNuclearConfig, {
   hydrogenFuelDemandPerCycle: 46.5,
 });
 const solarPower = createSolarPowerModule({ standard: 38, mono: 195 });
+
+it("keeps installed nuclear capacity current while applying the operation plan", () => {
+  const planned = createNuclearModule(
+    defaultNuclearConfig,
+    { averageGeneratorOutputMw: 77, hydrogenFuelDemandPerCycle: 46.5 },
+    plannedNuclearOperation,
+  );
+  const preset = planned.presets[0];
+
+  expect(preset?.builtBuildings).toMatchObject({
+    "hydrogen-reformer-super": 6,
+    "electrolyzer-ii-chlorine": 2,
+    "evaporation-pond-heated-salt-brine": 2,
+    "seawater-pump": 4,
+    "thermal-desalinator-super": 6,
+  });
+  expect(preset?.activeBuildings).toMatchObject({
+    "hydrogen-reformer-super": 8,
+    "electrolyzer-ii-chlorine": 3,
+    "evaporation-pond-heated-salt-brine": 3,
+    "seawater-pump": 6,
+    "thermal-desalinator-super": 10,
+  });
+  expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);
+  expect(Object.values(preset?.dataSources ?? {}).every(source => source === "planned"))
+    .toBe(true);
+});
+
+it("lets the operation plan override a higher synced generation baseline", () => {
+  const planned = createNuclearModule(
+    defaultNuclearConfig,
+    { averageGeneratorOutputMw: 200, hydrogenFuelDemandPerCycle: 46.5 },
+    plannedNuclearOperation,
+  );
+  const preset = planned.presets[0];
+
+  expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);
+  expect(preset?.activeBuildings["turbine-super"]).toBe(6);
+  expect(preset?.activeBuildings["turbine-high"]).toBe(6);
+  expect(preset?.activeBuildings["turbine-low"]).toBe(6);
+});
 
 it("models the two-FBR checkpoint and its external requirements", () => {
   const result = calculateFactoryTotal([nuclear]);

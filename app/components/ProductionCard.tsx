@@ -23,12 +23,13 @@ export const ProductionCard: React.FC<Props> = ({
     data-operating-mode={operatingMode}
     className={cn(
       passive && "border-dashed shadow-none",
-      inactive && "border-dashed bg-transparent opacity-40 shadow-none",
+      inactive && "border-dashed opacity-40 shadow-none",
+      inactive && !dataSource && "bg-transparent",
       !inactive
         && !dataSource
         && operatingMode === "fixed"
         && "bg-primary/10 ring-1 ring-primary/20",
-      !inactive && dataSource && getDataSourceSurfaceClassName(dataSource),
+      dataSource && getDataSourceSurfaceClassName(dataSource),
       className,
     )}
     {...props}

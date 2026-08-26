@@ -50,6 +50,9 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
     </SwitchButton>
     {modules.map((mod) => {
       const Icon = moduleIcons[mod.id] ?? CircleHelp;
+      const inclusionLabel = mod.includedInFactoryTotals === false
+        ? `${mod.name}, planning-only and excluded from current Factory Total`
+        : undefined;
 
       return (
         <SwitchButton
@@ -59,12 +62,7 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
           onClick={() => onChange(mod.id)}
         >
           <span
-            aria-label={mod.includedInFactoryTotals === false
-              ? `${mod.name}, excluded from Factory Total`
-              : undefined}
-            className={mod.includedInFactoryTotals === false
-              ? "text-muted-foreground line-through"
-              : undefined}
+            aria-label={inclusionLabel}
           >
             {mod.name}
           </span>

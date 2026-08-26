@@ -18,7 +18,7 @@ import {
   NUCLEAR_MODULE_ID,
 } from "./nuclear";
 
-it("uses dedicated Ethanol and lower-priority carbon dioxide Graphite plants", () => {
+it("uses planned waste-processing capacity without leaving process waste", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -67,6 +67,10 @@ it("uses dedicated Ethanol and lower-priority carbon dioxide Graphite plants", (
   const carbonDioxide = result.calculation.allResourceFlows.find(
     (flow) => flow.resourceId === "carbonDioxide",
   )!;
+  const processWaste = ["carbonDioxide", "redMud", "exhaust", "wasteWater"]
+    .map((resourceId) => result.calculation.allResourceFlows.find(
+      (flow) => flow.resourceId === resourceId,
+    ));
   const graphiteResults = result.calculation.regularResults.filter(
     (candidate) => candidate.recipe.id.startsWith("chemical-plant-ii-graphite"),
   );
@@ -78,6 +82,8 @@ it("uses dedicated Ethanol and lower-priority carbon dioxide Graphite plants", (
   )!;
 
   expect(carbonDioxideResult.builtBuildings).toBe(1);
+  expect(carbonDioxideResult.activeBuildings).toBe(2);
+  expect(carbonDioxideResult.dataSource).toBe("planned");
   expect(coalResult.builtBuildings).toBe(3);
   expect(carbonDioxideResult.capacityPoolId).toBeUndefined();
   expect(coalResult.capacityPoolId).toBeUndefined();
@@ -86,8 +92,11 @@ it("uses dedicated Ethanol and lower-priority carbon dioxide Graphite plants", (
   expect(carbonDioxideResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(coalResult.supplyRatio).toBeCloseTo(1);
-  expect(carbonDioxide.net).toBeCloseTo(0);
-  expect(graphite.produced).toBeLessThan(graphite.consumed);
-  expect(graphite.net).toBeLessThan(0);
+  expect(coalResult.supplyRatio).toBeGreaterThan(0.7);
+  expect(coalResult.supplyRatio).toBeLessThan(1);
+  expect(carbonDioxide.net).toBeCloseTo(0, 6);
+  expect(graphite.produced).toBeCloseTo(graphite.consumed, 6);
+  expect(graphite.net).toBeCloseTo(0, 6);
+  expect(processWaste.every((flow) => flow != null)).toBe(true);
+  expect(processWaste.every((flow) => Math.abs(flow?.net ?? 1) < 1e-6)).toBe(true);
 });

@@ -28,42 +28,17 @@ export const SpaceStationView: React.FC<Props> = ({ config, logistics }) => {
 
   return (
     <Card.Root>
-      <Card.Content className="space-y-5">
+      <Card.Content className="space-y-4">
         <Card.Header>
-          <Card.Title>Space Station level {station.level}</Card.Title>
+          <Card.Title>Space Station level {station.level} plan</Card.Title>
         </Card.Header>
 
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-2">
           <section className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
             <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Recurring inputs
+              Station effects
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <Metric
-                label="Station Parts"
-                value={`${formatQuantity(station.maintenancePartsPerCycle)} / cycle`}
-              />
-              <Metric
-                label="Crew Supplies"
-                value={`${formatQuantity(station.crewSuppliesPerCycle)} / cycle`}
-              />
-              <Metric
-                label="Electronics IV"
-                value={`up to ${formatQuantity(station.researchSuppliesPerCycle)} / cycle`}
-              />
-              <Metric label="Crew / population" value={formatQuantity(station.crew)} />
-            </div>
-          </section>
-
-          <section className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Provides
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Metric
-                label="Space Research Points"
-                value={`${formatQuantity(station.spaceResearchPointsPerCycle)} / cycle`}
-              />
               <Metric
                 label="Research efficiency"
                 value={`+${formatQuantity(station.researchEfficiencyBonusPercent)}%`}
@@ -95,52 +70,13 @@ export const SpaceStationView: React.FC<Props> = ({ config, logistics }) => {
               />
             </div>
           </section>
-
         </div>
 
-        <section className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Amortized Rocket II inputs
-          </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric
-              label="Aluminum"
-              value={`${formatQuantity(logistics.aluminumPerCycle)} / cycle`}
-            />
-            <Metric
-              label="Titanium Alloy"
-              value={`${formatQuantity(logistics.titaniumAlloyPerCycle)} / cycle`}
-            />
-            <Metric
-              label="Water"
-              value={`${formatQuantity(logistics.waterPerCycle)} / cycle`}
-            />
-            <Metric
-              label="Hydrogen"
-              value={`${formatQuantity(logistics.hydrogenPerCycle)} / cycle`}
-            />
-            <Metric
-              label="Oxygen"
-              value={`${formatQuantity(logistics.oxygenPerCycle)} / cycle`}
-            />
-            <Metric
-              label="Steel"
-              value={`${formatQuantity(logistics.steelPerCycle)} / cycle`}
-            />
-            <Metric
-              label="Plastic"
-              value={`${formatQuantity(logistics.plasticPerCycle)} / cycle`}
-            />
-            <Metric
-              label="Electronics III"
-              value={`${formatQuantity(logistics.electronicsIiiPerCycle)} / cycle`}
-            />
-          </div>
-        </section>
-
         <p className="text-xs text-muted-foreground">
-          Includes full cargo launches and the 24-cycle crew rotation. Composite Panel production
-          is included and expands into Aluminum, Steel, and Plastic. Station construction costs are excluded.
+          Net Summary and the production cards below carry resource pressure, Space Research
+          Points, workforce, power, and computing. Launch demand includes full cargo launches,
+          the 24-cycle crew rotation, and Composite Panels supplied by General.
+          Station construction costs are excluded.
         </p>
       </Card.Content>
     </Card.Root>

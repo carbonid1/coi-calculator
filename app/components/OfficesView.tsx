@@ -9,7 +9,6 @@ import {
 } from "../db/offices";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import {
-  DataSourceBadge,
   getDataSourcePresentation,
   getDataSourceSurfaceClassName,
 } from "./DataSourceState";
@@ -113,12 +112,9 @@ export const OfficesView: React.FC<Props> = ({
                     {focus.effectPerStep}
                   </Card.Description>
                   <Card.Action>
-                    <div className="flex items-center gap-2">
-                      {active && <DataSourceBadge source={source} />}
-                      <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                        {step} / {focus.maxStep}
-                      </span>
-                    </div>
+                    <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                      {step} / {focus.maxStep}
+                    </span>
                   </Card.Action>
                 </Card.Header>
                 <div className="flex items-end justify-between gap-3">

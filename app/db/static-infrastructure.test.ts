@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
 import {
   calculateStaticInfrastructureTotals,
   emptyStaticInfrastructureConfig,
   type StaticInfrastructureConfig,
-} from "./static-infrastructure";
+} from './static-infrastructure'
 
 const syncedConfig: StaticInfrastructureConfig = {
   oreSortingPlant: 7,
@@ -21,21 +21,18 @@ const syncedConfig: StaticInfrastructureConfig = {
   vehiclesDepotIII: 1,
   vehicles: 39,
   maintenanceStatue: 3,
-};
+}
 
-describe("static infrastructure workforce", () => {
-  it("uses zero for every sync-owned count before a snapshot is available", () => {
-    expect(Object.values(emptyStaticInfrastructureConfig).every(count => count === 0))
-      .toBe(true);
-  });
+describe('static infrastructure workforce', () => {
+  it('uses zero for every sync-owned count before a snapshot is available', () => {
+    expect(Object.values(emptyStaticInfrastructureConfig).every(count => count === 0)).toBe(true)
+  })
 
-  it("includes the aggregate vehicle workers in the infrastructure total", () => {
-    expect(calculateStaticInfrastructureTotals(
-      syncedConfig,
-    ).workers).toBe(486);
-  });
+  it('includes the aggregate vehicle workers in the infrastructure total', () => {
+    expect(calculateStaticInfrastructureTotals(syncedConfig).workers).toBe(486)
+  })
 
-  it("uses only running buildings for workforce and fuel drains", () => {
+  it('uses only running buildings for workforce and fuel drains', () => {
     const totals = calculateStaticInfrastructureTotals(
       {
         ...syncedConfig,
@@ -52,9 +49,9 @@ describe("static infrastructure workforce", () => {
         vehiclesDepotIII: 0,
         maintenanceStatue: 2,
       },
-    );
+    )
 
-    expect(totals.workers).toBe(456);
-    expect(totals.fuelGasPerCycle).toBe(4);
-  });
-});
+    expect(totals.workers).toBe(456)
+    expect(totals.fuelGasPerCycle).toBe(4)
+  })
+})

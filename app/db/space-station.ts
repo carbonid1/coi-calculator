@@ -29,6 +29,7 @@ export interface RocketIiRecurringLogistics {
   assemblyDepotUtilization: number;
   cargoCapacity: number;
   cargoLaunchesPerCycle: number;
+  compositePanelPerCycle: number;
   crewCapacity: number;
   crewLaunchesPerCycle: number;
   cyclesPerLaunch: number;
@@ -194,6 +195,7 @@ export const calculateRocketIiRecurringLogistics = (
     assemblyDepotUtilization: launchesPerCycle * rocketIiGameData.buildCycles,
     cargoCapacity,
     cargoLaunchesPerCycle,
+    compositePanelPerCycle: rocketIiGameData.buildCosts.compositePanel * launchesPerCycle,
     crewCapacity,
     crewLaunchesPerCycle,
     cyclesPerLaunch: launchesPerCycle > 0 ? 1 / launchesPerCycle : 0,

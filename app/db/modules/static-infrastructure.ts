@@ -9,9 +9,18 @@ import { type Module } from "./modules";
 
 export const STATIC_INFRASTRUCTURE_MODULE_ID = "static-infrastructure";
 
+interface StaticInfrastructureDataSources {
+  syncedCounts: boolean;
+}
+
+const modeledInfrastructureDataSources: StaticInfrastructureDataSources = {
+  syncedCounts: false,
+};
+
 export const createStaticInfrastructureModule = (
   builtConfig: StaticInfrastructureConfig,
   runningConfig: StaticInfrastructureConfig = builtConfig,
+  dataSources: StaticInfrastructureDataSources = modeledInfrastructureDataSources,
 ): Module => {
   const normalized = normalizeStaticInfrastructureConfig(builtConfig);
   const running = clampStaticInfrastructureRunningConfig(
@@ -28,7 +37,7 @@ export const createStaticInfrastructureModule = (
   return {
     id: STATIC_INFRASTRUCTURE_MODULE_ID,
     name: "Infrastructure",
-    description: "Static worker and resource drains outside production-chain balancing",
+    description: "Static workforce and Fuel Gas loads outside production-chain balancing",
     builtBuildings,
     presets: [
       {
@@ -37,6 +46,12 @@ export const createStaticInfrastructureModule = (
         description: "Completed infrastructure with non-paused entities active",
         builtBuildings,
         activeBuildings,
+        dataSources: Object.fromEntries(
+          staticInfrastructureItems.map((item) => [
+            item.recipeId,
+            dataSources.syncedCounts ? "synced" : "modeled",
+          ]),
+        ),
         fixed: staticInfrastructureItems.map((item) => item.recipeId),
       },
     ],

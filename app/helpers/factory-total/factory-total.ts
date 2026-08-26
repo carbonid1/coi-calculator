@@ -55,12 +55,12 @@ const getDemandSourceProduction = (
 
 const calculateWithDispatch = (
   lines: ProductionLine[],
-  externalInputs: Partial<Record<ResourceId, number>>,
+  suppliedResources: Partial<Record<ResourceId, number>>,
   recyclingEfficiencyPercent: number,
   outputModifiers: RecipeModifierMultipliers,
-  externalDemands: Partial<Record<ResourceId, number>> = {},
+  fixedDemands: Partial<Record<ResourceId, number>> = {},
   electricityDispatchTargets: Record<string, number> = {},
-  nonConstrainingExternalInputIds: ReadonlySet<ResourceId> = new Set(),
+  nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
 ) => {
   const groupsById = new Map<string, ElectricityDispatchGroup>();
   const prioritizedLines = lines.filter((line) => (
@@ -142,11 +142,11 @@ const calculateWithDispatch = (
     dispatchedLines = applyDispatchRatios(electricityRatios, resourceRatios);
     calculation = calculateNet(
       dispatchedLines,
-      externalInputs,
+      suppliedResources,
       recyclingEfficiencyPercent,
       outputModifiers,
-      externalDemands,
-      nonConstrainingExternalInputIds,
+      fixedDemands,
+      nonConstrainingSuppliedResourceIds,
     );
 
     const modeledDemandMw = calculateBuildingStats(
@@ -396,11 +396,11 @@ const calculateWithDispatch = (
   dispatchedLines = applyDispatchRatios(electricityRatios, resourceRatios);
   calculation = calculateNet(
     dispatchedLines,
-    externalInputs,
+    suppliedResources,
     recyclingEfficiencyPercent,
     outputModifiers,
-    externalDemands,
-    nonConstrainingExternalInputIds,
+    fixedDemands,
+    nonConstrainingSuppliedResourceIds,
   );
 
   const buildingStats = calculateBuildingStats(
@@ -428,7 +428,6 @@ export const calculateFactoryTotal = (
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
-  const externalInputs: Partial<Record<ResourceId, number>> = {};
   const fixedDemands: Partial<Record<ResourceId, number>> = {};
   const electricityDispatchTargets: Record<string, number> = {};
 
@@ -441,10 +440,8 @@ export const calculateFactoryTotal = (
     const { lines } = buildModuleLines(mod, preset, outputModifiers);
 
     allLines.push(...lines);
+
     for (const resourceId of mod.localResources ?? []) localResourceIds.add(resourceId);
-    for (const [resourceId, quantity] of typedEntries(preset?.externalInputs ?? mod.externalInputs ?? {})) {
-      externalInputs[resourceId] = (externalInputs[resourceId] ?? 0) + quantity;
-    }
     for (const [resourceId, quantity] of typedEntries(preset?.fixedDemands ?? {})) {
       fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
     }
@@ -458,7 +455,7 @@ export const calculateFactoryTotal = (
 
   const withoutContracts = calculateWithDispatch(
     allLines,
-    externalInputs,
+    {},
     recyclingEfficiencyPercent,
     outputModifiers,
     fixedDemands,
@@ -490,7 +487,7 @@ export const calculateFactoryTotal = (
   const calculateWithContractPlan = (
     contractPlan: ReturnType<typeof applyContracts>,
   ) => {
-    const inputsWithContracts = { ...externalInputs };
+    const suppliedResources: Partial<Record<ResourceId, number>> = {};
     const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
     const contractInputIds = new Set<ResourceId>();
 
@@ -498,7 +495,7 @@ export const calculateFactoryTotal = (
       const importedId = result.contract.exchange.imported.resourceId;
       const exportedId = result.contract.exchange.exported.resourceId;
 
-      inputsWithContracts[importedId] = (inputsWithContracts[importedId] ?? 0)
+      suppliedResources[importedId] = (suppliedResources[importedId] ?? 0)
         + result.imported;
       contractDemands[exportedId] = (contractDemands[exportedId] ?? 0)
         + result.exported;
@@ -507,7 +504,7 @@ export const calculateFactoryTotal = (
 
     return calculateWithDispatch(
       allLines,
-      inputsWithContracts,
+      suppliedResources,
       recyclingEfficiencyPercent,
       outputModifiers,
       contractDemands,

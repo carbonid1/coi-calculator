@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/building-diagnostics";
+import { calculateBuildingStats } from "../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
+import { getPlannedBuildSummaries } from "../helpers/planned-builds/planned-builds";
+import { general } from "./modules/general";
+import { processSteam } from "./modules/process-steam";
 import { createResearchModule } from "./modules/research";
-import { spacePointsExpansion } from "./modules/space-points-expansion";
-import { spaceStation } from "./modules/space-station";
+import { createSpaceStationModule, spaceStation } from "./modules/space-station";
 import { recipes } from "./recipes";
 import {
   calculateSpaceStationConstruction,
@@ -54,6 +58,8 @@ describe("Space Station", () => {
       .toBeCloseTo(1 / 24, 9);
     expect(defaultRocketIiRecurringLogistics.launchesPerCycle)
       .toBeCloseTo(0.090873016, 9);
+    expect(defaultRocketIiRecurringLogistics.compositePanelPerCycle)
+      .toBeCloseTo(43.619048, 6);
     expect(defaultRocketIiRecurringLogistics.aluminumPerCycle)
       .toBeCloseTo(43.619048, 6);
     expect(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle)
@@ -93,13 +99,109 @@ describe("Space Station", () => {
       });
   });
 
+  it("adds the complete planned station to Factory Total over an empty baseline", () => {
+    const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
+    const result = calculateFactoryTotal([stationModule]);
+    const stats = calculateBuildingStats(result.allLines, result.calculation);
+    const preset = stationModule.presets[0];
+
+    expect(result.allLines.map((line) => line.recipe.id)).toEqual([
+      "space-station-operations",
+      "space-station-orbital-research",
+      "rocket-ii-assembly",
+      "rocket-ii-launch-amortized",
+    ]);
+    expect(stats).toMatchObject({
+      workers: 196,
+      computingTflops: 8,
+    });
+    expect(stationModule.builtBuildings).toMatchObject({
+      "rocket-ii-assembly": 0,
+      "rocket-ii-launch-amortized": 0,
+    });
+    expect(preset?.activeBuildings).toMatchObject({
+      "rocket-ii-assembly": 1,
+      "rocket-ii-launch-amortized": 1,
+    });
+    expect(preset?.dataSources).toMatchObject({
+      "rocket-ii-assembly": "planned",
+      "rocket-ii-launch-amortized": "planned",
+    });
+    expect(recipes.some((recipe) => recipe.id.startsWith("static-rocket-")))
+      .toBe(false);
+  });
+
+  it("exposes the station plan through standard module flows and building pressure", () => {
+    const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
+    const result = calculateFactoryTotal([stationModule]);
+    const planLines = result.allLines;
+    const regularResults = result.calculation.regularResults;
+    const stats = calculateBuildingStats(planLines, {
+      regularResults,
+      sourceResults: [],
+      sinkResults: [],
+    });
+    const flow = (resourceId: string) => result.flows.find(
+      (candidate) => candidate.resourceId === resourceId,
+    );
+
+    expect(planLines.every((line) => line.dataSource === "planned")).toBe(true);
+    expect(planLines.some((line) => line.recipe.id === "assembly-v-composite-panel"))
+      .toBe(false);
+    expect(stats.workers).toBe(196);
+    expect(stats.computingTflops).toBe(8);
+    expect(flow("stationParts")?.net).toBe(-1);
+    expect(flow("crewSupplies")?.net).toBe(-1.2);
+    expect(flow("electronicsIv")?.net).toBe(0);
+    expect(flow("spaceResearchPoints")?.net).toBe(0);
+    expect(regularResults.find(
+      ({ recipe }) => recipe.id === "space-station-orbital-research",
+    )?.supplyRatio).toBe(0);
+    expect(flow("compositePanel")?.net).toBeCloseTo(-43.619048, 6);
+    expect(flow("aluminum")).toBeUndefined();
+    expect(flow("plastic")).toBeUndefined();
+    expect(flow("steel")?.net).toBeCloseTo(-7.269841, 6);
+    expect(flow("titaniumAlloy")?.net).toBeCloseTo(-10.904762, 6);
+  });
+
+  it("does not expose orbital research mode as a physical planned build", () => {
+    const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
+    const result = calculateFactoryTotal([stationModule]);
+    const diagnostics = calculateBuildingDiagnostics(
+      [stationModule],
+      result.flows,
+      result.calculation.regularResults,
+      result.calculation.sourceResults,
+      result.calculation.sinkResults,
+    );
+    const plannedBuilds = getPlannedBuildSummaries(diagnostics);
+    const orbitalResearch = diagnostics.find(
+      ({ buildingName }) => buildingName === "Space Station Orbital Research",
+    );
+
+    expect(orbitalResearch).toMatchObject({
+      plannedCapacity: false,
+      attention: null,
+    });
+    expect(plannedBuilds.map(({ buildingName }) => buildingName)).not.toContain(
+      "Space Station Orbital Research",
+    );
+    expect(plannedBuilds.map(({ buildingName }) => buildingName)).toEqual(
+      expect.arrayContaining([
+        "Rocket Assembly Depot",
+        "Rocket Launch Pad",
+        "Space Station IV",
+      ]),
+    );
+  });
+
   it("applies synced rocket-capacity research to recurring launch demand", () => {
     const levelTen = calculateRocketIiRecurringLogistics(
       calculateSpaceStationLevel(4, 4),
       10,
     );
     const result = calculateFactoryTotal(
-      [{ ...spaceStation, includedInFactoryTotals: true }],
+      [spaceStation],
       [],
       undefined,
       {
@@ -123,8 +225,9 @@ describe("Space Station", () => {
   it("retains a balanced space plan when the planning modules are inspected in isolation", () => {
     const result = calculateFactoryTotal([
       createResearchModule({ activeResearchLabIvCount: 2, mode: "space" }),
-      { ...spaceStation, includedInFactoryTotals: true },
-      { ...spacePointsExpansion, includedInFactoryTotals: true },
+      spaceStation,
+      general,
+      processSteam,
     ]);
     const orbitalResearch = result.calculation.regularResults.find(
       (line) => line.recipe.id === "space-station-orbital-research",
@@ -140,10 +243,10 @@ describe("Space Station", () => {
       net: 0,
     });
     expect(flow("electronicsIv")).toMatchObject({ consumed: 4, produced: 4, net: 0 });
-    expect(flow("crewSupplies")).toMatchObject({ consumed: 1.2, net: -1.2 });
-    expect(flow("stationParts")).toMatchObject({ consumed: 1, net: -1 });
-    expect(flow("aluminum")?.consumed).toBeCloseTo(43.619048, 6);
-    expect(flow("titaniumAlloy")?.consumed).toBeCloseTo(10.904762, 6);
+    expect(flow("crewSupplies")).toMatchObject({ consumed: 1.2, produced: 1.2, net: 0 });
+    expect(flow("stationParts")).toMatchObject({ consumed: 1, produced: 1, net: 0 });
+    expect(flow("aluminum")?.consumed).toBeCloseTo(48.119048, 6);
+    expect(flow("titaniumAlloy")?.consumed).toBeCloseTo(12.904762, 6);
     expect(flow("compositePanel")).toMatchObject({ net: 0 });
     expect(flow("rocketII")?.net).toBeCloseTo(0, 12);
   });

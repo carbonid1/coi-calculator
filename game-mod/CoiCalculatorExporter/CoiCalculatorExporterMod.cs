@@ -35,6 +35,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private const string MaintenanceT3ProductId = "Product_Virtual_MaintenanceT3";
     private static readonly string[] TrackedBuildingKeys = new[]
     {
+        "rocketAssemblyDepot",
+        "rocketLaunchPad",
         "electricLocomotiveII",
         "looseStationModuleElectrified",
         "fluidStationModuleElectrified",
@@ -53,6 +55,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     };
     private static readonly string[] TrackedPrototypeIds = new[]
     {
+        "RocketAssemblyDepot",
+        "RocketLaunchPad",
         "LocomotiveT2Electric",
         "TrainStationLoose_ELEC",
         "TrainStationFluid_ELEC",
@@ -154,7 +158,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 12; } }
+    public int Version { get { return 13; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -338,7 +342,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":13,");
+            json.Append("\"schemaVersion\":14,");
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");

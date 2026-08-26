@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.12 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.13 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -17,7 +17,8 @@ edict selected in the game but prevented from running retains its inactivity
 reason; calculator effects use only the active level.
 
 Schema 10 and newer export the actual Gold quantity in completed standalone storage;
-schema 13 adds Fuel Gas stored under the same eligibility rules.
+schema 13 adds Fuel Gas stored under the same eligibility rules, and schema 14
+adds Rocket Assembly Depot and Rocket Launch Pad completed/running counts.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as
@@ -31,13 +32,17 @@ The calculator reads that file locally; the mod does not open a port or modify
 gameplay state. Captain of Industry may still record the enabled mod in save
 metadata; the manifest explicitly allows the mod to be removed again.
 
-Tracked infrastructure currently includes Electric locomotive II, all four
+Tracked infrastructure currently includes Rocket Assembly Depots, Rocket Launch
+Pads, Electric locomotive II, all four
 electrified station module types, both ore sorting plants, Stacker towers, Train
 depots, all three vehicle-depot tiers, and The Statue of Maintenance (Golden),
 plus both solar-panel types. Train depots contribute their eight
 assigned workers to calculator workforce demand; their intermittent 250 kW draw
 is intentionally excluded. Vehicle depots contribute 6, 10, and 16 workers
-respectively, with other activity-dependent costs excluded. Existing snapshots
+respectively, with other activity-dependent costs excluded. Rocket infrastructure
+contributes 160 and 30 workers per running building respectively; its production,
+launch-input, power, and computing costs stay in the Space Station planning model.
+Existing snapshots
 remain readable across additive exporter updates; without any synced snapshot,
 calculator-owned counts start at zero.
 

@@ -23,6 +23,15 @@ export interface NuclearConfig {
   nonBreederPowerLevel: 1 | 2 | 3 | 4;
 }
 
+export interface NuclearOperationPlan {
+  generationTargetMw: number;
+  hydrogenReformerCount: number;
+  chlorineProcessingCount: number;
+  saltProcessingCount: number;
+  superDesalinatorCount: number;
+  seawaterPumpCount: number;
+}
+
 export const defaultNuclearConfig: NuclearConfig = {
   breederReactors: 1,
   breederPowerLevel: 1,
@@ -30,9 +39,20 @@ export const defaultNuclearConfig: NuclearConfig = {
   nonBreederPowerLevel: 4,
 };
 
+export const plannedNuclearOperation: NuclearOperationPlan = {
+  // Use the installed turbine trains before adding another generator build.
+  generationTargetMw: 159,
+  hydrogenReformerCount: 8,
+  chlorineProcessingCount: 3,
+  saltProcessingCount: 3,
+  superDesalinatorCount: 10,
+  seawaterPumpCount: 6,
+};
+
 export const createNuclearModule = (
   config: NuclearConfig,
   baselines: PlanningBaselines = emptyPlanningBaselines,
+  plan?: NuclearOperationPlan,
 ): Module => {
   const breederReactors = Math.max(0, Math.trunc(config.breederReactors));
   const nonBreederReactors = Math.max(0, Math.trunc(config.nonBreederReactors));
@@ -46,7 +66,10 @@ export const createNuclearModule = (
   const generationCapacityMw = powerReactorSuperSteam
     * (15 + 10 + 5)
     / 48;
-  const generationTargetMw = Math.max(0, baselines.averageGeneratorOutputMw);
+  const generationTargetMw = Math.max(
+    0,
+    plan?.generationTargetMw ?? baselines.averageGeneratorOutputMw,
+  );
   const dispatchedGenerationMw = Math.min(
     generationCapacityMw,
     generationTargetMw,
@@ -97,7 +120,7 @@ export const createNuclearModule = (
         activeBuildings: {
           "fbr-0x": nonBreederReactors,
           "fbr-3x": breederReactors,
-          "seawater-pump": SEAWATER_PUMP_COUNT,
+          "seawater-pump": plan?.seawaterPumpCount ?? SEAWATER_PUMP_COUNT,
           "nuclear-reprocessing": reprocessingCount,
           "enrichment-plant": enrichmentCount,
           "chemical-plant-yellowcake": enrichmentCount,
@@ -105,11 +128,15 @@ export const createNuclearModule = (
           "turbine-high": activeTurbineCount,
           "turbine-low": activeTurbineCount,
           "power-generator-ii-nuclear": activeTurbineCount * 2,
-          "hydrogen-reformer-super": ACTIVE_HYDROGEN_REFORMER_COUNT,
+          "hydrogen-reformer-super": plan?.hydrogenReformerCount
+            ?? ACTIVE_HYDROGEN_REFORMER_COUNT,
           "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
-          "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
-          "electrolyzer-ii-chlorine": ACTIVE_CHLORINE_PROCESSING_COUNT,
-          "evaporation-pond-heated-salt-brine": ACTIVE_SALT_PROCESSING_COUNT,
+          "thermal-desalinator-super": plan?.superDesalinatorCount
+            ?? SUPER_DESALINATOR_COUNT,
+          "electrolyzer-ii-chlorine": plan?.chlorineProcessingCount
+            ?? ACTIVE_CHLORINE_PROCESSING_COUNT,
+          "evaporation-pond-heated-salt-brine": plan?.saltProcessingCount
+            ?? ACTIVE_SALT_PROCESSING_COUNT,
           "cooling-tower-large-super": ACTIVE_COOLING_TOWER_COUNT,
           "cooling-tower-large-depleted": ACTIVE_COOLING_TOWER_COUNT,
           "nuclear-liquid-dump-water": 1,
@@ -118,6 +145,19 @@ export const createNuclearModule = (
           "radioactive-waste-storage": wasteStorageCount,
           "shredder-retired-waste": shredderCount,
         },
+        dataSources: plan
+          ? {
+              "turbine-super": "planned",
+              "turbine-high": "planned",
+              "turbine-low": "planned",
+              "power-generator-ii-nuclear": "planned",
+              "hydrogen-reformer-super": "planned",
+              "electrolyzer-ii-chlorine": "planned",
+              "evaporation-pond-heated-salt-brine": "planned",
+              "thermal-desalinator-super": "planned",
+              "seawater-pump": "planned",
+            }
+          : undefined,
         fixed: [
           "fbr-0x",
           "fbr-3x",

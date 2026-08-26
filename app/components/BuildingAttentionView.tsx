@@ -95,7 +95,9 @@ const getAttentionStatus = (diagnostic: BuildingDiagnostic) => {
 
 export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenBuilding }) => {
   const actionable = diagnostics
-    .filter((diagnostic) => diagnostic.attention != null)
+    .filter((diagnostic) => (
+      !diagnostic.plannedCapacity && diagnostic.attention != null
+    ))
     .toSorted((a, b) => (
       a.moduleName.localeCompare(b.moduleName)
       || a.buildingName.localeCompare(b.buildingName)

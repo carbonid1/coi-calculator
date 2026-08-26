@@ -2,7 +2,6 @@ import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
-import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
@@ -46,12 +45,9 @@ export const SinkCard: React.FC<Props> = ({ dataSource, result }) => {
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-              {result.recipe.building}
-            </h3>
-            {!inactive && dataSource && <DataSourceBadge source={dataSource} />}
-          </div>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+            {result.recipe.building}
+          </h3>
           {result.recipe.name !== result.recipe.building && (() => {
             const match = result.recipe.name.match(/\((.+)\)$/);
 

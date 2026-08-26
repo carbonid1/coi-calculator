@@ -13,7 +13,6 @@ import { processSteam } from "./process-steam";
 import { research } from "./research";
 import { reserves } from "./reserves";
 import { solarPower } from "./solar-power";
-import { spacePointsExpansion } from "./space-points-expansion";
 import { spaceStation } from "./space-station";
 import { staticInfrastructure } from "./static-infrastructure";
 
@@ -27,7 +26,6 @@ export interface Preset {
   dataSources?: Partial<Record<string, ValueSource>>;
   /** Recipes forced to run at active capacity. Every other recipe is automatically balanced. */
   fixed: string[];
-  externalInputs?: Partial<Record<ResourceId, number>>;
   outputTargets?: Partial<Record<ResourceId, number>>;
   builtBuildings?: Record<string, number>;
   speedLevels?: Record<string, number>;
@@ -47,7 +45,6 @@ export interface Module {
   builtBuildings: Record<string, number>;
   presets: Preset[];
   defaultPresetId: string | null;
-  externalInputs?: Partial<Record<ResourceId, number>>;
   /** Resources reported inside this module but intentionally excluded from Factory Total. */
   localResources?: ResourceId[];
 }
@@ -59,7 +56,6 @@ export const modules: [Module, ...Module[]] = [
   research,
   offices,
   spaceStation,
-  spacePointsExpansion,
   greenhouses,
   chickenFarms,
   housing,

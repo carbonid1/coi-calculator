@@ -28,11 +28,11 @@ export const defaultChickenFarmSettings: ChickenFarmSettings = {
   slaughtering: true,
 };
 
-export const modeledChickenFarmSettings: ChickenFarmSettings | undefined = {
+export const modeledChickenFarmSettings: ChickenFarmSettings | undefined = undefined;
+export const plannedChickenFarmSettings: ChickenFarmSettings = {
   ...defaultChickenFarmSettings,
-  totalChickenCount: 2_300,
+  totalChickenCount: 2_350,
 };
-export const plannedChickenFarmSettings: ChickenFarmSettings | undefined = undefined;
 
 const chickenFarmSettingsLayers: LayeredValue<ChickenFarmSettings> = {
   default: defaultChickenFarmSettings,

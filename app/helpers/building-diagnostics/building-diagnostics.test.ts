@@ -285,3 +285,112 @@ describe("cost-free capacity diagnostics", () => {
     expect(diagnostic).toMatchObject({ attention: "build", attentionCount: 1 });
   });
 });
+
+describe("planned capacity diagnostics", () => {
+  const diamondPaste = recipes.find(
+    (recipe) => recipe.id === "chemical-plant-ii-diamond-paste-cooking-oil",
+  );
+
+  if (!diamondPaste) throw new Error("Diamond Paste recipe is missing");
+
+  const plannedModule: Module = {
+    id: "planned",
+    name: "Planned",
+    description: "",
+    builtBuildings: { [diamondPaste.id]: 0 },
+    presets: [],
+    defaultPresetId: null,
+  };
+  const plannedResult = (supplyRatio: number): RegularResult => ({
+    recipe: diamondPaste,
+    moduleId: plannedModule.id,
+    dataSource: "planned",
+    activeBuildings: 1,
+    builtBuildings: 0,
+    operatingMode: "balanced",
+    supplyRatio,
+    speedLevel: 1,
+    actualInputs: [],
+    actualOutputs: [],
+    appliedRecyclingEfficiencyPercent: null,
+    recyclableSourceValueProduced: 0,
+  });
+
+  it("does not restate planned capacity as an attention warning", () => {
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [plannedModule],
+      [],
+      [plannedResult(0)],
+    );
+
+    expect(diagnostic).toMatchObject({
+      active: 1,
+      built: 0,
+      plannedCapacity: true,
+      attention: null,
+      attentionCount: 0,
+    });
+  });
+
+  it("treats planned capacity as acknowledged even when it remains constrained", () => {
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [plannedModule],
+      [resourceFlow("diamondPaste", -1)],
+      [plannedResult(1)],
+    );
+
+    expect(diagnostic).toMatchObject({
+      plannedCapacity: true,
+      attention: null,
+      attentionCount: 0,
+    });
+  });
+
+  it("treats a mixed shared-capacity pool as acknowledged when one recipe is planned", () => {
+    const currentResult = {
+      ...plannedResult(0.5),
+      dataSource: "modeled" as const,
+      activeBuildings: 1,
+      builtBuildings: 1,
+      capacityPoolId: "chemical-plant-ii",
+    };
+    const expansionResult = {
+      ...plannedResult(0.5),
+      activeBuildings: 2,
+      builtBuildings: 1,
+      capacityPoolId: "chemical-plant-ii",
+    };
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [plannedModule],
+      [],
+      [currentResult, expansionResult],
+    );
+
+    expect(diagnostic).toMatchObject({
+      active: 2,
+      built: 1,
+      plannedCapacity: true,
+      attention: null,
+      attentionCount: 0,
+    });
+  });
+
+  it("also suppresses animal-population attention for a planned farm", () => {
+    const plannedChickenResult = {
+      ...createChickenResult(1_100),
+      dataSource: "planned" as const,
+      builtBuildings: 0,
+    };
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [farmsModule],
+      [flow("eggs", "Eggs", -7.6)],
+      [plannedChickenResult],
+    );
+
+    expect(diagnostic).toMatchObject({
+      plannedCapacity: true,
+      attention: null,
+      attentionCount: 0,
+    });
+  });
+});

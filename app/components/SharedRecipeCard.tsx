@@ -2,7 +2,6 @@ import { cn } from "@carbonid1/design-system";
 
 import { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import {
   type PassiveResult,
   type ProductionLine,
@@ -13,8 +12,8 @@ import {
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
+import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
-import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
@@ -56,12 +55,9 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, dataSource, results, 
       className="p-3"
     >
       <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold text-foreground">
-            {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
-          </h3>
-          {effective > 0 && dataSource && <DataSourceBadge source={dataSource} />}
-        </div>
+        <h3 className="font-semibold text-foreground">
+          {firstLine.recipe.sharedCapacity?.label ?? firstLine.recipe.building}
+        </h3>
         <BuildingCount
           load={effective}
           active={Math.max(...lines.map((line) => line.activeBuildings))}

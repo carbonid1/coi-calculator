@@ -14,6 +14,11 @@ import { type Module } from "./modules";
 
 export const HOUSING_MODULE_ID = "housing";
 
+const plannedWasteProcessingBuildings = {
+  [settlementRecipeIds.wastewaterTreatment]: 2,
+  [settlementRecipeIds.anaerobicDigester]: 3,
+} as const;
+
 export const createHousingModule = (
   housingCount: number,
   housingCapacityLevel: number = defaultInfiniteResearchLevels.housingCapacity,
@@ -53,8 +58,8 @@ export const createHousingModule = (
     [settlementRecipeIds.biomassCollection]: settlementServiceBuildings.biomassCollection * serviceFactor,
     [settlementRecipeIds.clinic]: settlementServiceBuildings.clinic * serviceFactor,
     [settlementRecipeIds.internetModule]: settlementServiceBuildings.internetModule * serviceFactor,
-    [settlementRecipeIds.wastewaterTreatment]: settlementServiceBuildings.wastewaterTreatment * serviceFactor,
-    [settlementRecipeIds.anaerobicDigester]: settlementServiceBuildings.anaerobicDigester * serviceFactor,
+    [settlementRecipeIds.wastewaterTreatment]: plannedWasteProcessingBuildings[settlementRecipeIds.wastewaterTreatment] * serviceFactor,
+    [settlementRecipeIds.anaerobicDigester]: plannedWasteProcessingBuildings[settlementRecipeIds.anaerobicDigester] * serviceFactor,
     [settlementRecipeIds.biomassCompostMixer]: settlementServiceBuildings.biomassCompostMixer * serviceFactor,
   };
 
@@ -75,7 +80,10 @@ export const createHousingModule = (
               recipeId === settlementRecipeIds.residents
               || activeBuildings[recipeId] !== builtBuildings[recipeId]
             ))
-            .map((recipeId) => [recipeId, dataSource]),
+            .map((recipeId) => [
+              recipeId,
+              recipeId in plannedWasteProcessingBuildings ? "planned" : dataSource,
+            ]),
         ),
         fixed: Object.keys(builtBuildings).filter((recipeId) => (
           recipeId !== settlementRecipeIds.wastewaterTreatment

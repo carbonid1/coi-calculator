@@ -31,6 +31,7 @@ let unassignedBuiltCropFarms = resolvedCurrentCropFarmGroups.value.reduce(
 const builtCropFarmTotals = Object.fromEntries(
   activeCropFarmGroups.map((group) => {
     const builtCount = Math.min(group.farmCount, unassignedBuiltCropFarms);
+
     unassignedBuiltCropFarms -= builtCount;
     return [group.id, builtCount];
   }),

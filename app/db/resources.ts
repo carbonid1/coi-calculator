@@ -148,6 +148,7 @@ export const resources = {
   diamondPaste: { id: "diamondPaste", name: "Diamond Paste", state: "unit" },
   lens: { id: "lens", name: "Lens", state: "unit" },
   compositeCore: { id: "compositeCore", name: "Composite Core", state: "unit" },
+  chemicalFuel: { id: "chemicalFuel", name: "Chemical Fuel", state: "unit" },
   compositePanel: { id: "compositePanel", name: "Composite Panel", state: "unit" },
   server: { id: "server", name: "Server", state: "unit" },
   solarCell: { id: "solarCell", name: "Solar Cell", state: "unit" },

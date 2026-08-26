@@ -5,7 +5,6 @@ import { resources } from "../db/resources";
 import { type OperatingMode } from "../helpers/calculate/calculate";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
-import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
@@ -35,10 +34,7 @@ export const StorageCard: React.FC<Props> = ({ recipe, dataSource, storage, acti
             {resources[input.resourceId].name}
           </Card.Description>
           <Card.Action>
-            <div className="flex items-center gap-2">
-              {dataSource && <DataSourceBadge source={dataSource} />}
-              <BuildingCount load={activeBuildings} active={activeBuildings} built={builtBuildings} />
-            </div>
+            <BuildingCount load={activeBuildings} active={activeBuildings} built={builtBuildings} />
           </Card.Action>
         </Card.Header>
 

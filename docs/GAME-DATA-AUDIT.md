@@ -15,11 +15,10 @@ assigned incoming truck route are not counted as freely available reserves.
 ## Research efficiency
 
 Research efficiency bonuses are additive on top of the base 100% output. The
-current non-space plan combines Research Efficiency V (+60%) with planned
-population. Population contributes
-`trunc((population * 5 + 500) / 1000)%`; at 3,168 residents this is +16%.
-Combined research output is therefore 176% of the base lab output. The disabled
-Space Station IV planning module would add another 25% when activated.
+current plan combines Research Efficiency V (+60%) with planned population.
+Population contributes `trunc((population * 5 + 500) / 1000)%`; at the planned
+4,896 capacity this is +24%. Space Station IV adds another 25%, for 209% of
+base lab output while the station plan is included in Factory Total.
 
 Verified in installed v0.8.7 `SettlementsManager`, `SpaceStation`,
 `SpaceStationProto`, `EdictsData`, `PropertiesData`, and `ResearchLab`.
@@ -52,6 +51,32 @@ Water per production cycle.
 Verified in installed v0.8.7 `RocketsData`, `Costs.Rockets`, `AssemblyData`,
 `RocketProto`, `RocketEntity`, `RocketLaunchPadData`, `RocketLaunchPad`,
 `SpaceStationProto`, and `SpaceStation`.
+
+## Space-station recurring supplies
+
+The recurring Station Parts and Crew Supplies are produced through their real
+installed v0.8.7 chains. Assembly V rates per production cycle are:
+
+| Product | Inputs / cycle | Output / cycle |
+| --- | --- | ---: |
+| Composite Core | 16 Composite Panels + 8 Titanium Alloy + 2 Electronics III | 8 |
+| Station Parts | 16 Composite Cores + 8 Mono Solar Cells + 4 Chemical Fuel | 8 |
+| Crew Supplies | 8 Food Packs + 4 Medical Supplies II + 4 Plastic | 16 |
+
+Chemical Plant II produces 8 Chemical Fuel per cycle from 12 Ammonia,
+12 Fuel Gas, and 8 Aluminum. These demand-balanced planned lines supply exactly
+the station's recurring 1 Station Part and 1.2 Crew Supplies per cycle; they are
+not fixed or external inputs.
+
+Verified directly from installed v0.8.7 `AssemblyData.RegisterData` and
+`ChemicalPlantData.RegisterData` recipe bindings.
+
+The Space Station module uses the installed prototype IDs `RocketAssemblyDepot`
+and `RocketLaunchPad` for its physical building rows. The depot, pad, Space
+Station IV, and orbital-research rows are planned with zero currently built, so
+their workforce and recurring resource pressure are included in the projected
+Factory Total without changing modeled or synced counts. Compatible future
+snapshot counts can replace the zero-built baseline.
 
 ## World-map mines and oil rigs
 
@@ -241,11 +266,11 @@ Verified against installed v0.8.7 `Ids.Transports.StackerTower` and
 The Infrastructure module tracks all three vehicle-depot tiers as population-only
 loads:
 
-| Building             | Workers each | Prototype ID       |
-| -------------------- | -----------: | ------------------ |
-| Vehicles depot       |            6 | `VehiclesDepot`    |
-| Vehicles depot II    |           10 | `VehiclesDepotT2`  |
-| Vehicles depot III   |           16 | `VehiclesDepotT3`  |
+| Building           | Workers each | Prototype ID      |
+| ------------------ | -----------: | ----------------- |
+| Vehicles depot     |            6 | `VehiclesDepot`   |
+| Vehicles depot II  |           10 | `VehiclesDepotT2` |
+| Vehicles depot III |           16 | `VehiclesDepotT3` |
 
 Exporter schema v12 supplies completed and non-paused entity counts. Only the
 reserved workforce is included in calculator totals; vehicle construction and
@@ -351,32 +376,21 @@ The primary chain's full-building rates are:
 | Aluminum Cell     | 24 Alumina + 6 Graphite          | 24 Molten Aluminum + 18 Carbon Dioxide |
 | Cooled Caster II  | 24 Molten Aluminum               | 24 Aluminum                            |
 
-The disabled Space Points Exp. planning module owns the new primary Aluminum
-chain. When activated, its two parallel lines consume 142.4921 Bauxite and
-produce 43.6190 Aluminum for recurring Rocket II construction, while also
-supplying the Molten Aluminum and Alumina used by Titanium Alloy and Sapphire
-Wafers. Bauxite is represented as a demand-mined terrain resource in Mines;
-installed terrain data confirms that Bauxite is directly mineable in addition
-to the world-map Bauxite quarry.
-Four Settling Tanks use the installed acid route to consume the resulting
-71.2460 Red Mud with 47.4974 Acid and 7.9162 Limestone, recovering 15.8325 Iron
-Ore Crushed and producing 31.6649 Slag per production cycle. Red Mud is not
-dumped by this expansion plan.
+General owns the planned primary Aluminum chain and sizes it against Rocket II,
+Composite Core, and Titanium Alloy demand. Bauxite is represented as a
+demand-mined terrain resource in Mines; installed terrain data confirms that it
+is directly mineable in addition to the world-map Bauxite quarry. Four planned
+Settling Tanks use the installed acid route for Red Mud recovery instead of
+dumping it.
 
 ## Titanium recipes
 
-All eight installed Titanium recipes are assigned to the Space Points Exp.
-module: ore crushing, ore smelting, chlorination, chloride purification,
-chloride reduction, sponge smelting, alloy mixing, and cooled casting. The
-single chain consumes 38.7725 Titanium Ore and exports 10.9048 Titanium Alloy
-per production cycle for recurring Rocket II construction. Titanium Ore is a
-demand-mined terrain resource in Mines. Installed terrain data confirms both
-Bauxite and Titanium Ore terrain materials and their directly mined products.
-
-Established inputs such as Electronics III and Graphite are deliberately not
-produced inside Space Points Exp. Their deficits remain local to the isolated
-planning tab while it is disabled; activating the module exposes them in
-Factory Total.
+General owns Titanium ore crushing, smelting, chlorination, reduction, sponge
+smelting, alloy mixing, and cooled casting. Process Steam owns chloride
+purification because its Distillation Stage III consumes High Steam. Titanium
+Ore remains a demand-mined terrain resource in Mines. The former experimental
+Space Points Exp. module is removed, so every planned input and output is now
+visible in the standard Factory Total modules.
 
 ## Offices and Focuses
 

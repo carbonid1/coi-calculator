@@ -1,12 +1,12 @@
 import { baseConfig } from "../../db/config";
 import { type Recipe } from "../../db/recipes";
 import { type Resource, type ResourceId, resources } from "../../db/resources";
-import { type ValueSource } from "../resolve-layered-value/resolve-layered-value";
 import {
   getRecipeInputQuantity,
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../modifiers/recipe-output";
+import { type ValueSource } from "../resolve-layered-value/resolve-layered-value";
 import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface ProductionLine {
@@ -262,11 +262,11 @@ const makeGetFlow = (flows: FlowMap) => (id: ResourceId) => {
 
 export const calculateNet = (
   lines: ProductionLine[],
-  externalInputs: Partial<Record<ResourceId, number>> = {},
+  suppliedResources: Partial<Record<ResourceId, number>> = {},
   recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
   outputModifiers: RecipeModifierMultipliers = {},
-  externalDemands: Partial<Record<ResourceId, number>> = {},
-  nonConstrainingExternalInputIds: ReadonlySet<ResourceId> = new Set(),
+  fixedDemands: Partial<Record<ResourceId, number>> = {},
+  nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
 ) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
@@ -300,11 +300,11 @@ export const calculateNet = (
     )),
   );
 
-  const externalEntries = typedEntries(externalInputs);
-  const externalDemandEntries = typedEntries(externalDemands);
-  const externalIds = new Set(externalEntries.map(([id]) => id));
-  const hardExternalIds = new Set(
-    [...externalIds].filter((id) => !nonConstrainingExternalInputIds.has(id)),
+  const suppliedEntries = typedEntries(suppliedResources);
+  const fixedDemandEntries = typedEntries(fixedDemands);
+  const suppliedIds = new Set(suppliedEntries.map(([id]) => id));
+  const hardSuppliedIds = new Set(
+    [...suppliedIds].filter((id) => !nonConstrainingSuppliedResourceIds.has(id)),
   );
   const internallyProducedIds = new Set(
     lines.flatMap((line) => line.recipe.outputs.map((output) => output.resourceId)),
@@ -359,13 +359,13 @@ export const calculateNet = (
   const simFlows: FlowMap = new Map();
   const simGet = makeGetFlow(simFlows);
 
-  // External inputs as virtual sources
-  for (const [id, qty] of externalEntries) {
+  // Caller-supplied resources, such as contract imports, are virtual sources.
+  for (const [id, qty] of suppliedEntries) {
     simGet(id).produced += qty;
   }
   // Factory consumers such as contracts participate in the same demand graph
   // as recipes, allowing upstream modules to balance their production.
-  for (const [id, qty] of externalDemandEntries) {
+  for (const [id, qty] of fixedDemandEntries) {
     simGet(id).consumed += qty;
   }
 
@@ -454,7 +454,7 @@ export const calculateNet = (
   for (const [id, flow] of simFlows) {
     if (
       flow.consumed > flow.produced
-      && (internallyProducedIds.has(id) || hardExternalIds.has(id))
+      && (internallyProducedIds.has(id) || hardSuppliedIds.has(id))
     ) {
       constrained.add(id);
     }
@@ -483,11 +483,11 @@ export const calculateNet = (
     return flow.produced - flow.consumed;
   };
 
-  // External inputs as virtual sources
-  for (const [id, qty] of externalEntries) {
+  // Caller-supplied resources, such as contract imports, are virtual sources.
+  for (const [id, qty] of suppliedEntries) {
     getFlow(id).produced += qty;
   }
-  for (const [id, qty] of externalDemandEntries) {
+  for (const [id, qty] of fixedDemandEntries) {
     getFlow(id).consumed += qty;
   }
 
@@ -637,7 +637,7 @@ export const calculateNet = (
 
   // Propagate demand from consumers to producers. Internally produced inputs are
   // intentionally allowed to go temporarily negative because their upstream
-  // recipes run later in this downstream-to-upstream pass. Explicit external
+  // recipes run later in this downstream-to-upstream pass. Explicit caller
   // supplies remain hard limits unless the caller asks to expose an uncovered
   // balance, as fixed-capacity contracts do.
   for (const line of demandBalancedLines) {
@@ -657,7 +657,7 @@ export const calculateNet = (
         if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
         continue;
       }
-      if (!hardExternalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
+      if (!hardSuppliedIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
 
       const flow = getFlow(input.resourceId);
       const available = flow.produced - flow.consumed;
@@ -775,7 +775,7 @@ export const calculateNet = (
             if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
             continue;
           }
-          if (!hardExternalIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
+          if (!hardSuppliedIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
 
           const flow = getFlow(input.resourceId);
           const available = flow.produced - flow.consumed;
@@ -1261,8 +1261,8 @@ export const calculateNet = (
 
     allResourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net, ...recyclingMetadata });
 
-    if (externalIds.has(resourceId)) {
-      // External inputs: only show deficit beyond declared external supply
+    if (suppliedIds.has(resourceId)) {
+      // Supplied resources only report demand beyond the declared supply.
       if (net < -0.001) {
         resourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net, ...recyclingMetadata });
       }

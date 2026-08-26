@@ -27,6 +27,7 @@ export interface BuildingDiagnostic {
   moduleId: string;
   moduleName: string;
   buildingName: string;
+  plannedCapacity: boolean;
   load: number;
   active: number;
   built: number;
@@ -136,6 +137,7 @@ const getAnimalPopulationDiagnostic = (
 
 const getAttention = ({
   tracksPhysicalCapacity,
+  plannedCapacity,
   hasShortage,
   active,
   built,
@@ -144,6 +146,7 @@ const getAttention = ({
   canPause,
 }: {
   tracksPhysicalCapacity: boolean;
+  plannedCapacity: boolean;
   hasShortage: boolean;
   active: number;
   built: number;
@@ -152,6 +155,7 @@ const getAttention = ({
   canPause: number;
 }): BuildingAttention | null => {
   if (!tracksPhysicalCapacity) return null;
+  if (plannedCapacity) return null;
   if (active > built + EPSILON) return "build";
   if (hasShortage && active === 0 && paused >= 1) return "unpause";
   if (hasShortage && active === 0 && built === 0) return "build";
@@ -219,7 +223,21 @@ export const calculateBuildingDiagnostics = (
 
     if (!first) throw new Error(`Building group ${key} has no results`);
 
-    const animalDiagnostic = getAnimalPopulationDiagnostic(results, flowsById);
+    const physicalCapacityResults = results.filter((result) => (
+      result.recipe.tracksPhysicalCapacity !== false
+      && result.recipe.sinkMode !== "unbounded"
+      && !(result.recipe.sourceMode === "demand" && result.recipe.sourceKind != null)
+    ));
+    const tracksPhysicalCapacity = physicalCapacityResults.length > 0;
+    // A shared physical-capacity pool can contain both current recipes and a
+    // planned expansion. The planned member acknowledges the pool-level build,
+    // so do not restate that same work as an attention warning.
+    const plannedCapacity = physicalCapacityResults.some(
+      (result) => result.dataSource === "planned",
+    );
+    const animalDiagnostic = plannedCapacity
+      ? null
+      : getAnimalPopulationDiagnostic(results, flowsById);
 
     if (animalDiagnostic) {
       return {
@@ -229,6 +247,7 @@ export const calculateBuildingDiagnostics = (
         buildingName: isRegularResult(first)
           ? first.recipe.sharedCapacity?.label ?? first.recipe.building
           : first.recipe.building,
+        plannedCapacity,
         load: animalDiagnostic.animalPopulation.current
           / (first.recipe.animalPopulationCapacity ?? 1),
         active: first.activeBuildings,
@@ -242,10 +261,6 @@ export const calculateBuildingDiagnostics = (
       };
     }
 
-    const tracksPhysicalCapacity = results.some((result) => (
-      result.recipe.sinkMode !== "unbounded"
-      && !(result.recipe.sourceMode === "demand" && result.recipe.sourceKind != null)
-    ));
     const active = Math.max(...results.map((result) => result.activeBuildings));
     const built = Math.max(...results.map((result) => result.builtBuildings));
     const load = results.reduce(
@@ -296,6 +311,7 @@ export const calculateBuildingDiagnostics = (
     const hasShortage = affectedResourceIds.size > 0;
     const attention = getAttention({
       tracksPhysicalCapacity,
+      plannedCapacity,
       hasShortage,
       active,
       built,
@@ -319,6 +335,7 @@ export const calculateBuildingDiagnostics = (
       buildingName: isRegularResult(first)
         ? first.recipe.sharedCapacity?.label ?? first.recipe.building
         : first.recipe.building,
+      plannedCapacity,
       load,
       active,
       built,
@@ -335,19 +352,23 @@ export const calculateBuildingDiagnostics = (
     const affectedResources = [...new Set(cropDiagnostics.flatMap(
       (diagnostic) => diagnostic.affectedResources,
     ))];
+    const plannedCapacity = cropDiagnostics.every(
+      (diagnostic) => diagnostic.plannedCapacity,
+    );
 
     for (const diagnostic of cropDiagnostics) {
       diagnostic.attention = null;
       diagnostic.attentionCount = 0;
     }
 
-    if (affectedResources.length === 0) continue;
+    if (affectedResources.length === 0 || plannedCapacity) continue;
 
     diagnostics.push({
       key: `${moduleId}:crop-rebalance`,
       moduleId,
       moduleName: moduleNames.get(moduleId) ?? moduleId,
       buildingName: "Crop farms",
+      plannedCapacity: false,
       load: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.load, 0),
       active: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.active, 0),
       built: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.built, 0),

@@ -16,7 +16,7 @@ export const mines: Module = {
     "sand-map-mine": 1,
     "rock-map-mine": 1,
     "dirt-map-mine": 1,
-    "groundwater-pump": 0,
+    "groundwater-pump-factory-reserve": 1,
     "sulfur-world-mine": 1,
     "slag-terrain-dump": 1,
     "waste-terrain-dump": 1,

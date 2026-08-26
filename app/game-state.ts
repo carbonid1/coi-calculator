@@ -1,110 +1,114 @@
-import {
-  edictCatalog,
-  type EdictId,
-  type EdictLevel,
-  mapEdictValues,
-} from "./db/edicts";
+import { edictCatalog, type EdictId, type EdictLevel, mapEdictValues } from './db/edicts'
 import {
   emptyInfiniteResearchLevels,
   infiniteResearchCatalog,
   type InfiniteResearchId,
-} from "./db/research";
+} from './db/research'
 import {
   mapReserveResources,
   type ReserveBalances,
   reserveResourceCatalog,
-} from "./db/reserve-resources";
+} from './db/reserve-resources'
 
 export const syncedInfrastructureBuildingIds = [
-  "electricLocomotiveII",
-  "looseStationModuleElectrified",
-  "fluidStationModuleElectrified",
-  "unitStationModuleElectrified",
-  "moltenStationModuleElectrified",
-  "oreSortingPlant",
-  "oreSortingPlantLarge",
-  "stackerTower",
-  "trainDepot",
-  "vehiclesDepot",
-  "vehiclesDepotII",
-  "vehiclesDepotIII",
-  "maintenanceStatue",
-] as const;
+  'electricLocomotiveII',
+  'looseStationModuleElectrified',
+  'fluidStationModuleElectrified',
+  'unitStationModuleElectrified',
+  'moltenStationModuleElectrified',
+  'oreSortingPlant',
+  'oreSortingPlantLarge',
+  'stackerTower',
+  'trainDepot',
+  'vehiclesDepot',
+  'vehiclesDepotII',
+  'vehiclesDepotIII',
+  'maintenanceStatue',
+] as const
 
-export type SyncedInfrastructureBuildingId = (typeof syncedInfrastructureBuildingIds)[number];
+export type SyncedInfrastructureBuildingId = (typeof syncedInfrastructureBuildingIds)[number]
 
-export const syncedSolarBuildingIds = ["solarPanel", "solarPanelMono"] as const;
+export const syncedRocketBuildingIds = [
+  'rocketAssemblyDepot',
+  'rocketLaunchPad',
+] as const
 
-export type SyncedSolarBuildingId = (typeof syncedSolarBuildingIds)[number];
+export type SyncedRocketBuildingId = (typeof syncedRocketBuildingIds)[number]
+
+export const syncedSolarBuildingIds = ['solarPanel', 'solarPanelMono'] as const
+
+export type SyncedSolarBuildingId = (typeof syncedSolarBuildingIds)[number]
 
 export const syncedBuildingIds = [
   ...syncedInfrastructureBuildingIds,
+  ...syncedRocketBuildingIds,
   ...syncedSolarBuildingIds,
-] as const;
+] as const
 
-export type SyncedBuildingId = (typeof syncedBuildingIds)[number];
+export type SyncedBuildingId = (typeof syncedBuildingIds)[number]
 
 export interface SyncedBuildingCount {
-  built: number;
-  running: number;
+  built: number
+  running: number
 }
 
 export interface SyncedHistoryAverage {
-  averagePerCycle: number;
-  sampleMonths: number;
+  averagePerCycle: number
+  sampleMonths: number
 }
 
 export const syncedHydrogenFuelUseIds = [
-  "vehicles",
-  "cargoShips",
-  "battleShip",
-  "powerGenerators",
-  "trains",
-] as const;
+  'vehicles',
+  'cargoShips',
+  'battleShip',
+  'powerGenerators',
+  'trains',
+] as const
 
-export type SyncedHydrogenFuelUseId = (typeof syncedHydrogenFuelUseIds)[number];
+export type SyncedHydrogenFuelUseId = (typeof syncedHydrogenFuelUseIds)[number]
 
 export interface SyncedGenerationHistory {
-  prototypeId: string;
-  name: string;
-  averageMw: number;
-  sampleMonths: number;
+  prototypeId: string
+  name: string
+  averageMw: number
+  sampleMonths: number
 }
 
-export type TrainTrafficSeverity = "clear" | "warning" | "critical";
+export type TrainTrafficSeverity = 'clear' | 'warning' | 'critical'
 
 export interface SyncedTrainDelay {
-  id: number;
-  name: string;
-  state: "WaitingForFreeTrack" | "WaitingForSuperBlock" | "WaitingForBidirectionalSuperBlock";
-  blockedForCycles: number;
-  blockingTrainId: number | null;
+  id: number
+  name: string
+  state: 'WaitingForFreeTrack' | 'WaitingForSuperBlock' | 'WaitingForBidirectionalSuperBlock'
+  blockedForCycles: number
+  blockingTrainId: number | null
 }
 
 export interface SyncedTrainTraffic {
-  totalTrains: number;
-  activeTrains: number;
-  waitingForTrack: number;
-  stuckTrains: number;
-  criticalThreshold: number;
-  severity: TrainTrafficSeverity;
-  sustainedWaitCycles: 1;
-  trains: SyncedTrainDelay[];
+  totalTrains: number
+  activeTrains: number
+  waitingForTrack: number
+  stuckTrains: number
+  criticalThreshold: number
+  severity: TrainTrafficSeverity
+  sustainedWaitCycles: 1
+  trains: SyncedTrainDelay[]
 }
 
-export type SyncedResearchLevels = Record<InfiniteResearchId, number>;
+export type SyncedResearchLevels = Record<InfiniteResearchId, number>
 
 export interface SyncedEdictState {
-  enabledLevel: EdictLevel;
-  activeLevel: EdictLevel;
-  inactiveReason: string | null;
+  enabledLevel: EdictLevel
+  activeLevel: EdictLevel
+  inactiveReason: string | null
 }
 
-export type SyncedEdictStates = Record<EdictId, SyncedEdictState>;
+export type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
-export type SyncedReserves = ReserveBalances;
+export type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 13 as const;
+export const ROCKET_INFRASTRUCTURE_SCHEMA_VERSION = 14 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 14 as const
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -113,133 +117,136 @@ export type SupportedGameStateSchemaVersion =
   | 10
   | 11
   | 12
-  | typeof CURRENT_GAME_STATE_SCHEMA_VERSION;
+  | 13
+  | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
-  schemaVersion: SupportedGameStateSchemaVersion;
-  exportedAtUtc: string;
-  buildings: Record<SyncedBuildingId, SyncedBuildingCount>;
+  schemaVersion: SupportedGameStateSchemaVersion
+  exportedAtUtc: string
+  buildings: Record<SyncedBuildingId, SyncedBuildingCount>
   vehicles: {
-    total: number;
-    workersAssigned: number;
-    trucks: number;
-    excavators: number;
-    treeHarvesters: number;
-    treePlanters: number;
-    quotaUsed: number;
-    quotaLimit: number;
-    quotaRemaining: number;
-  };
-  trainTraffic: SyncedTrainTraffic | null;
-  research: SyncedResearchLevels | null;
-  edicts: SyncedEdictStates | null;
-  reserves: SyncedReserves | null;
+    total: number
+    workersAssigned: number
+    trucks: number
+    excavators: number
+    treeHarvesters: number
+    treePlanters: number
+    quotaUsed: number
+    quotaLimit: number
+    quotaRemaining: number
+  }
+  trainTraffic: SyncedTrainTraffic | null
+  research: SyncedResearchLevels | null
+  edicts: SyncedEdictStates | null
+  reserves: SyncedReserves | null
   history: {
-    windowMonths: 120;
-    maintenance: Record<"maintenanceI" | "maintenanceII" | "maintenanceIII", SyncedHistoryAverage>;
+    windowMonths: 120
+    maintenance: Record<'maintenanceI' | 'maintenanceII' | 'maintenanceIII', SyncedHistoryAverage>
     hydrogenFuel: {
-      total: SyncedHistoryAverage;
-      byUse: Record<SyncedHydrogenFuelUseId, SyncedHistoryAverage>;
-    };
+      total: SyncedHistoryAverage
+      byUse: Record<SyncedHydrogenFuelUseId, SyncedHistoryAverage>
+    }
     electricityGeneration: {
-      byType: SyncedGenerationHistory[];
-    };
-  };
+      byType: SyncedGenerationHistory[]
+    }
+  }
 }
 
-export type GameStateConnectionStatus = "loading" | "available" | "missing" | "error";
-export type GameStateDataSource = "live" | "cached" | "none";
+export type GameStateConnectionStatus = 'loading' | 'available' | 'missing' | 'error'
+export type GameStateDataSource = 'live' | 'cached' | 'none'
 
 const isNonNegativeInteger = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= 0;
+  typeof value === 'number' && Number.isInteger(value) && value >= 0
 
 const isUnknownRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === "object";
+  Boolean(value) && typeof value === 'object'
 
 const isNonNegativeFiniteNumber = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0;
+  typeof value === 'number' && Number.isFinite(value) && value >= 0
 
 const isBuildingCount = (value: unknown): value is SyncedBuildingCount =>
   isUnknownRecord(value) &&
   isNonNegativeInteger(value.built) &&
   isNonNegativeInteger(value.running) &&
-  value.running <= value.built;
+  value.running <= value.built
 
 type LegacySyncedBuildingId = Exclude<
   SyncedBuildingId,
-  | "moltenStationModuleElectrified"
-  | "trainDepot"
-  | "vehiclesDepot"
-  | "vehiclesDepotII"
-  | "vehiclesDepotIII"
->;
+  | 'rocketAssemblyDepot'
+  | 'rocketLaunchPad'
+  | 'moltenStationModuleElectrified'
+  | 'trainDepot'
+  | 'vehiclesDepot'
+  | 'vehiclesDepotII'
+  | 'vehiclesDepotIII'
+>
 type CompatibleBuildingCounts = Record<LegacySyncedBuildingId, SyncedBuildingCount> &
-  Partial<Record<
-    | "moltenStationModuleElectrified"
-    | "trainDepot"
-    | "vehiclesDepot"
-    | "vehiclesDepotII"
-    | "vehiclesDepotIII",
-    SyncedBuildingCount
-  >>;
+  Partial<
+    Record<
+      | 'rocketAssemblyDepot'
+      | 'rocketLaunchPad'
+      | 'moltenStationModuleElectrified'
+      | 'trainDepot'
+      | 'vehiclesDepot'
+      | 'vehiclesDepotII'
+      | 'vehiclesDepotIII',
+      SyncedBuildingCount
+    >
+  >
 
 const isCompatibleBuildingCounts = (
   value: unknown,
   schemaVersion: SupportedGameStateSchemaVersion,
 ): value is CompatibleBuildingCounts => {
-  if (!isUnknownRecord(value)) return false;
+  if (!isUnknownRecord(value)) return false
 
   return syncedBuildingIds.every(id => {
-    const count = value[id];
+    const count = value[id]
 
-    const isOptionalLegacyCount = (
-      schemaVersion === 6 && id === "moltenStationModuleElectrified"
-    ) || (
-      schemaVersion <= 10 && id === "trainDepot"
-    ) || (
-      schemaVersion <= 11 && (
-        id === "vehiclesDepot" ||
-        id === "vehiclesDepotII" ||
-        id === "vehiclesDepotIII"
-      )
-    );
+    const isOptionalLegacyCount =
+      (schemaVersion < ROCKET_INFRASTRUCTURE_SCHEMA_VERSION &&
+        (id === 'rocketAssemblyDepot' || id === 'rocketLaunchPad')) ||
+      (schemaVersion === 6 && id === 'moltenStationModuleElectrified') ||
+      (schemaVersion <= 10 && id === 'trainDepot') ||
+      (schemaVersion <= 11 &&
+        (id === 'vehiclesDepot' || id === 'vehiclesDepotII' || id === 'vehiclesDepotIII'))
 
     return isOptionalLegacyCount
       ? count === undefined || isBuildingCount(count)
-      : isBuildingCount(count);
-  });
-};
+      : isBuildingCount(count)
+  })
+}
 
 const isHistoryAverage = (value: unknown, windowMonths: number): value is SyncedHistoryAverage => {
-  if (!isUnknownRecord(value)) return false;
+  if (!isUnknownRecord(value)) return false
 
   return (
     isNonNegativeFiniteNumber(value.averagePerCycle) &&
     isNonNegativeInteger(value.sampleMonths) &&
     value.sampleMonths <= windowMonths &&
     (value.sampleMonths > 0 || value.averagePerCycle === 0)
-  );
-};
+  )
+}
 
 const isGenerationHistory = (
   value: unknown,
   windowMonths: number,
 ): value is SyncedGenerationHistory =>
   isUnknownRecord(value) &&
-  typeof value.prototypeId === "string" &&
+  typeof value.prototypeId === 'string' &&
   value.prototypeId.length > 0 &&
-  typeof value.name === "string" &&
+  typeof value.name === 'string' &&
   value.name.length > 0 &&
   isNonNegativeFiniteNumber(value.averageMw) &&
   isNonNegativeInteger(value.sampleMonths) &&
   value.sampleMonths <= windowMonths &&
-  (value.sampleMonths > 0 || value.averageMw === 0);
+  (value.sampleMonths > 0 || value.averageMw === 0)
 
 const trainWaitStates = new Set([
-  "WaitingForFreeTrack",
-  "WaitingForSuperBlock",
-  "WaitingForBidirectionalSuperBlock",
-]);
+  'WaitingForFreeTrack',
+  'WaitingForSuperBlock',
+  'WaitingForBidirectionalSuperBlock',
+])
 
 const isTrainTraffic = (value: unknown): value is SyncedTrainTraffic => {
   if (
@@ -254,30 +261,30 @@ const isTrainTraffic = (value: unknown): value is SyncedTrainTraffic => {
     value.sustainedWaitCycles !== 1 ||
     !Array.isArray(value.trains)
   ) {
-    return false;
+    return false
   }
 
-  const expectedThreshold = Math.max(3, Math.ceil(value.activeTrains * 0.1));
-  let expectedSeverity: TrainTrafficSeverity = "clear";
+  const expectedThreshold = Math.max(3, Math.ceil(value.activeTrains * 0.1))
+  let expectedSeverity: TrainTrafficSeverity = 'clear'
 
   if (value.stuckTrains >= expectedThreshold) {
-    expectedSeverity = "critical";
+    expectedSeverity = 'critical'
   } else if (value.stuckTrains > 0) {
-    expectedSeverity = "warning";
+    expectedSeverity = 'warning'
   }
 
   const validTrains = value.trains.filter(
     (train): train is SyncedTrainDelay =>
       isUnknownRecord(train) &&
       isNonNegativeInteger(train.id) &&
-      typeof train.name === "string" &&
+      typeof train.name === 'string' &&
       train.name.length > 0 &&
-      typeof train.state === "string" &&
+      typeof train.state === 'string' &&
       trainWaitStates.has(train.state) &&
       isNonNegativeFiniteNumber(train.blockedForCycles) &&
       train.blockedForCycles >= 1 &&
       (train.blockingTrainId === null || isNonNegativeInteger(train.blockingTrainId)),
-  );
+  )
 
   return (
     value.criticalThreshold === expectedThreshold &&
@@ -285,98 +292,97 @@ const isTrainTraffic = (value: unknown): value is SyncedTrainTraffic => {
     validTrains.length === Math.min(value.stuckTrains, 8) &&
     validTrains.length === value.trains.length &&
     new Set(validTrains.map(train => train.id)).size === validTrains.length
-  );
-};
+  )
+}
 
 const normalizeResearchLevels = (value: unknown): SyncedResearchLevels | null => {
-  if (!isUnknownRecord(value)) return null;
+  if (!isUnknownRecord(value)) return null
 
-  const levels: SyncedResearchLevels = { ...emptyInfiniteResearchLevels };
+  const levels: SyncedResearchLevels = { ...emptyInfiniteResearchLevels }
 
   for (const research of infiniteResearchCatalog) {
-    const level = value[research.id];
+    const level = value[research.id]
 
-    if (!isNonNegativeInteger(level) || level > research.maxLevel) return null;
+    if (!isNonNegativeInteger(level) || level > research.maxLevel) return null
 
-    levels[research.id] = level;
+    levels[research.id] = level
   }
 
-  return levels;
-};
+  return levels
+}
 
 const isEdictLevel = (
   value: unknown,
   levels: readonly { level: EdictLevel }[],
-): value is EdictLevel => (
-  isNonNegativeInteger(value) && levels.some((candidate) => candidate.level === value)
-);
+): value is EdictLevel =>
+  isNonNegativeInteger(value) && levels.some(candidate => candidate.level === value)
 
 const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
-  if (!isUnknownRecord(value)) return null;
+  if (!isUnknownRecord(value)) return null
 
   const states: SyncedEdictStates = mapEdictValues(() => ({
     enabledLevel: 0,
     activeLevel: 0,
     inactiveReason: null,
-  }));
+  }))
 
   for (const edict of edictCatalog) {
-    const state = value[edict.id];
+    const state = value[edict.id]
 
-    if (!isUnknownRecord(state)) return null;
+    if (!isUnknownRecord(state)) return null
 
-    const enabledLevel = state.enabledLevel;
-    const activeLevel = state.activeLevel;
-    const inactiveReason = state.inactiveReason;
+    const enabledLevel = state.enabledLevel
+    const activeLevel = state.activeLevel
+    const inactiveReason = state.inactiveReason
 
     if (
       !isEdictLevel(enabledLevel, edict.levels) ||
       !isEdictLevel(activeLevel, edict.levels) ||
-      (inactiveReason !== null && typeof inactiveReason !== "string")
+      (inactiveReason !== null && typeof inactiveReason !== 'string')
     ) {
-      return null;
+      return null
     }
 
     states[edict.id] = {
       enabledLevel,
       activeLevel,
       inactiveReason,
-    };
+    }
   }
 
-  return states;
-};
+  return states
+}
 
 const normalizeReserves = (
   value: unknown,
   schemaVersion: SupportedGameStateSchemaVersion,
 ): SyncedReserves | null => {
-  if (!isUnknownRecord(value)) return null;
+  if (!isUnknownRecord(value)) return null
 
   for (const reserve of reserveResourceCatalog) {
     if (schemaVersion < reserve.introducedInSchemaVersion) {
-      continue;
+      continue
     }
 
-    const balance = value[reserve.key];
+    const balance = value[reserve.key]
 
-    if (!isNonNegativeInteger(balance)) return null;
+    if (!isNonNegativeInteger(balance)) return null
   }
 
   return mapReserveResources(({ introducedInSchemaVersion, key }) => {
-    const balance = value[key];
+    const balance = value[key]
 
     return schemaVersion >= introducedInSchemaVersion && isNonNegativeInteger(balance)
       ? balance
-      : null;
-  });
-};
+      : null
+  })
+}
 
 export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | null => {
-  if (!isUnknownRecord(value)) return null;
+  if (!isUnknownRecord(value)) return null
 
-  const snapshot = value;
-  const schemaVersion = snapshot.schemaVersion;
+  const snapshot = value
+  const schemaVersion = snapshot.schemaVersion
 
   if (
     schemaVersion !== 6 &&
@@ -386,30 +392,31 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 10 &&
     schemaVersion !== 11 &&
     schemaVersion !== 12 &&
+    schemaVersion !== 13 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
-    return null;
+    return null
   }
 
-  const syncedBuildings = snapshot.buildings;
-  const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null;
-  const total = vehicles?.total;
-  const trucks = vehicles?.trucks;
-  const workersAssigned = vehicles?.workersAssigned;
-  const excavators = vehicles?.excavators;
-  const treeHarvesters = vehicles?.treeHarvesters;
-  const treePlanters = vehicles?.treePlanters;
-  const quotaUsed = vehicles?.quotaUsed;
-  const quotaLimit = vehicles?.quotaLimit;
-  const quotaRemaining = vehicles?.quotaRemaining;
-  const trainTraffic = isTrainTraffic(snapshot.trainTraffic) ? snapshot.trainTraffic : null;
-  const research = normalizeResearchLevels(snapshot.research);
-  const edicts = normalizeEdictStates(snapshot.edicts);
-  const reserves = normalizeReserves(snapshot.reserves, schemaVersion);
-  const history = isUnknownRecord(snapshot.history) ? snapshot.history : null;
+  const syncedBuildings = snapshot.buildings
+  const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
+  const total = vehicles?.total
+  const trucks = vehicles?.trucks
+  const workersAssigned = vehicles?.workersAssigned
+  const excavators = vehicles?.excavators
+  const treeHarvesters = vehicles?.treeHarvesters
+  const treePlanters = vehicles?.treePlanters
+  const quotaUsed = vehicles?.quotaUsed
+  const quotaLimit = vehicles?.quotaLimit
+  const quotaRemaining = vehicles?.quotaRemaining
+  const trainTraffic = isTrainTraffic(snapshot.trainTraffic) ? snapshot.trainTraffic : null
+  const research = normalizeResearchLevels(snapshot.research)
+  const edicts = normalizeEdictStates(snapshot.edicts)
+  const reserves = normalizeReserves(snapshot.reserves, schemaVersion)
+  const history = isUnknownRecord(snapshot.history) ? snapshot.history : null
 
   if (
-    typeof snapshot.exportedAtUtc !== "string" ||
+    typeof snapshot.exportedAtUtc !== 'string' ||
     Number.isNaN(Date.parse(snapshot.exportedAtUtc)) ||
     !isCompatibleBuildingCounts(syncedBuildings, schemaVersion) ||
     !vehicles ||
@@ -431,21 +438,21 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     !history ||
     history.windowMonths !== 120
   ) {
-    return null;
+    return null
   }
 
-  const maintenance = isUnknownRecord(history.maintenance) ? history.maintenance : null;
-  const maintenanceI = maintenance?.maintenanceI;
-  const maintenanceII = maintenance?.maintenanceII;
-  const maintenanceIII = maintenance?.maintenanceIII;
-  const hydrogenFuel = isUnknownRecord(history.hydrogenFuel) ? history.hydrogenFuel : null;
-  const hydrogenFuelByUse = isUnknownRecord(hydrogenFuel?.byUse) ? hydrogenFuel.byUse : null;
-  const hydrogenTotal = hydrogenFuel?.total;
-  const hydrogenVehicles = hydrogenFuelByUse?.vehicles;
-  const hydrogenCargoShips = hydrogenFuelByUse?.cargoShips;
-  const hydrogenBattleShip = hydrogenFuelByUse?.battleShip;
-  const hydrogenPowerGenerators = hydrogenFuelByUse?.powerGenerators;
-  const hydrogenTrains = hydrogenFuelByUse?.trains;
+  const maintenance = isUnknownRecord(history.maintenance) ? history.maintenance : null
+  const maintenanceI = maintenance?.maintenanceI
+  const maintenanceII = maintenance?.maintenanceII
+  const maintenanceIII = maintenance?.maintenanceIII
+  const hydrogenFuel = isUnknownRecord(history.hydrogenFuel) ? history.hydrogenFuel : null
+  const hydrogenFuelByUse = isUnknownRecord(hydrogenFuel?.byUse) ? hydrogenFuel.byUse : null
+  const hydrogenTotal = hydrogenFuel?.total
+  const hydrogenVehicles = hydrogenFuelByUse?.vehicles
+  const hydrogenCargoShips = hydrogenFuelByUse?.cargoShips
+  const hydrogenBattleShip = hydrogenFuelByUse?.battleShip
+  const hydrogenPowerGenerators = hydrogenFuelByUse?.powerGenerators
+  const hydrogenTrains = hydrogenFuelByUse?.trains
 
   if (
     !isHistoryAverage(maintenanceI, 120) ||
@@ -458,28 +465,28 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     !isHistoryAverage(hydrogenPowerGenerators, 120) ||
     !isHistoryAverage(hydrogenTrains, 120)
   ) {
-    return null;
+    return null
   }
 
   const electricityGeneration = isUnknownRecord(history.electricityGeneration)
     ? history.electricityGeneration
-    : null;
+    : null
   const generationByType = Array.isArray(electricityGeneration?.byType)
     ? electricityGeneration.byType
-    : null;
+    : null
 
-  if (!generationByType) return null;
+  if (!generationByType) return null
 
   const validGenerationByType = generationByType.filter(
     (generation): generation is SyncedGenerationHistory => isGenerationHistory(generation, 120),
-  );
+  )
 
   if (
     validGenerationByType.length !== generationByType.length ||
     new Set(validGenerationByType.map(generation => generation.prototypeId)).size !==
       validGenerationByType.length
   ) {
-    return null;
+    return null
   }
 
   return {
@@ -487,6 +494,14 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     exportedAtUtc: snapshot.exportedAtUtc,
     buildings: {
       ...syncedBuildings,
+      rocketAssemblyDepot: syncedBuildings.rocketAssemblyDepot ?? {
+        built: 0,
+        running: 0,
+      },
+      rocketLaunchPad: syncedBuildings.rocketLaunchPad ?? {
+        built: 0,
+        running: 0,
+      },
       moltenStationModuleElectrified: syncedBuildings.moltenStationModuleElectrified ?? {
         built: 0,
         running: 0,
@@ -538,8 +553,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
       },
       electricityGeneration: { byType: validGenerationByType },
     },
-  };
-};
+  }
+}
 
 export const isGameStateSnapshot = (value: unknown): boolean =>
-  normalizeGameStateSnapshot(value) !== null;
+  normalizeGameStateSnapshot(value) !== null

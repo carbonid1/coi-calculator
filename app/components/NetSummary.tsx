@@ -1,7 +1,7 @@
 import { Cpu, Sparkles } from "lucide-react";
 
 import { cropProductResourceIds } from "../db/crop-farming";
-import { type ResourceId, resources } from "../db/resources";
+import { type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
@@ -9,12 +9,11 @@ import {
   type ResourceFlow,
 } from "../helpers/calculate/calculate";
 import { getSurplusCapacityLimit } from "../helpers/capacity-limit/capacity-limit";
-import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
+import { PlannedBuildsView } from "./PlannedBuildsView";
 
 interface Props {
   flows: ResourceFlow[];
-  externalInputs?: Partial<Record<ResourceId, number>>;
   workers?: number;
   electricityConsumptionKw?: number;
   electricityGenerationCapacityMw?: number;
@@ -117,7 +116,6 @@ const getCapacityLimit = (
 
 export const NetSummary: React.FC<Props> = ({
   flows,
-  externalInputs,
   workers,
   electricityConsumptionKw,
   electricityGenerationCapacityMw,
@@ -130,8 +128,6 @@ export const NetSummary: React.FC<Props> = ({
   buildingDiagnostics = [],
   onOpenBuilding,
 }) => {
-  const externalEntries = externalInputs ? typedEntries(externalInputs).filter(([, qty]) => qty > 0) : [];
-
   const electricityFlow = flows.find((flow) => flow.resourceId === "electricity");
   const computingFlow = flows.find((flow) => flow.resourceId === "computing");
   const materialFlows = flows.filter((flow) => (
@@ -336,11 +332,12 @@ export const NetSummary: React.FC<Props> = ({
   if (
     regularFlows.length === 0
     && moduleInputFlows.length === 0
-    && externalEntries.length === 0
     && !electricityFlow
     && !computingFlow
+    && !electricityConsumptionKw
     && !computingConsumptionTflops
     && computingGenerationCapacityTflops == null
+    && !workers
   ) return null;
 
   return (
@@ -438,24 +435,6 @@ export const NetSummary: React.FC<Props> = ({
         );
       })()}
 
-      {externalEntries.length > 0 && (
-        <div className="space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-            External Inputs
-          </p>
-          {externalEntries.map(([id, qty]) => (
-            <div key={id} className="flex justify-between text-sm rounded px-2 -mx-2 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-              <span className="text-gray-500 dark:text-gray-400">
-                {resources[id].name}
-              </span>
-              <span className="font-mono text-blue-500 dark:text-blue-400">
-                {parseFloat(qty.toFixed(2))}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {moduleInputFlows.length > 0 && (
         <div className="space-y-1 border-b border-border pb-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -477,10 +456,16 @@ export const NetSummary: React.FC<Props> = ({
       {groupByBalance ? (
         <>
           {onOpenBuilding && (
-            <BuildingAttentionView
-              diagnostics={buildingDiagnostics}
-              onOpenBuilding={onOpenBuilding}
-            />
+            <>
+              <PlannedBuildsView
+                diagnostics={buildingDiagnostics}
+                onOpenBuilding={onOpenBuilding}
+              />
+              <BuildingAttentionView
+                diagnostics={buildingDiagnostics}
+                onOpenBuilding={onOpenBuilding}
+              />
+            </>
           )}
           <div className="grid gap-2 lg:grid-cols-2">
             {displayedBalanceGroups.map((group) => (

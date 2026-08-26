@@ -38,14 +38,17 @@ export const createComputingModule = (
     [computingRecipeIds.basicRack]: rackCount,
     [computingRecipeIds.waterChiller]: waterChillers,
   };
-  const dataSources = Object.fromEntries(
-    Object.entries(activeBuildings).map(([recipeId, count]) => [
-      recipeId,
-      count === builtBuildings[recipeId as keyof typeof builtBuildings]
-        ? builtDataSource
-        : dataSource,
-    ]),
-  );
+  const dataSources = {
+    [computingRecipeIds.dataCenter]: dataCenters === builtDataCenters
+      ? builtDataSource
+      : dataSource,
+    [computingRecipeIds.basicRack]: rackCount === builtRackCount
+      ? builtDataSource
+      : dataSource,
+    [computingRecipeIds.waterChiller]: waterChillers === builtWaterChillers
+      ? builtDataSource
+      : dataSource,
+  };
 
   return {
     id: COMPUTING_MODULE_ID,

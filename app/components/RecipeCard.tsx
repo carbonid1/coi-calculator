@@ -3,15 +3,14 @@ import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import { type OperatingMode } from "../helpers/calculate/calculate";
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import {
   getRecipeGrossInputQuantity,
   getRecipeInputQuantity,
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
+import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
-import { DataSourceBadge } from "./DataSourceState";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
@@ -48,12 +47,9 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-              {recipe.building}
-            </h3>
-            {!inactive && dataSource && <DataSourceBadge source={dataSource} />}
-          </div>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+            {recipe.building}
+          </h3>
           {showConfigurationSummary && recipe.name !== recipe.building && (() => {
             const match = recipe.name.match(/\((.+)\)$/);
 

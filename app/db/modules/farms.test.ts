@@ -4,7 +4,12 @@ import { calculateCropFarmingModifiers } from "../../helpers/modifiers/calculate
 import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceOutput } from "../../helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
-import { defaultChickenFarmSettings } from "../chicken-farm";
+import {
+  defaultChickenFarmSettings,
+  plannedChickenFarmSettings,
+  resolvedChickenFarmSettings,
+  resolvedCurrentChickenFarmSettings,
+} from "../chicken-farm";
 import { activeContracts } from "../contracts";
 import {
   activeCropFarmGroups,
@@ -16,6 +21,7 @@ import { recipes } from "../recipes";
 import { defaultInfiniteResearchLevels } from "../research";
 import {
   createChickenFarmsModule,
+  chickenFarms,
   greenhouses,
 } from "./farms";
 import { modules } from "./modules";
@@ -40,6 +46,37 @@ describe("active crop farm plan", () => {
     expect(chickenFarmsModule.builtBuildings["chicken-farm-slaughtering"]).toBe(4);
     expect(preset?.activeBuildings["chicken-farm-slaughtering"]).toBe(4);
     expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0.975);
+  });
+
+  it("keeps four chicken farms built and plans the fifth for 2,350 chickens", () => {
+    const preset = chickenFarms.presets.at(0);
+
+    expect(resolvedCurrentChickenFarmSettings).toEqual({
+      source: "default",
+      value: defaultChickenFarmSettings,
+    });
+    expect(resolvedChickenFarmSettings).toEqual({
+      source: "planned",
+      value: plannedChickenFarmSettings,
+    });
+    expect(chickenFarms.builtBuildings["chicken-farm-slaughtering"]).toBe(4);
+    expect(preset?.activeBuildings["chicken-farm-slaughtering"]).toBe(5);
+    expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0.94);
+    expect(preset?.dataSources?.["chicken-farm-slaughtering"]).toBe("planned");
+  });
+
+  it("treats the nine greenhouse rotations as planned configuration", () => {
+    const preset = greenhouses.presets.at(0);
+    const activeFarmIds = activeCropFarmGroups.map((group) => group.id);
+
+    expect(activeCropFarmGroups).toHaveLength(9);
+    expect(activeFarmIds.reduce(
+      (total, id) => total + (greenhouses.builtBuildings[id] ?? 0),
+      0,
+    )).toBe(8);
+    expect(activeFarmIds.filter((id) => greenhouses.builtBuildings[id] === 0)).toHaveLength(1);
+    expect(activeFarmIds.every((id) => preset?.activeBuildings[id] === 1)).toBe(true);
+    expect(activeFarmIds.every((id) => preset?.dataSources?.[id] === "planned")).toBe(true);
   });
 
   it("connects five active Groundwater Pumps only to Greenhouses", () => {
@@ -155,7 +192,7 @@ describe("active crop farm plan", () => {
       }
     }
 
-    expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(8);
+    expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(9);
 
     for (const crop of Object.values(crops)) {
       if (!crop.productId) continue;
