@@ -40,7 +40,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
   expect(nuclear.presets[0]?.fixed).toEqual(["fbr-0x", "fbr-3x"]);
   expect(nuclear.presets[0]?.builtBuildings).toMatchObject({
     "nuclear-reprocessing": 1,
-    "seawater-pump": 3,
+    "seawater-pump": 4,
     "enrichment-plant": 2,
     "chemical-plant-yellowcake": 2,
     "turbine-super": 8,
@@ -49,7 +49,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "power-generator-ii-nuclear": 16,
     "hydrogen-reformer-super": 6,
     "thermal-desalinator-depleted": 4,
-    "thermal-desalinator-super": 5,
+    "thermal-desalinator-super": 6,
     "electrolyzer-ii-chlorine": 2,
     "evaporation-pond-heated-salt-brine": 2,
     "cooling-tower-large-super": 4,
@@ -62,7 +62,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
   });
   expect(nuclear.presets[0]?.activeBuildings).toMatchObject({
     "nuclear-reprocessing": 1,
-    "seawater-pump": 3,
+    "seawater-pump": 4,
     "enrichment-plant": 2,
     "chemical-plant-yellowcake": 2,
     "turbine-super": 3,
@@ -71,7 +71,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "power-generator-ii-nuclear": 6,
     "hydrogen-reformer-super": 5,
     "thermal-desalinator-depleted": 4,
-    "thermal-desalinator-super": 5,
+    "thermal-desalinator-super": 6,
     "electrolyzer-ii-chlorine": 1,
     "evaporation-pond-heated-salt-brine": 1,
     "cooling-tower-large-super": 4,

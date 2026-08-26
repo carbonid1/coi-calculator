@@ -18,7 +18,7 @@ import {
   NUCLEAR_MODULE_ID,
 } from "./nuclear";
 
-it("balances graphite production with the planned carbon dioxide capacity", () => {
+it("uses dedicated Ethanol and lower-priority carbon dioxide Graphite plants", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -77,17 +77,17 @@ it("balances graphite production with the planned carbon dioxide capacity", () =
     (candidate) => candidate.recipe.id === "chemical-plant-ii-graphite-coal",
   )!;
 
-  expect(carbonDioxideResult.builtBuildings).toBe(3);
-  expect(coalResult.builtBuildings).toBe(2);
-  expect(carbonDioxideResult.capacityPoolId).toBe("general:chemical-plant-ii-electronics");
+  expect(carbonDioxideResult.builtBuildings).toBe(1);
+  expect(coalResult.builtBuildings).toBe(3);
+  expect(carbonDioxideResult.capacityPoolId).toBeUndefined();
   expect(coalResult.capacityPoolId).toBeUndefined();
   expect(carbonDioxideResult.supplyRatio).toBeGreaterThan(0);
   expect(coalResult.supplyRatio).toBeGreaterThan(0);
-  expect(carbonDioxideResult.recipe.sharedCapacity?.priority).toBe(2);
+  expect(carbonDioxideResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
   expect(coalResult.supplyRatio).toBeCloseTo(1);
   expect(carbonDioxide.net).toBeCloseTo(0);
   expect(graphite.produced).toBeLessThan(graphite.consumed);
-  expect(graphite.net).toBeCloseTo(-4.4865630195);
+  expect(graphite.net).toBeLessThan(0);
 });

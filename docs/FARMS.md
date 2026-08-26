@@ -52,15 +52,15 @@ The seed mostly changes *when* rain occurs rather than the annual intensity budg
 
 In v0.8.6, farm crop growth does not read sunlight. Weather affects crops through rainfall and water availability; sunlight remains relevant to solar production. Farm cards show gross crop demand as a reference and the imported-water requirement after the configured 100-year weather simulation. Factory balances use the weather-adjusted import.
 
-## Current planning layout
+## Current layout
 
-The active crop plan uses seven Greenhouse IIs across seven fixed rotation
-configurations, Fertilizer II at 140%, and full irrigation. Seven is the
+The current crop layout uses eight Greenhouse IIs across eight fixed rotation
+configurations, Fertilizer II at 140%, and full irrigation. Eight is the
 minimum practical building count that supports the 15-block Housing III
-settlement and maximally boosted Office III, including Poppy for Morphine:
+settlement, maximally boosted Office III, and 2,300 chickens, including Poppy for Morphine:
 every crop deficit is closed and every crop surplus remains at or below 5 per
-production cycle. The Food Pack expansion uses 1,950 chickens
-across four farms, three Baking Units, and four Mills. Carcass
+production cycle. The Food Pack expansion uses 2,300 chickens
+across five farms, three Baking Units, and four Mills. Carcass
 processing belongs to the General module, not Chicken Farms: one dedicated Food
 Processor makes Meat + Trimmings, and a second dedicated Food Processor converts
 only surplus Carcasses into Trimmings. Surplus Trimmings continue through Fuel
@@ -77,13 +77,14 @@ from Factory Total and can never increase those pumps' modeled output.
 
 | Farms | Rotation | Fertilizer II target |
 | ---: | --- | ---: |
-| 1 | Wheat / Soybean / Wheat / Fruit | 140% |
-| 1 | Vegetables / Canola / Potato / Corn | 140% |
-| 1 | Corn / Soybean / Fruit / Wheat | 140% |
-| 1 | Vegetables / Corn / Potato / Corn | 140% |
-| 1 | Wheat / Vegetables / Wheat / Corn | 140% |
+| 1 | Soybean / Vegetables / Fruit / Vegetables | 140% |
+| 1 | Potato / Corn / Vegetables / Corn | 140% |
+| 1 | Potato / Corn / Canola / Corn | 140% |
+| 1 | Wheat / Soybean / Wheat / Poppy | 140% |
 | 1 | Corn / Wheat / Corn / Wheat | 140% |
-| 1 | Sugar Cane / Poppy / Fruit / Tree Sapling | 140% |
+| 1 | Wheat / Soybean / Vegetables / Fruit | 140% |
+| 1 | Corn / Wheat / Fruit / Wheat | 140% |
+| 1 | Corn / Wheat / Tree Sapling / Sugar Cane | 140% |
 
 Crop output and fertilizer are long-run cycle averages on the calculator's
 100-year horizon. Each farm card keeps gross crop demand visible for comparison

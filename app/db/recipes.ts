@@ -2851,7 +2851,6 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 20,
     balanceBy: "output",
     balanceOutputIds: ["ethanol"],
-    sharedCapacity: { id: "chemical-plant-ii-electronics", priority: 1 },
     inputs: [
       { resourceId: "hydrogen", quantity: 36 },
       { resourceId: "carbonDioxide", quantity: 27 },
@@ -2869,11 +2868,6 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 10,
     balanceBy: "input",
     balanceInputIds: ["carbonDioxide"],
-    sharedCapacity: {
-      id: "chemical-plant-ii-electronics",
-      label: "Chemical Plant II",
-      priority: 2,
-    },
     allocation: "fallback",
     allocationPriority: 20,
     inputs: [{ resourceId: "carbonDioxide", quantity: 144 }],

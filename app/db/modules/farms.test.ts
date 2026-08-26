@@ -155,7 +155,7 @@ describe("active crop farm plan", () => {
       }
     }
 
-    expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(7);
+    expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(8);
 
     for (const crop of Object.values(crops)) {
       if (!crop.productId) continue;

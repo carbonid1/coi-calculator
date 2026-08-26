@@ -346,102 +346,38 @@ export interface CropFarmGroupRates {
   outputsPerMonth: ReadonlyMap<ResourceId, number>;
 }
 
-/** Current calculator-owned rotations before applying a future farm plan. */
+/** Current calculator-owned rotations. */
 export const modeledCropFarmGroups: readonly CropFarmGroup[] = [
   {
-    id: "greenhouse-ii-vegetables-corn-vegetables-poppy",
-    name: "Vegetables / Corn / Vegetables / Poppy",
+    id: "greenhouse-ii-soybean-vegetables-fruit-vegetables",
+    name: "Soybean / Vegetables / Fruit / Vegetables",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["vegetables", "corn", "vegetables", "poppy"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
-  },
-  {
-    id: "greenhouse-ii-potato-fruit-canola-wheat",
-    name: "Potato / Fruit / Canola / Wheat",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["potato", "fruit", "canola", "wheat"],
+    schedule: ["soybean", "vegetables", "fruit", "vegetables"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-wheat-corn-wheat-potato",
-    name: "Wheat / Corn / Wheat / Potato",
+    id: "greenhouse-ii-potato-corn-vegetables-corn",
+    name: "Potato / Corn / Vegetables / Corn",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["wheat", "corn", "wheat", "potato"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 120 },
-  },
-  {
-    id: "greenhouse-ii-wheat-corn-wheat-corn-140",
-    name: "Wheat / Corn / Wheat / Corn",
-    farmCount: 2,
-    tierId: "greenhouseII",
-    schedule: ["wheat", "corn", "wheat", "corn"],
+    schedule: ["potato", "corn", "vegetables", "corn"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-corn-tree-sapling-soybean-sugar-cane",
-    name: "Corn / Tree Sapling / Soybean / Sugar Cane",
+    id: "greenhouse-ii-potato-corn-canola-corn",
+    name: "Potato / Corn / Canola / Corn",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["corn", "treeSapling", "soybean", "sugarCane"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 100 },
-  },
-  {
-    id: "greenhouse-ii-corn-soybean-vegetables-fruit",
-    name: "Corn / Soybean / Vegetables / Fruit",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["corn", "soybean", "vegetables", "fruit"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
-  },
-] as const;
-
-/**
- * Future rotations sized for the planned 15-block settlement and boosted
- * Office III. Each crop's primary surplus stays at or below 5 per production
- * cycle before digestion.
- */
-export const plannedCropFarmGroups: readonly CropFarmGroup[] | undefined = [
-  {
-    id: "greenhouse-ii-wheat-soybean-wheat-fruit",
-    name: "Wheat / Soybean / Wheat / Fruit",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["wheat", "soybean", "wheat", "fruit"],
+    schedule: ["potato", "corn", "canola", "corn"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-vegetables-canola-potato-corn",
-    name: "Vegetables / Canola / Potato / Corn",
+    id: "greenhouse-ii-wheat-soybean-wheat-poppy",
+    name: "Wheat / Soybean / Wheat / Poppy",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["vegetables", "canola", "potato", "corn"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
-  },
-  {
-    id: "greenhouse-ii-corn-soybean-fruit-wheat",
-    name: "Corn / Soybean / Fruit / Wheat",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["corn", "soybean", "fruit", "wheat"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
-  },
-  {
-    id: "greenhouse-ii-vegetables-corn-potato-corn",
-    name: "Vegetables / Corn / Potato / Corn",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["vegetables", "corn", "potato", "corn"],
-    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
-  },
-  {
-    id: "greenhouse-ii-wheat-vegetables-wheat-corn",
-    name: "Wheat / Vegetables / Wheat / Corn",
-    farmCount: 1,
-    tierId: "greenhouseII",
-    schedule: ["wheat", "vegetables", "wheat", "corn"],
+    schedule: ["wheat", "soybean", "wheat", "poppy"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
@@ -453,17 +389,36 @@ export const plannedCropFarmGroups: readonly CropFarmGroup[] | undefined = [
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-sugar-cane-poppy-fruit-tree-sapling",
-    name: "Sugar Cane / Poppy / Fruit / Tree Sapling",
+    id: "greenhouse-ii-wheat-soybean-vegetables-fruit",
+    name: "Wheat / Soybean / Vegetables / Fruit",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["sugarCane", "poppy", "fruit", "treeSapling"],
+    schedule: ["wheat", "soybean", "vegetables", "fruit"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-corn-wheat-fruit-wheat",
+    name: "Corn / Wheat / Fruit / Wheat",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["corn", "wheat", "fruit", "wheat"],
+    fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+  },
+  {
+    id: "greenhouse-ii-corn-wheat-tree-sapling-sugar-cane",
+    name: "Corn / Wheat / Tree Sapling / Sugar Cane",
+    farmCount: 1,
+    tierId: "greenhouseII",
+    schedule: ["corn", "wheat", "treeSapling", "sugarCane"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
 ] as const;
 
+export const plannedCropFarmGroups: readonly CropFarmGroup[] | undefined = undefined;
+
 const cropFarmGroupLayers: LayeredValue<readonly CropFarmGroup[]> = {
-  default: modeledCropFarmGroups,
+  default: [],
+  modeled: modeledCropFarmGroups,
   planned: plannedCropFarmGroups,
 };
 

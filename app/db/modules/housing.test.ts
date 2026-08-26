@@ -16,7 +16,7 @@ import { defaultInfiniteResearchLevels } from "../research";
 import { settlementConfig, settlementRecipeIds } from "../settlement";
 import { createHousingModule } from "./housing";
 
-it("plans fifteen Housing III blocks for the Office III workforce", () => {
+it("models fifteen built Housing III blocks for the Office III workforce", () => {
   const capacityMultiplier = calculateHousingCapacity(
     defaultInfiniteResearchLevels.housingCapacity,
   ).multiplier;
@@ -30,7 +30,7 @@ it("plans fifteen Housing III blocks for the Office III workforce", () => {
   expect(activeHousingType.name).toBe("Housing III");
   expect(defaultHousingCount).toBe(11);
   expect(resolvedHousingCount.value).toBe(15);
-  expect(housing.builtBuildings[settlementRecipeIds.residents]).toBe(11);
+  expect(housing.builtBuildings[settlementRecipeIds.residents]).toBe(15);
   expect(housing.presets[0]?.activeBuildings[settlementRecipeIds.residents]).toBe(15);
   expect(calculatePopulationCapacity(
     activeHousingType,

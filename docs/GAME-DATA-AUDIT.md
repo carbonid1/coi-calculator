@@ -408,18 +408,15 @@ Electronics II every 7.5 seconds. The calculator stores the equivalent
 per-production-cycle rates of 48, 24, 16, and 8 respectively.
 
 Office configuration resolves in `default ≤ modeled ≤ synced ≤ planned` order.
-The default remains empty. The current source-owned plan has one Office III at
+The default remains empty. The current modeled configuration has one Office III at
 computing boost step 2, one supporting Assembly V, and 1,695 of its 1,700 Focus
 Points allocated to Contracts Profitability step 7 (+14%), Maintenance
-Production step 5 (+5%), and Recycling Efficiency step 2 (+2%). The plan
-remains authoritative until it is explicitly changed; the calculator does not
-automatically clear it when synced values catch up. Computing supply is not
-expanded as part of this plan, so its 192 TFLOPS demand remains visible.
-The planned Office and its supporting Assembly remain at zero physically built
-while their target activity creates the full future resource pressure.
-The supporting Housing III configuration likewise keeps 11 blocks physically
-built while the planned 15-block target exposes the four-block construction gap
-and the full future settlement demand.
+Production step 5 (+5%), and Recycling Efficiency step 2 (+2%). Computing supply
+is modeled separately, so the Office III's 192 TFLOPS demand remains visible.
+The supporting Assembly V and boosted Office III are modeled as physically
+built and running. Their Focus allocation is also modeled as current.
+The supporting Housing III configuration models all 15 blocks as physically
+built and exposes their full-population settlement demand.
 
 Verified against the installed v0.8.7 Office prototypes, `OfficeFocusProto`,
 Focus property implementations, Focus Points infinite research, and Assembly V

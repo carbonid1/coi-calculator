@@ -24,7 +24,7 @@ const activeRecipeIds = {
 const activeBuildings = {
   [activeRecipeIds.maintenanceI]: 2,
   [activeRecipeIds.maintenanceII]: 1,
-  [activeRecipeIds.maintenanceIII]: 1,
+  [activeRecipeIds.maintenanceIII]: 2,
 };
 
 export const createMaintenanceModule = (
@@ -36,7 +36,7 @@ export const createMaintenanceModule = (
   builtBuildings: {
     [activeRecipeIds.maintenanceI]: 2,
     [activeRecipeIds.maintenanceII]: 1,
-    [activeRecipeIds.maintenanceIII]: 1,
+    [activeRecipeIds.maintenanceIII]: 2,
   },
   presets: [
     {

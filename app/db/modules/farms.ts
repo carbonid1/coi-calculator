@@ -1,12 +1,15 @@
+import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import {
   chickenFarm,
   type ChickenFarmSettings,
-  defaultChickenFarmSettings,
   getChickenFarmLayout,
+  resolvedChickenFarmSettings,
+  resolvedCurrentChickenFarmSettings,
 } from "../chicken-farm";
 import {
   activeCropFarmGroups,
   resolvedCropFarmGroups,
+  resolvedCurrentCropFarmGroups,
 } from "../crop-farming";
 import { type Module } from "./modules";
 
@@ -21,6 +24,17 @@ const eggsOnlyRecipeId = "chicken-farm-eggs-only";
 const cropFarmTotals = Object.fromEntries(
   activeCropFarmGroups.map((group) => [group.id, group.farmCount]),
 );
+let unassignedBuiltCropFarms = resolvedCurrentCropFarmGroups.value.reduce(
+  (total, group) => total + group.farmCount,
+  0,
+);
+const builtCropFarmTotals = Object.fromEntries(
+  activeCropFarmGroups.map((group) => {
+    const builtCount = Math.min(group.farmCount, unassignedBuiltCropFarms);
+    unassignedBuiltCropFarms -= builtCount;
+    return [group.id, builtCount];
+  }),
+);
 const fixedCropFarmIds = activeCropFarmGroups.map((group) => group.id);
 const cropFarmCount = activeCropFarmGroups.reduce(
   (total, group) => total + group.farmCount,
@@ -28,11 +42,11 @@ const cropFarmCount = activeCropFarmGroups.reduce(
 );
 const greenhouseBuildings = {
   "groundwater-pump": builtGroundwaterPumpCount,
-  ...cropFarmTotals,
+  ...builtCropFarmTotals,
 };
 const activeGreenhouseBuildings = {
-  ...greenhouseBuildings,
   "groundwater-pump": activeGroundwaterPumpCount,
+  ...cropFarmTotals,
 };
 
 export const greenhouses: Module = {
@@ -55,12 +69,25 @@ export const greenhouses: Module = {
   defaultPresetId: "current-greenhouse-plan",
 };
 
-export const createChickenFarmsModule = (settings: ChickenFarmSettings): Module => {
+export const createChickenFarmsModule = (
+  settings: ChickenFarmSettings,
+  builtSettings: ChickenFarmSettings = settings,
+  dataSource: ValueSource = "modeled",
+  builtDataSource: ValueSource = dataSource,
+): Module => {
   const farmRecipeId = settings.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
   const chickenLayout = getChickenFarmLayout(settings.totalChickenCount);
+  const builtChickenLayout = getChickenFarmLayout(builtSettings.totalChickenCount);
   const builtBuildings = {
+    [farmRecipeId]: builtChickenLayout.farmCount,
+  };
+  const activeBuildings = {
     [farmRecipeId]: chickenLayout.farmCount,
   };
+  const settingsSource = settings.totalChickenCount === builtSettings.totalChickenCount
+    && settings.slaughtering === builtSettings.slaughtering
+    ? builtDataSource
+    : dataSource;
 
   return {
     id: CHICKEN_FARMS_MODULE_ID,
@@ -72,7 +99,8 @@ export const createChickenFarmsModule = (settings: ChickenFarmSettings): Module 
         id: "current-chicken-farm-plan",
         name: "Current Chicken Farm Plan",
         description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens`,
-        activeBuildings: builtBuildings,
+        activeBuildings,
+        dataSources: { [farmRecipeId]: settingsSource },
         fixed: [farmRecipeId],
         speedLevels: {
           [farmRecipeId]: chickenLayout.farmCount > 0
@@ -86,4 +114,9 @@ export const createChickenFarmsModule = (settings: ChickenFarmSettings): Module 
   };
 };
 
-export const chickenFarms = createChickenFarmsModule(defaultChickenFarmSettings);
+export const chickenFarms = createChickenFarmsModule(
+  resolvedChickenFarmSettings.value,
+  resolvedCurrentChickenFarmSettings.value,
+  resolvedChickenFarmSettings.source,
+  resolvedCurrentChickenFarmSettings.source,
+);

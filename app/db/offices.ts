@@ -132,16 +132,11 @@ export const defaultOfficePlan: OfficePlan = {
   focusSteps: { ...emptyFocusSteps },
 };
 
-/**
- * Calculator-owned target. Set this to an OfficePlan when a future target is
- * requested. It remains authoritative over future synced data until changed
- * here explicitly; there is intentionally no automatic plan clearing.
- */
-export const plannedOfficePlan: OfficePlan | undefined = {
+export const modeledOfficePlan: OfficePlan = {
+  ...defaultOfficePlan,
   officeSuppliesAssemblyVCount: 1,
   offices: {
-    officeI: { count: 0, computingBoostStep: 0 },
-    officeII: { count: 0, computingBoostStep: 0 },
+    ...defaultOfficePlan.offices,
     officeIII: { count: 1, computingBoostStep: 2 },
   },
   focusSteps: {
@@ -152,8 +147,16 @@ export const plannedOfficePlan: OfficePlan | undefined = {
   },
 };
 
+/**
+ * Calculator-owned target. Set this to an OfficePlan when a future target is
+ * requested. It remains authoritative over future synced data until changed
+ * here explicitly; there is intentionally no automatic plan clearing.
+ */
+export const plannedOfficePlan: OfficePlan | undefined = undefined;
+
 const officePlanLayers: LayeredValue<OfficePlan> = {
   default: defaultOfficePlan,
+  modeled: modeledOfficePlan,
   planned: plannedOfficePlan,
 };
 

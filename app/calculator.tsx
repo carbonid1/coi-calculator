@@ -33,8 +33,8 @@ import { SpaceStationView } from "./components/SpaceStationView";
 import { StorageCard } from "./components/StorageCard";
 import { TrainTrafficAlert } from "./components/TrainTrafficAlert";
 import { buildings } from "./db/buildings";
-import { defaultChickenFarmSettings } from "./db/chicken-farm";
-import { defaultComputingConfig } from "./db/computing";
+import { resolvedChickenFarmSettings } from "./db/chicken-farm";
+import { resolvedComputingConfig } from "./db/computing";
 import {
   activeContracts,
   contracts,
@@ -337,8 +337,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const unityCapacityLevel = researchLevels.unityCapacity;
   const housingCapacityLevel = researchLevels.housingCapacity;
   const shipsFuelUseLevel = researchLevels.shipsFuelUse;
-  const computingConfig = defaultComputingConfig;
-  const chickenFarmSettings = defaultChickenFarmSettings;
+  const computingConfig = resolvedComputingConfig.value;
+  const chickenFarmSettings = resolvedChickenFarmSettings.value;
   const housingCount = resolvedHousingCount.value;
 
   const configuredModules = modules.map(module => {
@@ -369,6 +369,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         officePlan,
         resolvedCurrentOfficePlan.value,
         resolvedOfficePlan.source,
+        resolvedCurrentOfficePlan.source,
       );
     }
 

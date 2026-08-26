@@ -19,7 +19,7 @@ const NumberFact: React.FC<{ label: string; value: number }> = ({ label, value }
 );
 
 export const ComputingSettings: React.FC<Props> = ({ config, computingCapacityTflops }) => {
-  const rackAllocation = getRackAllocation(config.rackCount);
+  const rackAllocation = getRackAllocation(config.rackCount, config.dataCenterCount);
   const dataCenterLabel = `${rackAllocation.length} data center${rackAllocation.length === 1 ? "" : "s"}`;
 
   return (

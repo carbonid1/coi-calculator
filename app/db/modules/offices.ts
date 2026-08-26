@@ -14,6 +14,7 @@ export const createOfficesModule = (
   plan: OfficePlan,
   builtPlan: OfficePlan = plan,
   dataSource: ValueSource = "modeled",
+  builtDataSource: ValueSource = dataSource,
 ): Module => {
   const officeRecipeIds = officeCatalog.map((office) => {
     const tierPlan = plan.offices[office.id];
@@ -42,6 +43,22 @@ export const createOfficesModule = (
       Math.max(0, Math.trunc(builtPlan.offices[tierId].count)),
     ])),
   };
+  const dataSources = {
+    "assembly-v-office-supplies": plan.officeSuppliesAssemblyVCount
+      === builtPlan.officeSuppliesAssemblyVCount
+      ? builtDataSource
+      : dataSource,
+    ...Object.fromEntries(officeRecipeIds.map(({ recipeId, tierId }) => {
+      const target = plan.offices[tierId];
+      const built = builtPlan.offices[tierId];
+      const source = target.count === built.count
+        && target.computingBoostStep === built.computingBoostStep
+        ? builtDataSource
+        : dataSource;
+
+      return [recipeId, source];
+    })),
+  };
 
   return {
     id: OFFICES_MODULE_ID,
@@ -54,9 +71,7 @@ export const createOfficesModule = (
         name: "Office configuration",
         description: "Office buildings, supplies, and Focus settings",
         activeBuildings: plannedBuildings,
-        dataSources: Object.fromEntries(
-          Object.keys(plannedBuildings).map((recipeId) => [recipeId, dataSource]),
-        ),
+        dataSources,
         fixed: officeRecipeIds.map(({ recipeId }) => recipeId),
       },
     ],
@@ -68,4 +83,5 @@ export const offices = createOfficesModule(
   resolvedOfficePlan.value,
   resolvedCurrentOfficePlan.value,
   resolvedOfficePlan.source,
+  resolvedCurrentOfficePlan.source,
 );
