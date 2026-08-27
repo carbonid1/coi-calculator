@@ -15,6 +15,7 @@ export type RecipeModifierMultipliers = Partial<Record<
 const GAME_PERCENT_SCALE = 100_000;
 
 const getWeatherAdjustedFarm = (input: Ingredient) => {
+  if (input.weatherAdjustedFarm) return input.weatherAdjustedFarm;
   if (!input.weatherAdjustedFarmId) return null;
 
   const farmGroup = cropFarmGroups.find(

@@ -54,17 +54,14 @@ In v0.8.6, farm crop growth does not read sunlight. Weather affects crops throug
 
 ## Current layout
 
-The current crop layout uses eight Greenhouse IIs across eight fixed rotation
-configurations, Fertilizer II at 140%, and full irrigation. Eight is the
-minimum practical building count that supports the 15-block Housing III
-settlement, maximally boosted Office III, and 2,300 chickens, including Poppy for Morphine:
-every crop deficit is closed and every crop surplus remains at or below 5 per
-production cycle. The Food Pack expansion uses 2,300 chickens
-across five farms, three Baking Units, and four Mills. Carcass
-processing belongs to the General module, not Chicken Farms: one dedicated Food
-Processor makes Meat + Trimmings, and a second dedicated Food Processor converts
-only surplus Carcasses into Trimmings. Surplus Trimmings continue through Fuel
-Gas into Diesel, which is intentionally retained as a useful trade surplus.
+The projected crop layout uses nine Greenhouse IIs across nine fixed rotation
+configurations, Fertilizer II at 140%, and full irrigation. The rotations cover
+the current Factory Total demand, including Poppy for Morphine and Tree Saplings.
+Carcass processing belongs to the General module, not Chicken Farms: one
+dedicated Food Processor makes Meat + Trimmings, and a second dedicated Food
+Processor converts only surplus Carcasses into Trimmings. Surplus Trimmings
+continue through Fuel Gas into Diesel, which is intentionally retained as a
+useful trade surplus.
 Every rotation avoids placing the same fertility-consuming crop after itself,
 including across the last-to-first wrap. The farms do not auto-balance:
 changing population or downstream recipes leaves a visible crop deficit or
@@ -75,19 +72,46 @@ separate physical water networks. Five Groundwater Pumps are installed for the
 Greenhouses, with all five active. Chicken Farm water is imported
 from Factory Total and can never increase those pumps' modeled output.
 
+Schema 17 treats Groundwater Pumps as a shared physical inventory because the
+same building also supplies General's factory-water reserve. Schema 18 exports
+vehicle-zone membership. A `Greenhouses` zone automatically owns the pumps it
+contains, while pumps outside every non-default zone belong to Default and
+therefore General. Other zone names can be mapped once in Factory Total. Paused
+pumps remain physical inventory but do not increase active production, and
+overlapping zones mapped to different modules remain explicit conflicts.
+
+Schema 19 exports every completed Greenhouse and Greenhouse II with a stable
+save-local entity ID. Synced entities are the physical base of the module. Each
+planned rotation binds deterministically to one entity and replaces that
+entity's live configuration in projected calculations; it is never added as a
+second building. Exact running matches remain synced, configuration changes,
+unpauses, upgrades, builds, and required pauses remain planned, and unplanned
+live configurations stay visible. Cards group entities only after applying
+these overlays, so identical effective configurations share one card while
+workers, inputs, and outputs count every physical greenhouse exactly once.
+
+Schema 20 applies the same entity overlay to Chicken Farms. Exact membership in
+the `Chicken Farms` vehicle area establishes module ownership; no singular,
+partial, or fuzzy zone-name match is accepted. Farm identity, pause state, and
+slaughtering mode are matched per entity, while chicken population remains a
+pooled target across the active matching farms. This permits any valid
+per-farm chicken distribution without losing accurate assign, unpause,
+configure, build, or population actions.
+
 | Farms | Rotation | Fertilizer II target |
 | ---: | --- | ---: |
-| 1 | Soybean / Vegetables / Fruit / Vegetables | 140% |
-| 1 | Potato / Corn / Vegetables / Corn | 140% |
-| 1 | Potato / Corn / Canola / Corn | 140% |
-| 1 | Wheat / Soybean / Wheat / Poppy | 140% |
-| 1 | Corn / Wheat / Corn / Wheat | 140% |
-| 1 | Wheat / Soybean / Vegetables / Fruit | 140% |
-| 1 | Corn / Wheat / Fruit / Wheat | 140% |
-| 1 | Corn / Wheat / Tree Sapling / Sugar Cane | 140% |
+| 1 | Potato / Fruit / Potato / Wheat | 140% |
+| 1 | Potato / Fruit / Wheat / Soybean | 140% |
+| 1 | Corn / Vegetables / Corn / Vegetables | 140% |
+| 1 | Corn / Wheat / Corn / Canola | 140% |
+| 1 | Corn / Soybean / Corn / Soybean | 140% |
+| 1 | Wheat / Corn / Wheat / Vegetables | 140% |
+| 1 | Corn / Wheat / Canola / Poppy | 140% |
+| 1 | Vegetables / Fruit / Wheat / Sugar Cane | 140% |
+| 1 | Tree Sapling / Wheat / No Crop / Poppy | 140% |
 
 Crop output and fertilizer are long-run cycle averages on the calculator's
 100-year horizon. Each farm card keeps gross crop demand visible for comparison
 with the game UI, then reports the weather-adjusted imported water used by
-module and factory balances. Evaporation is absent because every schedule slot
-is occupied.
+module and factory balances. The one planned no-crop slot still participates in
+the same long-run soil and weather simulation.

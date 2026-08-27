@@ -206,3 +206,59 @@ it("limits module-scoped Groundwater Pumps to their module's Water demand", () =
   expect(waterNet(withRemoteDemand)).toBe(-500);
   expect(reportedWaterNet(withRemoteDemand)).toBe(-500);
 });
+
+it("uses recovered Water before Groundwater Pumps or Liquid Dumps", () => {
+  const groundwaterPump: Recipe = {
+    id: "test-factory-groundwater-pump",
+    name: "Test Groundwater Pump",
+    building: "Groundwater Pump",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "water", quantity: 48 }],
+    sourceMode: "demand-capped",
+  };
+  const waterConsumer: Recipe = {
+    id: "test-water-consumer",
+    name: "Test Water Consumer",
+    building: "Test Consumer",
+    group: "production",
+    inputs: [{ resourceId: "water", quantity: 10 }],
+    outputs: [],
+  };
+  const coolingTower: Recipe = {
+    id: "test-water-recovery",
+    name: "Test Water Recovery",
+    building: "Cooling Tower",
+    group: "sink",
+    inputs: [{ resourceId: "steamLow", quantity: 20 }],
+    outputs: [{ resourceId: "water", quantity: 20 }],
+  };
+  const liquidDump: Recipe = {
+    id: "test-water-dump",
+    name: "Test Water Dump",
+    building: "Liquid Dump",
+    group: "sink",
+    inputs: [{ resourceId: "water", quantity: 100 }],
+    outputs: [],
+  };
+  const result = calculateNet([
+    fixedLine(groundwaterPump, "general"),
+    fixedLine(waterConsumer, "general"),
+    balancedLine(coolingTower, "nuclear"),
+    balancedLine(liquidDump, "nuclear"),
+  ], { steamLow: 20 });
+  const groundwater = result.sourceResults.find(
+    candidate => candidate.recipe.id === groundwaterPump.id,
+  );
+  const recovered = result.sinkResults.find(
+    candidate => candidate.recipe.id === coolingTower.id,
+  );
+  const dumped = result.sinkResults.find(
+    candidate => candidate.recipe.id === liquidDump.id,
+  );
+
+  expect(groundwater?.actualOutputs).toEqual([{ resourceId: "water", quantity: 0 }]);
+  expect(groundwater?.supplyRatio).toBe(0);
+  expect(recovered?.actualOutputs).toEqual([{ resourceId: "water", quantity: 20 }]);
+  expect(dumped?.actualInputs).toEqual([{ resourceId: "water", quantity: 10 }]);
+});

@@ -76,6 +76,14 @@ export interface CropFarmGroup {
   } | null;
 }
 
+export interface CurrentCropFarmEntity {
+  entityId: number;
+  tierId: Extract<CropFarmTierId, "greenhouse" | "greenhouseII">;
+  schedule: readonly string[];
+  fertilityTargetPercent: number;
+  running: boolean;
+}
+
 /**
  * Captain of Industry v0.8.6 farm prototypes and runtime constants.
  * The game advances crop growth daily; one calculator month is 30 game days.
@@ -481,11 +489,11 @@ export const plannedCropFarmGroups: readonly CropFarmGroup[] = [
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
   {
-    id: "greenhouse-ii-tree-sapling-wheat-tree-sapling-poppy",
-    name: "Tree Sapling / Wheat / Tree Sapling / Poppy",
+    id: "greenhouse-ii-tree-sapling-wheat-none-poppy",
+    name: "Tree Sapling / Wheat / No Crop / Poppy",
     farmCount: 1,
     tierId: "greenhouseII",
-    schedule: ["treeSapling", "wheat", "treeSapling", "poppy"],
+    schedule: ["treeSapling", "wheat", "none", "poppy"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
   },
 ] as const;

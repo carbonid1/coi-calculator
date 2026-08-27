@@ -13,7 +13,10 @@ interface Props {
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
-export const SinkCard: React.FC<Props> = ({ dataSource, result }) => {
+export const SinkCard: React.FC<Props> = ({
+  dataSource,
+  result,
+}) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.activeBuildings === 0 || !hasWork;
   const recipeDisplayName = getRecipeDisplayName(result.recipe);

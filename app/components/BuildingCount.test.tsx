@@ -8,13 +8,12 @@ vi.mock("@carbonid1/design-system", () => ({
 
 import { BuildingCount } from "./BuildingCount";
 
-it("falls back to the normal count when concise source display has no source", () => {
+it("always shows operational load", () => {
   const html = renderToStaticMarkup(
     <BuildingCount
       load={5}
       active={5}
       built={5}
-      showDataSourceLabel
     />,
   );
 

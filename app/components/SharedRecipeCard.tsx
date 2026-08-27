@@ -76,7 +76,7 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, dataSource, results, 
               className={cn(
                 "rounded-lg p-2.5",
                 inactive
-                  ? "border border-dashed border-border"
+                  ? "border border-border/50 bg-transparent [&>*]:opacity-40"
                   : "bg-surface-inset inset-shadow-surface",
               )}
             >

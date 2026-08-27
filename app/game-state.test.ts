@@ -217,6 +217,86 @@ const schema16Snapshot = {
   chickenFarms,
   cropFarms,
 }
+const machines = [
+  {
+    entityId: 501,
+    kind: 'groundwater-pump',
+    prototypeId: 'AirSeparator',
+    running: true,
+    customTitle: 'Greenhouse water 1',
+    tile: { x: 120, y: -45 },
+  },
+  {
+    entityId: 502,
+    kind: 'groundwater-pump',
+    prototypeId: 'AirSeparator',
+    running: false,
+    customTitle: null,
+    tile: { x: 310, y: 80 },
+  },
+]
+const schema17Snapshot = {
+  ...schema16Snapshot,
+  schemaVersion: 17,
+  machines,
+}
+const zonedMachines = machines.map((machine, index) => ({
+  ...machine,
+  zones: index === 0
+    ? [{ id: 7, name: 'Greenhouses' }]
+    : [{ id: 9, name: 'Gold Mine' }],
+}))
+const schema18Snapshot = {
+  ...schema17Snapshot,
+  schemaVersion: 18,
+  machines: zonedMachines,
+}
+const cropFarmEntities = [{
+  entityId: 601,
+  prototypeId: 'FarmT4',
+  running: true,
+  fertilityTargetPercent: 140,
+  schedule: ['Crop_Potato', 'Crop_Fruits', 'Crop_Potato', 'Crop_Wheat'],
+}]
+const schema19Snapshot = {
+  ...schema18Snapshot,
+  schemaVersion: 19,
+  cropFarms: {
+    ...cropFarms,
+    entities: cropFarmEntities,
+  },
+}
+const chickenFarmEntities = [
+  {
+    entityId: 701,
+    prototypeId: 'ChickenFarm',
+    running: true,
+    slaughtering: true,
+    chickens: 500,
+    zones: [{ id: 12, name: 'Chicken Farms' }],
+  },
+  ...[500, 500, 500, 350].map((chickens, index) => ({
+    entityId: 702 + index,
+    prototypeId: 'ChickenFarm',
+    running: false,
+    slaughtering: true,
+    chickens,
+    zones: [{ id: 12, name: 'Chicken Farms' }],
+  })),
+]
+const schema20Snapshot = {
+  ...schema19Snapshot,
+  schemaVersion: 20,
+  chickenFarms: {
+    ...chickenFarms,
+    entities: chickenFarmEntities,
+  },
+}
+const schema21Snapshot = {
+  ...schema20Snapshot,
+  schemaVersion: 21,
+  saveId: 'Carbon Island',
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -289,7 +369,46 @@ describe('game-state snapshot validation', () => {
       computing,
       chickenFarms,
       cropFarms,
+      machines: [],
     })
+    expect(normalizeGameStateSnapshot(schema17Snapshot)).toMatchObject({
+      schemaVersion: 17,
+      machines: machines.map(machine => ({ ...machine, zones: [] })),
+    })
+    expect(normalizeGameStateSnapshot(schema18Snapshot)).toMatchObject({
+      schemaVersion: 18,
+      machines: zonedMachines,
+    })
+    expect(normalizeGameStateSnapshot(schema19Snapshot)).toMatchObject({
+      schemaVersion: 19,
+      cropFarms: {
+        configurations: cropFarms.configurations,
+        entities: cropFarmEntities,
+      },
+    })
+    expect(normalizeGameStateSnapshot(schema20Snapshot)).toMatchObject({
+      schemaVersion: 20,
+      saveId: null,
+      chickenFarms: {
+        configurations: chickenFarms.configurations,
+        entities: chickenFarmEntities,
+      },
+    })
+    expect(normalizeGameStateSnapshot(schema21Snapshot)).toMatchObject({
+      schemaVersion: 21,
+      saveId: 'Carbon Island',
+    })
+  })
+
+  it('requires a non-empty save identity in schema 21', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema21Snapshot,
+      saveId: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema21Snapshot,
+      saveId: '   ',
+    })).toBeNull()
   })
 
   it('requires rocket infrastructure counts in schema 14', () => {
@@ -352,6 +471,83 @@ describe('game-state snapshot validation', () => {
           ...cropFarms.configurations[0],
           schedule: ['Crop_Potato'],
         }],
+      },
+    })).toBeNull()
+  })
+
+  it('requires a uniquely identified machine inventory in schema 17', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema17Snapshot,
+      machines: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema17Snapshot,
+      machines: [machines[0], machines[0]],
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema17Snapshot,
+      machines: [{ ...machines[0], running: 'yes' }],
+    })).toBeNull()
+  })
+
+  it('requires stable, unique greenhouse entities in schema 19', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema19Snapshot,
+      cropFarms,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema19Snapshot,
+      cropFarms: {
+        ...cropFarms,
+        entities: [cropFarmEntities[0], cropFarmEntities[0]],
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema19Snapshot,
+      cropFarms: {
+        ...cropFarms,
+        entities: [{ ...cropFarmEntities[0], running: 'yes' }],
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema19Snapshot,
+      cropFarms: {
+        ...cropFarms,
+        entities: [],
+      },
+    })).toBeNull()
+  })
+
+  it('requires stable, consistent chicken farm entities in schema 20', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema20Snapshot,
+      chickenFarms,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema20Snapshot,
+      chickenFarms: {
+        ...chickenFarms,
+        entities: [chickenFarmEntities[0], chickenFarmEntities[0]],
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema20Snapshot,
+      chickenFarms: {
+        ...chickenFarms,
+        entities: chickenFarmEntities.map((entity, index) => (
+          index === 0 ? { ...entity, chickens: 450 } : entity
+        )),
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema20Snapshot,
+      chickenFarms: {
+        ...chickenFarms,
+        entities: chickenFarmEntities.map((entity, index) => (
+          index === 0
+            ? { ...entity, zones: [{ id: 12, name: 'Chicken Farms' }, { id: 12, name: 'Other' }] }
+            : entity
+        )),
       },
     })).toBeNull()
   })

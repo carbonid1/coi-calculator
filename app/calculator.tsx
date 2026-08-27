@@ -55,6 +55,10 @@ import {
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
 } from './db/modules/farms'
+import {
+  createGeneralModule,
+  GENERAL_MODULE_ID,
+} from './db/modules/general'
 import { createHousingModule, HOUSING_MODULE_ID } from './db/modules/housing'
 import { createMaintenanceModule, MAINTENANCE_MODULE_ID } from './db/modules/maintenance'
 import { MINES_MODULE_ID } from './db/modules/mines'
@@ -89,6 +93,11 @@ import {
   plannedRocketInfrastructureConfig,
   type RocketInfrastructureConfig,
 } from './db/rocket-infrastructure'
+import {
+  GENERAL_GROUNDWATER_CLAIM_ID,
+  GREENHOUSES_GROUNDWATER_CLAIM_ID,
+  groundwaterPumpClaims,
+} from './db/shared-machine-claims'
 import { emptySolarPanelCounts, solarPanelOrder, solarPanels } from './db/solar'
 import {
   calculateRocketIiRecurringLogistics,
@@ -102,6 +111,8 @@ import {
 } from './db/static-infrastructure'
 import { calculateUnityBudget } from './db/unity'
 import {
+  MACHINE_INVENTORY_SCHEMA_VERSION,
+  MACHINE_ZONE_SCHEMA_VERSION,
   ROCKET_INFRASTRUCTURE_SCHEMA_VERSION,
   syncedInfrastructureBuildingIds,
   syncedRocketBuildingIds,
@@ -114,6 +125,10 @@ import { calculateBuildingStats } from './helpers/building-stats/building-stats'
 import { type ProductionLine } from './helpers/calculate/calculate'
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
+import {
+  allocateSharedMachines,
+  type MachineZoneAssignments,
+} from './helpers/machine-allocation/machine-allocation'
 import { calculateCropFarmingModifiers } from './helpers/modifiers/calculate-crop-farming'
 import { calculateFoodConsumption } from './helpers/modifiers/calculate-food-consumption'
 import { calculateHousingCapacity } from './helpers/modifiers/calculate-housing-capacity'
@@ -131,8 +146,10 @@ import { extractModuleResult } from './helpers/module-result/module-result'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import {
   getSyncedChickenFarmConfigurations,
+  getSyncedChickenFarmEntities,
   getSyncedComputingConfigs,
   getSyncedCropFarmConfigurations,
+  getSyncedCropFarmEntities,
 } from './helpers/synced-production-config/synced-production-config'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 
@@ -144,18 +161,12 @@ const groupLabels: Record<RecipeGroup, string> = {
   sink: 'Sinks',
 }
 
-const conciseSourceLabelModuleIds = new Set([
-  SPACE_STATION_MODULE_ID,
-  COMPUTING_MODULE_ID,
-  CHICKEN_FARMS_MODULE_ID,
-  GREENHOUSES_MODULE_ID,
-])
-
 const groupOrder: RecipeGroup[] = ['source', 'electricity', 'production', 'waste', 'sink']
 
 const FACTORY_TOTAL_ID = 'factory-total'
 const CONTRACTS_ID = 'contracts'
 const MODIFIERS_ID = 'modifiers'
+const MACHINE_ZONE_ASSIGNMENTS_KEY = 'coi-machine-zone-assignments-v1'
 
 const groupSharedProductionLines = (lines: ProductionLine[]) => {
   const groups: { key: string; lines: ProductionLine[] }[] = []
@@ -217,15 +228,79 @@ interface Props {
 }
 
 export const Calculator: React.FC<Props> = ({ initialGameState }) => {
+  const gameState = useGameState(initialGameState)
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID)
+  const [machineZoneAssignments, setMachineZoneAssignments] =
+    useState<MachineZoneAssignments>({})
   const [buildingTarget, setBuildingTarget] = useState<{
     key: string
     moduleId: string
   } | null>(null)
+  const machineZoneAssignmentsStorageKey = gameState.snapshot?.saveId
+    ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
+    : null
 
   useEffect(() => {
     legacySettingKeys.forEach(key => window.localStorage.removeItem(key))
-  }, [])
+    window.localStorage.removeItem(MACHINE_ZONE_ASSIGNMENTS_KEY)
+
+    if (!machineZoneAssignmentsStorageKey) {
+      const animationFrame = window.requestAnimationFrame(() => {
+        setMachineZoneAssignments({})
+      })
+
+      return () => window.cancelAnimationFrame(animationFrame)
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      try {
+        const stored: unknown = JSON.parse(
+          window.localStorage.getItem(machineZoneAssignmentsStorageKey) ?? '{}',
+        )
+
+        if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
+          setMachineZoneAssignments({})
+          return
+        }
+
+        const assignments: Record<number, string> = {}
+
+        for (const [zoneId, claimId] of Object.entries(stored)) {
+          if (
+            /^-?\d+$/.test(zoneId)
+            && typeof claimId === 'string'
+            && groundwaterPumpClaims.some(claim => claim.id === claimId)
+          ) {
+            assignments[Number(zoneId)] = claimId
+          }
+        }
+
+        setMachineZoneAssignments(assignments)
+      } catch {
+        window.localStorage.removeItem(machineZoneAssignmentsStorageKey)
+        setMachineZoneAssignments({})
+      }
+    })
+
+    return () => window.cancelAnimationFrame(animationFrame)
+  }, [machineZoneAssignmentsStorageKey])
+
+  const assignMachineZone = (zoneId: number, claimId: string | null) => {
+    setMachineZoneAssignments(current => {
+      const next = { ...current }
+
+      if (claimId) {
+        next[zoneId] = claimId
+      } else {
+        delete next[zoneId]
+      }
+
+      if (machineZoneAssignmentsStorageKey) {
+        window.localStorage.setItem(machineZoneAssignmentsStorageKey, JSON.stringify(next))
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!buildingTarget || buildingTarget.moduleId !== activeModuleId) return undefined
@@ -259,7 +334,19 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     setActiveModuleId(diagnostic.moduleId)
   }
 
-  const gameState = useGameState(initialGameState)
+  const sharedMachineAllocation = gameState.snapshot
+    && gameState.snapshot.schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION
+    ? allocateSharedMachines(
+        gameState.snapshot.machines,
+        groundwaterPumpClaims,
+        machineZoneAssignments,
+        gameState.snapshot.schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION,
+      )
+    : null
+  const greenhousesGroundwaterResolution = sharedMachineAllocation
+    ?.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID]
+  const generalGroundwaterResolution = sharedMachineAllocation
+    ?.claims[GENERAL_GROUNDWATER_CLAIM_ID]
   const staticInfrastructureBuiltConfig: StaticInfrastructureConfig = {
     ...emptyStaticInfrastructureConfig,
   }
@@ -384,20 +471,38 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const currentChickenConfigurations = gameState.snapshot?.chickenFarms
     ? getSyncedChickenFarmConfigurations(gameState.snapshot.chickenFarms)
     : null
+  const currentChickenFarmEntities = gameState.snapshot?.chickenFarms
+    ? getSyncedChickenFarmEntities(gameState.snapshot.chickenFarms)
+    : null
+  const currentCropFarmConfigurations = gameState.snapshot?.cropFarms
+    ? getSyncedCropFarmConfigurations(gameState.snapshot.cropFarms)
+    : null
+  const currentCropFarmEntities = gameState.snapshot?.cropFarms
+    ? getSyncedCropFarmEntities(gameState.snapshot.cropFarms)
+    : null
   const plannedChickenFarmLayout = resolvedChickenFarmSettings.value
+  const ownedChickenFarmEntities = currentChickenFarmEntities?.filter(entity => (
+    entity.zones.some(zone => zone.name === 'Chicken Farms')
+  )) ?? []
   const desiredChickenConfigurations = currentChickenConfigurations?.filter(
-    configuration => (
-      configuration.slaughtering === plannedChickenFarmLayout.slaughtering
-    ),
+    configuration => configuration.slaughtering === plannedChickenFarmLayout.slaughtering,
   ) ?? []
-  const desiredRunningChickenFarms = desiredChickenConfigurations.reduce(
-    (total, configuration) => total + configuration.running,
-    0,
-  )
-  const desiredRunningChickens = desiredChickenConfigurations.reduce(
-    (total, configuration) => total + configuration.runningChickens,
-    0,
-  )
+  const desiredRunningChickenFarms = currentChickenFarmEntities?.length
+    ? ownedChickenFarmEntities.filter(entity => (
+        entity.running && entity.slaughtering === plannedChickenFarmLayout.slaughtering
+      )).length
+    : desiredChickenConfigurations.reduce(
+        (total, configuration) => total + configuration.running,
+        0,
+      )
+  const desiredRunningChickens = currentChickenFarmEntities?.length
+    ? ownedChickenFarmEntities.filter(entity => (
+        entity.running && entity.slaughtering === plannedChickenFarmLayout.slaughtering
+      )).reduce((total, entity) => total + entity.chickens, 0)
+    : desiredChickenConfigurations.reduce(
+        (total, configuration) => total + configuration.runningChickens,
+        0,
+      )
   const plannedChickenFarmCount = getChickenFarmLayout(
     plannedChickenFarmLayout.totalChickenCount,
   ).farmCount
@@ -414,7 +519,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     : plannedChickenFarmLayout
   const housingCount = resolvedHousingCount.value
 
-  const configuredModules = modules.map(module => {
+  const configureModules = () => modules.map(module => {
+    if (module.id === GENERAL_MODULE_ID) {
+      return createGeneralModule(generalGroundwaterResolution)
+    }
+
     if (module.id === STATIC_INFRASTRUCTURE_MODULE_ID) {
       return createStaticInfrastructureModule(
         staticInfrastructureBuiltConfig,
@@ -458,15 +567,20 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         resolvedChickenFarmSettings.source,
         currentChickenConfigurations ? 'synced' : resolvedCurrentChickenFarmSettings.source,
         currentChickenConfigurations ?? undefined,
+        undefined,
+        currentChickenFarmEntities?.length ? currentChickenFarmEntities : undefined,
       )
     }
 
     if (module.id === GREENHOUSES_MODULE_ID) {
-      return gameState.snapshot?.cropFarms
+      return currentCropFarmConfigurations
         ? createGreenhousesModule(
             activeCropFarmGroups,
-            getSyncedCropFarmConfigurations(gameState.snapshot.cropFarms),
+            currentCropFarmConfigurations,
             'synced',
+            undefined,
+            greenhousesGroundwaterResolution,
+            currentCropFarmEntities ?? undefined,
           )
         : createGreenhousesModule()
     }
@@ -515,6 +629,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
     return module
   })
+  const configuredModules = configureModules()
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
   const populationCapacity = calculatePopulationCapacity(
     activeHousingType,
@@ -532,21 +647,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       ? defaultSpaceStationLevel.researchEfficiencyBonusPercent
       : 0,
   })
-
-  const isModifiers = activeModuleId === MODIFIERS_ID
-  const isContracts = activeModuleId === CONTRACTS_ID
-  const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID
-  const activeModule =
-    isModifiers || isContracts || isFactoryTotal
-      ? null
-      : (configuredModules.find(m => m.id === activeModuleId) ?? configuredModules[0])
-
-  const preset =
-    activeModule && activeModule.defaultPresetId
-      ? (activeModule.presets.find(p => p.id === activeModule.defaultPresetId) ??
-        activeModule.presets[0] ??
-        null)
-      : null
 
   const recyclingEfficiencyPercent = calculateRecyclingEfficiency(
     edictLevels.recyclingIncrease,
@@ -611,6 +711,19 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     shipsFuelUse.multiplier,
     1 + focusBonuses.contractsProfitability / 100,
   )
+  const isModifiers = activeModuleId === MODIFIERS_ID
+  const isContracts = activeModuleId === CONTRACTS_ID
+  const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID
+  const activeModule =
+    isModifiers || isContracts || isFactoryTotal
+      ? null
+      : (configuredModules.find(m => m.id === activeModuleId) ?? configuredModules[0])
+  const preset =
+    activeModule && activeModule.defaultPresetId
+      ? (activeModule.presets.find(p => p.id === activeModule.defaultPresetId) ??
+        activeModule.presets[0] ??
+        null)
+      : null
   const reserveDrawsPerProductionCycle = mapReserveResources(({ recipeId, resourceId }) =>
     getReserveDrawPerProductionCycle(factoryResult.calculation.sourceResults, recipeId, resourceId),
   )
@@ -846,7 +959,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           groupByBalance
           regularResults={factoryResult.calculation.regularResults}
           buildingDiagnostics={factoryBuildingDiagnostics}
+          machineAllocationIssues={sharedMachineAllocation?.issues}
+          machineInventory={sharedMachineAllocation?.inventory}
+          machineZoneClaims={groundwaterPumpClaims}
+          machineZones={sharedMachineAllocation?.zones}
           plannedModules={configuredModules}
+          onAssignMachineZone={assignMachineZone}
           onOpenBuilding={openBuilding}
         />
       )}
@@ -1019,7 +1137,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                               focused={buildingTarget?.key === targetKey}
                               targetKey={targetKey}
                             >
-                              <SinkCard dataSource={line.dataSource} result={result} role="sink" />
+                              <SinkCard
+                                dataSource={line.dataSource}
+                                result={result}
+                                role="sink"
+                              />
                             </BuildingCardTarget>
                           ) : null
                         }
@@ -1091,7 +1213,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                               actualInputs={result?.actualInputs}
                               actualOutputs={result?.actualOutputs}
                               outputModifiers={outputModifiers}
-                              showDataSourceLabel={conciseSourceLabelModuleIds.has(line.moduleId)}
                             />
                           </BuildingCardTarget>
                         )

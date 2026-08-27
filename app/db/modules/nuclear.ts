@@ -5,8 +5,8 @@ import {
 import { type Module } from "./modules";
 
 export const NUCLEAR_MODULE_ID = "nuclear";
-const BUILT_HYDROGEN_REFORMER_COUNT = 6;
-const ACTIVE_HYDROGEN_REFORMER_COUNT = 5;
+const BUILT_HYDROGEN_REFORMER_COUNT = 8;
+const ACTIVE_HYDROGEN_REFORMER_COUNT = 8;
 const SEAWATER_PUMP_COUNT = 4;
 const DEPLETED_DESALINATOR_COUNT = 4;
 const SUPER_DESALINATOR_COUNT = 6;
@@ -151,7 +151,9 @@ export const createNuclearModule = (
               "turbine-high": "planned",
               "turbine-low": "planned",
               "power-generator-ii-nuclear": "planned",
-              "hydrogen-reformer-super": "planned",
+              ...(plan.hydrogenReformerCount !== ACTIVE_HYDROGEN_REFORMER_COUNT
+                ? { "hydrogen-reformer-super": "planned" as const }
+                : {}),
               "electrolyzer-ii-chlorine": "planned",
               "evaporation-pond-heated-salt-brine": "planned",
               "thermal-desalinator-super": "planned",

@@ -5,6 +5,7 @@ import {
   cropFarmGroups,
   cropFarmTiers,
   fertilizers,
+  type CropFarmGroup,
 } from './crop-farming'
 import { activeHousingType } from './housing'
 import { maintenanceStatue } from './maintenance-statue'
@@ -31,6 +32,8 @@ export interface Ingredient {
   outputModifierId?: OutputModifierId
   /** Applies the configured seed's finite-buffer farm rainfall simulation. */
   weatherAdjustedFarmId?: string
+  /** Runtime-defined farm configuration used when no static farm ID exists. */
+  weatherAdjustedFarm?: CropFarmGroup
 }
 
 export type RecipeGroup = 'source' | 'electricity' | 'production' | 'waste' | 'sink'
@@ -157,7 +160,7 @@ const housingPopulationFlows = calculateSettlementPopulationFlows(
   activeHousingType,
 )
 
-export const cropFarmRecipes: Recipe[] = cropFarmGroups.map(group => {
+export const createCropFarmRecipe = (group: CropFarmGroup): Recipe => {
   const rates = calculateCropFarmGroupRates(group)
   const fertilizerDefinition = group.fertilizer ? fertilizers[group.fertilizer.id] : null
   const fertilizerInput = fertilizerDefinition
@@ -188,6 +191,7 @@ export const cropFarmRecipes: Recipe[] = cropFarmGroups.map(group => {
         quantity: rates.waterPerMonth,
         inputModifierId: 'cropWater',
         weatherAdjustedFarmId: group.id,
+        weatherAdjustedFarm: group,
       },
       ...fertilizerInput,
     ],
@@ -197,7 +201,9 @@ export const cropFarmRecipes: Recipe[] = cropFarmGroups.map(group => {
       outputModifierId: 'cropYield',
     })),
   }
-})
+}
+
+export const cropFarmRecipes: Recipe[] = cropFarmGroups.map(createCropFarmRecipe)
 
 export const recipes: Recipe[] = [
   // Sources
@@ -236,6 +242,16 @@ export const recipes: Recipe[] = [
     // Pumps are physically piped inside their module. Do not let spare pump
     // capacity in one network supply a different module's desalination plant.
     sourceMode: 'module-demand-capped',
+  },
+  {
+    id: 'coal-map-mine',
+    name: 'Coal (Map Mine)',
+    building: 'Coal Mine',
+    group: 'source',
+    inputs: [],
+    outputs: [{ resourceId: 'coal', quantity: 0 }],
+    sourceMode: 'demand',
+    sourceKind: 'map-mine',
   },
   {
     id: 'copper-map-mine',

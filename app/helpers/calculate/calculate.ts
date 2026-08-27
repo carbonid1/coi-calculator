@@ -1072,6 +1072,87 @@ export const calculateNet = (
     };
   });
 
+  // Recovery sinks such as Cooling Towers can produce useful resources after
+  // demand sources have already been allocated. Displace those fallback
+  // sources immediately so a later disposal sink cannot consume recovered
+  // material while an avoidable source is still running.
+  const displaceDemandSources = () => {
+    for (const [resourceId, flow] of flows) {
+      let excess = Math.max(0, flow.produced - flow.consumed);
+
+      if (excess <= 1e-9) continue;
+
+      // Reverse order preserves declaration priority: later fallback sources
+      // (Groundwater Pumps) are reduced before earlier sources.
+      for (const result of sourceResults.toReversed()) {
+        if (
+          !result.recipe.sourceMode
+          || result.recipe.sourceMode === "module-demand-capped"
+          || excess <= 1e-9
+        ) continue;
+
+        const actualOutput = result.actualOutputs.find(
+          (output) => output.resourceId === resourceId,
+        );
+
+        if (!actualOutput || actualOutput.quantity <= 0) continue;
+
+        const previousScale = result.actualOutputs.reduce((maximum, actual) => {
+          const declared = result.recipe.outputs.find(
+            (output) => output.resourceId === actual.resourceId,
+          );
+          const declaredQuantity = declared
+            ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
+            : 0;
+
+          return declaredQuantity > 0
+            ? Math.max(maximum, actual.quantity / declaredQuantity)
+            : maximum;
+        }, 0);
+        const reduction = Math.min(actualOutput.quantity, excess);
+
+        actualOutput.quantity -= reduction;
+        flow.produced -= reduction;
+        getActualModuleFlow(result.moduleId, resourceId).produced -= reduction;
+        excess -= reduction;
+
+        const nextScale = result.actualOutputs.reduce((maximum, actual) => {
+          const declared = result.recipe.outputs.find(
+            (output) => output.resourceId === actual.resourceId,
+          );
+          const declaredQuantity = declared
+            ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
+            : 0;
+
+          return declaredQuantity > 0
+            ? Math.max(maximum, actual.quantity / declaredQuantity)
+            : maximum;
+        }, 0);
+
+        result.supplyRatio = result.activeBuildings > 0
+          ? Math.min(1, nextScale / result.activeBuildings)
+          : 0;
+
+        if (nextScale >= previousScale) continue;
+
+        for (const actualInput of result.actualInputs) {
+          const declared = result.recipe.inputs.find(
+            (input) => input.resourceId === actualInput.resourceId,
+          );
+
+          if (!declared) continue;
+
+          const nextQuantity = getRecipeInputQuantity(declared, outputModifiers) * nextScale;
+          const inputReduction = actualInput.quantity - nextQuantity;
+
+          getFlow(actualInput.resourceId).consumed -= inputReduction;
+          getActualModuleFlow(result.moduleId, actualInput.resourceId).consumed -= inputReduction;
+          actualInput.quantity = nextQuantity;
+        }
+      }
+    }
+  };
+
   // Sinks absorb excess (sequential priority)
   const sinkResults: PassiveResult[] = [];
   const sinkCapacityTracker = createCapacityTracker(sinkLines);
@@ -1168,76 +1249,8 @@ export const calculateNet = (
       actualInputs,
       actualOutputs,
     });
-  }
 
-  // Excess-processing recipes can create useful byproducts after sources were
-  // allocated (for example, cooling towers return Water). Let those late
-  // outputs displace demand sources instead of leaving artificial surplus.
-  // Reverse order preserves the source declaration priority used above.
-  for (const [resourceId, flow] of flows) {
-    let excess = Math.max(0, flow.produced - flow.consumed);
-
-    if (excess <= 1e-9) continue;
-
-    for (const result of sourceResults.toReversed()) {
-      if (
-        !result.recipe.sourceMode
-        || result.recipe.sourceMode === "module-demand-capped"
-        || excess <= 1e-9
-      ) continue;
-
-      const actualOutput = result.actualOutputs.find(
-        (output) => output.resourceId === resourceId,
-      );
-
-      if (!actualOutput || actualOutput.quantity <= 0) continue;
-
-      const previousScale = result.actualOutputs.reduce((maximum, actual) => {
-        const declared = result.recipe.outputs.find(
-          (output) => output.resourceId === actual.resourceId,
-        );
-        const declaredQuantity = declared
-          ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
-          : 0;
-
-        return declaredQuantity > 0
-          ? Math.max(maximum, actual.quantity / declaredQuantity)
-          : maximum;
-      }, 0);
-      const reduction = Math.min(actualOutput.quantity, excess);
-
-      actualOutput.quantity -= reduction;
-      flow.produced -= reduction;
-      excess -= reduction;
-
-      const nextScale = result.actualOutputs.reduce((maximum, actual) => {
-        const declared = result.recipe.outputs.find(
-          (output) => output.resourceId === actual.resourceId,
-        );
-        const declaredQuantity = declared
-          ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
-          : 0;
-
-        return declaredQuantity > 0
-          ? Math.max(maximum, actual.quantity / declaredQuantity)
-          : maximum;
-      }, 0);
-
-      if (nextScale >= previousScale) continue;
-
-      for (const actualInput of result.actualInputs) {
-        const declared = result.recipe.inputs.find(
-          (input) => input.resourceId === actualInput.resourceId,
-        );
-
-        if (!declared) continue;
-
-        const nextQuantity = getRecipeInputQuantity(declared, outputModifiers) * nextScale;
-
-        getFlow(actualInput.resourceId).consumed -= actualInput.quantity - nextQuantity;
-        actualInput.quantity = nextQuantity;
-      }
-    }
+    if (actualOutputs.length > 0) displaceDemandSources();
   }
 
   // Identify source-produced resources

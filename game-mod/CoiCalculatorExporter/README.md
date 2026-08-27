@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.15 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.20 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -26,6 +26,29 @@ Water Chillers; Chicken Farm mode and population; and Greenhouse/Greenhouse II
 crop schedules with fertility targets. These configuration values are sampled
 from the loaded entities on every export, so in-game setting changes do not
 depend on a building event.
+Schema 17 starts the shared machine inventory with every completed Groundwater
+Pump's stable entity ID, runtime prototype, pause state, custom title, and map
+tile. Schema 18 adds every non-default vehicle zone containing the machine,
+identified by its stable save-local ID and optional in-game name. Factory Total
+can map a zone once to an abstract calculator module; all current and future
+tracked machines inside that zone follow the mapping without per-machine names.
+Exact module-name matches resolve automatically. A machine outside every
+non-default zone is shown under Default, which the calculator assigns to
+General. Overlapping mapped zones remain explicit conflicts rather than being
+guessed.
+Schema 19 adds one record per completed Greenhouse and Greenhouse II, including
+its stable save-local entity ID, pause state, crop schedule, and fertility
+target. The calculator uses these identities to layer planned configurations
+over existing buildings without counting both the live and planned versions.
+Schema 20 adds one record per completed Chicken Farm, including its stable
+save-local entity ID, pause state, slaughtering mode, chicken population, and
+vehicle-zone membership. The calculator assigns a farm to the `Chicken Farms`
+module only through an exact `Chicken Farms` zone-name match. Plans may reuse an
+unassigned physical farm, but keep the required zone assignment visible until
+the game snapshot confirms it.
+Schema 21 adds the loaded game's stable name so browser-owned vehicle-zone
+mappings are isolated per save instead of reusing save-local zone IDs across
+different games.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as

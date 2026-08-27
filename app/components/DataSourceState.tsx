@@ -9,7 +9,7 @@ interface DataSourcePresentation {
   surfaceClassName: string;
 }
 
-const getDataSourceMode = (source: ValueSource): DataSourceMode => (
+export const getDataSourceMode = (source: ValueSource): DataSourceMode => (
   source === "default" ? "modeled" : source
 );
 
@@ -32,7 +32,7 @@ const dataSourcePresentations: Record<DataSourceMode, DataSourcePresentation> = 
     description: "Future override of synced and modeled values",
     surfaceClassName: cn(
       "border-dashed border-highlight/70",
-      "bg-card shadow-none",
+      "bg-[color-mix(in_oklab,var(--card)_94%,var(--highlight))] shadow-none",
     ),
   },
 };

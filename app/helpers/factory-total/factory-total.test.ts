@@ -52,7 +52,7 @@ describe("Factory Total contracts", () => {
 
   });
 
-  it("keeps one Hydrogen Reformer paused while five expose the expanded deficit", () => {
+  it("uses all eight current Hydrogen Reformers to cover the expanded demand", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
     const reformer = result.calculation.regularResults.find(
       ({ recipe }) => recipe.id === "hydrogen-reformer-super",
@@ -64,10 +64,9 @@ describe("Factory Total contracts", () => {
       ({ resourceId }) => resourceId === "hydrogen",
     );
 
-    expect(reformer).toMatchObject({ activeBuildings: 5, builtBuildings: 6 });
-    expect(hydrogenOutput).toBeGreaterThan(4 * 32);
-    expect(hydrogenOutput).toBeCloseTo(5 * 32);
-    expect(hydrogen?.net).toBeCloseTo(-53.545798324);
+    expect(reformer).toMatchObject({ activeBuildings: 8, builtBuildings: 8 });
+    expect(hydrogenOutput).toBeGreaterThan(5 * 32);
+    expect(hydrogen?.net).toBeCloseTo(0);
   });
 
   it("balances the Iron Ore contract against live factory demand", () => {
@@ -162,7 +161,26 @@ describe("Factory Total contracts", () => {
     expect(ammoniaContract?.imported).toBeGreaterThan(0);
     expect(ammoniaContract?.uncoveredImported).toBe(0);
     expect(localAmmonia).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
-    expect(localNitrogen).toMatchObject({ activeBuildings: 1, supplyRatio: 1 });
+    expect(localNitrogen).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
+  });
+
+  it("mines Coal on demand while every local Coal Maker is paused", () => {
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const coalMaker = result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "coal-maker-wood",
+    );
+    const coalMine = result.calculation.sourceResults.find(
+      ({ recipe }) => recipe.id === "coal-map-mine",
+    );
+    const coal = result.flows.find((flow) => flow.resourceId === "coal");
+    const minedCoal = coalMine?.actualOutputs.find(
+      ({ resourceId }) => resourceId === "coal",
+    )?.quantity ?? 0;
+
+    expect(coalMaker).toMatchObject({ activeBuildings: 0, builtBuildings: 3 });
+    expect(minedCoal).toBeGreaterThan(0);
+    expect(coal).toMatchObject({ net: 0 });
+    expect(minedCoal).toBeCloseTo(coal?.consumed ?? 0, 5);
   });
 
   it("keeps uncovered Uranium demand visible instead of resizing the contract", () => {

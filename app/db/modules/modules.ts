@@ -1,5 +1,6 @@
 import { type PlanDirection } from "../../helpers/resolve-layered-value/resolve-directional-plan";
 import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
+import { type Recipe } from "../recipes";
 import { type ResourceId } from "../resources";
 import { computing } from "./computing";
 import { chickenFarms, greenhouses } from "./farms";
@@ -54,6 +55,7 @@ export interface PlanMismatch {
 
 export interface PlanMismatchAction {
   type:
+    | "assign"
     | "build"
     | "pause"
     | "unpause"
@@ -80,6 +82,8 @@ export interface Module {
   includedInFactoryTotals?: boolean;
   /** Physical buildings present in the factory, including paused buildings. */
   builtBuildings: Record<string, number>;
+  /** Runtime-defined recipes owned by this module. */
+  recipes?: readonly Recipe[];
   presets: Preset[];
   defaultPresetId: string | null;
   /** Resources reported inside this module but intentionally excluded from Factory Total. */

@@ -14,6 +14,7 @@ using Mafi.Core.Entities;
 using Mafi.Core.Entities.Static;
 using Mafi.Core.Factory.Datacenters;
 using Mafi.Core.Factory.ElectricPower;
+using Mafi.Core.Factory.WellPumps;
 using Mafi.Core.Game;
 using Mafi.Core.GameLoop;
 using Mafi.Core.Maintenance;
@@ -139,6 +140,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         createTrackedEdictTiers();
 
     private IVehiclesManager m_vehiclesManager;
+    private ILogisticsZonesManager m_logisticsZonesManager;
+    private GameNameConfig m_gameNameConfig;
     private IEntitiesManager m_entitiesManager;
     private IConstructionManager m_constructionManager;
     private ElectricityManager m_electricityManager;
@@ -167,7 +170,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 15; } }
+    public int Version { get { return 20; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -198,6 +201,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     public void Initialize(DependencyResolver resolver, bool gameWasLoaded)
     {
         m_vehiclesManager = resolver.Resolve<IVehiclesManager>();
+        m_logisticsZonesManager = resolver.Resolve<ILogisticsZonesManager>();
+        m_gameNameConfig = resolver.Resolve<GameNameConfig>();
         m_entitiesManager = resolver.Resolve<IEntitiesManager>();
         m_constructionManager = resolver.Resolve<IConstructionManager>();
         m_electricityManager = resolver.Resolve<ElectricityManager>();
@@ -323,6 +328,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private void writeSnapshot()
     {
         if (m_vehiclesManager == null
+            || m_logisticsZonesManager == null
+            || m_gameNameConfig == null
             || m_entitiesManager == null
             || m_electricityManager == null
             || m_fuelStatsCollector == null
@@ -353,7 +360,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":16,");
+            json.Append("\"schemaVersion\":21,");
+            appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");
@@ -403,6 +411,39 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     json.Append(',');
                 }
             }
+            json.Append("],\"entities\":[");
+            for (int i = 0; i < production.ChickenFarmEntities.Count; i++)
+            {
+                ChickenFarmEntitySnapshot farm = production.ChickenFarmEntities[i];
+                json.Append('{');
+                appendNumber(json, "entityId", farm.EntityId, true);
+                appendString(json, "prototypeId", ChickenFarmPrototypeId, true);
+                json.Append("\"running\":");
+                json.Append(farm.Running ? "true" : "false");
+                json.Append(',');
+                json.Append("\"slaughtering\":");
+                json.Append(farm.Slaughtering ? "true" : "false");
+                json.Append(',');
+                appendNumber(json, "chickens", farm.Chickens, true);
+                json.Append("\"zones\":[");
+                for (int zoneIndex = 0; zoneIndex < farm.Zones.Count; zoneIndex++)
+                {
+                    LogisticsZoneSnapshot zone = farm.Zones[zoneIndex];
+                    json.Append('{');
+                    appendNumber(json, "id", zone.Id, true);
+                    appendNullableString(json, "name", zone.Name, false);
+                    json.Append('}');
+                    if (zoneIndex < farm.Zones.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("]}");
+                if (i < production.ChickenFarmEntities.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
             json.Append("]},");
             json.Append("\"cropFarms\":{");
             json.Append("\"configurations\":[");
@@ -440,7 +481,79 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     json.Append(',');
                 }
             }
+            json.Append("],\"entities\":[");
+            for (int i = 0; i < production.CropFarmEntities.Count; i++)
+            {
+                CropFarmEntitySnapshot farm = production.CropFarmEntities[i];
+                json.Append('{');
+                appendNumber(json, "entityId", farm.EntityId, true);
+                appendString(json, "prototypeId", farm.PrototypeId, true);
+                json.Append("\"running\":");
+                json.Append(farm.Running ? "true" : "false");
+                json.Append(',');
+                appendNumber(json, "fertilityTargetPercent", farm.FertilityTargetPercent, true);
+                json.Append("\"schedule\":[");
+                for (int scheduleIndex = 0; scheduleIndex < farm.Schedule.Length; scheduleIndex++)
+                {
+                    string cropId = farm.Schedule[scheduleIndex];
+                    if (cropId == null)
+                    {
+                        json.Append("null");
+                    }
+                    else
+                    {
+                        json.Append('"');
+                        appendEscapedString(json, cropId);
+                        json.Append('"');
+                    }
+
+                    if (scheduleIndex < farm.Schedule.Length - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("]}");
+                if (i < production.CropFarmEntities.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
             json.Append("]},");
+            json.Append("\"machines\":[");
+            for (int i = 0; i < production.Machines.Count; i++)
+            {
+                MachineInventorySnapshot machine = production.Machines[i];
+                json.Append('{');
+                appendNumber(json, "entityId", machine.EntityId, true);
+                appendString(json, "kind", "groundwater-pump", true);
+                appendString(json, "prototypeId", machine.PrototypeId, true);
+                json.Append("\"running\":");
+                json.Append(machine.Running ? "true" : "false");
+                json.Append(',');
+                appendNullableString(json, "customTitle", machine.CustomTitle, true);
+                json.Append("\"tile\":{");
+                appendNumber(json, "x", machine.TileX, true);
+                appendNumber(json, "y", machine.TileY, false);
+                json.Append("},\"zones\":[");
+                for (int zoneIndex = 0; zoneIndex < machine.Zones.Count; zoneIndex++)
+                {
+                    LogisticsZoneSnapshot zone = machine.Zones[zoneIndex];
+                    json.Append('{');
+                    appendNumber(json, "id", zone.Id, true);
+                    appendNullableString(json, "name", zone.Name, false);
+                    json.Append('}');
+                    if (zoneIndex < machine.Zones.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("]}");
+                if (i < production.Machines.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("],");
             json.Append("\"vehicles\":{");
             appendNumber(json, "total", m_vehiclesManager.AllVehicles.Count, true);
             appendNumber(json, "workersAssigned", workersAssigned, true);
@@ -574,8 +687,12 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         BuildingCountSnapshot waterChillers = new BuildingCountSnapshot();
         ChickenFarmSnapshot slaughteringFarms = new ChickenFarmSnapshot(true);
         ChickenFarmSnapshot eggsOnlyFarms = new ChickenFarmSnapshot(false);
+        List<ChickenFarmEntitySnapshot> chickenFarmEntities =
+            new List<ChickenFarmEntitySnapshot>();
         Dictionary<string, CropFarmSnapshot> cropFarmConfigurations =
             new Dictionary<string, CropFarmSnapshot>(StringComparer.Ordinal);
+        List<CropFarmEntitySnapshot> cropFarmEntities = new List<CropFarmEntitySnapshot>();
+        List<MachineInventorySnapshot> machines = new List<MachineInventorySnapshot>();
 
         foreach (IEntity entity in m_entitiesManager.Entities)
         {
@@ -587,6 +704,19 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             bool isRunning = !entity.IsPaused;
             string prototypeId = entity.Prototype.Id.ToString();
+            WellPump groundwaterPump = entity as WellPump;
+            if (groundwaterPump != null)
+            {
+                machines.Add(new MachineInventorySnapshot(
+                    entity.Id.Value,
+                    prototypeId,
+                    isRunning,
+                    groundwaterPump.CustomTitle.ValueOrNull,
+                    groundwaterPump.CenterTile.X,
+                    groundwaterPump.CenterTile.Y,
+                    getLogisticsZones(staticEntity)));
+            }
+
             DataCenter dataCenterEntity = entity as DataCenter;
             if (dataCenterEntity != null
                 && String.Equals(prototypeId, DataCenterPrototypeId, StringComparison.Ordinal))
@@ -610,6 +740,12 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     ? slaughteringFarms
                     : eggsOnlyFarms;
                 farm.Add(isRunning, animalFarm.AnimalsCount);
+                chickenFarmEntities.Add(new ChickenFarmEntitySnapshot(
+                    entity.Id.Value,
+                    isRunning,
+                    animalFarm.IsSlaughteringEnabled,
+                    animalFarm.AnimalsCount,
+                    getLogisticsZones(staticEntity)));
                 continue;
             }
 
@@ -632,6 +768,12 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             }
 
             int fertilityTargetPercent = cropFarm.FertilityTargetValue.ToIntPercentRounded();
+            cropFarmEntities.Add(new CropFarmEntitySnapshot(
+                entity.Id.Value,
+                prototypeId,
+                isRunning,
+                schedule,
+                fertilityTargetPercent));
             key.Append('|');
             key.Append(fertilityTargetPercent.ToString(CultureInfo.InvariantCulture));
 
@@ -663,13 +805,55 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             return String.CompareOrdinal(left.Key, right.Key);
         });
+        cropFarmEntities.Sort(delegate(CropFarmEntitySnapshot left, CropFarmEntitySnapshot right)
+        {
+            return left.EntityId.CompareTo(right.EntityId);
+        });
+        machines.Sort(delegate(MachineInventorySnapshot left, MachineInventorySnapshot right)
+        {
+            return left.EntityId.CompareTo(right.EntityId);
+        });
+        chickenFarmEntities.Sort(delegate(
+            ChickenFarmEntitySnapshot left,
+            ChickenFarmEntitySnapshot right)
+        {
+            return left.EntityId.CompareTo(right.EntityId);
+        });
 
         return new ProductionSnapshot(
             dataCenters,
             racks,
             waterChillers,
             chickenFarms,
-            cropFarms);
+            chickenFarmEntities,
+            cropFarms,
+            cropFarmEntities,
+            machines);
+    }
+
+    private List<LogisticsZoneSnapshot> getLogisticsZones(IStaticEntity staticEntity)
+    {
+        List<LogisticsZoneSnapshot> zones = new List<LogisticsZoneSnapshot>();
+        if (staticEntity == null)
+        {
+            return zones;
+        }
+
+        foreach (LogisticsZoneFast zoneFast in m_logisticsZonesManager.PlayerZonesFast)
+        {
+            if (!zoneFast.IsEmpty && zoneFast.Contains(staticEntity))
+            {
+                LogisticsZone zone = zoneFast.Zone;
+                zones.Add(new LogisticsZoneSnapshot(
+                    zone.Id.Value,
+                    zone.CustomName.ValueOrNull));
+            }
+        }
+        zones.Sort(delegate(LogisticsZoneSnapshot left, LogisticsZoneSnapshot right)
+        {
+            return left.Id.CompareTo(right.Id);
+        });
+        return zones;
     }
 
     private static Dictionary<string, int> createTrackedResearchIndices()
@@ -1405,6 +1589,29 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
+    private sealed class ChickenFarmEntitySnapshot
+    {
+        public readonly int EntityId;
+        public readonly bool Running;
+        public readonly bool Slaughtering;
+        public readonly int Chickens;
+        public readonly List<LogisticsZoneSnapshot> Zones;
+
+        public ChickenFarmEntitySnapshot(
+            int entityId,
+            bool running,
+            bool slaughtering,
+            int chickens,
+            List<LogisticsZoneSnapshot> zones)
+        {
+            EntityId = entityId;
+            Running = running;
+            Slaughtering = slaughtering;
+            Chickens = chickens;
+            Zones = zones;
+        }
+    }
+
     private sealed class CropFarmSnapshot
     {
         public readonly string PrototypeId;
@@ -1436,26 +1643,99 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
+    private sealed class CropFarmEntitySnapshot
+    {
+        public readonly int EntityId;
+        public readonly string PrototypeId;
+        public readonly bool Running;
+        public readonly string[] Schedule;
+        public readonly int FertilityTargetPercent;
+
+        public CropFarmEntitySnapshot(
+            int entityId,
+            string prototypeId,
+            bool running,
+            string[] schedule,
+            int fertilityTargetPercent)
+        {
+            EntityId = entityId;
+            PrototypeId = prototypeId;
+            Running = running;
+            Schedule = schedule;
+            FertilityTargetPercent = fertilityTargetPercent;
+        }
+    }
+
     private sealed class ProductionSnapshot
     {
         public readonly BuildingCountSnapshot DataCenters;
         public readonly BuildingCountSnapshot Racks;
         public readonly BuildingCountSnapshot WaterChillers;
         public readonly List<ChickenFarmSnapshot> ChickenFarms;
+        public readonly List<ChickenFarmEntitySnapshot> ChickenFarmEntities;
         public readonly List<CropFarmSnapshot> CropFarms;
+        public readonly List<CropFarmEntitySnapshot> CropFarmEntities;
+        public readonly List<MachineInventorySnapshot> Machines;
 
         public ProductionSnapshot(
             BuildingCountSnapshot dataCenters,
             BuildingCountSnapshot racks,
             BuildingCountSnapshot waterChillers,
             List<ChickenFarmSnapshot> chickenFarms,
-            List<CropFarmSnapshot> cropFarms)
+            List<ChickenFarmEntitySnapshot> chickenFarmEntities,
+            List<CropFarmSnapshot> cropFarms,
+            List<CropFarmEntitySnapshot> cropFarmEntities,
+            List<MachineInventorySnapshot> machines)
         {
             DataCenters = dataCenters;
             Racks = racks;
             WaterChillers = waterChillers;
             ChickenFarms = chickenFarms;
+            ChickenFarmEntities = chickenFarmEntities;
             CropFarms = cropFarms;
+            CropFarmEntities = cropFarmEntities;
+            Machines = machines;
+        }
+    }
+
+    private sealed class MachineInventorySnapshot
+    {
+        public readonly int EntityId;
+        public readonly string PrototypeId;
+        public readonly bool Running;
+        public readonly string CustomTitle;
+        public readonly int TileX;
+        public readonly int TileY;
+        public readonly List<LogisticsZoneSnapshot> Zones;
+
+        public MachineInventorySnapshot(
+            int entityId,
+            string prototypeId,
+            bool running,
+            string customTitle,
+            int tileX,
+            int tileY,
+            List<LogisticsZoneSnapshot> zones)
+        {
+            EntityId = entityId;
+            PrototypeId = prototypeId;
+            Running = running;
+            CustomTitle = customTitle;
+            TileX = tileX;
+            TileY = tileY;
+            Zones = zones;
+        }
+    }
+
+    private sealed class LogisticsZoneSnapshot
+    {
+        public readonly int Id;
+        public readonly string Name;
+
+        public LogisticsZoneSnapshot(int id, string name)
+        {
+            Id = id;
+            Name = name;
         }
     }
 

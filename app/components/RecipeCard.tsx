@@ -27,10 +27,9 @@ interface Props {
   outputModifiers?: RecipeModifierMultipliers;
   diagnostic?: BuildingDiagnostic;
   showConfigurationSummary?: boolean;
-  showDataSourceLabel?: boolean;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true, showDataSourceLabel = false }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -103,8 +102,6 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
                 }
               : undefined
           )}
-          dataSource={dataSource}
-          showDataSourceLabel={showDataSourceLabel}
         />
       </div>
 

@@ -286,6 +286,50 @@ describe("cost-free capacity diagnostics", () => {
   });
 });
 
+describe("synced fallback source diagnostics", () => {
+  const groundwaterPump = recipes.find(
+    (recipe) => recipe.id === "groundwater-pump-factory-reserve",
+  );
+
+  if (!groundwaterPump) throw new Error("Factory reserve Groundwater Pump recipe is missing");
+
+  it("reports an unused synced Groundwater Pump as pauseable without making it planned", () => {
+    const generalModule: Module = {
+      id: "general",
+      name: "General",
+      description: "",
+      builtBuildings: { [groundwaterPump.id]: 3 },
+      presets: [],
+      defaultPresetId: null,
+    };
+    const result: PassiveResult = {
+      recipe: groundwaterPump,
+      moduleId: generalModule.id,
+      dataSource: "synced",
+      activeBuildings: 1,
+      builtBuildings: 3,
+      supplyRatio: 0,
+      actualInputs: [],
+      actualOutputs: [{ resourceId: "water", quantity: 0 }],
+    };
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [generalModule],
+      [],
+      [],
+      [result],
+    );
+
+    expect(diagnostic).toMatchObject({
+      plannedCapacity: false,
+      attention: "can-pause",
+      attentionCount: 1,
+      load: 0,
+      active: 1,
+      built: 3,
+    });
+  });
+});
+
 describe("planned capacity diagnostics", () => {
   const diamondPaste = recipes.find(
     (recipe) => recipe.id === "chemical-plant-ii-diamond-paste-cooking-oil",

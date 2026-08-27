@@ -2,8 +2,10 @@ import { expect, it } from "vitest";
 
 import {
   getSyncedChickenFarmConfigurations,
+  getSyncedChickenFarmEntities,
   getSyncedComputingConfigs,
   getSyncedCropFarmConfigurations,
+  getSyncedCropFarmEntities,
 } from "./synced-production-config";
 
 it("maps computing built and running capacity independently", () => {
@@ -19,6 +21,7 @@ it("maps computing built and running capacity independently", () => {
 
 it("preserves chicken modes and population", () => {
   expect(getSyncedChickenFarmConfigurations({
+    entities: [],
     configurations: [{
       slaughtering: true,
       built: 5,
@@ -35,8 +38,29 @@ it("preserves chicken modes and population", () => {
   }]);
 });
 
+it("preserves chicken farm IDs and exact vehicle-area membership", () => {
+  expect(getSyncedChickenFarmEntities({
+    configurations: [],
+    entities: [{
+      entityId: 84,
+      prototypeId: "ChickenFarm",
+      running: false,
+      slaughtering: true,
+      chickens: 350,
+      zones: [{ id: 12, name: "Chicken Farms" }],
+    }],
+  })).toEqual([{
+    entityId: 84,
+    running: false,
+    slaughtering: true,
+    chickens: 350,
+    zones: [{ id: 12, name: "Chicken Farms" }],
+  }]);
+});
+
 it("maps installed greenhouse prototype and crop IDs to calculator IDs", () => {
   expect(getSyncedCropFarmConfigurations({
+    entities: [],
     configurations: [{
       prototypeId: "FarmT4",
       built: 1,
@@ -50,5 +74,68 @@ it("maps installed greenhouse prototype and crop IDs to calculator IDs", () => {
     running: 1,
     fertilityTargetPercent: 140,
     schedule: ["potato", "fruit", "none", "wheat"],
+  }]);
+});
+
+it("groups greenhouses only when tier, schedule, and fertility configuration are identical", () => {
+  expect(getSyncedCropFarmConfigurations({
+    entities: [],
+    configurations: [
+      {
+        prototypeId: "FarmT4",
+        built: 1,
+        running: 1,
+        fertilityTargetPercent: 140,
+        schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+      },
+      {
+        prototypeId: "FarmT4",
+        built: 2,
+        running: 0,
+        fertilityTargetPercent: 140,
+        schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+      },
+      {
+        prototypeId: "FarmT4",
+        built: 1,
+        running: 0,
+        fertilityTargetPercent: 0,
+        schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+      },
+    ],
+  })).toEqual([
+    {
+      tierId: "greenhouseII",
+      built: 3,
+      running: 1,
+      fertilityTargetPercent: 140,
+      schedule: ["corn", "wheat", "none", "none"],
+    },
+    {
+      tierId: "greenhouseII",
+      built: 1,
+      running: 0,
+      fertilityTargetPercent: 0,
+      schedule: ["corn", "wheat", "none", "none"],
+    },
+  ]);
+});
+
+it("preserves stable greenhouse entity IDs for plan binding", () => {
+  expect(getSyncedCropFarmEntities({
+    configurations: [],
+    entities: [{
+      entityId: 42,
+      prototypeId: "FarmT4",
+      running: false,
+      fertilityTargetPercent: 140,
+      schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+    }],
+  })).toEqual([{
+    entityId: 42,
+    tierId: "greenhouseII",
+    running: false,
+    fertilityTargetPercent: 140,
+    schedule: ["corn", "wheat", "none", "none"],
   }]);
 });

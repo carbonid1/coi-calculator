@@ -1,4 +1,6 @@
+import { type CurrentChickenFarmEntity } from "../../db/chicken-farm";
 import { type ComputingConfig } from "../../db/computing";
+import { type CurrentCropFarmEntity } from "../../db/crop-farming";
 import {
   type CurrentChickenFarmConfiguration,
   type CurrentCropFarmConfiguration,
@@ -46,14 +48,74 @@ export const getSyncedChickenFarmConfigurations = (
   ...configuration,
 }));
 
+export const getSyncedChickenFarmEntities = (
+  state: SyncedChickenFarmState,
+): CurrentChickenFarmEntity[] => (state.entities ?? []).map(entity => ({
+  entityId: entity.entityId,
+  running: entity.running,
+  slaughtering: entity.slaughtering,
+  chickens: entity.chickens,
+  zones: entity.zones,
+}));
+
 export const getSyncedCropFarmConfigurations = (
   state: SyncedCropFarmState,
-): CurrentCropFarmConfiguration[] => state.configurations.map(configuration => ({
-  tierId: configuration.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
-  schedule: configuration.schedule.map(cropId => (
-    cropId === null ? "none" : (gameCropIds[cropId] ?? cropId)
-  )),
-  fertilityTargetPercent: configuration.fertilityTargetPercent,
-  built: configuration.built,
-  running: configuration.running,
-}));
+): CurrentCropFarmConfiguration[] => {
+  const grouped = new Map<string, CurrentCropFarmConfiguration>();
+
+  for (const configuration of state.configurations) {
+    const tierId = configuration.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse";
+    const schedule = configuration.schedule.map(cropId => (
+      cropId === null ? "none" : (gameCropIds[cropId] ?? cropId)
+    ));
+    const key = [tierId, schedule.join("/"), configuration.fertilityTargetPercent].join("|");
+    const existing = grouped.get(key);
+
+    if (existing) {
+      existing.built += configuration.built;
+      existing.running += configuration.running;
+      continue;
+    }
+
+    grouped.set(key, {
+      tierId,
+      schedule,
+      fertilityTargetPercent: configuration.fertilityTargetPercent,
+      built: configuration.built,
+      running: configuration.running,
+    });
+  }
+
+  return [...grouped.values()];
+};
+
+const mapCropSchedule = (schedule: readonly (string | null)[]) => schedule.map(cropId => (
+  cropId === null ? "none" : (gameCropIds[cropId] ?? cropId)
+));
+
+export const getSyncedCropFarmEntities = (
+  state: SyncedCropFarmState,
+): CurrentCropFarmEntity[] => {
+  if (state.entities?.length > 0) {
+    return state.entities.map(entity => ({
+      entityId: entity.entityId,
+      tierId: entity.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
+      schedule: mapCropSchedule(entity.schedule),
+      fertilityTargetPercent: entity.fertilityTargetPercent,
+      running: entity.running,
+    }));
+  }
+
+  let pseudoEntityId = -1;
+
+  return state.configurations.flatMap(configuration => Array.from(
+    { length: configuration.built },
+    (_, index): CurrentCropFarmEntity => ({
+      entityId: pseudoEntityId--,
+      tierId: configuration.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
+      schedule: mapCropSchedule(configuration.schedule),
+      fertilityTargetPercent: configuration.fertilityTargetPercent,
+      running: index < configuration.running,
+    }),
+  ));
+};

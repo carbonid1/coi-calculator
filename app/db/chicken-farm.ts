@@ -9,6 +9,17 @@ export interface ChickenFarmSettings {
   slaughtering: boolean;
 }
 
+export interface CurrentChickenFarmEntity {
+  entityId: number;
+  running: boolean;
+  slaughtering: boolean;
+  chickens: number;
+  zones: readonly {
+    id: number;
+    name: string | null;
+  }[];
+}
+
 /**
  * Captain of Industry v0.8.6 AnimalFarmsData and AnimalFarm runtime values.
  * One in-game month is the calculator's 60-second production cycle.

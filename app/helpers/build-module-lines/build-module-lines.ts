@@ -9,7 +9,10 @@ export const buildModuleLines = (
   outputModifiers: RecipeModifierMultipliers = {},
 ): { lines: ProductionLine[] } => {
   const builtBuildings = preset?.builtBuildings ?? mod.builtBuildings;
-  const visibleRecipes = recipes.filter((recipe) => (
+  const availableRecipes = [...new Map(
+    [...recipes, ...(mod.recipes ?? [])].map(recipe => [recipe.id, recipe]),
+  ).values()];
+  const visibleRecipes = availableRecipes.filter((recipe) => (
     recipe.id in builtBuildings
     || Boolean(preset && recipe.id in preset.activeBuildings)
   ));

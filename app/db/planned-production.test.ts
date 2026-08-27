@@ -155,9 +155,12 @@ describe("planned advanced production", () => {
     }).every((count) => count === 0)).toBe(true);
     expect(generalPreset?.activeBuildings).toMatchObject(plannedGeneralBuildings);
     expect(processSteamPreset?.activeBuildings).toMatchObject(plannedProcessSteamBuildings);
-    expect(generalPreset?.dataSources).toEqual(Object.fromEntries(
-      Object.keys(plannedGeneralBuildings).map((recipeId) => [recipeId, "planned"]),
-    ));
+    expect(generalPreset?.dataSources).toEqual({
+      ...Object.fromEntries(
+        Object.keys(plannedGeneralBuildings).map((recipeId) => [recipeId, "planned"]),
+      ),
+      "groundwater-pump-factory-reserve": "modeled",
+    });
     expect(processSteamPreset?.dataSources).toEqual(Object.fromEntries(
       Object.keys(plannedProcessSteamBuildings).map((recipeId) => [recipeId, "planned"]),
     ));

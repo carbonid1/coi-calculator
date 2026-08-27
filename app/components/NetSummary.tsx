@@ -10,7 +10,14 @@ import {
   type ResourceFlow,
 } from "../helpers/calculate/calculate";
 import { getSurplusCapacityLimit } from "../helpers/capacity-limit/capacity-limit";
+import {
+  type MachineAllocationIssue,
+  type MachineInventorySummary,
+  type MachineZoneSummary,
+  type SharedMachineClaim,
+} from "../helpers/machine-allocation/machine-allocation";
 import { BuildingAttentionView } from "./BuildingAttentionView";
+import { MachineZoneMappingsView } from "./MachineZoneMappingsView";
 import { PlannedBuildsView } from "./PlannedBuildsView";
 
 interface Props {
@@ -25,7 +32,12 @@ interface Props {
   groupByBalance?: boolean;
   regularResults?: RegularResult[];
   buildingDiagnostics?: BuildingDiagnostic[];
+  machineAllocationIssues?: MachineAllocationIssue[];
+  machineInventory?: MachineInventorySummary[];
+  machineZoneClaims?: readonly SharedMachineClaim[];
+  machineZones?: MachineZoneSummary[];
   plannedModules?: Module[];
+  onAssignMachineZone?: (zoneId: number, claimId: string | null) => void;
   onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
 }
 
@@ -128,7 +140,12 @@ export const NetSummary: React.FC<Props> = ({
   groupByBalance = false,
   regularResults = [],
   buildingDiagnostics = [],
+  machineAllocationIssues = [],
+  machineInventory = [],
+  machineZoneClaims = [],
+  machineZones = [],
   plannedModules = [],
+  onAssignMachineZone,
   onOpenBuilding,
 }) => {
   const electricityFlow = flows.find((flow) => flow.resourceId === "electricity");
@@ -460,9 +477,21 @@ export const NetSummary: React.FC<Props> = ({
         <>
           {onOpenBuilding && (
             <>
+              {onAssignMachineZone && (
+                <MachineZoneMappingsView
+                  claims={machineZoneClaims}
+                  zones={machineZones}
+                  onAssign={onAssignMachineZone}
+                />
+              )}
               <PlannedBuildsView
                 diagnostics={buildingDiagnostics}
+                machineAllocationIssues={machineAllocationIssues}
+                machineInventory={machineInventory}
+                machineZoneClaims={machineZoneClaims}
+                machineZones={machineZones}
                 modules={plannedModules}
+                onAssignMachineZone={onAssignMachineZone}
                 onOpenBuilding={onOpenBuilding}
               />
               <BuildingAttentionView

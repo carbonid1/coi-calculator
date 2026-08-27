@@ -14,7 +14,10 @@ import {
   GREENHOUSES_MODULE_ID,
 } from "./farms";
 import { createFbrPowerPlantModule } from "./fbr-power-plant";
-import { general, plannedNewGeneralBuildings } from "./general";
+import {
+  general,
+  plannedNewGeneralBuildings,
+} from "./general";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
 import { plannedProcessSteamBuildings, processSteam } from "./process-steam";
@@ -65,7 +68,7 @@ it("provides two active Rubber Makers for the Ethanol route", () => {
   });
 });
 
-it("unpauses the Air Separator and remembers to pause it after the temporary run", () => {
+it("keeps the Air Separator paused after the temporary run", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -74,17 +77,28 @@ it("unpauses the Air Separator and remembers to pause it after the temporary run
   );
 
   expect(airSeparator).toMatchObject({
-    activeBuildings: 1,
+    activeBuildings: 0,
     builtBuildings: 1,
-    operatingMode: "fixed",
   });
-  expect(preset?.plannedFollowUps).toContainEqual({
-    id: "pause-air-separator-after-temporary-run",
+  expect(preset?.plannedFollowUps).not.toContainEqual(expect.objectContaining({
     recipeId: "air-separator-nitrogen",
-    action: "pause",
-    count: 1,
-    note: "Pause after the temporary production run is complete.",
+  }));
+});
+
+it("pauses every built Coal Maker without planning more", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const coalMaker = buildModuleLines(general, preset ?? null).lines.find(
+    (line) => line.recipe.id === "coal-maker-wood",
+  );
+
+  expect(coalMaker).toMatchObject({
+    activeBuildings: 0,
+    builtBuildings: 3,
   });
+  expect(coalMaker?.dataSource).toBeUndefined();
+  expect(preset?.dataSources?.["coal-maker-wood"]).toBeUndefined();
 });
 
 it("plans one additional Bread Baking Unit and remembers to pause it later", () => {
@@ -314,7 +328,7 @@ it("demand-balances enough Yellowcake for the two-FBR target", () => {
   });
 });
 
-it("keeps Greenhouse Groundwater Pumps local while Mines supplies factory reserve", () => {
+it("keeps Greenhouse Groundwater Pumps local while General supplies factory reserve", () => {
   const result = calculateFactoryTotal(
     modules
       .filter((module) => module.id !== NUCLEAR_MODULE_ID)
@@ -331,8 +345,8 @@ it("keeps Greenhouse Groundwater Pumps local while Mines supplies factory reserv
     ),
   );
   const pumped = groundwater?.actualOutputs[0]?.quantity ?? 0;
-  const minesGroundwater = result.calculation.sourceResults.find((candidate) => (
-    candidate.moduleId === "mines"
+  const generalGroundwater = result.calculation.sourceResults.find((candidate) => (
+    candidate.moduleId === "general"
     && candidate.recipe.id === "groundwater-pump-factory-reserve"
   ));
   const greenhouseWaterConsumed = result.calculation.regularResults.reduce((total, line) => (
@@ -349,9 +363,9 @@ it("keeps Greenhouse Groundwater Pumps local while Mines supplies factory reserv
   expect(groundwater?.activeBuildings).toBe(5);
   expect(pumped).toBeGreaterThan(0);
   expect(pumped).toBeLessThanOrEqual(5 * 48);
-  expect(minesGroundwater).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
-  expect(minesGroundwater?.actualOutputs[0]?.quantity).toBeGreaterThan(0);
-  expect(minesGroundwater?.actualOutputs[0]?.quantity).toBeLessThanOrEqual(48);
+  expect(generalGroundwater).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+  expect(generalGroundwater?.actualOutputs[0]?.quantity).toBeGreaterThan(0);
+  expect(generalGroundwater?.actualOutputs[0]?.quantity).toBeLessThanOrEqual(48);
   expect(chickenWaterConsumed).toBeGreaterThan(0);
   expect(pumped).toBeCloseTo(greenhouseWaterConsumed, 10);
 });

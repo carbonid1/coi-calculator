@@ -1,9 +1,11 @@
+import { type SharedMachineClaimResolution } from "../../helpers/machine-allocation/machine-allocation";
 import {
   defaultRocketIiRecurringLogistics,
 } from "../space-station";
 import { type Module } from "./modules";
 
 export const GENERAL_MODULE_ID = "general";
+export const GENERAL_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
 export const plannedNewGeneralBuildings = {
   "crusher-large-bauxite": 2,
@@ -63,7 +65,6 @@ export const plannedGeneralBuildings = {
   "microchip-machine-ii-2c": 3,
   "microchip-machine-ii-3c": 3,
   "microchip-machine-ii-final": 3,
-  "coal-maker-wood": 5,
   "fermentation-tank-antibiotics": 2,
   "silicon-reactor-poly-silicon": 5,
   "arc-furnace-ii-silicon": 2,
@@ -74,7 +75,7 @@ export const plannedGeneralBuiltBuildings = Object.fromEntries(
   Object.keys(plannedNewGeneralBuildings).map((recipeId) => [recipeId, 0]),
 );
 
-export const general: Module = {
+const generalBase: Module = {
   id: GENERAL_MODULE_ID,
   name: "General",
   description: "Shared production for metals, electronics, supporting materials, locally combined Biomass recovery, and Low Steam recovery",
@@ -297,7 +298,9 @@ export const general: Module = {
         "chemical-plant-ii-anesthetics": 1,
         "settling-tank-hydrogen-fluoride": 1,
         "chemical-plant-ii-morphine": 1,
+        "air-separator-nitrogen": 0,
         "chemical-plant-ii-ammonia": 0,
+        "coal-maker-wood": 0,
         "gold-furnace-scrap": 1,
         "gold-furnace-concentrate": 1,
         "settling-tank-gold": 1,
@@ -322,7 +325,7 @@ export const general: Module = {
       dataSources: Object.fromEntries(
         Object.keys(plannedGeneralBuildings).map((recipeId) => [recipeId, "planned"]),
       ),
-      fixed: ["air-separator-nitrogen", "cracking-unit-fuel-gas-diesel"],
+      fixed: ["cracking-unit-fuel-gas-diesel"],
       outputTargets: {
         compositePanel:
           defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4,
@@ -330,13 +333,6 @@ export const general: Module = {
           defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,
       },
       plannedFollowUps: [
-        {
-          id: "pause-air-separator-after-temporary-run",
-          recipeId: "air-separator-nitrogen",
-          action: "pause",
-          count: 1,
-          note: "Pause after the temporary production run is complete.",
-        },
         {
           id: "pause-extra-bread-baking-unit",
           recipeId: "baking-unit-bread",
@@ -349,3 +345,39 @@ export const general: Module = {
   ],
   defaultPresetId: "yellowcake",
 };
+
+const defaultFactoryReservePumpTarget = 1;
+
+export const createGeneralModule = (
+  groundwaterPumpResolution?: SharedMachineClaimResolution,
+): Module => {
+  const source = groundwaterPumpResolution ? "synced" as const : "modeled" as const;
+  const built = groundwaterPumpResolution?.built ?? defaultFactoryReservePumpTarget;
+  const running = groundwaterPumpResolution?.running ?? defaultFactoryReservePumpTarget;
+
+  return {
+    ...generalBase,
+    description: `${generalBase.description}, plus Default-zone factory water reserve`,
+    builtBuildings: {
+      ...generalBase.builtBuildings,
+      [GENERAL_GROUNDWATER_RECIPE_ID]: built,
+    },
+    presets: generalBase.presets.map(preset => ({
+      ...preset,
+      builtBuildings: {
+        ...preset.builtBuildings,
+        [GENERAL_GROUNDWATER_RECIPE_ID]: built,
+      },
+      activeBuildings: {
+        ...preset.activeBuildings,
+        [GENERAL_GROUNDWATER_RECIPE_ID]: running,
+      },
+      dataSources: {
+        ...preset.dataSources,
+        [GENERAL_GROUNDWATER_RECIPE_ID]: source,
+      },
+    })),
+  };
+};
+
+export const general = createGeneralModule();

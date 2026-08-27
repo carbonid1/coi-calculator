@@ -1,7 +1,6 @@
 import { expect, it } from "vitest";
 
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
-import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { mines } from "./mines";
 
@@ -21,32 +20,28 @@ it("demand-mines Bauxite and Titanium Ore for the expansion chains", () => {
     .toEqual([{ resourceId: "titaniumOre", quantity: 38.8 }]);
 });
 
-it("runs one Groundwater Pump as factory water reserve", () => {
+it("demand-mines Coal when local Coal Makers are paused", () => {
+  const lines = buildModuleLines(mines, null).lines;
+  const result = calculateNet(lines, {}, 90, {}, { coal: 84 });
+  const coalMine = result.sourceResults.find(({ recipe }) => (
+    recipe.id === "coal-map-mine"
+  ));
+
+  expect(coalMine).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+  expect(coalMine?.actualOutputs).toEqual([{ resourceId: "coal", quantity: 84 }]);
+});
+
+it("does not own the General factory water reserve", () => {
   const lines = buildModuleLines(mines, null).lines;
   const result = calculateNet(lines, {}, 90, {}, { water: 60 });
   const groundwater = result.sourceResults.find(({ recipe }) => (
     recipe.id === "groundwater-pump-factory-reserve"
   ));
 
-  expect(groundwater).toMatchObject({
-    activeBuildings: 1,
-    builtBuildings: 1,
-    actualOutputs: [{ resourceId: "water", quantity: 48 }],
-  });
+  expect(groundwater).toBeUndefined();
   expect(result.allResourceFlows.find(({ resourceId }) => resourceId === "water")).toMatchObject({
-    produced: 48,
+    produced: 0,
     consumed: 60,
-    net: -12,
-  });
-
-  const groundwaterLines = lines.filter(({ recipe }) => (
-    recipe.id === "groundwater-pump-factory-reserve"
-  ));
-  const groundwaterResult = calculateNet(groundwaterLines, {}, 90, {}, { water: 60 });
-
-  expect(calculateBuildingStats(groundwaterLines, groundwaterResult)).toEqual({
-    workers: 2,
-    electricityKw: 120,
-    computingTflops: 0,
+    net: -60,
   });
 });

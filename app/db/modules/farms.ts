@@ -1,3 +1,9 @@
+import { resolveChickenFarmEntityPlan } from "../../helpers/chicken-farm-plan/chicken-farm-plan";
+import {
+  resolveGreenhouseEntityPlan,
+  type GreenhousePlanOptions,
+} from "../../helpers/greenhouse-plan/greenhouse-plan";
+import { type SharedMachineClaimResolution } from "../../helpers/machine-allocation/machine-allocation";
 import {
   resolveDirectionalPlan,
   type PlanDirection,
@@ -7,6 +13,7 @@ import {
   type ValueSource,
 } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import {
+  type CurrentChickenFarmEntity,
   chickenFarm,
   type ChickenFarmSettings,
   getChickenFarmLayout,
@@ -17,8 +24,10 @@ import {
   activeCropFarmGroups,
   type CropFarmGroup,
   type CropFarmTierId,
+  type CurrentCropFarmEntity,
   resolvedCurrentCropFarmGroups,
 } from "../crop-farming";
+import { createCropFarmRecipe } from "../recipes";
 import {
   type Module,
   type PlanMismatch,
@@ -29,8 +38,7 @@ import { createAtMostBuildingActions } from "./plan-mismatch";
 export const GREENHOUSES_MODULE_ID = "greenhouses";
 export const CHICKEN_FARMS_MODULE_ID = "chicken-farms";
 
-const builtGroundwaterPumpCount = 5;
-const activeGroundwaterPumpCount = 5;
+const plannedGroundwaterPumpCount = 5;
 const slaughteringRecipeId = "chicken-farm-slaughtering";
 const eggsOnlyRecipeId = "chicken-farm-eggs-only";
 
@@ -48,12 +56,6 @@ export interface CurrentCropFarmConfiguration {
   fertilityTargetPercent: number;
   built: number;
   running: number;
-}
-
-export interface GreenhousePlanOptions {
-  defaultDirection: PlanDirection;
-  directions?: Partial<Record<string, PlanDirection>>;
-  totalDirection: PlanDirection;
 }
 
 export const plannedGreenhousePlan: GreenhousePlanOptions = {
@@ -140,6 +142,8 @@ export const createGreenhousesModule = (
     ? "default"
     : "modeled",
   planOptions: GreenhousePlanOptions = plannedGreenhousePlan,
+  groundwaterPumpResolution?: SharedMachineClaimResolution,
+  currentEntities?: readonly CurrentCropFarmEntity[],
 ): Module => {
   const inventory: CropFarmInventory[] = currentConfigurations.map((configuration) => ({
     ...configuration,
@@ -151,6 +155,97 @@ export const createGreenhousesModule = (
   const activeCropFarmTotals: Record<string, number> = {};
   const dataSources: Record<string, ValueSource> = {};
   const planMismatches: PlanMismatch[] = [];
+  const groundwaterPumpSource: CurrentValueSource = groundwaterPumpResolution
+    ? "synced"
+    : "modeled";
+  const currentGroundwaterPumpBuilt = groundwaterPumpResolution?.built
+    ?? plannedGroundwaterPumpCount;
+  const currentGroundwaterPumpRunning = groundwaterPumpResolution?.running
+    ?? plannedGroundwaterPumpCount;
+  const groundwaterPumpPlan = resolveDirectionalPlan(
+    currentLayers(currentGroundwaterPumpRunning, groundwaterPumpSource),
+    { direction: "at-least", target: plannedGroundwaterPumpCount },
+  );
+
+  dataSources["groundwater-pump"] = groundwaterPumpPlan.source;
+
+  if (!groundwaterPumpPlan.satisfied) {
+    const pausedCount = Math.min(
+      Math.max(0, currentGroundwaterPumpBuilt - currentGroundwaterPumpRunning),
+      groundwaterPumpPlan.difference,
+    );
+    const buildCount = Math.max(0, groundwaterPumpPlan.difference - pausedCount);
+    const fallbackActions: PlanMismatchAction[] = [
+      ...(pausedCount > 0
+        ? [{
+            type: "unpause" as const,
+            label: `Unpause ${pausedCount} ${pluralize("Groundwater Pump", pausedCount)} for Greenhouses`,
+          }]
+        : []),
+      ...(buildCount > 0
+        ? [{
+            type: "build" as const,
+            label: `Build ${buildCount} ${pluralize("Groundwater Pump", buildCount)} for Greenhouses`,
+          }]
+        : []),
+    ];
+
+    planMismatches.push({
+      recipeId: "groundwater-pump",
+      current: currentGroundwaterPumpRunning,
+      currentSource: groundwaterPumpSource,
+      target: plannedGroundwaterPumpCount,
+      direction: "at-least",
+      format: "count",
+      currentLabel: `${currentGroundwaterPumpRunning} running · ${currentGroundwaterPumpBuilt} assigned`,
+      targetLabel: `≥${plannedGroundwaterPumpCount} assigned to Greenhouses`,
+      actions: groundwaterPumpResolution?.actions.length
+        ? groundwaterPumpResolution.actions
+        : fallbackActions,
+    });
+  }
+
+  if (currentEntities) {
+    const resolved = resolveGreenhouseEntityPlan(
+      plannedGroups,
+      currentEntities,
+      currentSource,
+      planOptions,
+    );
+    const cropFarmCount = plannedGroups.reduce((total, group) => total + group.farmCount, 0);
+
+    for (const effectiveGroup of resolved.groups) {
+      builtCropFarmTotals[effectiveGroup.group.id] = effectiveGroup.built;
+      activeCropFarmTotals[effectiveGroup.group.id] = effectiveGroup.active;
+      dataSources[effectiveGroup.group.id] = effectiveGroup.source;
+    }
+
+    planMismatches.push(...resolved.planMismatches);
+
+    return {
+      id: GREENHOUSES_MODULE_ID,
+      name: "Greenhouses",
+      description: "",
+      recipes: resolved.groups.map(({ group }) => createCropFarmRecipe(group)),
+      builtBuildings: {
+        "groundwater-pump": currentGroundwaterPumpBuilt,
+        ...builtCropFarmTotals,
+      },
+      presets: [{
+        id: "current-greenhouse-plan",
+        name: "Current Greenhouse Plan",
+        description: `${cropFarmCount} planned Greenhouse IIs over the synced inventory`,
+        activeBuildings: {
+          "groundwater-pump": groundwaterPumpPlan.value,
+          ...activeCropFarmTotals,
+        },
+        dataSources,
+        fixed: resolved.groups.map(({ group }) => group.id),
+        planMismatches: planMismatches.length > 0 ? planMismatches : undefined,
+      }],
+      defaultPresetId: "current-greenhouse-plan",
+    };
+  }
 
   for (const group of plannedGroups) {
     const target = group.farmCount;
@@ -331,17 +426,17 @@ export const createGreenhousesModule = (
   return {
     id: GREENHOUSES_MODULE_ID,
     name: "Greenhouses",
-    description: `${cropFarmCount} fixed Greenhouse II rotations. Five directly connected Groundwater Pumps are active; they balance only greenhouse demand, and any remaining Water is imported. Crop cards show imported water after weather and gross demand.`,
+    description: "",
     builtBuildings: {
-      "groundwater-pump": builtGroundwaterPumpCount,
+      "groundwater-pump": currentGroundwaterPumpBuilt,
       ...builtCropFarmTotals,
     },
     presets: [{
       id: "current-greenhouse-plan",
       name: "Current Greenhouse Plan",
-      description: `${cropFarmCount} Greenhouse IIs with five active Groundwater Pumps`,
+      description: `${cropFarmCount} Greenhouse IIs with five planned active Groundwater Pumps`,
       activeBuildings: {
-        "groundwater-pump": activeGroundwaterPumpCount,
+        "groundwater-pump": groundwaterPumpPlan.value,
         ...activeCropFarmTotals,
       },
       dataSources,
@@ -361,6 +456,7 @@ export const createChickenFarmsModule = (
   builtDataSource: ValueSource = dataSource,
   currentConfigurations?: readonly CurrentChickenFarmConfiguration[],
   planDirection: PlanDirection = plannedChickenFarmDirection,
+  currentEntities?: readonly CurrentChickenFarmEntity[],
 ): Module => {
   const farmRecipeId = settings.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
   const chickenLayout = getChickenFarmLayout(settings.totalChickenCount);
@@ -368,6 +464,52 @@ export const createChickenFarmsModule = (
   const currentSource: CurrentValueSource = builtDataSource === "planned"
     ? "modeled"
     : builtDataSource;
+
+  if (currentEntities) {
+    const resolved = resolveChickenFarmEntityPlan(
+      settings,
+      currentEntities,
+      currentSource,
+      planDirection,
+      "Chicken Farms",
+    );
+    const builtBuildings: Record<string, number> = {};
+    const activeBuildings: Record<string, number> = {};
+    const dataSources: Record<string, ValueSource> = {};
+    const speedLevels: Record<string, number> = {};
+
+    for (const mode of resolved.modes) {
+      const recipeId = mode.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
+
+      builtBuildings[recipeId] = mode.built;
+      activeBuildings[recipeId] = mode.active;
+      dataSources[recipeId] = mode.source;
+      speedLevels[recipeId] = mode.active > 0
+        ? mode.chickens / (mode.active * chickenFarm.capacity)
+        : 0;
+    }
+
+    return {
+      id: CHICKEN_FARMS_MODULE_ID,
+      name: "Chicken Farms",
+      description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens. Their Water is imported from Factory Total; they are not connected to the Greenhouse groundwater network.`,
+      builtBuildings,
+      presets: [{
+        id: "current-chicken-farm-plan",
+        name: "Current Chicken Farm Plan",
+        description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens`,
+        activeBuildings,
+        dataSources,
+        planMismatches: resolved.planMismatches.length > 0
+          ? resolved.planMismatches
+          : undefined,
+        fixed: Object.keys(activeBuildings),
+        speedLevels,
+      }],
+      defaultPresetId: "current-chicken-farm-plan",
+    };
+  }
+
   const configurations = currentConfigurations ?? [{
     slaughtering: builtSettings.slaughtering,
     built: builtChickenLayout.farmCount,

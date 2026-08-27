@@ -26,7 +26,7 @@ it("keeps installed nuclear capacity current while applying the operation plan",
   const preset = planned.presets[0];
 
   expect(preset?.builtBuildings).toMatchObject({
-    "hydrogen-reformer-super": 6,
+    "hydrogen-reformer-super": 8,
     "electrolyzer-ii-chlorine": 2,
     "evaporation-pond-heated-salt-brine": 2,
     "seawater-pump": 4,
@@ -40,6 +40,7 @@ it("keeps installed nuclear capacity current while applying the operation plan",
     "thermal-desalinator-super": 10,
   });
   expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);
+  expect(preset?.dataSources?.["hydrogen-reformer-super"]).toBeUndefined();
   expect(Object.values(preset?.dataSources ?? {}).every(source => source === "planned"))
     .toBe(true);
 });
@@ -92,7 +93,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "turbine-high": 8,
     "turbine-low": 8,
     "power-generator-ii-nuclear": 16,
-    "hydrogen-reformer-super": 6,
+    "hydrogen-reformer-super": 8,
     "thermal-desalinator-depleted": 4,
     "thermal-desalinator-super": 6,
     "electrolyzer-ii-chlorine": 2,
@@ -114,7 +115,7 @@ it("models the two-FBR checkpoint and its external requirements", () => {
     "turbine-high": 3,
     "turbine-low": 3,
     "power-generator-ii-nuclear": 6,
-    "hydrogen-reformer-super": 5,
+    "hydrogen-reformer-super": 8,
     "thermal-desalinator-depleted": 4,
     "thermal-desalinator-super": 6,
     "electrolyzer-ii-chlorine": 1,
