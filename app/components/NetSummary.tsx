@@ -1,6 +1,7 @@
 import { Cpu, Sparkles } from "lucide-react";
 
 import { cropProductResourceIds } from "../db/crop-farming";
+import { type Module } from "../db/modules/modules";
 import { type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
@@ -24,6 +25,7 @@ interface Props {
   groupByBalance?: boolean;
   regularResults?: RegularResult[];
   buildingDiagnostics?: BuildingDiagnostic[];
+  plannedModules?: Module[];
   onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
 }
 
@@ -126,6 +128,7 @@ export const NetSummary: React.FC<Props> = ({
   groupByBalance = false,
   regularResults = [],
   buildingDiagnostics = [],
+  plannedModules = [],
   onOpenBuilding,
 }) => {
   const electricityFlow = flows.find((flow) => flow.resourceId === "electricity");
@@ -459,6 +462,7 @@ export const NetSummary: React.FC<Props> = ({
             <>
               <PlannedBuildsView
                 diagnostics={buildingDiagnostics}
+                modules={plannedModules}
                 onOpenBuilding={onOpenBuilding}
               />
               <BuildingAttentionView

@@ -21,6 +21,7 @@ import { recipes } from "../recipes";
 import { defaultInfiniteResearchLevels } from "../research";
 import {
   createChickenFarmsModule,
+  createGreenhousesModule,
   chickenFarms,
   greenhouses,
 } from "./farms";
@@ -65,6 +66,144 @@ describe("active crop farm plan", () => {
     expect(preset?.dataSources?.["chicken-farm-slaughtering"]).toBe("planned");
   });
 
+  it("separates missing chicken buildings from missing population", () => {
+    const chickenFarmsModule = createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      defaultChickenFarmSettings,
+      "planned",
+      "synced",
+      [{
+        slaughtering: true,
+        built: 4,
+        running: 4,
+        chickens: 1_950,
+        runningChickens: 1_950,
+      }],
+    );
+
+    expect(chickenFarmsModule.presets[0].planMismatches).toMatchObject([{
+      current: 1_950,
+      target: 2_350,
+      currentSource: "synced",
+      actions: [
+        { type: "build", label: "Build 1 Chicken Farm" },
+        { type: "add-animals", label: "Add 400 chickens" },
+      ],
+    }]);
+  });
+
+  it("keeps paused chicken farms planned until farm count and population are active", () => {
+    const paused = createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      plannedChickenFarmSettings,
+      "planned",
+      "synced",
+      [{
+        slaughtering: true,
+        built: 5,
+        running: 1,
+        chickens: 2_350,
+        runningChickens: 500,
+      }],
+    );
+    const reached = createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      plannedChickenFarmSettings,
+      "planned",
+      "synced",
+      [{
+        slaughtering: true,
+        built: 5,
+        running: 5,
+        chickens: 2_350,
+        runningChickens: 2_350,
+      }],
+    );
+
+    expect(paused.presets[0].dataSources?.["chicken-farm-slaughtering"]).toBe("planned");
+    expect(paused.presets[0].planMismatches?.[0].actions).toEqual([
+      { type: "unpause", label: "Unpause 4 Chicken Farms" },
+    ]);
+    expect(reached.presets[0].dataSources?.["chicken-farm-slaughtering"]).toBe("synced");
+    expect(reached.presets[0].planMismatches).toBeUndefined();
+  });
+
+  it("keeps extra synced chicken modes visible after the minimum plan is reached", () => {
+    const chickenFarmsModule = createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      plannedChickenFarmSettings,
+      "planned",
+      "synced",
+      [
+        {
+          slaughtering: true,
+          built: 5,
+          running: 5,
+          chickens: 2_350,
+          runningChickens: 2_350,
+        },
+        {
+          slaughtering: false,
+          built: 1,
+          running: 1,
+          chickens: 500,
+          runningChickens: 500,
+        },
+      ],
+    );
+    const preset = chickenFarmsModule.presets[0];
+    const result = calculateFactoryTotal([chickenFarmsModule]);
+    const flow = (resourceId: string) => result.flows.find(
+      candidate => candidate.resourceId === resourceId,
+    );
+
+    expect(chickenFarmsModule.builtBuildings).toEqual({
+      "chicken-farm-slaughtering": 5,
+      "chicken-farm-eggs-only": 1,
+    });
+    expect(preset.activeBuildings).toEqual({
+      "chicken-farm-slaughtering": 5,
+      "chicken-farm-eggs-only": 1,
+    });
+    expect(preset.dataSources).toEqual({
+      "chicken-farm-slaughtering": "synced",
+      "chicken-farm-eggs-only": "synced",
+    });
+    expect(flow("animalFeed")?.consumed).toBeCloseTo(85.5);
+    expect(flow("water")?.consumed).toBeCloseTo(102.6);
+    expect(flow("eggs")?.produced).toBeCloseTo(42.75);
+    expect(flow("chickenCarcass")?.produced).toBeCloseTo(47);
+  });
+
+  it("keeps an at-most chicken plan active until excess farms and animals are removed", () => {
+    const chickenFarmsModule = createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      plannedChickenFarmSettings,
+      "planned",
+      "synced",
+      [{
+        slaughtering: true,
+        built: 6,
+        running: 6,
+        chickens: 2_500,
+        runningChickens: 2_500,
+      }],
+      "at-most",
+    );
+    const preset = chickenFarmsModule.presets[0];
+
+    expect(preset.activeBuildings["chicken-farm-slaughtering"]).toBe(5);
+    expect(preset.speedLevels?.["chicken-farm-slaughtering"]).toBe(0.94);
+    expect(preset.dataSources?.["chicken-farm-slaughtering"]).toBe("planned");
+    expect(preset.planMismatches).toMatchObject([{
+      direction: "at-most",
+      actions: [
+        { type: "pause", label: "Pause 1 Chicken Farm" },
+        { type: "remove-animals", label: "Remove 150 chickens" },
+      ],
+    }]);
+  });
+
   it("treats the nine greenhouse rotations as planned configuration", () => {
     const preset = greenhouses.presets.at(0);
     const activeFarmIds = activeCropFarmGroups.map((group) => group.id);
@@ -77,6 +216,115 @@ describe("active crop farm plan", () => {
     expect(activeFarmIds.filter((id) => greenhouses.builtBuildings[id] === 0)).toHaveLength(1);
     expect(activeFarmIds.every((id) => preset?.activeBuildings[id] === 1)).toBe(true);
     expect(activeFarmIds.every((id) => preset?.dataSources?.[id] === "planned")).toBe(true);
+  });
+
+  it("distinguishes greenhouse reconfiguration from the one missing building", () => {
+    const greenhousesModule = createGreenhousesModule();
+    const actions = greenhousesModule.presets[0].planMismatches?.flatMap(
+      mismatch => mismatch.actions,
+    ) ?? [];
+
+    expect(actions.filter(({ type }) => type === "configure")).toHaveLength(8);
+    expect(actions.filter(({ type }) => type === "build")).toEqual([{
+      type: "build",
+      label: "Build 1 Greenhouse II",
+    }]);
+  });
+
+  it("marks an exact live greenhouse rotation synced while retaining unmet plans", () => {
+    const exact = activeCropFarmGroups[0];
+    const greenhousesModule = createGreenhousesModule(activeCropFarmGroups, [{
+      tierId: "greenhouseII",
+      schedule: exact.schedule,
+      fertilityTargetPercent: exact.fertilizer?.targetFertilityPercent ?? 100,
+      built: 1,
+      running: 1,
+    }], "synced");
+
+    expect(greenhousesModule.presets[0].dataSources?.[exact.id]).toBe("synced");
+    expect(greenhousesModule.presets[0].planMismatches?.map(({ recipeId }) => recipeId))
+      .not.toContain(exact.id);
+  });
+
+  it("keeps the exact greenhouse plan active while an extra live farm still runs", () => {
+    const target = activeCropFarmGroups[0];
+    const greenhousesModule = createGreenhousesModule([target], [
+      {
+        tierId: "greenhouseII",
+        schedule: target.schedule,
+        fertilityTargetPercent: 140,
+        built: 1,
+        running: 1,
+      },
+      {
+        tierId: "greenhouseII",
+        schedule: ["corn", "corn", "corn", "corn"],
+        fertilityTargetPercent: 140,
+        built: 1,
+        running: 1,
+      },
+    ], "synced");
+    const preset = greenhousesModule.presets[0];
+
+    expect(preset.activeBuildings[target.id]).toBe(1);
+    expect(preset.dataSources?.[target.id]).toBe("planned");
+    expect(preset.planMismatches).toMatchObject([{
+      recipeId: target.id,
+      current: 2,
+      target: 1,
+      direction: "at-most",
+      actions: [{
+        type: "pause",
+        label: "Pause 1 additional Greenhouse",
+      }],
+    }]);
+  });
+
+  it("supports an at-most target for a specific greenhouse configuration", () => {
+    const target = activeCropFarmGroups[0];
+    const greenhousesModule = createGreenhousesModule([target], [{
+      tierId: "greenhouseII",
+      schedule: target.schedule,
+      fertilityTargetPercent: 140,
+      built: 2,
+      running: 2,
+    }], "synced", {
+      defaultDirection: "at-most",
+      totalDirection: "at-most",
+    });
+    const preset = greenhousesModule.presets[0];
+
+    expect(preset.activeBuildings[target.id]).toBe(1);
+    expect(preset.planMismatches).toMatchObject([{
+      recipeId: target.id,
+      direction: "at-most",
+      actions: [{ type: "pause", label: "Pause 1 Greenhouse" }],
+    }]);
+  });
+
+  it("reconfigures running greenhouses before selecting paused capacity", () => {
+    const target = activeCropFarmGroups[0];
+    const greenhousesModule = createGreenhousesModule([target], [
+      {
+        tierId: "greenhouseII",
+        schedule: ["corn", "corn", "corn", "corn"],
+        fertilityTargetPercent: 140,
+        built: 1,
+        running: 0,
+      },
+      {
+        tierId: "greenhouseII",
+        schedule: ["wheat", "wheat", "wheat", "wheat"],
+        fertilityTargetPercent: 140,
+        built: 1,
+        running: 1,
+      },
+    ], "synced");
+
+    expect(greenhousesModule.presets[0].planMismatches?.[0].actions).toEqual([{
+      type: "configure",
+      label: "Configure 1 Greenhouse",
+    }]);
   });
 
   it("connects five active Groundwater Pumps only to Greenhouses", () => {

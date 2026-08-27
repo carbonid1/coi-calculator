@@ -52,6 +52,42 @@ export interface SyncedBuildingCount {
   running: number
 }
 
+export interface SyncedSpaceStationState {
+  currentLevel: number
+  highestLevelAchieved: number
+  constructionPending: boolean
+}
+
+export interface SyncedComputingState {
+  dataCenters: SyncedBuildingCount
+  racks: SyncedBuildingCount
+  waterChillers: SyncedBuildingCount
+}
+
+export interface SyncedChickenFarmConfiguration {
+  slaughtering: boolean
+  built: number
+  running: number
+  chickens: number
+  runningChickens: number
+}
+
+export interface SyncedChickenFarmState {
+  configurations: SyncedChickenFarmConfiguration[]
+}
+
+export interface SyncedCropFarmConfiguration {
+  prototypeId: 'FarmT3' | 'FarmT4'
+  built: number
+  running: number
+  fertilityTargetPercent: number
+  schedule: (string | null)[]
+}
+
+export interface SyncedCropFarmState {
+  configurations: SyncedCropFarmConfiguration[]
+}
+
 export interface SyncedHistoryAverage {
   averagePerCycle: number
   sampleMonths: number
@@ -108,7 +144,9 @@ export type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 export type SyncedReserves = ReserveBalances
 
 export const ROCKET_INFRASTRUCTURE_SCHEMA_VERSION = 14 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 14 as const
+export const SPACE_STATION_SCHEMA_VERSION = 15 as const
+export const PRODUCTION_CONFIG_SCHEMA_VERSION = 16 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 16 as const
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -118,12 +156,18 @@ export type SupportedGameStateSchemaVersion =
   | 11
   | 12
   | 13
+  | 14
+  | 15
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
   schemaVersion: SupportedGameStateSchemaVersion
   exportedAtUtc: string
   buildings: Record<SyncedBuildingId, SyncedBuildingCount>
+  spaceStation: SyncedSpaceStationState | null
+  computing: SyncedComputingState | null
+  chickenFarms: SyncedChickenFarmState | null
+  cropFarms: SyncedCropFarmState | null
   vehicles: {
     total: number
     workersAssigned: number
@@ -169,6 +213,66 @@ const isBuildingCount = (value: unknown): value is SyncedBuildingCount =>
   isNonNegativeInteger(value.built) &&
   isNonNegativeInteger(value.running) &&
   value.running <= value.built
+
+const isSpaceStationState = (value: unknown): value is SyncedSpaceStationState =>
+  isUnknownRecord(value) &&
+  isNonNegativeInteger(value.currentLevel) &&
+  isNonNegativeInteger(value.highestLevelAchieved) &&
+  value.currentLevel <= value.highestLevelAchieved &&
+  typeof value.constructionPending === 'boolean'
+
+const isComputingState = (value: unknown): value is SyncedComputingState =>
+  isUnknownRecord(value) &&
+  isBuildingCount(value.dataCenters) &&
+  isBuildingCount(value.racks) &&
+  isBuildingCount(value.waterChillers)
+
+const isChickenFarmConfiguration = (
+  value: unknown,
+): value is SyncedChickenFarmConfiguration =>
+  isUnknownRecord(value) &&
+  typeof value.slaughtering === 'boolean' &&
+  isNonNegativeInteger(value.built) &&
+  isNonNegativeInteger(value.running) &&
+  value.running <= value.built &&
+  isNonNegativeInteger(value.chickens) &&
+  isNonNegativeInteger(value.runningChickens) &&
+  value.runningChickens <= value.chickens
+
+const normalizeChickenFarmState = (value: unknown): SyncedChickenFarmState | null => {
+  if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
+
+  const configurations = value.configurations.filter(isChickenFarmConfiguration)
+
+  if (
+    configurations.length !== value.configurations.length ||
+    new Set(configurations.map(({ slaughtering }) => slaughtering)).size !== configurations.length
+  ) return null
+
+  return { configurations }
+}
+
+const isCropFarmConfiguration = (value: unknown): value is SyncedCropFarmConfiguration =>
+  isUnknownRecord(value) &&
+  (value.prototypeId === 'FarmT3' || value.prototypeId === 'FarmT4') &&
+  isNonNegativeInteger(value.built) &&
+  isNonNegativeInteger(value.running) &&
+  value.running <= value.built &&
+  isNonNegativeInteger(value.fertilityTargetPercent) &&
+  value.fertilityTargetPercent <= 200 &&
+  Array.isArray(value.schedule) &&
+  value.schedule.length === 4 &&
+  value.schedule.every(cropId => cropId === null || (
+    typeof cropId === 'string' && cropId.length > 0
+  ))
+
+const normalizeCropFarmState = (value: unknown): SyncedCropFarmState | null => {
+  if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
+
+  const configurations = value.configurations.filter(isCropFarmConfiguration)
+
+  return configurations.length === value.configurations.length ? { configurations } : null
+}
 
 type LegacySyncedBuildingId = Exclude<
   SyncedBuildingId,
@@ -393,12 +497,18 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 11 &&
     schemaVersion !== 12 &&
     schemaVersion !== 13 &&
+    schemaVersion !== 14 &&
+    schemaVersion !== 15 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null
   }
 
   const syncedBuildings = snapshot.buildings
+  const spaceStation = isSpaceStationState(snapshot.spaceStation) ? snapshot.spaceStation : null
+  const computing = isComputingState(snapshot.computing) ? snapshot.computing : null
+  const chickenFarms = normalizeChickenFarmState(snapshot.chickenFarms)
+  const cropFarms = normalizeCropFarmState(snapshot.cropFarms)
   const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
   const total = vehicles?.total
   const trucks = vehicles?.trucks
@@ -419,6 +529,10 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     typeof snapshot.exportedAtUtc !== 'string' ||
     Number.isNaN(Date.parse(snapshot.exportedAtUtc)) ||
     !isCompatibleBuildingCounts(syncedBuildings, schemaVersion) ||
+    (schemaVersion >= SPACE_STATION_SCHEMA_VERSION && !spaceStation) ||
+    (schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION && (
+      !computing || !chickenFarms || !cropFarms
+    )) ||
     !vehicles ||
     !isNonNegativeInteger(total) ||
     !isNonNegativeInteger(workersAssigned) ||
@@ -523,6 +637,10 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
         running: 0,
       },
     },
+    spaceStation: schemaVersion >= SPACE_STATION_SCHEMA_VERSION ? spaceStation : null,
+    computing: schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION ? computing : null,
+    chickenFarms: schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION ? chickenFarms : null,
+    cropFarms: schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION ? cropFarms : null,
     vehicles: {
       total,
       workersAssigned,

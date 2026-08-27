@@ -25,9 +25,14 @@ import { SolarPowerSettings } from './components/SolarPowerSettings'
 import { SpaceStationView } from './components/SpaceStationView'
 import { StorageCard } from './components/StorageCard'
 import { buildings } from './db/buildings'
-import { resolvedChickenFarmSettings } from './db/chicken-farm'
-import { resolvedComputingConfig } from './db/computing'
+import {
+  getChickenFarmLayout,
+  resolvedChickenFarmSettings,
+  resolvedCurrentChickenFarmSettings,
+} from './db/chicken-farm'
+import { resolvedComputingConfig, resolvedCurrentComputingConfig } from './db/computing'
 import { activeContracts, contracts, defaultActiveContractIds } from './db/contracts'
+import { activeCropFarmGroups } from './db/crop-farming'
 import {
   getEdict,
   inactiveEdictLevels,
@@ -43,8 +48,13 @@ import {
   resolvedCurrentHousingCount,
   resolvedHousingCount,
 } from './db/housing'
-import { COMPUTING_MODULE_ID } from './db/modules/computing'
-import { CHICKEN_FARMS_MODULE_ID, GREENHOUSES_MODULE_ID } from './db/modules/farms'
+import { createComputingModule, COMPUTING_MODULE_ID } from './db/modules/computing'
+import {
+  createChickenFarmsModule,
+  createGreenhousesModule,
+  CHICKEN_FARMS_MODULE_ID,
+  GREENHOUSES_MODULE_ID,
+} from './db/modules/farms'
 import { createHousingModule, HOUSING_MODULE_ID } from './db/modules/housing'
 import { createMaintenanceModule, MAINTENANCE_MODULE_ID } from './db/modules/maintenance'
 import { MINES_MODULE_ID } from './db/modules/mines'
@@ -119,6 +129,11 @@ import { calculateUnityCapacity } from './helpers/modifiers/calculate-unity-capa
 import { getRecipeOutputQuantity } from './helpers/modifiers/recipe-output'
 import { extractModuleResult } from './helpers/module-result/module-result'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
+import {
+  getSyncedChickenFarmConfigurations,
+  getSyncedComputingConfigs,
+  getSyncedCropFarmConfigurations,
+} from './helpers/synced-production-config/synced-production-config'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 
 const groupLabels: Record<RecipeGroup, string> = {
@@ -128,6 +143,13 @@ const groupLabels: Record<RecipeGroup, string> = {
   waste: 'Waste processing',
   sink: 'Sinks',
 }
+
+const conciseSourceLabelModuleIds = new Set([
+  SPACE_STATION_MODULE_ID,
+  COMPUTING_MODULE_ID,
+  CHICKEN_FARMS_MODULE_ID,
+  GREENHOUSES_MODULE_ID,
+])
 
 const groupOrder: RecipeGroup[] = ['source', 'electricity', 'production', 'waste', 'sink']
 
@@ -247,6 +269,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const rocketInfrastructureBuiltConfig: RocketInfrastructureConfig = {
     ...emptyRocketInfrastructureConfig,
   }
+  const rocketInfrastructureRunningConfig: RocketInfrastructureConfig = {
+    ...emptyRocketInfrastructureConfig,
+  }
 
   if (gameState.snapshot) {
     for (const id of syncedInfrastructureBuildingIds) {
@@ -261,6 +286,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         const count = gameState.snapshot.buildings[id]
 
         rocketInfrastructureBuiltConfig[id] = count.built
+        rocketInfrastructureRunningConfig[id] = count.running
       }
     }
 
@@ -274,6 +300,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         mono: gameState.snapshot.buildings.solarPanelMono.built,
       }
     : emptySolarPanelCounts
+  const syncedSpaceStation = gameState.snapshot?.spaceStation
+  const spaceStationConfig = syncedSpaceStation
+    ? {
+        ...defaultSpaceStationConfig,
+        currentLevel: syncedSpaceStation.currentLevel,
+        highestLevelAchieved: syncedSpaceStation.highestLevelAchieved,
+      }
+    : defaultSpaceStationConfig
   const solarPanelRunningCounts = gameState.snapshot
     ? {
         standard: gameState.snapshot.buildings.solarPanel.running,
@@ -323,8 +357,61 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const unityCapacityLevel = researchLevels.unityCapacity
   const housingCapacityLevel = researchLevels.housingCapacity
   const shipsFuelUseLevel = researchLevels.shipsFuelUse
-  const computingConfig = resolvedComputingConfig.value
-  const chickenFarmSettings = resolvedChickenFarmSettings.value
+  const syncedComputingConfigs = gameState.snapshot?.computing
+    ? getSyncedComputingConfigs(gameState.snapshot.computing)
+    : null
+  const computingBuiltConfig = syncedComputingConfigs?.built
+    ?? resolvedCurrentComputingConfig.value
+  const computingRunningConfig = syncedComputingConfigs?.running
+    ?? resolvedCurrentComputingConfig.value
+  const computingCurrentSource = syncedComputingConfigs
+    ? 'synced' as const
+    : resolvedCurrentComputingConfig.source
+  const computingConfig = {
+    dataCenterCount: Math.max(
+      computingRunningConfig.dataCenterCount,
+      resolvedComputingConfig.value.dataCenterCount,
+    ),
+    rackCount: Math.max(
+      computingRunningConfig.rackCount,
+      resolvedComputingConfig.value.rackCount,
+    ),
+    waterChillers: Math.max(
+      computingRunningConfig.waterChillers,
+      resolvedComputingConfig.value.waterChillers,
+    ),
+  }
+  const currentChickenConfigurations = gameState.snapshot?.chickenFarms
+    ? getSyncedChickenFarmConfigurations(gameState.snapshot.chickenFarms)
+    : null
+  const plannedChickenFarmLayout = resolvedChickenFarmSettings.value
+  const desiredChickenConfigurations = currentChickenConfigurations?.filter(
+    configuration => (
+      configuration.slaughtering === plannedChickenFarmLayout.slaughtering
+    ),
+  ) ?? []
+  const desiredRunningChickenFarms = desiredChickenConfigurations.reduce(
+    (total, configuration) => total + configuration.running,
+    0,
+  )
+  const desiredRunningChickens = desiredChickenConfigurations.reduce(
+    (total, configuration) => total + configuration.runningChickens,
+    0,
+  )
+  const plannedChickenFarmCount = getChickenFarmLayout(
+    plannedChickenFarmLayout.totalChickenCount,
+  ).farmCount
+  const chickenPlanReached = Boolean(
+    currentChickenConfigurations
+    && desiredRunningChickenFarms >= plannedChickenFarmCount
+    && desiredRunningChickens >= plannedChickenFarmLayout.totalChickenCount,
+  )
+  const chickenFarmSettings = chickenPlanReached
+    ? {
+        totalChickenCount: desiredRunningChickens,
+        slaughtering: plannedChickenFarmLayout.slaughtering,
+      }
+    : plannedChickenFarmLayout
   const housingCount = resolvedHousingCount.value
 
   const configuredModules = modules.map(module => {
@@ -340,10 +427,48 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
     if (module.id === SPACE_STATION_MODULE_ID) {
       return createSpaceStationModule(
-        defaultSpaceStationConfig,
+        spaceStationConfig,
         rocketInfrastructureBuiltConfig,
         plannedRocketInfrastructureConfig,
+        {
+          rocketRunningConfig: rocketInfrastructureRunningConfig,
+          rocketSource:
+            (gameState.snapshot?.schemaVersion ?? 0) >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION
+              ? 'synced'
+              : 'modeled',
+          stationSource: syncedSpaceStation ? 'synced' : 'modeled',
+        },
       )
+    }
+
+    if (module.id === COMPUTING_MODULE_ID) {
+      return createComputingModule(
+        resolvedComputingConfig.value,
+        computingBuiltConfig,
+        resolvedComputingConfig.source,
+        computingCurrentSource,
+        computingRunningConfig,
+      )
+    }
+
+    if (module.id === CHICKEN_FARMS_MODULE_ID) {
+      return createChickenFarmsModule(
+        resolvedChickenFarmSettings.value,
+        resolvedCurrentChickenFarmSettings.value,
+        resolvedChickenFarmSettings.source,
+        currentChickenConfigurations ? 'synced' : resolvedCurrentChickenFarmSettings.source,
+        currentChickenConfigurations ?? undefined,
+      )
+    }
+
+    if (module.id === GREENHOUSES_MODULE_ID) {
+      return gameState.snapshot?.cropFarms
+        ? createGreenhousesModule(
+            activeCropFarmGroups,
+            getSyncedCropFarmConfigurations(gameState.snapshot.cropFarms),
+            'synced',
+          )
+        : createGreenhousesModule()
     }
 
     if (module.id === SOLAR_POWER_MODULE_ID) {
@@ -721,6 +846,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           groupByBalance
           regularResults={factoryResult.calculation.regularResults}
           buildingDiagnostics={factoryBuildingDiagnostics}
+          plannedModules={configuredModules}
           onOpenBuilding={openBuilding}
         />
       )}
@@ -965,6 +1091,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                               actualInputs={result?.actualInputs}
                               actualOutputs={result?.actualOutputs}
                               outputModifiers={outputModifiers}
+                              showDataSourceLabel={conciseSourceLabelModuleIds.has(line.moduleId)}
                             />
                           </BuildingCardTarget>
                         )

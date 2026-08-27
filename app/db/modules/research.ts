@@ -9,7 +9,7 @@ export interface ResearchModuleConfig {
 
 export const defaultResearchModuleConfig: ResearchModuleConfig = {
   activeResearchLabIvCount: 2,
-  mode: "standard",
+  mode: "space",
 };
 
 export const createResearchModule = (config: ResearchModuleConfig): Module => {

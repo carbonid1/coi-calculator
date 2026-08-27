@@ -1,49 +1,141 @@
 import {
+  resolveDirectionalPlan,
+  type ResolvedDirectionalPlan,
+} from "../../helpers/resolve-layered-value/resolve-directional-plan";
+import {
+  type CurrentValueSource,
+} from "../../helpers/resolve-layered-value/resolve-layered-value";
+import {
   emptyRocketInfrastructureConfig,
   normalizeRocketInfrastructureConfig,
   plannedRocketInfrastructureConfig,
   rocketInfrastructureItems,
   type RocketInfrastructureConfig,
+  type RocketInfrastructureId,
 } from "../rocket-infrastructure";
 import {
   defaultSpaceStationConfig,
   type SpaceStationConfig,
 } from "../space-station";
 import { type Module } from "./modules";
+import { createAtLeastBuildingActions } from "./plan-mismatch";
 
 export const SPACE_STATION_MODULE_ID = "space-station";
+
+export interface SpaceStationCurrentState {
+  rocketRunningConfig?: RocketInfrastructureConfig;
+  rocketSource?: CurrentValueSource;
+  stationSource?: CurrentValueSource;
+}
+
+const currentLayers = (value: number, source: CurrentValueSource) => {
+  if (source === "synced") return { default: 0, synced: value };
+  if (source === "modeled") return { default: 0, modeled: value };
+
+  return { default: value };
+};
+
+const getResolvedSource = (plan: ResolvedDirectionalPlan) => plan.source;
 
 export const createSpaceStationModule = (
   config: SpaceStationConfig,
   rocketBuiltConfig: RocketInfrastructureConfig = emptyRocketInfrastructureConfig,
   rocketPlanConfig: RocketInfrastructureConfig = plannedRocketInfrastructureConfig,
+  currentState: SpaceStationCurrentState = {},
 ): Module => {
-  const hasCurrentStation = config.currentLevel > 0;
-  const hasCurrentOrbitalResearch = config.currentLevel >= 3;
   const hasStation = config.targetLevel > 0;
   const hasOrbitalResearch = config.targetLevel >= 3;
   const rocketBuilt = normalizeRocketInfrastructureConfig(rocketBuiltConfig);
+  const rocketRunning = normalizeRocketInfrastructureConfig(
+    currentState.rocketRunningConfig ?? rocketBuilt,
+  );
   const rocketPlan = normalizeRocketInfrastructureConfig(rocketPlanConfig);
+  const stationSource = currentState.stationSource ?? "modeled";
+  const rocketSource = currentState.rocketSource ?? "modeled";
+  const stationPlan = resolveDirectionalPlan(
+    currentLayers(config.currentLevel, stationSource),
+    { direction: "at-least", target: config.targetLevel },
+  );
+  const hasCurrentTargetStation = hasStation && stationPlan.satisfied;
+  const stationActive = hasStation ? 1 : 0;
+  const stationDataSource = getResolvedSource(stationPlan);
+  const resolveRocketPlan = (id: RocketInfrastructureId): ResolvedDirectionalPlan => (
+    resolveDirectionalPlan(
+      currentLayers(rocketRunning[id], rocketSource),
+      { direction: "at-least", target: hasStation ? rocketPlan[id] : 0 },
+    )
+  );
+  const rocketPlans: Record<RocketInfrastructureId, ResolvedDirectionalPlan> = {
+    rocketAssemblyDepot: resolveRocketPlan("rocketAssemblyDepot"),
+    rocketLaunchPad: resolveRocketPlan("rocketLaunchPad"),
+  };
   const rocketBuiltBuildings = Object.fromEntries(
     rocketInfrastructureItems.map((item) => [item.recipeId, rocketBuilt[item.id]]),
   );
-  const rocketPlannedBuildings = Object.fromEntries(
+  const rocketActiveBuildings = Object.fromEntries(
     rocketInfrastructureItems.map((item) => [
       item.recipeId,
-      hasStation ? rocketPlan[item.id] : 0,
+      hasStation ? rocketPlans[item.id].value : 0,
     ]),
   );
   const builtBuildings = {
-    "space-station-operations": hasCurrentStation ? 1 : 0,
-    "space-station-orbital-research": hasCurrentOrbitalResearch ? 1 : 0,
+    "space-station-operations": hasCurrentTargetStation ? 1 : 0,
+    "space-station-orbital-research": hasCurrentTargetStation ? 1 : 0,
     ...rocketBuiltBuildings,
   };
   const activeBuildings = {
-    "space-station-operations": hasStation ? 1 : 0,
-    "space-station-orbital-research": hasOrbitalResearch ? 1 : 0,
-    ...rocketPlannedBuildings,
+    "space-station-operations": stationActive,
+    "space-station-orbital-research": hasOrbitalResearch ? stationActive : 0,
+    ...rocketActiveBuildings,
   };
-  const plannedRecipeIds = Object.keys(activeBuildings);
+  const dataSources = {
+    "space-station-operations": stationDataSource,
+    "space-station-orbital-research": stationDataSource,
+    ...Object.fromEntries(
+      rocketInfrastructureItems.map((item) => [
+        item.recipeId,
+        getResolvedSource(rocketPlans[item.id]),
+      ]),
+    ),
+  };
+  const planMismatches = [
+    ...(!stationPlan.satisfied && hasStation
+      ? [{
+          recipeId: "space-station-operations",
+          current: config.currentLevel,
+          currentSource: stationPlan.current.source,
+          target: config.targetLevel,
+          direction: stationPlan.direction,
+          format: "level" as const,
+          actions: [{
+            type: config.currentLevel > 0 ? "upgrade" as const : "build" as const,
+            label: config.currentLevel > 0
+              ? `Upgrade from level ${config.currentLevel} to level ${config.targetLevel}`
+              : `Build Space Station level ${config.targetLevel}`,
+          }],
+        }]
+      : []),
+    ...rocketInfrastructureItems.flatMap((item) => {
+      const plan = rocketPlans[item.id];
+
+      if (plan.satisfied || !hasStation) return [];
+
+      return [{
+        recipeId: item.recipeId,
+        current: plan.current.value,
+        currentSource: plan.current.source,
+        target: plan.target,
+        direction: plan.direction,
+        format: "count" as const,
+        actions: createAtLeastBuildingActions({
+          built: rocketBuilt[item.id],
+          running: rocketRunning[item.id],
+          target: plan.target,
+          name: item.name,
+        }),
+      }];
+    }),
+  ];
 
   return {
     id: SPACE_STATION_MODULE_ID,
@@ -57,9 +149,8 @@ export const createSpaceStationModule = (
         name: "Target level",
         description: `Space Station level ${config.targetLevel}`,
         activeBuildings,
-        dataSources: Object.fromEntries(
-          plannedRecipeIds.map((recipeId) => [recipeId, "planned"]),
-        ),
+        dataSources,
+        planMismatches: planMismatches.length > 0 ? planMismatches : undefined,
         // Orbital research remains demand-balanced: the station produces
         // points only while Research Lab IV is explicitly in Space Research.
         fixed: [

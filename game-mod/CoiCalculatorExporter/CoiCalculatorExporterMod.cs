@@ -8,9 +8,11 @@ using System.Threading;
 using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
+using Mafi.Core.Buildings.Farms;
 using Mafi.Core.Buildings.Storages;
 using Mafi.Core.Entities;
 using Mafi.Core.Entities.Static;
+using Mafi.Core.Factory.Datacenters;
 using Mafi.Core.Factory.ElectricPower;
 using Mafi.Core.Game;
 using Mafi.Core.GameLoop;
@@ -21,6 +23,7 @@ using Mafi.Core.Population.Edicts;
 using Mafi.Core.Prototypes;
 using Mafi.Core.Research;
 using Mafi.Core.Simulation;
+using Mafi.Core.SpaceProgram;
 using Mafi.Core.Stats;
 using Mafi.Core.Trains;
 using Mafi.Core.Vehicles;
@@ -33,6 +36,11 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private const string MaintenanceT1ProductId = "Product_Virtual_MaintenanceT1";
     private const string MaintenanceT2ProductId = "Product_Virtual_MaintenanceT2";
     private const string MaintenanceT3ProductId = "Product_Virtual_MaintenanceT3";
+    private const string DataCenterPrototypeId = "DataCenter";
+    private const string WaterChillerPrototypeId = "WaterChiller";
+    private const string ChickenFarmPrototypeId = "ChickenFarm";
+    private const string GreenhousePrototypeId = "FarmT3";
+    private const string GreenhouseIiPrototypeId = "FarmT4";
     private static readonly string[] TrackedBuildingKeys = new[]
     {
         "rocketAssemblyDepot",
@@ -139,6 +147,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private TrainsManager m_trainsManager;
     private ResearchManager m_researchManager;
     private EdictsManager m_edictsManager;
+    private OrbitManager m_orbitManager;
     private ICalendar m_calendar;
     private ISimLoopEvents m_simLoopEvents;
     private readonly int[] m_builtBuildings = new int[TrackedBuildingKeys.Length];
@@ -158,7 +167,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 13; } }
+    public int Version { get { return 15; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -197,6 +206,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_trainsManager = resolver.Resolve<TrainsManager>();
         m_researchManager = resolver.Resolve<ResearchManager>();
         m_edictsManager = resolver.Resolve<EdictsManager>();
+        m_orbitManager = resolver.Resolve<OrbitManager>();
         m_calendar = resolver.Resolve<ICalendar>();
         m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
         initializeTrackedBuildingCounts();
@@ -334,6 +344,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             int[] researchLevels = getResearchLevels();
             EdictState[] edictStates = getEdictStates();
             int[] reserves = getReserveQuantities();
+            ProductionSnapshot production = getProductionSnapshot();
 
             foreach (var vehicle in m_vehiclesManager.AllVehicles)
             {
@@ -342,7 +353,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":14,");
+            json.Append("\"schemaVersion\":16,");
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");
@@ -361,6 +372,75 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 }
             }
             json.Append("},");
+            SpaceStation spaceStation = m_orbitManager.SpaceStation.ValueOrNull;
+            json.Append("\"spaceStation\":{");
+            appendNumber(json, "currentLevel", spaceStation == null ? 0 : spaceStation.CurrentTier, true);
+            appendNumber(json, "highestLevelAchieved", m_orbitManager.HighestStationTierAchieved, true);
+            json.Append("\"constructionPending\":");
+            json.Append(m_orbitManager.IsStationConstructionPending ? "true" : "false");
+            json.Append("},");
+            json.Append("\"computing\":{");
+            appendBuildingCount(json, "dataCenters", production.DataCenters, true);
+            appendBuildingCount(json, "racks", production.Racks, true);
+            appendBuildingCount(json, "waterChillers", production.WaterChillers, false);
+            json.Append("},");
+            json.Append("\"chickenFarms\":{");
+            json.Append("\"configurations\":[");
+            for (int i = 0; i < production.ChickenFarms.Count; i++)
+            {
+                ChickenFarmSnapshot farm = production.ChickenFarms[i];
+                json.Append('{');
+                json.Append("\"slaughtering\":");
+                json.Append(farm.Slaughtering ? "true" : "false");
+                json.Append(',');
+                appendNumber(json, "built", farm.Built, true);
+                appendNumber(json, "running", farm.Running, true);
+                appendNumber(json, "chickens", farm.Chickens, true);
+                appendNumber(json, "runningChickens", farm.RunningChickens, false);
+                json.Append('}');
+                if (i < production.ChickenFarms.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("]},");
+            json.Append("\"cropFarms\":{");
+            json.Append("\"configurations\":[");
+            for (int i = 0; i < production.CropFarms.Count; i++)
+            {
+                CropFarmSnapshot farm = production.CropFarms[i];
+                json.Append('{');
+                appendString(json, "prototypeId", farm.PrototypeId, true);
+                appendNumber(json, "built", farm.Built, true);
+                appendNumber(json, "running", farm.Running, true);
+                appendNumber(json, "fertilityTargetPercent", farm.FertilityTargetPercent, true);
+                json.Append("\"schedule\":[");
+                for (int scheduleIndex = 0; scheduleIndex < farm.Schedule.Length; scheduleIndex++)
+                {
+                    string cropId = farm.Schedule[scheduleIndex];
+                    if (cropId == null)
+                    {
+                        json.Append("null");
+                    }
+                    else
+                    {
+                        json.Append('"');
+                        appendEscapedString(json, cropId);
+                        json.Append('"');
+                    }
+
+                    if (scheduleIndex < farm.Schedule.Length - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("]}");
+                if (i < production.CropFarms.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("]},");
             json.Append("\"vehicles\":{");
             appendNumber(json, "total", m_vehiclesManager.AllVehicles.Count, true);
             appendNumber(json, "workersAssigned", workersAssigned, true);
@@ -485,6 +565,111 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
 
         return result;
+    }
+
+    private ProductionSnapshot getProductionSnapshot()
+    {
+        BuildingCountSnapshot dataCenters = new BuildingCountSnapshot();
+        BuildingCountSnapshot racks = new BuildingCountSnapshot();
+        BuildingCountSnapshot waterChillers = new BuildingCountSnapshot();
+        ChickenFarmSnapshot slaughteringFarms = new ChickenFarmSnapshot(true);
+        ChickenFarmSnapshot eggsOnlyFarms = new ChickenFarmSnapshot(false);
+        Dictionary<string, CropFarmSnapshot> cropFarmConfigurations =
+            new Dictionary<string, CropFarmSnapshot>(StringComparer.Ordinal);
+
+        foreach (IEntity entity in m_entitiesManager.Entities)
+        {
+            IStaticEntity staticEntity = entity as IStaticEntity;
+            if (entity.IsDestroyed || (staticEntity != null && !staticEntity.IsConstructed))
+            {
+                continue;
+            }
+
+            bool isRunning = !entity.IsPaused;
+            string prototypeId = entity.Prototype.Id.ToString();
+            DataCenter dataCenterEntity = entity as DataCenter;
+            if (dataCenterEntity != null
+                && String.Equals(prototypeId, DataCenterPrototypeId, StringComparison.Ordinal))
+            {
+                dataCenters.Add(isRunning, 1);
+                racks.Add(isRunning, dataCenterEntity.RacksCount);
+                continue;
+            }
+
+            if (String.Equals(prototypeId, WaterChillerPrototypeId, StringComparison.Ordinal))
+            {
+                waterChillers.Add(isRunning, 1);
+                continue;
+            }
+
+            AnimalFarm animalFarm = entity as AnimalFarm;
+            if (animalFarm != null
+                && String.Equals(prototypeId, ChickenFarmPrototypeId, StringComparison.Ordinal))
+            {
+                ChickenFarmSnapshot farm = animalFarm.IsSlaughteringEnabled
+                    ? slaughteringFarms
+                    : eggsOnlyFarms;
+                farm.Add(isRunning, animalFarm.AnimalsCount);
+                continue;
+            }
+
+            Farm cropFarm = entity as Farm;
+            if (cropFarm == null
+                || (!String.Equals(prototypeId, GreenhousePrototypeId, StringComparison.Ordinal)
+                    && !String.Equals(prototypeId, GreenhouseIiPrototypeId, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            string[] schedule = new string[cropFarm.Schedule.Length];
+            StringBuilder key = new StringBuilder(prototypeId);
+            for (int i = 0; i < cropFarm.Schedule.Length; i++)
+            {
+                CropProto crop = cropFarm.Schedule[i].ValueOrNull;
+                schedule[i] = crop == null ? null : crop.Id.ToString();
+                key.Append('|');
+                key.Append(schedule[i] ?? "null");
+            }
+
+            int fertilityTargetPercent = cropFarm.FertilityTargetValue.ToIntPercentRounded();
+            key.Append('|');
+            key.Append(fertilityTargetPercent.ToString(CultureInfo.InvariantCulture));
+
+            CropFarmSnapshot cropFarmSnapshot;
+            if (!cropFarmConfigurations.TryGetValue(key.ToString(), out cropFarmSnapshot))
+            {
+                cropFarmSnapshot = new CropFarmSnapshot(
+                    prototypeId,
+                    schedule,
+                    fertilityTargetPercent);
+                cropFarmConfigurations.Add(key.ToString(), cropFarmSnapshot);
+            }
+
+            cropFarmSnapshot.Add(isRunning);
+        }
+
+        List<ChickenFarmSnapshot> chickenFarms = new List<ChickenFarmSnapshot>();
+        if (slaughteringFarms.Built > 0)
+        {
+            chickenFarms.Add(slaughteringFarms);
+        }
+        if (eggsOnlyFarms.Built > 0)
+        {
+            chickenFarms.Add(eggsOnlyFarms);
+        }
+
+        List<CropFarmSnapshot> cropFarms = new List<CropFarmSnapshot>(cropFarmConfigurations.Values);
+        cropFarms.Sort(delegate(CropFarmSnapshot left, CropFarmSnapshot right)
+        {
+            return String.CompareOrdinal(left.Key, right.Key);
+        });
+
+        return new ProductionSnapshot(
+            dataCenters,
+            racks,
+            waterChillers,
+            chickenFarms,
+            cropFarms);
     }
 
     private static Dictionary<string, int> createTrackedResearchIndices()
@@ -1076,6 +1261,24 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
+    private static void appendBuildingCount(
+        StringBuilder json,
+        string name,
+        BuildingCountSnapshot count,
+        bool trailingComma)
+    {
+        json.Append('"');
+        json.Append(name);
+        json.Append("\":{");
+        appendNumber(json, "built", count.Built, true);
+        appendNumber(json, "running", count.Running, false);
+        json.Append('}');
+        if (trailingComma)
+        {
+            json.Append(',');
+        }
+    }
+
     private static void appendString(
         StringBuilder json,
         string name,
@@ -1159,6 +1362,100 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             Value = value;
             SampleMonths = sampleMonths;
+        }
+    }
+
+    private sealed class BuildingCountSnapshot
+    {
+        public int Built;
+        public int Running;
+
+        public void Add(bool isRunning, int count)
+        {
+            Built += count;
+            if (isRunning)
+            {
+                Running += count;
+            }
+        }
+    }
+
+    private sealed class ChickenFarmSnapshot
+    {
+        public readonly bool Slaughtering;
+        public int Built;
+        public int Running;
+        public int Chickens;
+        public int RunningChickens;
+
+        public ChickenFarmSnapshot(bool slaughtering)
+        {
+            Slaughtering = slaughtering;
+        }
+
+        public void Add(bool isRunning, int chickens)
+        {
+            Built++;
+            Chickens += chickens;
+            if (isRunning)
+            {
+                Running++;
+                RunningChickens += chickens;
+            }
+        }
+    }
+
+    private sealed class CropFarmSnapshot
+    {
+        public readonly string PrototypeId;
+        public readonly string[] Schedule;
+        public readonly int FertilityTargetPercent;
+        public readonly string Key;
+        public int Built;
+        public int Running;
+
+        public CropFarmSnapshot(
+            string prototypeId,
+            string[] schedule,
+            int fertilityTargetPercent)
+        {
+            PrototypeId = prototypeId;
+            Schedule = schedule;
+            FertilityTargetPercent = fertilityTargetPercent;
+            Key = prototypeId + "|" + String.Join("|", schedule) + "|"
+                + fertilityTargetPercent.ToString(CultureInfo.InvariantCulture);
+        }
+
+        public void Add(bool isRunning)
+        {
+            Built++;
+            if (isRunning)
+            {
+                Running++;
+            }
+        }
+    }
+
+    private sealed class ProductionSnapshot
+    {
+        public readonly BuildingCountSnapshot DataCenters;
+        public readonly BuildingCountSnapshot Racks;
+        public readonly BuildingCountSnapshot WaterChillers;
+        public readonly List<ChickenFarmSnapshot> ChickenFarms;
+        public readonly List<CropFarmSnapshot> CropFarms;
+
+        public ProductionSnapshot(
+            BuildingCountSnapshot dataCenters,
+            BuildingCountSnapshot racks,
+            BuildingCountSnapshot waterChillers,
+            List<ChickenFarmSnapshot> chickenFarms,
+            List<CropFarmSnapshot> cropFarms)
+        {
+            DataCenters = dataCenters;
+            Racks = racks;
+            WaterChillers = waterChillers;
+            ChickenFarms = chickenFarms;
+            CropFarms = cropFarms;
         }
     }
 

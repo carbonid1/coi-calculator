@@ -71,8 +71,12 @@ export interface DecayStorage {
 
 export interface Recipe {
   id: string
+  /** Optional concise label used when the building name is already visible. */
+  displayName?: string
   name: string
   building: string
+  /** Whether generic cards show recipe and speed metadata below the building name. */
+  showConfigurationSummary?: boolean
   group: RecipeGroup
   inputs: Ingredient[]
   outputs: Ingredient[]
@@ -528,8 +532,10 @@ export const recipes: Recipe[] = [
   // Settlement demand at full configured housing population capacity
   {
     id: settlementRecipeIds.residents,
+    displayName: activeHousingType.name,
     name: `${activeHousingType.name} Residents`,
     building: activeHousingType.name,
+    showConfigurationSummary: false,
     group: 'production',
     inputs: housingPopulationFlows.inputs,
     outputs: housingPopulationFlows.outputs,
@@ -1946,6 +1952,7 @@ export const recipes: Recipe[] = [
   ...cropFarmRecipes,
   {
     id: 'chicken-farm-slaughtering',
+    displayName: 'Slaughtering enabled',
     name: 'Chicken Farm (Slaughtering on)',
     building: 'Chicken Farm',
     group: 'production',
@@ -1977,6 +1984,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'chicken-farm-eggs-only',
+    displayName: 'Eggs only',
     name: 'Chicken Farm (Slaughtering off)',
     building: 'Chicken Farm',
     group: 'production',

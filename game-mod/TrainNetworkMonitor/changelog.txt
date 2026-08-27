@@ -1,3 +1,6 @@
+0.3.8
+- Fixed the delay setting to measure each uninterrupted waiting-for-track period independently. The timer now resets whenever a train leaves the waiting state instead of relying on the game's non-resetting reservation timer.
+
 0.3.7
 - Added a fleet-wide traffic monitor for trains that remain in the game's explicit waiting-for-track states.
 - Added one grouped critical alert when at least three trains and at least 10% of the active fleet are affected. The alert's (Nx) counter shows the current number of blocked trains.

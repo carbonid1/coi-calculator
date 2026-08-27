@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.13 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.15 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -19,6 +19,13 @@ reason; calculator effects use only the active level.
 Schema 10 and newer export the actual Gold quantity in completed standalone storage;
 schema 13 adds Fuel Gas stored under the same eligibility rules, and schema 14
 adds Rocket Assembly Depot and Rocket Launch Pad completed/running counts.
+Schema 15 adds the current and highest achieved Space Station levels plus active
+station-construction state, read directly from the installed game's orbit manager.
+Schema 16 adds completed/running Data Centers, installed Basic Server Racks and
+Water Chillers; Chicken Farm mode and population; and Greenhouse/Greenhouse II
+crop schedules with fertility targets. These configuration values are sampled
+from the loaded entities on every export, so in-game setting changes do not
+depend on a building event.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as

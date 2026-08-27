@@ -65,7 +65,51 @@ it("provides two active Rubber Makers for the Ethanol route", () => {
   });
 });
 
-it("keeps five steel blocks built while planning a sixth refining block", () => {
+it("unpauses the Air Separator and remembers to pause it after the temporary run", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const airSeparator = buildModuleLines(general, preset ?? null).lines.find(
+    (line) => line.recipe.id === "air-separator-nitrogen",
+  );
+
+  expect(airSeparator).toMatchObject({
+    activeBuildings: 1,
+    builtBuildings: 1,
+    operatingMode: "fixed",
+  });
+  expect(preset?.plannedFollowUps).toContainEqual({
+    id: "pause-air-separator-after-temporary-run",
+    recipeId: "air-separator-nitrogen",
+    action: "pause",
+    count: 1,
+    note: "Pause after the temporary production run is complete.",
+  });
+});
+
+it("plans one additional Bread Baking Unit and remembers to pause it later", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const bakingUnit = buildModuleLines(general, preset ?? null).lines.find(
+    (line) => line.recipe.id === "baking-unit-bread",
+  );
+
+  expect(bakingUnit).toMatchObject({
+    activeBuildings: 4,
+    builtBuildings: 3,
+    dataSource: "planned",
+  });
+  expect(preset?.plannedFollowUps).toContainEqual({
+    id: "pause-extra-bread-baking-unit",
+    recipeId: "baking-unit-bread",
+    action: "pause",
+    count: 1,
+    note: "Pause after the intentional Food Packs surplus is stocked.",
+  });
+});
+
+it("keeps five steel refining blocks active when projected demand fits", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -82,10 +126,10 @@ it("keeps five steel blocks built while planning a sixth refining block", () => 
   }
   for (const recipeId of ["oxygen-furnace-ii-steel", "cooled-caster-ii-steel"]) {
     expect(lines.find((line) => line.recipe.id === recipeId)).toMatchObject({
-      activeBuildings: 6,
+      activeBuildings: 5,
       builtBuildings: 5,
-      dataSource: "planned",
     });
+    expect(lines.find((line) => line.recipe.id === recipeId)?.dataSource).toBeUndefined();
   }
 });
 

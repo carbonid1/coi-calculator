@@ -1,3 +1,4 @@
+import { type PlanDirection } from "../../helpers/resolve-layered-value/resolve-directional-plan";
 import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import { type ResourceId } from "../resources";
 import { computing } from "./computing";
@@ -33,6 +34,42 @@ export interface Preset {
   fixedDemands?: Partial<Record<ResourceId, number>>;
   /** Minimum average output for a named electricity dispatch group. */
   electricityDispatchTargets?: Record<string, number>;
+  /** Sequenced reminders that remain after the projected operating plan is applied. */
+  plannedFollowUps?: PlannedFollowUp[];
+  /** Unmet directional targets shown only in the consolidated Factory Total checklist. */
+  planMismatches?: PlanMismatch[];
+}
+
+export interface PlanMismatch {
+  recipeId: string;
+  current: number;
+  currentSource: Exclude<ValueSource, "planned">;
+  target: number;
+  direction: PlanDirection;
+  format: "count" | "level" | "animals" | "configuration";
+  currentLabel?: string;
+  targetLabel?: string;
+  actions: PlanMismatchAction[];
+}
+
+export interface PlanMismatchAction {
+  type:
+    | "build"
+    | "pause"
+    | "unpause"
+    | "upgrade"
+    | "configure"
+    | "add-animals"
+    | "remove-animals";
+  label: string;
+}
+
+export interface PlannedFollowUp {
+  id: string;
+  recipeId: string;
+  action: "pause";
+  count: number;
+  note: string;
 }
 
 export interface Module {

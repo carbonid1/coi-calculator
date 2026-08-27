@@ -35,7 +35,7 @@ export const plannedNewGeneralBuildings = {
 
 export const plannedGeneralBuildings = {
   ...plannedNewGeneralBuildings,
-  "chemical-plant-ii-graphite": 2,
+  "baking-unit-bread": 4,
   "settling-tank-red-mud-acid": 5,
   "exhaust-scrubber-limestone": 2,
   "rotary-kiln-alumina-fuel-gas": 3,
@@ -65,8 +65,6 @@ export const plannedGeneralBuildings = {
   "microchip-machine-ii-final": 3,
   "coal-maker-wood": 5,
   "fermentation-tank-antibiotics": 2,
-  "cooled-caster-ii-steel": 6,
-  "oxygen-furnace-ii-steel": 6,
   "silicon-reactor-poly-silicon": 5,
   "arc-furnace-ii-silicon": 2,
   "polymerization-plant-plastic-ethanol": 3,
@@ -111,7 +109,7 @@ export const general: Module = {
     "assembly-v-electronics-iii": 3,
     "rubber-maker-ethanol": 2,
     "chemical-plant-ii-ethanol": 2,
-    "chemical-plant-ii-graphite": 1,
+    "chemical-plant-ii-graphite": 2,
     "chemical-plant-ii-graphite-coal": 3,
     "copper-electrolysis-acid": 8,
     "waste-sorting-recyclables": 2,
@@ -220,7 +218,7 @@ export const general: Module = {
         "assembly-v-electronics-iii": 3,
         "rubber-maker-ethanol": 2,
         "chemical-plant-ii-ethanol": 2,
-        "chemical-plant-ii-graphite": 1,
+        "chemical-plant-ii-graphite": 2,
         "chemical-plant-ii-graphite-coal": 3,
         "copper-electrolysis-acid": 8,
         "waste-sorting-recyclables": 2,
@@ -299,7 +297,6 @@ export const general: Module = {
         "chemical-plant-ii-anesthetics": 1,
         "settling-tank-hydrogen-fluoride": 1,
         "chemical-plant-ii-morphine": 1,
-        "air-separator-nitrogen": 0,
         "chemical-plant-ii-ammonia": 0,
         "gold-furnace-scrap": 1,
         "gold-furnace-concentrate": 1,
@@ -311,7 +308,6 @@ export const general: Module = {
         "arc-furnace-ii-iron-scrap": 5,
         "arc-furnace-ii-iron-ore": 5,
         "mill-wheat": 4,
-        "baking-unit-bread": 3,
         "anaerobic-digester-meat-trimmings": 3,
         "anaerobic-digester-sugar-cane": 3,
         "anaerobic-digester-potato": 3,
@@ -326,13 +322,29 @@ export const general: Module = {
       dataSources: Object.fromEntries(
         Object.keys(plannedGeneralBuildings).map((recipeId) => [recipeId, "planned"]),
       ),
-      fixed: ["cracking-unit-fuel-gas-diesel"],
+      fixed: ["air-separator-nitrogen", "cracking-unit-fuel-gas-diesel"],
       outputTargets: {
         compositePanel:
           defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4,
         titaniumAlloy:
           defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,
       },
+      plannedFollowUps: [
+        {
+          id: "pause-air-separator-after-temporary-run",
+          recipeId: "air-separator-nitrogen",
+          action: "pause",
+          count: 1,
+          note: "Pause after the temporary production run is complete.",
+        },
+        {
+          id: "pause-extra-bread-baking-unit",
+          recipeId: "baking-unit-bread",
+          action: "pause",
+          count: 1,
+          note: "Pause after the intentional Food Packs surplus is stocked.",
+        },
+      ],
     },
   ],
   defaultPresetId: "yellowcake",

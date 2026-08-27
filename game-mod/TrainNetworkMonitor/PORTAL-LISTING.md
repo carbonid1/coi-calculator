@@ -27,8 +27,8 @@ Recommended image order: generated thumbnail, live alert screenshot, settings sc
 ## Before upload
 
 1. In the save's **Mods & DLCs** screen, add `Train Network Monitor`, then load a representative existing save.
-2. Verify the mod appears as version 0.3.7, the settings tab opens, the alert counter updates, alert clicks focus affected trains, and optional pausing happens only once per new jam.
+2. Verify the mod appears as version 0.3.8, the settings tab opens, the alert counter updates, alert clicks focus affected trains, and optional pausing happens only once per new jam.
 3. Verify the game log contains no mod exceptions.
-4. Upload `Builds/TrainNetworkMonitor-0.3.7.zip` to COI Hub, select the state, tags, and license above, add the screenshots, preview the page, and publish.
+4. Upload `Builds/TrainNetworkMonitor-0.3.8.zip` to COI Hub, select the state, tags, and license above, add the screenshots, preview the page, and publish.
 
 The bundled `CoI.AutoHelpers.Settings.LICENSE.txt` must remain in every release because the shared settings helper is MIT-licensed code by Kayser.

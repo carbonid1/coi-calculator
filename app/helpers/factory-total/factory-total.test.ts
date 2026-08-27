@@ -67,7 +67,7 @@ describe("Factory Total contracts", () => {
     expect(reformer).toMatchObject({ activeBuildings: 5, builtBuildings: 6 });
     expect(hydrogenOutput).toBeGreaterThan(4 * 32);
     expect(hydrogenOutput).toBeCloseTo(5 * 32);
-    expect(hydrogen?.net).toBeCloseTo(-38.6917786087);
+    expect(hydrogen?.net).toBeCloseTo(-53.545798324);
   });
 
   it("balances the Iron Ore contract against live factory demand", () => {
@@ -93,12 +93,12 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.imported).toBeCloseTo(151.522921649, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(151.522921649, 5);
+    expect(contractResult?.imported).toBeCloseTo(139.163133289, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(139.163133289, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(27.36882772, 8);
-    expect(ironOre?.consumed).toBeCloseTo(151.522921649, 5);
-    expect(ironOre?.produced).toBeCloseTo(151.522921649, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(25.1363409504, 8);
+    expect(ironOre?.consumed).toBeCloseTo(139.163133289, 5);
+    expect(ironOre?.produced).toBeCloseTo(139.163133289, 5);
     expect(ironOre?.net).toBeCloseTo(0, 5);
     expect(ironOreCrushed?.net).toBeCloseTo(0, 5);
     const recoveredCrushedOre = redMudRecovery?.actualOutputs.find(
@@ -132,13 +132,13 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.exported).toBeCloseTo(26.3781489966, 8);
-    expect(contractResult?.imported).toBeCloseTo(171.457968478, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(171.457968478, 5);
+    expect(contractResult?.exported).toBeCloseTo(29.4218143259, 8);
+    expect(contractResult?.imported).toBeCloseTo(191.241793119, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(191.241793119, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(30.96959556, 8);
-    expect(copperOre?.consumed).toBeCloseTo(171.457968478, 5);
-    expect(copperOre?.produced).toBeCloseTo(171.457968478, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(34.543048882, 8);
+    expect(copperOre?.consumed).toBeCloseTo(191.241793119, 5);
+    expect(copperOre?.produced).toBeCloseTo(191.241793119, 5);
     expect(copperOre?.net).toBeCloseTo(0, 5);
     const copperMineOutput = copperMine?.actualOutputs.find(
       (output) => output.resourceId === "copperOre",
@@ -162,7 +162,7 @@ describe("Factory Total contracts", () => {
     expect(ammoniaContract?.imported).toBeGreaterThan(0);
     expect(ammoniaContract?.uncoveredImported).toBe(0);
     expect(localAmmonia).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
-    expect(localNitrogen).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
+    expect(localNitrogen).toMatchObject({ activeBuildings: 1, supplyRatio: 1 });
   });
 
   it("keeps uncovered Uranium demand visible instead of resizing the contract", () => {
@@ -258,7 +258,8 @@ describe("Factory Total contracts", () => {
     const maintenanceI = getLine("maintenance-i-recycling");
     const maintenanceII = getLine("maintenance-ii-recycling");
     const maintenanceIII = getLine("maintenance-iii-recycling");
-    const researchLab = getLine("research-lab-iv");
+    const researchLab = getLine("research-lab-iv-space");
+    const orbitalResearch = getLine("space-station-orbital-research");
     const wasteSorter = getLine("waste-sorting-recyclables");
     const recyclables = result.calculation.allResourceFlows.find(
       (flow) => flow.resourceId === "recyclables",
@@ -272,12 +273,17 @@ describe("Factory Total contracts", () => {
       resourceId: "recyclables",
       quantity: 96,
     });
-    expect(researchLab?.actualInputs).not.toContainEqual({
+    expect(researchLab?.actualInputs).toContainEqual({
       resourceId: "spaceResearchPoints",
       quantity: 96,
     });
     expect(result.flows.find((flow) => flow.resourceId === "spaceResearchPoints"))
-      .toMatchObject({ consumed: 0, produced: 0, net: 0 });
+      .toMatchObject({ consumed: 96, produced: 96, net: 0 });
+    expect(orbitalResearch).toMatchObject({ supplyRatio: 1 });
+    expect(orbitalResearch?.actualInputs).toContainEqual({
+      resourceId: "electronicsIv",
+      quantity: 4,
+    });
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
     expect(wasteSorter?.supplyRatio).toBeCloseTo(0.6784861111);
     expect(recyclables?.consumed).toBeCloseTo(195.404);

@@ -6,7 +6,9 @@ notification when the train fleet is traffic-jammed.
 A train counts as stuck only when it has remained in `Waiting for free track`,
 `Waiting for super block`, or `Waiting for bidirectional super block` for the
 configured number of in-game months, from one month up to one in-game year
-(12 months). The default is one month. The red alert
+(12 months). The default is one month. The monitor times each uninterrupted
+wait itself and resets that train's timer whenever it leaves those states, so
+separate routine queue waits are never added together. The red alert
 starts when the stuck count reaches both three trains and 10% of active, spawned
 trains. It clears automatically when the stuck count drops below that threshold.
 The alert panel groups all affected trains into one visible row with an `(Nx)`

@@ -81,9 +81,9 @@ it("uses planned waste-processing capacity without leaving process waste", () =>
     (candidate) => candidate.recipe.id === "chemical-plant-ii-graphite-coal",
   )!;
 
-  expect(carbonDioxideResult.builtBuildings).toBe(1);
+  expect(carbonDioxideResult.builtBuildings).toBe(2);
   expect(carbonDioxideResult.activeBuildings).toBe(2);
-  expect(carbonDioxideResult.dataSource).toBe("planned");
+  expect(carbonDioxideResult.dataSource).toBeUndefined();
   expect(coalResult.builtBuildings).toBe(3);
   expect(carbonDioxideResult.capacityPoolId).toBeUndefined();
   expect(coalResult.capacityPoolId).toBeUndefined();

@@ -193,7 +193,7 @@ describe("planned advanced production", () => {
     ).every(({ moduleId }) => moduleId === GENERAL_MODULE_ID)).toBe(true);
     expect(result("assembly-v-electronics-iv")?.actualOutputs).toContainEqual({
       resourceId: "electronicsIv",
-      quantity: 0,
+      quantity: 4,
     });
     expect(result("assembly-v-composite-panel")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "compositePanel",
@@ -203,8 +203,8 @@ describe("planned advanced production", () => {
     )?.quantity).toBeCloseTo(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2, 6);
     expect(result("settling-tank-red-mud-acid")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "ironOreCrushed",
-    )?.quantity).toBeCloseTo(16.5176366843, 6);
+    )?.quantity).toBeCloseTo(17.4065255732, 6);
     expect(stats.workers).toBe(308);
-    expect(stats.computingTflops).toBe(18);
+    expect(stats.computingTflops).toBe(32);
   });
 });

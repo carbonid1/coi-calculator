@@ -6,6 +6,7 @@ import {
   type RegularResult,
   type ResourceFlow,
 } from "../calculate/calculate";
+import { getRecipeDisplayName } from "../recipe-display/recipe-display";
 
 export type BuildingAttention =
   | "add-animals"
@@ -27,6 +28,7 @@ export interface BuildingDiagnostic {
   moduleId: string;
   moduleName: string;
   buildingName: string;
+  recipeName: string;
   plannedCapacity: boolean;
   load: number;
   active: number;
@@ -50,6 +52,24 @@ export const getBuildingKey = (result: Result) => (
 const isRegularResult = (result: Result): result is RegularResult => (
   "operatingMode" in result
 );
+
+const getDiagnosticRecipeName = (results: Result[]) => {
+  const first = results[0];
+
+  if (!first) return "Recipe";
+
+  const sharedLabel = first.recipe.sharedCapacity?.label;
+
+  if (sharedLabel) {
+    const buildingPrefix = `${first.recipe.building} — `;
+
+    return sharedLabel.startsWith(buildingPrefix)
+      ? sharedLabel.slice(buildingPrefix.length)
+      : sharedLabel;
+  }
+
+  return [...new Set(results.map(({ recipe }) => getRecipeDisplayName(recipe)))].join(" / ");
+};
 
 const roundUpToStep = (value: number, step: number) => (
   Math.ceil(Math.max(0, value - EPSILON) / step) * step
@@ -247,6 +267,7 @@ export const calculateBuildingDiagnostics = (
         buildingName: isRegularResult(first)
           ? first.recipe.sharedCapacity?.label ?? first.recipe.building
           : first.recipe.building,
+        recipeName: getDiagnosticRecipeName(results),
         plannedCapacity,
         load: animalDiagnostic.animalPopulation.current
           / (first.recipe.animalPopulationCapacity ?? 1),
@@ -335,6 +356,7 @@ export const calculateBuildingDiagnostics = (
       buildingName: isRegularResult(first)
         ? first.recipe.sharedCapacity?.label ?? first.recipe.building
         : first.recipe.building,
+      recipeName: getDiagnosticRecipeName(results),
       plannedCapacity,
       load,
       active,
@@ -368,6 +390,7 @@ export const calculateBuildingDiagnostics = (
       moduleId,
       moduleName: moduleNames.get(moduleId) ?? moduleId,
       buildingName: "Crop farms",
+      recipeName: "Crop rotations",
       plannedCapacity: false,
       load: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.load, 0),
       active: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.active, 0),

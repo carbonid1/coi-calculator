@@ -1,5 +1,6 @@
 import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
+import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
@@ -15,6 +16,7 @@ const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 export const SinkCard: React.FC<Props> = ({ dataSource, result }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.activeBuildings === 0 || !hasWork;
+  const recipeDisplayName = getRecipeDisplayName(result.recipe);
 
   // Effective building count based on the first produced or consumed resource.
   const effectiveCount = hasWork
@@ -48,13 +50,11 @@ export const SinkCard: React.FC<Props> = ({ dataSource, result }) => {
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             {result.recipe.building}
           </h3>
-          {result.recipe.name !== result.recipe.building && (() => {
-            const match = result.recipe.name.match(/\((.+)\)$/);
-
-            return match ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{match[1]}</p>
-            ) : null;
-          })()}
+          {recipeDisplayName !== result.recipe.building && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {recipeDisplayName}
+            </p>
+          )}
         </div>
         <BuildingCount
           load={effectiveCount}

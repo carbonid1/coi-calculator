@@ -27,6 +27,9 @@ it("keeps fifteen Housing III blocks built and plans two more for the workforce"
     resolvedCurrentHousingCount.value,
     resolvedHousingCount.source,
   );
+  const residentLine = buildModuleLines(housing, housing.presets[0] ?? null).lines.find(
+    ({ recipe }) => recipe.id === settlementRecipeIds.residents,
+  );
 
   expect(activeHousingType.name).toBe("Housing III");
   expect(defaultHousingCount).toBe(11);
@@ -41,6 +44,10 @@ it("keeps fifteen Housing III blocks built and plans two more for the workforce"
   expect(housing.builtBuildings[settlementRecipeIds.anaerobicDigester]).toBe(2);
   expect(housing.presets[0]?.activeBuildings[settlementRecipeIds.anaerobicDigester]).toBe(3);
   expect(housing.presets[0]?.dataSources?.[settlementRecipeIds.anaerobicDigester]).toBe("planned");
+  expect(residentLine?.recipe).toMatchObject({
+    displayName: "Housing III",
+    showConfigurationSummary: false,
+  });
   expect(calculatePopulationCapacity(
     activeHousingType,
     resolvedHousingCount.value,

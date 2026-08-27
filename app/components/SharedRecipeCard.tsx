@@ -12,6 +12,7 @@ import {
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
+import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
@@ -23,12 +24,6 @@ interface Props {
   outputModifiers?: RecipeModifierMultipliers;
   diagnostic?: BuildingDiagnostic;
 }
-
-const getRecipeLabel = (line: ProductionLine) => {
-  const match = line.recipe.name.match(/\((.+)\)$/);
-
-  return match?.[1] ?? line.recipe.name;
-};
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 
@@ -87,7 +82,7 @@ export const SharedRecipeCard: React.FC<Props> = ({ lines, dataSource, results, 
             >
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h4 className="text-sm font-medium text-foreground">
-                  {getRecipeLabel(line)}
+                  {getRecipeDisplayName(line.recipe)}
                 </h4>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {formatQuantity(supplyRatio * 100)}% load

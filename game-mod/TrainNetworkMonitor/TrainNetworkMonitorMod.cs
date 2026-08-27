@@ -37,6 +37,14 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
     private NotificationProto m_groupedFleetJamNotificationProto;
     private readonly Dictionary<TrainId, EntityNotificator> m_trainJamNotificators =
         new Dictionary<TrainId, EntityNotificator>();
+    // In game version 0.8.7a, Train.ReservationWaitTime never resets after its
+    // first failed reservation. Track uninterrupted UI wait states ourselves.
+    private readonly Dictionary<TrainId, SimStep> m_trainWaitStartSteps =
+        new Dictionary<TrainId, SimStep>();
+    private readonly HashSet<TrainId> m_waitingTrainIdsThisUpdate =
+        new HashSet<TrainId>();
+    private readonly List<TrainId> m_waitTrackingIdsToRemove =
+        new List<TrainId>();
     private bool m_isRedAlertActive;
     private INotificationsManager m_notificationsManager;
     private bool m_pauseHandledForCurrentAlert;
@@ -105,6 +113,7 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         m_gameLoopEvents = resolver.Resolve<IGameLoopEvents>();
         m_gameLoopEvents.RegisterRendererInitState(this, () => initializeSettingsUi(resolver));
 
+        clearTrainWaitTracking();
         updateNotification();
         Log.Info("Train Network Monitor: fleet traffic alerts enabled.");
     }
@@ -142,6 +151,7 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         }
 
         deactivateAllTrainNotifications();
+        clearTrainWaitTracking();
 
         m_inputScheduler = null;
         m_gameLoopEvents = null;
@@ -204,17 +214,21 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
 
     private void updateNotification()
     {
-        if (m_trainsManager == null || m_notificationsManager == null)
+        if (m_trainsManager == null
+            || m_notificationsManager == null
+            || m_simLoopEvents == null)
         {
             return;
         }
 
         int activeTrains = 0;
-        List<Train> stuckTrains = new List<Train>();
+        List<SustainedTrainWait> stuckTrains = new List<SustainedTrainWait>();
         int stuckAfterCycles = Math.Min(
             12,
             Math.Max(1, JsonConfig.GetInt("stuck_after_cycles")));
         Duration stuckAfter = Duration.OneMonth * stuckAfterCycles;
+        SimStep currentStep = m_simLoopEvents.CurrentStep;
+        m_waitingTrainIdsThisUpdate.Clear();
 
         foreach (Train train in m_trainsManager.Trains)
         {
@@ -227,12 +241,29 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
             }
 
             activeTrains++;
-            if (isWaitingForTrack(train.StateForUi)
-                && train.ReservationWaitTime >= stuckAfter)
+            if (!isWaitingForTrack(train.StateForUi))
             {
-                stuckTrains.Add(train);
+                continue;
+            }
+
+            TrainId trainId = train.TrainId;
+            m_waitingTrainIdsThisUpdate.Add(trainId);
+
+            SimStep waitStartStep;
+            if (!m_trainWaitStartSteps.TryGetValue(trainId, out waitStartStep))
+            {
+                waitStartStep = currentStep;
+                m_trainWaitStartSteps.Add(trainId, waitStartStep);
+            }
+
+            Duration waitDuration = currentStep - waitStartStep;
+            if (waitDuration >= stuckAfter)
+            {
+                stuckTrains.Add(new SustainedTrainWait(train, waitDuration));
             }
         }
+
+        removeCompletedTrainWaits();
 
         int criticalThreshold = Math.Max(3, (int)Math.Ceiling(activeTrains * 0.1));
         bool isRedAlert = stuckTrains.Count >= criticalThreshold;
@@ -255,7 +286,9 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         }
     }
 
-    private void syncTrainNotifications(List<Train> stuckTrains, bool isRedAlert)
+    private void syncTrainNotifications(
+        List<SustainedTrainWait> stuckTrains,
+        bool isRedAlert)
     {
         if (!isRedAlert)
         {
@@ -267,7 +300,7 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         HashSet<TrainId> stuckTrainIds = new HashSet<TrainId>();
         for (int i = 0; i < stuckTrains.Count; i++)
         {
-            stuckTrainIds.Add(stuckTrains[i].TrainId);
+            stuckTrainIds.Add(stuckTrains[i].Train.TrainId);
         }
 
         List<TrainId> notificationIdsToRemove = new List<TrainId>();
@@ -288,12 +321,12 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         }
 
         stuckTrains.Sort((left, right) =>
-            right.ReservationWaitTime.Ticks.CompareTo(left.ReservationWaitTime.Ticks));
+            right.Duration.Ticks.CompareTo(left.Duration.Ticks));
 
         bool shouldPlayAlertAudio = !m_isRedAlertActive;
         for (int i = 0; i < stuckTrains.Count; i++)
         {
-            Train train = stuckTrains[i];
+            Train train = stuckTrains[i].Train;
             if (m_trainJamNotificators.ContainsKey(train.TrainId))
             {
                 continue;
@@ -309,6 +342,30 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         }
 
         m_isRedAlertActive = true;
+    }
+
+    private void removeCompletedTrainWaits()
+    {
+        m_waitTrackingIdsToRemove.Clear();
+        foreach (KeyValuePair<TrainId, SimStep> pair in m_trainWaitStartSteps)
+        {
+            if (!m_waitingTrainIdsThisUpdate.Contains(pair.Key))
+            {
+                m_waitTrackingIdsToRemove.Add(pair.Key);
+            }
+        }
+
+        for (int i = 0; i < m_waitTrackingIdsToRemove.Count; i++)
+        {
+            m_trainWaitStartSteps.Remove(m_waitTrackingIdsToRemove[i]);
+        }
+    }
+
+    private void clearTrainWaitTracking()
+    {
+        m_trainWaitStartSteps.Clear();
+        m_waitingTrainIdsThisUpdate.Clear();
+        m_waitTrackingIdsToRemove.Clear();
     }
 
     private void deactivateAllTrainNotifications()
@@ -330,6 +387,18 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         return state == TrainStateForUi.WaitingForFreeTrack
             || state == TrainStateForUi.WaitingForSuperBlock
             || state == TrainStateForUi.WaitingForBidirectionalSuperBlock;
+    }
+
+    private struct SustainedTrainWait
+    {
+        public readonly Train Train;
+        public readonly Duration Duration;
+
+        public SustainedTrainWait(Train train, Duration duration)
+        {
+            Train = train;
+            Duration = duration;
+        }
     }
 }
 

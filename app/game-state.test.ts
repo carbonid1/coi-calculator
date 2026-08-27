@@ -173,6 +173,51 @@ const schema14Snapshot = {
   },
 }
 
+const schema15Snapshot = {
+  ...schema14Snapshot,
+  schemaVersion: 15,
+  spaceStation: {
+    currentLevel: 0,
+    highestLevelAchieved: 4,
+    constructionPending: true,
+  },
+}
+
+const computing = {
+  dataCenters: { built: 5, running: 1 },
+  racks: { built: 202, running: 48 },
+  waterChillers: { built: 5, running: 4 },
+}
+const chickenFarms = {
+  configurations: [
+    {
+      slaughtering: true,
+      built: 5,
+      running: 1,
+      chickens: 2_350,
+      runningChickens: 500,
+    },
+  ],
+}
+const cropFarms = {
+  configurations: [
+    {
+      prototypeId: 'FarmT4',
+      built: 1,
+      running: 1,
+      fertilityTargetPercent: 140,
+      schedule: ['Crop_Potato', 'Crop_Fruits', 'Crop_Potato', 'Crop_Wheat'],
+    },
+  ],
+}
+const schema16Snapshot = {
+  ...schema15Snapshot,
+  schemaVersion: 16,
+  computing,
+  chickenFarms,
+  cropFarms,
+}
+
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
     expect(isGameStateSnapshot(snapshot)).toBe(true)
@@ -225,10 +270,25 @@ describe('game-state snapshot validation', () => {
     })
     expect(normalizeGameStateSnapshot(schema14Snapshot)).toMatchObject({
       schemaVersion: 14,
+      spaceStation: null,
       buildings: {
         rocketAssemblyDepot: { built: 1, running: 1 },
         rocketLaunchPad: { built: 1, running: 1 },
       },
+    })
+    expect(normalizeGameStateSnapshot(schema15Snapshot)).toMatchObject({
+      schemaVersion: 15,
+      spaceStation: {
+        currentLevel: 0,
+        highestLevelAchieved: 4,
+        constructionPending: true,
+      },
+    })
+    expect(normalizeGameStateSnapshot(schema16Snapshot)).toMatchObject({
+      schemaVersion: 16,
+      computing,
+      chickenFarms,
+      cropFarms,
     })
   })
 
@@ -245,6 +305,55 @@ describe('game-state snapshot validation', () => {
         buildings: buildingsWithoutRockets,
       }),
     ).toBeNull()
+  })
+
+  it('requires valid Space Station state in schema 15 without invalidating schema 14', () => {
+    expect(normalizeGameStateSnapshot(schema14Snapshot)?.spaceStation).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema15Snapshot,
+        spaceStation: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema15Snapshot,
+        spaceStation: {
+          ...schema15Snapshot.spaceStation,
+          currentLevel: 5,
+        },
+      }),
+    ).toBeNull()
+  })
+
+  it('requires valid production configurations in schema 16 without invalidating schema 15', () => {
+    expect(normalizeGameStateSnapshot(schema15Snapshot)).toMatchObject({
+      computing: null,
+      chickenFarms: null,
+      cropFarms: null,
+    })
+    expect(normalizeGameStateSnapshot({
+      ...schema16Snapshot,
+      computing: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema16Snapshot,
+      chickenFarms: {
+        configurations: [{
+          ...chickenFarms.configurations[0],
+          running: 6,
+        }],
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema16Snapshot,
+      cropFarms: {
+        configurations: [{
+          ...cropFarms.configurations[0],
+          schedule: ['Crop_Potato'],
+        }],
+      },
+    })).toBeNull()
   })
 
   it('accepts an enabled edict whose effect is currently inactive', () => {

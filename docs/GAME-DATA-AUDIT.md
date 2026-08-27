@@ -73,10 +73,13 @@ Verified directly from installed v0.8.7 `AssemblyData.RegisterData` and
 
 The Space Station module uses the installed prototype IDs `RocketAssemblyDepot`
 and `RocketLaunchPad` for its physical building rows. The depot, pad, Space
-Station IV, and orbital-research rows are planned with zero currently built, so
-their workforce and recurring resource pressure are included in the projected
-Factory Total without changing modeled or synced counts. Compatible future
-snapshot counts can replace the zero-built baseline.
+Station IV, and orbital-research rows resolve against live schema-15 state.
+Depot and pad completion/pause counts come from their installed entity
+prototypes; current and highest station levels plus pending construction come
+from the installed `OrbitManager`, `OrbitManager.SpaceStation`, and
+`SpaceStation.CurrentTier`. Until each at-least target is reached, its planned
+value remains effective in Factory Total; once reached, the synced value and
+source replace the plan.
 
 ## World-map mines and oil rigs
 

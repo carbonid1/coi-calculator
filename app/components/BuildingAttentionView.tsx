@@ -27,6 +27,11 @@ const icons = {
 } as const;
 
 const formatCount = (value: number) => parseFloat(value.toFixed(2));
+const getDiagnosticDetail = (diagnostic: BuildingDiagnostic) => (
+  diagnostic.recipeName === diagnostic.buildingName
+    ? diagnostic.moduleName
+    : diagnostic.recipeName
+);
 
 const getTooltip = (diagnostic: BuildingDiagnostic) => {
   const affected = diagnostic.affectedResources.length > 0
@@ -139,7 +144,7 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenBuil
                       {diagnostic.buildingName}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {diagnostic.moduleName}
+                      {getDiagnosticDetail(diagnostic)}
                     </span>
                   </span>
                 </span>

@@ -9,6 +9,7 @@ import {
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
+import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
@@ -26,9 +27,10 @@ interface Props {
   outputModifiers?: RecipeModifierMultipliers;
   diagnostic?: BuildingDiagnostic;
   showConfigurationSummary?: boolean;
+  showDataSourceLabel?: boolean;
 }
 
-export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true, showDataSourceLabel = false }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -37,6 +39,9 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
   const computingTflops = recipe.computingScalesWithSpeed
     ? tflopsPerMachine * buildingMultiplier * speedLevel
     : tflopsPerMachine;
+  const recipeDisplayName = getRecipeDisplayName(recipe);
+  const displaysConfiguration = showConfigurationSummary
+    && recipe.showConfigurationSummary !== false;
 
   return (
     <ProductionCard
@@ -50,13 +55,11 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             {recipe.building}
           </h3>
-          {showConfigurationSummary && recipe.name !== recipe.building && (() => {
-            const match = recipe.name.match(/\((.+)\)$/);
-
-            return match ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{match[1]}</p>
-            ) : null;
-          })()}
+          {displaysConfiguration && recipeDisplayName !== recipe.building && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {recipeDisplayName}
+            </p>
+          )}
           {recipe.farmFertilizer && (
             <p className="text-xs text-muted-foreground">
               Fertility target{" "}
@@ -69,7 +72,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
                 : ""}
             </p>
           )}
-          {showConfigurationSummary
+          {displaysConfiguration
             && speedLevel !== 1
             && !recipe.computingScalesWithSpeed
             && !recipe.animalPopulationCapacity
@@ -100,6 +103,8 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
                 }
               : undefined
           )}
+          dataSource={dataSource}
+          showDataSourceLabel={showDataSourceLabel}
         />
       </div>
 

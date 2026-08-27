@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/building-diagnostics";
 import { calculateBuildingStats } from "../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
-import { getPlannedBuildSummaries } from "../helpers/planned-builds/planned-builds";
+import {
+  getPlanMismatchSummaries,
+  getPlannedBuildSummaries,
+} from "../helpers/planned-builds/planned-builds";
 import { general } from "./modules/general";
 import { processSteam } from "./modules/process-steam";
 import { createResearchModule } from "./modules/research";
@@ -127,8 +130,76 @@ describe("Space Station", () => {
       "rocket-ii-assembly": "planned",
       "rocket-ii-launch-amortized": "planned",
     });
+    expect(preset?.planMismatches?.map(({ recipeId }) => recipeId)).toEqual([
+      "space-station-operations",
+      "rocket-ii-assembly",
+      "rocket-ii-launch-amortized",
+    ]);
     expect(recipes.some((recipe) => recipe.id.startsWith("static-rocket-")))
       .toBe(false);
+  });
+
+  it("returns all four rows to synced once their at-least targets are reached", () => {
+    const stationModule = createSpaceStationModule(
+      { currentLevel: 4, highestLevelAchieved: 4, targetLevel: 4 },
+      { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
+      { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
+      {
+        rocketRunningConfig: { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
+        rocketSource: "synced",
+        stationSource: "synced",
+      },
+    );
+    const preset = stationModule.presets[0];
+
+    expect(preset?.dataSources).toEqual({
+      "space-station-operations": "synced",
+      "space-station-orbital-research": "synced",
+      "rocket-ii-assembly": "synced",
+      "rocket-ii-launch-amortized": "synced",
+    });
+    expect(preset?.planMismatches).toBeUndefined();
+  });
+
+  it("keeps only unmet live targets planned and exposes actions to Factory Total", () => {
+    const stationModule = createSpaceStationModule(
+      { currentLevel: 4, highestLevelAchieved: 4, targetLevel: 4 },
+      { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
+      { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
+      {
+        rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
+        rocketSource: "synced",
+        stationSource: "synced",
+      },
+    );
+    const result = calculateFactoryTotal([stationModule]);
+    const diagnostics = calculateBuildingDiagnostics(
+      [stationModule],
+      result.flows,
+      result.calculation.regularResults,
+      result.calculation.sourceResults,
+      result.calculation.sinkResults,
+    );
+    const preset = stationModule.presets[0];
+
+    expect(preset?.dataSources).toMatchObject({
+      "space-station-operations": "synced",
+      "space-station-orbital-research": "synced",
+      "rocket-ii-assembly": "planned",
+      "rocket-ii-launch-amortized": "synced",
+    });
+    expect(getPlanMismatchSummaries([stationModule], diagnostics)).toMatchObject([{
+      key: "space-station:rocket-ii-assembly",
+      buildingName: "Rocket Assembly Depot",
+      current: 0,
+      currentSource: "synced",
+      target: 1,
+      direction: "at-least",
+      actions: [{
+        type: "unpause",
+        label: "Unpause 1 Rocket Assembly Depot",
+      }],
+    }]);
   });
 
   it("exposes the station plan through standard module flows and building pressure", () => {
