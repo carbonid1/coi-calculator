@@ -102,6 +102,19 @@ describe("Space Station", () => {
       });
   });
 
+  it("renders station operations as one physical asset without sharing their calculations", () => {
+    const stationRecipes = recipes.filter(({ id }) => (
+      ["space-station-operations", "space-station-orbital-research"].includes(id)
+    ));
+
+    expect(stationRecipes).toHaveLength(2);
+    expect(stationRecipes.map(({ displayGroup }) => displayGroup)).toEqual([
+      { id: "space-station", label: "Space Station IV" },
+      { id: "space-station", label: "Space Station IV" },
+    ]);
+    expect(stationRecipes.every(({ sharedCapacity }) => sharedCapacity == null)).toBe(true);
+  });
+
   it("adds the complete planned station to Factory Total over an empty baseline", () => {
     const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
     const result = calculateFactoryTotal([stationModule]);
@@ -109,6 +122,7 @@ describe("Space Station", () => {
     const preset = stationModule.presets[0];
 
     expect(result.allLines.map((line) => line.recipe.id)).toEqual([
+      "assembly-v-station-parts",
       "space-station-operations",
       "space-station-orbital-research",
       "rocket-ii-assembly",
@@ -116,7 +130,16 @@ describe("Space Station", () => {
     ]);
     expect(stats).toMatchObject({
       workers: 196,
-      computingTflops: 8,
+      computingTflops: 14,
+    });
+    expect(stationModule.builtBuildings).toMatchObject({
+      "assembly-v-station-parts": 1,
+    });
+    expect(preset?.activeBuildings).toMatchObject({
+      "assembly-v-station-parts": 1,
+    });
+    expect(preset?.dataSources).toMatchObject({
+      "assembly-v-station-parts": "modeled",
     });
     expect(stationModule.builtBuildings).toMatchObject({
       "rocket-ii-assembly": 0,
@@ -139,7 +162,7 @@ describe("Space Station", () => {
       .toBe(false);
   });
 
-  it("returns all four rows to synced once their at-least targets are reached", () => {
+  it("returns all five calculation lines to synced once their targets are reached", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4, targetLevel: 4 },
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
@@ -147,6 +170,7 @@ describe("Space Station", () => {
       {
         rocketRunningConfig: { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
         rocketSource: "synced",
+        stationPartsAssembly: { built: 1, running: 1, source: "synced" },
         stationSource: "synced",
       },
     );
@@ -155,6 +179,7 @@ describe("Space Station", () => {
     expect(preset?.dataSources).toEqual({
       "space-station-operations": "synced",
       "space-station-orbital-research": "synced",
+      "assembly-v-station-parts": "synced",
       "rocket-ii-assembly": "synced",
       "rocket-ii-launch-amortized": "synced",
     });
@@ -216,12 +241,20 @@ describe("Space Station", () => {
       (candidate) => candidate.resourceId === resourceId,
     );
 
-    expect(planLines.every((line) => line.dataSource === "planned")).toBe(true);
+    expect(planLines
+      .filter((line) => line.recipe.id !== "assembly-v-station-parts")
+      .every((line) => line.dataSource === "planned")).toBe(true);
+    expect(planLines.find(
+      (line) => line.recipe.id === "assembly-v-station-parts",
+    )?.dataSource).toBe("modeled");
     expect(planLines.some((line) => line.recipe.id === "assembly-v-composite-panel"))
       .toBe(false);
     expect(stats.workers).toBe(196);
-    expect(stats.computingTflops).toBe(8);
-    expect(flow("stationParts")?.net).toBe(-1);
+    expect(stats.computingTflops).toBe(14);
+    expect(flow("stationParts")?.net).toBe(0);
+    expect(flow("compositeCore")?.net).toBe(-2);
+    expect(flow("solarCellMono")?.net).toBe(-1);
+    expect(flow("chemicalFuel")?.net).toBe(-0.5);
     expect(flow("crewSupplies")?.net).toBe(-1.2);
     expect(flow("electronicsIv")?.net).toBe(0);
     expect(flow("spaceResearchPoints")?.net).toBe(0);

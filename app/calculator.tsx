@@ -122,7 +122,10 @@ import {
   syncedInfrastructureBuildingIds,
   syncedRocketBuildingIds,
 } from './game-state'
-import { resolveAreaBuildingCounts } from './helpers/area-building-sync/area-building-sync'
+import {
+  resolveAreaBuildingCounts,
+  resolveAreaRecipeBuildingCount,
+} from './helpers/area-building-sync/area-building-sync'
 import {
   calculateBuildingDiagnostics,
   type BuildingDiagnostic,
@@ -152,6 +155,7 @@ import { calculateUnityCapacity } from './helpers/modifiers/calculate-unity-capa
 import { getRecipeOutputQuantity } from './helpers/modifiers/recipe-output'
 import { extractModuleResult } from './helpers/module-result/module-result'
 import { resolvePopulationEntityInventory } from './helpers/population-entity-sync/population-entity-sync'
+import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import {
   getCropFarmConfigurationsFromEntities,
@@ -177,36 +181,6 @@ const FACTORY_TOTAL_ID = 'factory-total'
 const CONTRACTS_ID = 'contracts'
 const MODIFIERS_ID = 'modifiers'
 const MACHINE_ZONE_ASSIGNMENTS_KEY = 'coi-machine-zone-assignments-v1'
-
-const groupSharedProductionLines = (lines: ProductionLine[]) => {
-  const groups: { key: string; lines: ProductionLine[] }[] = []
-  const groupByPool = new Map<string, ProductionLine[]>()
-
-  for (const line of lines) {
-    if (!line.capacityPoolId) {
-      groups.push({ key: line.recipe.id, lines: [line] })
-      continue
-    }
-
-    const existing = groupByPool.get(line.capacityPoolId)
-
-    if (existing) {
-      existing.push(line)
-      continue
-    }
-
-    const sharedLines = [line]
-
-    groupByPool.set(line.capacityPoolId, sharedLines)
-    groups.push({ key: line.capacityPoolId, lines: sharedLines })
-  }
-
-  return groups.toSorted(
-    (a, b) =>
-      (a.lines[0]?.recipe.sharedCapacity?.displayOrder ?? 0) -
-      (b.lines[0]?.recipe.sharedCapacity?.displayOrder ?? 0),
-  )
-}
 
 const legacySettingKeys = [
   'coi-active-contract-ids',
@@ -418,6 +392,16 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const spaceStationAreaCounts = usesSpaceStationArea
     ? resolveAreaBuildingCounts(productionEntities, 'Space Station')
     : {}
+  const stationPartsAssemblyCount =
+    usesSpaceStationArea &&
+    (gameState.snapshot?.schemaVersion ?? 0) >= NAMED_AREA_ENTITY_SCHEMA_VERSION
+      ? resolveAreaRecipeBuildingCount(
+          productionEntities,
+          'Space Station',
+          'AssemblyRoboticT2',
+          'StationPartsAssembly',
+        )
+      : undefined
   const solarPowerAreaCounts = usesSolarPowerArea
     ? resolveAreaBuildingCounts(productionEntities, 'Solar Power')
     : {}
@@ -643,6 +627,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             (gameState.snapshot?.schemaVersion ?? 0) >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION
               ? 'synced'
               : 'modeled',
+          stationPartsAssembly: stationPartsAssemblyCount
+            ? { ...stationPartsAssemblyCount, source: 'synced' }
+            : undefined,
           stationSource: syncedSpaceStation ? 'synced' : 'modeled',
         },
       )
@@ -1218,13 +1205,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                       {label}
                     </h2>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                      {groupSharedProductionLines(items).map(({ key, lines }) => {
+                      {groupProductionCardLines(items).map(({ key, targetKey, lines }) => {
                         const line = lines[0]
 
                         if (!line) return null
-
-                        const targetKey =
-                          line.capacityPoolId ?? `${line.moduleId}:${line.recipe.id}`
 
                         if (group === 'source') {
                           const result = moduleResult.sourceResults.find(
@@ -1282,7 +1266,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                                 )}
                                 outputModifiers={outputModifiers}
                                 diagnostic={activeBuildingDiagnostics.find(
-                                  diagnostic => diagnostic.key === key,
+                                  diagnostic => diagnostic.key === targetKey,
                                 )}
                               />
                             </BuildingCardTarget>

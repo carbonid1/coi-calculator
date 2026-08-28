@@ -11,6 +11,7 @@ import { defaultActiveEdicts } from "./edicts";
 import {
   GENERAL_MODULE_ID,
   general,
+  modeledGeneralRecipeIds,
   plannedGeneralBuildings,
   plannedGeneralBuiltBuildings,
   plannedNewGeneralBuildings,
@@ -149,14 +150,14 @@ describe("planned advanced production", () => {
     });
   });
 
-  it("keeps the remaining advanced buildings planned in their operating modules", () => {
+  it("has no remaining net-new advanced buildings", () => {
     const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId);
     const processSteamPreset = processSteam.presets.find(
       ({ id }) => id === processSteam.defaultPresetId,
     );
 
     expect(modules.some(({ id }) => id === "space-points-expansion")).toBe(false);
-    expect(Object.keys(plannedBuildings)).toHaveLength(11);
+    expect(Object.keys(plannedBuildings)).toHaveLength(0);
     expect(Object.values({
       ...plannedGeneralBuiltBuildings,
       ...plannedProcessSteamBuiltBuildings,
@@ -164,6 +165,9 @@ describe("planned advanced production", () => {
     expect(generalPreset?.activeBuildings).toMatchObject(plannedGeneralBuildings);
     expect(processSteamPreset?.activeBuildings).toMatchObject(plannedProcessSteamBuildings);
     expect(generalPreset?.dataSources).toEqual({
+      ...Object.fromEntries(
+        modeledGeneralRecipeIds.map((recipeId) => [recipeId, "modeled"]),
+      ),
       ...Object.fromEntries(
         Object.keys(plannedGeneralBuildings).map((recipeId) => [recipeId, "planned"]),
       ),
@@ -176,15 +180,12 @@ describe("planned advanced production", () => {
     });
   });
 
-  it("runs the remaining planned chain through General", () => {
+  it("runs the completed advanced chain through General", () => {
     const factory = calculateFactoryTotal(modules, [], undefined, outputModifiers);
     const plannedIds = new Set(Object.keys(plannedBuildings));
     const lines = factory.allLines.filter(({ recipe }) => plannedIds.has(recipe.id));
     const results = factory.calculation.regularResults.filter(
       ({ recipe }) => plannedIds.has(recipe.id),
-    );
-    const result = (recipeId: string) => results.find(
-      ({ recipe }) => recipe.id === recipeId,
     );
     const factoryResult = (recipeId: string) => factory.calculation.regularResults.find(
       ({ recipe }) => recipe.id === recipeId,
@@ -197,13 +198,18 @@ describe("planned advanced production", () => {
 
     expect(lines).toHaveLength(plannedIds.size);
     expect(lines.every(({ dataSource }) => dataSource === "planned")).toBe(true);
+    expect(plannedIds.size).toBe(0);
     expect(plannedIds.has("distillation-stage-iii-titanium-purification")).toBe(false);
     expect(lines.every(({ moduleId }) => moduleId === GENERAL_MODULE_ID)).toBe(true);
-    expect(result("assembly-v-electronics-iv")?.actualOutputs).toContainEqual({
+    expect(factoryResult("assembly-v-electronics-iv")?.actualOutputs).toContainEqual({
       resourceId: "electronicsIv",
       quantity: 4,
     });
-    expect(result("assembly-v-composite-panel")?.actualOutputs.find(
+    expect(factoryResult("assembly-v-composite-panel")).toMatchObject({
+      activeBuildings: 2,
+      builtBuildings: 2,
+    });
+    expect(factoryResult("assembly-v-composite-panel")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "compositePanel",
     )?.quantity).toBeCloseTo(defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4, 6);
     expect(factoryResult("cooled-caster-ii-titanium-alloy")?.actualOutputs.find(
@@ -222,7 +228,7 @@ describe("planned advanced production", () => {
       expect((building?.activeBuildings ?? 0) * (building?.supplyRatio ?? 0))
         .toBeGreaterThan(2);
     }
-    expect(stats.workers).toBe(56);
-    expect(stats.computingTflops).toBe(32);
+    expect(stats.workers).toBe(0);
+    expect(stats.computingTflops).toBe(0);
   });
 });

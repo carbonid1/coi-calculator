@@ -16,6 +16,7 @@ import {
 import { createFbrPowerPlantModule } from "./fbr-power-plant";
 import {
   general,
+  modeledGeneralRecipeIds,
   plannedNewGeneralBuildings,
 } from "./general";
 import { modules } from "./modules";
@@ -126,6 +127,189 @@ it("models the completed Solar Cell Mono recipe as current capacity", () => {
   expect(line?.dataSource).toBeUndefined();
 });
 
+it("models the completed Sapphire Wafer and Chemical Fuel recipes", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+
+  for (const recipeId of [
+    "crystallizer-alumina",
+    "chemical-plant-ii-chemical-fuel",
+  ]) {
+    const line = lines.find((candidate) => candidate.recipe.id === recipeId);
+
+    expect(line).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+    expect(line?.dataSource).toBe("modeled");
+  }
+});
+
+it("models the completed Electronics IV and Composite Core recipes", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+
+  for (const recipeId of [
+    "assembly-v-electronics-iv",
+    "assembly-v-composite-core",
+  ]) {
+    const line = lines.find((candidate) => candidate.recipe.id === recipeId);
+
+    expect(line).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+    expect(line?.dataSource).toBe("modeled");
+  }
+});
+
+it("models the fourth Electronics III Assembly V as built and active", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "assembly-v-electronics-iii",
+  );
+
+  expect(line).toMatchObject({ activeBuildings: 4, builtBuildings: 4 });
+  expect(line?.dataSource).toBe("modeled");
+});
+
+it("models the third Acid Mixer II as built and active", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "mixer-ii-acid",
+  );
+
+  expect(line).toMatchObject({
+    activeBuildings: 3,
+    builtBuildings: 3,
+    dataSource: "modeled",
+  });
+});
+
+it("models the third Electronics I Assembly V as built and active", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "assembly-v-electronics-i",
+  );
+
+  expect(line).toMatchObject({
+    activeBuildings: 3,
+    builtBuildings: 3,
+    dataSource: "modeled",
+  });
+});
+
+it("models the third Ethanol Polymerization Plant as built and active", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "polymerization-plant-plastic-ethanol",
+  );
+
+  expect(line).toMatchObject({
+    activeBuildings: 3,
+    builtBuildings: 3,
+    dataSource: "modeled",
+  });
+});
+
+it("models the second Antibiotics Fermentation Tank as built and active", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "fermentation-tank-antibiotics",
+  );
+
+  expect(line).toMatchObject({
+    activeBuildings: 2,
+    builtBuildings: 2,
+    dataSource: "modeled",
+  });
+});
+
+it("models all three Microchip Machine II stages as three built and active", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const recipeIds = [
+    "microchip-machine-ii-1a",
+    "microchip-machine-ii-2a",
+    "microchip-machine-ii-3a",
+    "microchip-machine-ii-4a",
+    "microchip-machine-ii-1b",
+    "microchip-machine-ii-2b",
+    "microchip-machine-ii-3b",
+    "microchip-machine-ii-4b",
+    "microchip-machine-ii-1c",
+    "microchip-machine-ii-2c",
+    "microchip-machine-ii-3c",
+    "microchip-machine-ii-final",
+  ];
+  const lines = buildModuleLines(general, preset ?? null).lines.filter(
+    ({ recipe }) => recipeIds.includes(recipe.id),
+  );
+
+  expect(lines).toHaveLength(recipeIds.length);
+  expect(lines.every((line) => (
+    line.activeBuildings === 3
+    && line.builtBuildings === 3
+    && line.dataSource === "modeled"
+  ))).toBe(true);
+});
+
+it("keeps Station Parts ownership out of General", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+
+  for (const recipeId of [
+    "assembly-v-crew-supplies",
+    "chemical-plant-ii-ethanol",
+  ]) {
+    const line = lines.find((candidate) => candidate.recipe.id === recipeId);
+    const expectedCount = recipeId === "chemical-plant-ii-ethanol" ? 4 : 1;
+
+    expect(line).toMatchObject({
+      activeBuildings: expectedCount,
+      builtBuildings: expectedCount,
+    });
+    expect(line?.dataSource).toBe("modeled");
+  }
+
+  expect(lines.some(({ recipe }) => recipe.id === "assembly-v-station-parts"))
+    .toBe(false);
+});
+
+it("models the completed Diamond and Cooking Oil Diamond Paste recipes", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+
+  for (const recipeId of [
+    "diamond-reactor-synthesis",
+    "chemical-plant-ii-diamond-paste-cooking-oil",
+  ]) {
+    const line = lines.find((candidate) => candidate.recipe.id === recipeId);
+
+    expect(line).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+    expect(line?.dataSource).toBe("modeled");
+  }
+
+  const heavyOilFallback = lines.find(
+    (candidate) => candidate.recipe.id === "chemical-plant-ii-diamond-paste-heavy-oil",
+  );
+
+  expect(heavyOilFallback).toBeUndefined();
+});
+
 it("keeps the Air Separator paused after the temporary run", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
@@ -138,7 +322,7 @@ it("keeps the Air Separator paused after the temporary run", () => {
     activeBuildings: 0,
     builtBuildings: 1,
   });
-  expect(preset?.plannedFollowUps).not.toContainEqual(expect.objectContaining({
+  expect(preset?.plannedFollowUps ?? []).not.toContainEqual(expect.objectContaining({
     recipeId: "air-separator-nitrogen",
   }));
 });
@@ -159,7 +343,7 @@ it("pauses every built Coal Maker without planning more", () => {
   expect(preset?.dataSources?.["coal-maker-wood"]).toBeUndefined();
 });
 
-it("plans one additional Bread Baking Unit and remembers to pause it later", () => {
+it("keeps the three built Bread Baking Units active without another construction plan", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -168,17 +352,11 @@ it("plans one additional Bread Baking Unit and remembers to pause it later", () 
   );
 
   expect(bakingUnit).toMatchObject({
-    activeBuildings: 4,
+    activeBuildings: 3,
     builtBuildings: 3,
-    dataSource: "planned",
   });
-  expect(preset?.plannedFollowUps).toContainEqual({
-    id: "pause-extra-bread-baking-unit",
-    recipeId: "baking-unit-bread",
-    action: "pause",
-    count: 1,
-    note: "Pause after the intentional Food Packs surplus is stocked.",
-  });
+  expect(bakingUnit?.dataSource).toBe("modeled");
+  expect(preset?.plannedFollowUps).toBeUndefined();
 });
 
 it("keeps five steel refining blocks active when projected demand fits", () => {
@@ -205,7 +383,7 @@ it("keeps five steel refining blocks active when projected demand fits", () => {
   }
 });
 
-it("runs one Gold Ore production line while keeping the spare Settling Tank paused", () => {
+it("pauses three Gold Ore buildings and disables the Gold Furnace concentrate recipe", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -234,11 +412,11 @@ it("runs one Gold Ore production line while keeping the spare Settling Tank paus
 
   expect(goldLines).toHaveLength(goldOreRecipeIds.length + 1);
   expect(scrapFurnace).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
-  expect(concentrateFurnace).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
-  expect(settlingTank).toMatchObject({ activeBuildings: 1, builtBuildings: 2 });
+  expect(concentrateFurnace).toMatchObject({ activeBuildings: 0, builtBuildings: 1 });
+  expect(settlingTank).toMatchObject({ activeBuildings: 0, builtBuildings: 2 });
   expect(crushers).toMatchObject([
     {
-      activeBuildings: 1,
+      activeBuildings: 0,
       builtBuildings: 1,
       recipe: {
         name: "Gold Ore Crushing (Gold Ore → Crushed Gold Ore)",
@@ -247,7 +425,7 @@ it("runs one Gold Ore production line while keeping the spare Settling Tank paus
       },
     },
     {
-      activeBuildings: 1,
+      activeBuildings: 0,
       builtBuildings: 1,
       recipe: {
         name: "Gold Ore Milling (Crushed Gold Ore → Gold Ore Powder)",
@@ -256,6 +434,7 @@ it("runs one Gold Ore production line while keeping the spare Settling Tank paus
       },
     },
   ]);
+  expect(goldLines.every(({ dataSource }) => dataSource === "modeled")).toBe(true);
 });
 
 it("combines Tree Sapling and food-process Biomass in the local General recovery line", () => {
@@ -325,22 +504,28 @@ it("shreds only the Tree Sapling surplus left by the settlement", () => {
     )?.quantity ?? 0);
 });
 
-it("keeps Titanium purification current in Process Steam and remaining plans in General", () => {
+it("keeps the completed advanced recipes current in their operating modules", () => {
   const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId) ?? null;
   const processSteamPreset = processSteam.presets.find(
     ({ id }) => id === processSteam.defaultPresetId,
   ) ?? null;
   const generalLines = buildModuleLines(general, generalPreset).lines.filter(
-    ({ recipe }) => recipe.id in plannedNewGeneralBuildings,
+    ({ recipe }) => ["assembly-v-composite-panel", "lens-polisher"].includes(recipe.id),
   );
   const titaniumPurification = buildModuleLines(processSteam, processSteamPreset).lines.find(
     ({ recipe }) => recipe.id === "distillation-stage-iii-titanium-purification",
   );
 
-  expect(generalLines).toHaveLength(Object.keys(plannedNewGeneralBuildings).length);
+  expect(Object.keys(plannedNewGeneralBuildings)).toHaveLength(0);
+  expect(modeledGeneralRecipeIds).toEqual(expect.arrayContaining([
+    "assembly-v-composite-panel",
+    "lens-polisher",
+  ]));
+  expect(generalLines).toHaveLength(2);
   expect(generalLines.every((line) => (
-    line.dataSource === "planned"
-    && line.builtBuildings === 0
+    line.dataSource === "modeled"
+    && line.builtBuildings === 2
+    && line.activeBuildings === 2
     && !line.recipe.inputs.some(({ resourceId }) => resourceId.startsWith("steam"))
   ))).toBe(true);
   expect(titaniumPurification).toMatchObject({

@@ -21,10 +21,18 @@ import { type Module } from "./modules";
 import { createAtLeastBuildingActions } from "./plan-mismatch";
 
 export const SPACE_STATION_MODULE_ID = "space-station";
+export const SPACE_STATION_PARTS_RECIPE_ID = "assembly-v-station-parts";
+
+export interface SpaceStationAreaBuildingState {
+  built: number;
+  running: number;
+  source: CurrentValueSource;
+}
 
 export interface SpaceStationCurrentState {
   rocketRunningConfig?: RocketInfrastructureConfig;
   rocketSource?: CurrentValueSource;
+  stationPartsAssembly?: SpaceStationAreaBuildingState;
   stationSource?: CurrentValueSource;
 }
 
@@ -52,6 +60,11 @@ export const createSpaceStationModule = (
   const rocketPlan = normalizeRocketInfrastructureConfig(rocketPlanConfig);
   const stationSource = currentState.stationSource ?? "modeled";
   const rocketSource = currentState.rocketSource ?? "modeled";
+  const stationPartsAssembly = currentState.stationPartsAssembly ?? {
+    built: 1,
+    running: 1,
+    source: "modeled" as const,
+  };
   const stationPlan = resolveDirectionalPlan(
     currentLayers(config.currentLevel, stationSource),
     { direction: "at-least", target: config.targetLevel },
@@ -81,16 +94,19 @@ export const createSpaceStationModule = (
   const builtBuildings = {
     "space-station-operations": hasCurrentTargetStation ? 1 : 0,
     "space-station-orbital-research": hasCurrentTargetStation ? 1 : 0,
+    [SPACE_STATION_PARTS_RECIPE_ID]: stationPartsAssembly.built,
     ...rocketBuiltBuildings,
   };
   const activeBuildings = {
     "space-station-operations": stationActive,
     "space-station-orbital-research": hasOrbitalResearch ? stationActive : 0,
+    [SPACE_STATION_PARTS_RECIPE_ID]: stationPartsAssembly.running,
     ...rocketActiveBuildings,
   };
   const dataSources = {
     "space-station-operations": stationDataSource,
     "space-station-orbital-research": stationDataSource,
+    [SPACE_STATION_PARTS_RECIPE_ID]: stationPartsAssembly.source,
     ...Object.fromEntries(
       rocketInfrastructureItems.map((item) => [
         item.recipeId,

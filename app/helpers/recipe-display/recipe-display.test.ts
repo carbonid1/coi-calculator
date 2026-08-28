@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { recipes } from "../../db/recipes";
 import { getRecipeDisplayName } from "./recipe-display";
 
 describe("recipe display names", () => {
@@ -41,5 +42,12 @@ describe("recipe display names", () => {
       displayName: "CO₂ → Graphite",
       name: "Internal recipe name",
     })).toBe("CO₂ → Graphite");
+  });
+
+  it("describes Copper Electrolysis by its full material transformation", () => {
+    const recipe = recipes.find(({ id }) => id === "copper-electrolysis-acid");
+
+    expect(recipe).toBeDefined();
+    expect(getRecipeDisplayName(recipe!)).toBe("Impure Copper + Acid → Copper");
   });
 });

@@ -68,6 +68,12 @@ export interface SharedCapacity {
   priority: number
 }
 
+export interface DisplayGroup {
+  /** Independent recipes rendered as operations of one physical entity. */
+  id: string
+  label: string
+}
+
 export interface DecayStorage {
   capacity: number
   decayCycles: number
@@ -81,6 +87,8 @@ export interface Recipe {
   building: string
   /** Whether generic cards show recipe and speed metadata below the building name. */
   showConfigurationSummary?: boolean
+  /** Visually combines independent operations without sharing calculation capacity. */
+  displayGroup?: DisplayGroup
   group: RecipeGroup
   inputs: Ingredient[]
   outputs: Ingredient[]
@@ -2319,6 +2327,7 @@ export const recipes: Recipe[] = [
     id: 'space-station-operations',
     name: 'Space Station IV Operations',
     building: 'Space Station IV',
+    displayGroup: { id: 'space-station', label: 'Space Station IV' },
     group: 'production',
     inputs: [
       {
@@ -2334,8 +2343,10 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'space-station-orbital-research',
+    displayName: 'Orbital Research',
     name: 'Space Station IV Orbital Research',
     building: 'Space Station Orbital Research',
+    displayGroup: { id: 'space-station', label: 'Space Station IV' },
     group: 'production',
     tracksPhysicalCapacity: false,
     balanceBy: 'output',
@@ -3040,6 +3051,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'copper-electrolysis-acid',
+    displayName: 'Impure Copper + Acid → Copper',
     name: 'Copper Electrolysis (Acid)',
     building: 'Copper Electrolysis',
     group: 'production',
@@ -4013,17 +4025,16 @@ export const createGroundwaterPumpRecipe = (
 
   if (!recipe) throw new Error(`Missing groundwater recipe: ${recipeId}`)
 
-  const outputPerPump = constraint.projectedPumpCount > 0
-    ? constraint.sustainableOutputPerCycle / constraint.projectedPumpCount
-    : 0
+  const outputPerPump =
+    constraint.projectedPumpCount > 0
+      ? constraint.sustainableOutputPerCycle / constraint.projectedPumpCount
+      : 0
 
   return {
     ...recipe,
-    outputs: recipe.outputs.map(output => (
-      output.resourceId === 'water'
-        ? { ...output, quantity: outputPerPump }
-        : output
-    )),
+    outputs: recipe.outputs.map(output =>
+      output.resourceId === 'water' ? { ...output, quantity: outputPerPump } : output,
+    ),
     groundwaterConstraint: constraint,
   }
 }

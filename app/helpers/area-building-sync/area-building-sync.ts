@@ -52,3 +52,24 @@ export const resolveAreaBuildingCounts = (
 
   return counts;
 };
+
+export const resolveAreaRecipeBuildingCount = (
+  productionEntities: readonly SyncedProductionEntity[],
+  zoneName: string,
+  prototypeId: string,
+  gameRecipeId: string,
+): SyncedBuildingCount => {
+  let built = 0;
+  let running = 0;
+
+  for (const entity of productionEntities) {
+    if (entity.prototypeId !== prototypeId) continue;
+    if (!entity.recipeIds.includes(gameRecipeId)) continue;
+    if (!entity.zones.some(zone => zone.name === zoneName)) continue;
+
+    built++;
+    running += Number(entity.running);
+  }
+
+  return { built, running };
+};
