@@ -26,6 +26,19 @@ const icons = {
   unpause: Play,
 } as const;
 
+// Nuclear power dispatch and steam routing are deliberately monitored in-game.
+// Their average calculator load is not reliable enough to drive build/pause advice.
+const steamChainBuildings = new Set([
+  "Cooling Tower (Large)",
+  "Fast Breeder Reactor",
+  "High-Pressure Turbine II",
+  "Hydrogen Reformer",
+  "Low-Pressure Turbine II",
+  "Power Generator II",
+  "Super-Pressure Turbine",
+  "Thermal Desalinator",
+]);
+
 const formatCount = (value: number) => parseFloat(value.toFixed(2));
 const getDiagnosticDetail = (diagnostic: BuildingDiagnostic) => (
   diagnostic.recipeName === diagnostic.buildingName
@@ -102,6 +115,7 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenBuil
   const actionable = diagnostics
     .filter((diagnostic) => (
       !diagnostic.plannedCapacity && diagnostic.attention != null
+      && !steamChainBuildings.has(diagnostic.buildingName)
     ))
     .toSorted((a, b) => (
       a.moduleName.localeCompare(b.moduleName)

@@ -35,8 +35,8 @@ import { activeContracts, contracts, defaultActiveContractIds } from './db/contr
 import { activeCropFarmGroups } from './db/crop-farming'
 import {
   getEdict,
-  inactiveEdictLevels,
   mapEdictValues,
+  resolveEdictLevel,
   type EdictId,
   type EdictLevel,
   normalizeCleanPanelsLevel,
@@ -486,9 +486,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const officePlanCalculation = calculateOfficePlan(officePlan, researchLevels.focusPoints)
   const focusBonuses = officePlanCalculation.bonuses
   const syncedEdictStates = gameState.snapshot?.edicts
-  const edictLevels: Record<EdictId, EdictLevel> = syncedEdictStates
-    ? mapEdictValues(edictId => syncedEdictStates[edictId].activeLevel)
-    : inactiveEdictLevels
+  const resolvedEdictLevels = mapEdictValues(edictId => (
+    resolveEdictLevel(edictId, syncedEdictStates?.[edictId].activeLevel)
+  ))
+  const edictLevels: Record<EdictId, EdictLevel> = mapEdictValues(
+    edictId => resolvedEdictLevels[edictId].value,
+  )
+  const edictSources = mapEdictValues(edictId => resolvedEdictLevels[edictId].source)
   const activeContractIds = defaultActiveContractIds
   const researchModuleConfig = defaultResearchModuleConfig
   const maintenanceStatueCount = staticInfrastructureRunningConfig.maintenanceStatue
@@ -1030,7 +1034,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       {isModifiers && (
         <ModifiersView
           edictLevels={edictLevels}
-          edictStates={syncedEdictStates ?? null}
+          edictSources={edictSources}
           unityBudget={unityBudget}
           maintenanceStatueCount={maintenanceStatueCount}
           maintenanceOutputLevel={maintenanceOutputLevel}

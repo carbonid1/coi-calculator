@@ -1,4 +1,4 @@
-import { Card, cn } from "@carbonid1/design-system";
+import { Card } from "@carbonid1/design-system";
 import { Sparkles } from "lucide-react";
 
 import { baseConfig } from "../db/config";
@@ -15,7 +15,6 @@ import {
 import { type FocusEffectId } from "../db/offices";
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
-import { type SyncedEdictState, type SyncedEdictStates } from "../game-state";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
@@ -26,10 +25,12 @@ import { calculateSettlementWaterUse } from "../helpers/modifiers/calculate-sett
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-mine-output";
+import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
+import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {
   edictLevels: Record<EdictId, EdictLevel>;
-  edictStates: SyncedEdictStates | null;
+  edictSources: Record<EdictId, ValueSource>;
   unityBudget: UnityBudget;
   maintenanceStatueCount: number;
   maintenanceOutputLevel: number;
@@ -47,13 +48,13 @@ const formatSignedPercent = (value: number) => (
   value > 0 ? `+${value}%` : `${value}%`
 );
 
-const EdictCard = ({
+export const EdictCard = ({
   edict,
-  state,
+  source,
   value,
 }: {
   edict: EdictDefinition;
-  state: SyncedEdictState | null;
+  source: ValueSource;
   value: EdictLevel;
 }) => {
   const active = edict.levels.find((candidate) => candidate.level === value)
@@ -61,54 +62,32 @@ const EdictCard = ({
 
   if (!active) return null;
 
-  const enabled = state
-    ? edict.levels.find((candidate) => candidate.level === state.enabledLevel)
-    : null;
-  const selectedButInactive = Boolean(
-    state && state.enabledLevel > 0 && state.activeLevel !== state.enabledLevel,
-  );
-
-  let unitySummary = "No direct Unity cost";
-
-  if (active.unityCostPerCycle > 0) {
-    unitySummary = `${active.unityCostPerCycle} Unity / cycle`;
-  } else if (active.unityProductionPerCycle) {
-    unitySummary = `Produces ${active.unityProductionPerCycle} Unity / cycle`;
-  }
+  const maxLevel = edict.levels.at(-1)?.level ?? 0;
+  const unityPerCycle = active.unityProductionPerCycle
+    ?? (active.unityCostPerCycle > 0 ? -active.unityCostPerCycle : 0);
 
   return (
-    <Card.Root>
-      <Card.Content className="space-y-3">
+    <Card.Root className={source === "planned"
+      ? getDataSourceSurfaceClassName("planned")
+      : undefined}
+    >
+      <Card.Content className="p-3">
         <Card.Header>
           <Card.Title>{edict.name}</Card.Title>
           <Card.Description>{active.effect}</Card.Description>
-        </Card.Header>
-        <div className="flex flex-wrap gap-1" aria-label={`${edict.name} level`}>
-          {edict.levels.map((definition) => {
-            const selected = definition.level === value;
-
-            return (
-              <span
-                key={definition.level}
-                className={cn(
-                  "rounded-lg px-2 py-1 text-xs text-muted-foreground",
-                  selected && "bg-primary/10 text-foreground ring-1 ring-primary/20",
-                )}
-              >
-                {definition.label}
+          <Card.Action>
+            <span className="flex flex-col items-end gap-0.5 text-right">
+              <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                {value} / {maxLevel}
               </span>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {unitySummary}
-        </p>
-        {selectedButInactive && enabled && (
-          <p className="text-xs text-muted-foreground">
-            Selected {enabled.label}, currently inactive
-            {state?.inactiveReason ? ` · ${state.inactiveReason}` : ""}
-          </p>
-        )}
+              {unityPerCycle !== 0 && (
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                  Unity {unityPerCycle > 0 ? "+" : ""}{unityPerCycle} / cycle
+                </span>
+              )}
+            </span>
+          </Card.Action>
+        </Card.Header>
       </Card.Content>
     </Card.Root>
   );
@@ -116,7 +95,7 @@ const EdictCard = ({
 
 export const ModifiersView: React.FC<Props> = ({
   edictLevels,
-  edictStates,
+  edictSources,
   unityBudget,
   maintenanceStatueCount,
   maintenanceOutputLevel,
@@ -175,10 +154,6 @@ export const ModifiersView: React.FC<Props> = ({
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-semibold text-foreground">Unity &amp; Policies</h2>
-        <p className="text-sm text-muted-foreground">
-          Steady-state Unity generation, recurring demand, edicts, and global bonuses.
-          {edictStates ? " Edicts are synced from the game." : " Waiting for synced edict data."}
-        </p>
       </div>
 
       <section className="space-y-3">
@@ -242,7 +217,7 @@ export const ModifiersView: React.FC<Props> = ({
               <EdictCard
                 key={edict.id}
                 edict={edict}
-                state={edictStates?.[edict.id] ?? null}
+                source={edictSources[edict.id]}
                 value={edictLevels[edict.id]}
               />
             ))}

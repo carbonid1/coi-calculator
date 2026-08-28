@@ -3027,11 +3027,13 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: 'graphite', quantity: 6 }],
   },
   {
+    // Installed v0.8.7a Chemical Plant II binding: 4 Coal + 12 Chlorine
+    // -> 12 Graphite + 4 Sour Water every 30 seconds.
     id: 'chemical-plant-ii-graphite-coal',
     name: 'Chemical Plant II (Graphite from Coal)',
     building: 'Chemical Plant II',
     group: 'production',
-    cycleDurationSeconds: 60,
+    cycleDurationSeconds: 30,
     balanceBy: 'output',
     // Coal and Chlorine are demand-produced after fallback allocation; neither
     // is a surplus constraint on this demand-balanced recipe.
@@ -3040,12 +3042,12 @@ export const recipes: Recipe[] = [
     allocation: 'fallback',
     allocationPriority: 30,
     inputs: [
-      { resourceId: 'coal', quantity: 4 },
-      { resourceId: 'chlorine', quantity: 12 },
+      { resourceId: 'coal', quantity: 8 },
+      { resourceId: 'chlorine', quantity: 24 },
     ],
     outputs: [
-      { resourceId: 'graphite', quantity: 12 },
-      { resourceId: 'sourWater', quantity: 4 },
+      { resourceId: 'graphite', quantity: 24 },
+      { resourceId: 'sourWater', quantity: 8 },
     ],
     electricityMultiplier: 2,
   },

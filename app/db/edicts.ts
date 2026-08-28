@@ -1,3 +1,6 @@
+import { resolveDirectionalPlan } from "../helpers/resolve-layered-value/resolve-directional-plan";
+import { resolveCurrentLayeredValue, type ResolvedValue } from "../helpers/resolve-layered-value/resolve-layered-value";
+
 export const edictLevelOrder = [0, 1, 2, 3, 4, 5] as const;
 export const cleanPanelsLevelOrder = [0, 1, 2, 3] as const;
 export const farmingBoostLevelOrder = [0, 1, 2, 3] as const;
@@ -163,6 +166,32 @@ export const inactiveEdictLevels: Record<EdictId, EdictLevel> = {
   waterSaver: 0,
   cleanPanels: 0,
   researchEfficiency: 0,
+};
+
+/** Future policy levels applied until the current synced value reaches them. */
+export const plannedEdictLevels: Partial<Record<EdictId, EdictLevel>> = {
+  recyclingIncrease: 5,
+};
+
+export const resolveEdictLevel = (
+  id: EdictId,
+  synced?: EdictLevel,
+): ResolvedValue<EdictLevel> => {
+  const layers = {
+    default: inactiveEdictLevels[id],
+    synced,
+  };
+  const target = plannedEdictLevels[id];
+
+  if (target === undefined) return resolveCurrentLayeredValue(layers);
+
+  const resolved = resolveDirectionalPlan(layers, {
+    direction: "at-least",
+    target,
+  });
+  const value = edictLevelOrder.find((level) => level === resolved.value) ?? layers.default;
+
+  return { source: resolved.source, value };
 };
 
 const getLevel = (id: EdictId, value: EdictLevel): EdictLevelDefinition => {

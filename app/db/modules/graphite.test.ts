@@ -18,7 +18,7 @@ import {
   NUCLEAR_MODULE_ID,
 } from "./nuclear";
 
-it("uses planned waste-processing capacity without leaving process waste", () => {
+it("keeps process waste and graphite balanced with the current coal-route capacity", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -92,8 +92,8 @@ it("uses planned waste-processing capacity without leaving process waste", () =>
   expect(carbonDioxideResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(coalResult.supplyRatio).toBeGreaterThan(0.7);
-  expect(coalResult.supplyRatio).toBeLessThan(1);
+  expect(coalResult.supplyRatio).toBeGreaterThan(0.6);
+  expect(coalResult.supplyRatio).toBeLessThan(0.7);
   expect(carbonDioxide.net).toBeCloseTo(0, 6);
   expect(graphite.produced).toBeCloseTo(graphite.consumed, 6);
   expect(graphite.net).toBeCloseTo(0, 6);

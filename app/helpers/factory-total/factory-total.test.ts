@@ -131,13 +131,13 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.exported).toBeCloseTo(29.4218143259, 8);
-    expect(contractResult?.imported).toBeCloseTo(191.241793119, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(191.241793119, 5);
+    expect(contractResult?.exported).toBeCloseTo(23.748484615384623, 8);
+    expect(contractResult?.imported).toBeCloseTo(154.36515, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(154.36515, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(34.543048882, 8);
-    expect(copperOre?.consumed).toBeCloseTo(191.241793119, 5);
-    expect(copperOre?.produced).toBeCloseTo(191.241793119, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(27.88220521875, 8);
+    expect(copperOre?.consumed).toBeCloseTo(154.36515, 5);
+    expect(copperOre?.produced).toBeCloseTo(154.36515, 5);
     expect(copperOre?.net).toBeCloseTo(0, 5);
     const copperMineOutput = copperMine?.actualOutputs.find(
       (output) => output.resourceId === "copperOre",

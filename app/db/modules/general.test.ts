@@ -40,7 +40,7 @@ it("models the physical General Low Steam recovery cluster", () => {
   });
 });
 
-it("provides two Cracking Units for surplus Fuel Gas", () => {
+it("keeps one of two Cracking Units active and balances it against surplus Fuel Gas", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -49,10 +49,26 @@ it("provides two Cracking Units for surplus Fuel Gas", () => {
   );
 
   expect(crackingUnit).toMatchObject({
-    activeBuildings: 2,
+    activeBuildings: 1,
     builtBuildings: 2,
-    operatingMode: "fixed",
+    dataSource: "modeled",
+    operatingMode: "balanced",
   });
+
+  const result = calculateFactoryTotal(
+    modules,
+    activeContracts,
+    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+  );
+  const activeCrackingUnit = result.calculation.regularResults.find((line) => (
+    line.moduleId === "general"
+    && line.recipe.id === "cracking-unit-fuel-gas-diesel"
+  ));
+  const fuelGas = result.flows.find((flow) => flow.resourceId === "fuelGas");
+
+  expect(activeCrackingUnit?.supplyRatio).toBeGreaterThan(0);
+  expect(activeCrackingUnit?.supplyRatio).toBeLessThan(1);
+  expect(fuelGas?.net).toBeCloseTo(0, 6);
 });
 
 it("provides two active Rubber Makers for the Ethanol route", () => {
@@ -161,16 +177,16 @@ it("models the completed Electronics IV and Composite Core recipes", () => {
   }
 });
 
-it("models the fourth Electronics III Assembly V as built and active", () => {
+it("models the expanded Electronics II and III Assembly V capacity", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
-  const line = buildModuleLines(general, preset ?? null).lines.find(
-    (candidate) => candidate.recipe.id === "assembly-v-electronics-iii",
-  );
+  const lines = buildModuleLines(general, preset ?? null).lines;
 
-  expect(line).toMatchObject({ activeBuildings: 4, builtBuildings: 4 });
-  expect(line?.dataSource).toBe("modeled");
+  expect(lines.find((line) => line.recipe.id === "assembly-v-electronics-ii"))
+    .toMatchObject({ activeBuildings: 4, builtBuildings: 4, dataSource: "modeled" });
+  expect(lines.find((line) => line.recipe.id === "assembly-v-electronics-iii"))
+    .toMatchObject({ activeBuildings: 5, builtBuildings: 5, dataSource: "modeled" });
 });
 
 it("models the third Acid Mixer II as built and active", () => {
@@ -218,7 +234,7 @@ it("models the third Ethanol Polymerization Plant as built and active", () => {
   });
 });
 
-it("models the second Antibiotics Fermentation Tank as built and active", () => {
+it("models two Antibiotics Fermentation Tanks with one paused", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -227,10 +243,58 @@ it("models the second Antibiotics Fermentation Tank as built and active", () => 
   );
 
   expect(line).toMatchObject({
-    activeBuildings: 2,
+    activeBuildings: 1,
     builtBuildings: 2,
     dataSource: "modeled",
   });
+});
+
+it("models two Exhaust Scrubbers with one paused", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "exhaust-scrubber-limestone",
+  );
+
+  expect(line).toMatchObject({
+    activeBuildings: 1,
+    builtBuildings: 2,
+    dataSource: "modeled",
+  });
+});
+
+it("models the completed silicon expansion as active", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+
+  expect(lines.find((line) => line.recipe.id === "arc-furnace-ii-silicon"))
+    .toMatchObject({ activeBuildings: 2, builtBuildings: 2, dataSource: "modeled" });
+  expect(lines.find((line) => line.recipe.id === "silicon-reactor-poly-silicon"))
+    .toMatchObject({ activeBuildings: 6, builtBuildings: 6, dataSource: "modeled" });
+  expect(lines.find((line) => line.recipe.id === "crystallizer-silicon-wafer"))
+    .toMatchObject({ activeBuildings: 2, builtBuildings: 2, dataSource: "modeled" });
+});
+
+it("covers the silicon and Electronics II/III factory demand", () => {
+  const result = calculateFactoryTotal(
+    modules,
+    activeContracts,
+    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+  );
+
+  for (const resourceId of [
+    "polySilicon",
+    "siliconWafer",
+    "electronicsII",
+    "electronicsIII",
+  ]) {
+    const flow = result.flows.find((candidate) => candidate.resourceId === resourceId);
+
+    expect(flow?.net, resourceId).toBeGreaterThanOrEqual(0);
+  }
 });
 
 it("models all three Microchip Machine II stages as three built and active", () => {

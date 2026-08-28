@@ -16,8 +16,8 @@
 14. Build and activate a second General Chemical Plant II for Graphite from Coal.
 15. Build 2 shared Arc Furnace II for Molten Glass and 4 Glass Maker II; run 3 and keep 1 paused.
 16. Build and activate a second General Assembly V for Electronics I.
-17. Run 3 General Assembly V buildings for Electronics III.
-18. Run 3 General Assembly V buildings for Electronics II.
+17. Run 5 General Assembly V buildings for Electronics III.
+18. Run 4 General Assembly V buildings for Electronics II.
 19. Build and activate a second General Assembly V for PCB production.
 20. Expand the General steel chain to 5 Arc Furnace II, 5 Oxygen Furnace II, and 5 Cooled Caster II buildings.
-21. Run all 4 General Silicon Reactors.
+21. Run all 6 General Silicon Reactors and both Silicon Wafer Crystallizers.

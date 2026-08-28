@@ -19,6 +19,7 @@ import {
 import { BuildingAttentionView } from "./BuildingAttentionView";
 import { MachineZoneMappingsView } from "./MachineZoneMappingsView";
 import { PlannedBuildsView } from "./PlannedBuildsView";
+import { isReportedFactoryDeficit } from "./net-summary-flows";
 
 interface Props {
   flows: ResourceFlow[];
@@ -164,7 +165,7 @@ export const NetSummary: React.FC<Props> = ({
   const balanceGroups = [
     {
       label: "Deficit",
-      flows: regularFlows.filter((flow) => flow.net < -BALANCE_THRESHOLD),
+      flows: regularFlows.filter(isReportedFactoryDeficit),
       valueClassName: "text-destructive",
     },
     {
