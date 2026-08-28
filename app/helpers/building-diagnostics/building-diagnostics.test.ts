@@ -206,7 +206,7 @@ describe("byproduct building diagnostics", () => {
 
     const generalModule: Module = {
       id: "general",
-      name: "General",
+      name: "Default",
       description: "",
       builtBuildings: { [crackingUnit.id]: 2 },
       presets: [],
@@ -296,7 +296,7 @@ describe("synced fallback source diagnostics", () => {
   it("reports an unused synced Groundwater Pump as pauseable without making it planned", () => {
     const generalModule: Module = {
       id: "general",
-      name: "General",
+      name: "Default",
       description: "",
       builtBuildings: { [groundwaterPump.id]: 3 },
       presets: [],

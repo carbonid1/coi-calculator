@@ -11,11 +11,9 @@ import {
   Satellite,
   Server,
   Sprout,
-  Sun,
   TreePine,
   type LucideIcon,
   Users,
-  Wrench,
 } from "lucide-react";
 
 export const moduleIcons: Partial<Record<string, LucideIcon>> = {
@@ -32,7 +30,5 @@ export const moduleIcons: Partial<Record<string, LucideIcon>> = {
   mines: Pickaxe,
   reserves: Archive,
   nuclear: Atom,
-  "solar-power": Sun,
   computing: Server,
-  maintenance: Wrench,
 };

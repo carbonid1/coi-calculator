@@ -30,7 +30,7 @@ export const ProductionCard: React.FC<Props> = ({
         && !dataSource
         && operatingMode === "fixed"
         && "bg-primary/10 ring-1 ring-primary/20",
-      dataSource && getDataSourceSurfaceClassName(dataSource),
+      dataSource && getDataSourceSurfaceClassName(dataSource, { inactive }),
       className,
     )}
     {...props}

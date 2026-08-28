@@ -15,7 +15,25 @@ vi.mock("@carbonid1/design-system", () => ({
 }));
 
 import { edictCatalog, getEdict } from "../db/edicts";
-import { EdictCard } from "./ModifiersView";
+import { EdictCard, MaintenanceDemandOverview } from "./ModifiersView";
+
+it("shows synced maintenance demand with its completed-cycle history window", () => {
+  const html = renderToStaticMarkup(
+    <MaintenanceDemandOverview
+      history={{
+        maintenanceI: { averagePerCycle: 698.491667, sampleMonths: 120 },
+        maintenanceII: { averagePerCycle: 321.225, sampleMonths: 120 },
+        maintenanceIII: { averagePerCycle: 318.266667, sampleMonths: 120 },
+      }}
+    />,
+  );
+
+  expect(html).toContain("Maintenance demand");
+  expect(html).toContain("Synced");
+  expect(html).toContain("698.49 / cycle");
+  expect(html).toContain("120 cycles · 10 in-game years");
+  expect(html).toContain('data-data-source="synced"');
+});
 
 it("presents planned Recycling Increase with numbers and the shared planned surface", () => {
   const html = renderToStaticMarkup(
@@ -54,4 +72,45 @@ it("keeps every edict effect while omitting status narration", () => {
   expect(html).not.toContain("No direct Unity cost");
   expect(html).not.toContain("currently inactive");
   expect(html).not.toContain("overrides");
+});
+
+it("uses the building-card inactive treatment for level-zero edicts", () => {
+  const inactiveHtml = renderToStaticMarkup(
+    <EdictCard
+      edict={getEdict("growthBoost")}
+      source="synced"
+      value={0}
+    />,
+  );
+  const activeHtml = renderToStaticMarkup(
+    <EdictCard
+      edict={getEdict("growthBoost")}
+      source="synced"
+      value={1}
+    />,
+  );
+
+  expect(inactiveHtml).toContain("[&amp;&gt;*]:opacity-40");
+  expect(inactiveHtml).toContain("shadow-none");
+  expect(inactiveHtml).toContain("border-success/20");
+  expect(inactiveHtml).toContain("0 / 3");
+  expect(inactiveHtml).toContain("Inactive");
+  expect(activeHtml).not.toContain("opacity-40");
+});
+
+it.each([
+  ["default", "modeled", "border-muted-foreground/30"],
+  ["synced", "synced", "border-success/40"],
+  ["planned", "planned", "border-dashed"],
+] as const)("applies the %s source surface", (source, mode, surfaceClass) => {
+  const html = renderToStaticMarkup(
+    <EdictCard
+      edict={getEdict("growthBoost")}
+      source={source}
+      value={1}
+    />,
+  );
+
+  expect(html).toContain(`data-data-source="${mode}"`);
+  expect(html).toContain(surfaceClass);
 });

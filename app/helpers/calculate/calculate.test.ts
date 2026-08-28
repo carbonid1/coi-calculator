@@ -1,6 +1,10 @@
 import { expect, it } from "vitest";
-import { general } from "../../db/modules/general";
-import { createMaintenanceModule } from "../../db/modules/maintenance";
+import {
+  attachMaintenanceDepotsToModule,
+  resolveMaintenanceDepotModuleAssignments,
+} from "../../db/modules/area-maintenance";
+import { defaultArea as general } from "../../db/modules/default";
+import { type Module } from "../../db/modules/modules";
 import { type Recipe, recipes } from "../../db/recipes";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
@@ -24,11 +28,30 @@ const balancedLine = (recipe: Recipe, moduleId: string, activeBuildings = 1) => 
   operatingMode: "balanced" as const,
 });
 
-const maintenance = createMaintenanceModule({
-  maintenanceI: 547.8,
-  maintenanceII: 194.22,
-  maintenanceIII: 236.55,
-});
+const maintenanceFixture: Module = {
+  id: "maintenance-fixture",
+  name: "Maintenance fixture",
+  description: "Test-only maintenance production",
+  builtBuildings: {},
+  presets: [{
+    id: "current",
+    name: "Current",
+    description: "Current production",
+    activeBuildings: {},
+    fixed: [],
+  }],
+  defaultPresetId: "current",
+};
+const maintenanceAssignment = resolveMaintenanceDepotModuleAssignments({
+  defaultModuleId: maintenanceFixture.id,
+  demand: { maintenanceI: 547.8, maintenanceII: 194.22, maintenanceIII: 236.55 },
+  modules: [maintenanceFixture],
+})[maintenanceFixture.id]!;
+const maintenance = attachMaintenanceDepotsToModule(
+  maintenanceFixture,
+  maintenanceAssignment,
+  "modeled",
+);
 
 it("reserves Forestry saplings and keeps Biomass conversion inside each physical module", () => {
   const treeProducer: Recipe = {
@@ -41,7 +64,7 @@ it("reserves Forestry saplings and keeps Biomass conversion inside each physical
   };
   const generalBiomassProducer: Recipe = {
     id: "test-general-biomass-producer",
-    name: "Test General Biomass Producer",
+    name: "Test Default Biomass Producer",
     building: "Test Food Processor",
     group: "production",
     inputs: [],

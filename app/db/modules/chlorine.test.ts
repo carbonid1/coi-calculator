@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { type ProductionLine, calculateNet } from "../../helpers/calculate/calculate";
 import { type Recipe, recipes } from "../recipes";
-import { general } from "./general";
+import { defaultArea as general } from "./default";
 import { nuclear } from "./nuclear";
 
 const recipeById = (id: string): Recipe => {
@@ -30,7 +30,7 @@ const fixedLine = (recipe: Recipe, moduleId: string): ProductionLine => ({
   operatingMode: "fixed",
 });
 
-it("prioritizes the modeled General pond before balanced Nuclear salt production", () => {
+it("prioritizes the modeled Default pond before balanced Nuclear salt production", () => {
   const generalPreset = general.presets.find(
     (candidate) => candidate.id === general.defaultPresetId,
   );
@@ -56,7 +56,7 @@ it("prioritizes the modeled General pond before balanced Nuclear salt production
   });
 });
 
-it("exports Nuclear Brine to the fixed General pond before dumping the remainder", () => {
+it("exports Nuclear Brine to the fixed Default pond before dumping the remainder", () => {
   const nuclearBrine: Recipe = {
     id: "test-nuclear-brine",
     name: "Nuclear Brine",
@@ -67,7 +67,7 @@ it("exports Nuclear Brine to the fixed General pond before dumping the remainder
   };
   const generalBrine: Recipe = {
     id: "test-general-brine",
-    name: "General Brine",
+    name: "Default Brine",
     building: "Test",
     group: "production",
     inputs: [],
@@ -75,7 +75,7 @@ it("exports Nuclear Brine to the fixed General pond before dumping the remainder
   };
   const generalDemand: Recipe = {
     id: "test-general-brine-demand",
-    name: "General Brine Demand",
+    name: "Default Brine Demand",
     building: "Test",
     group: "production",
     inputs: [{ resourceId: "brine", quantity: 30 }],
@@ -103,7 +103,7 @@ it("exports Nuclear Brine to the fixed General pond before dumping the remainder
   expect(dumpResult?.actualInputs[0]?.quantity).toBeCloseTo(14);
 });
 
-it("balances two Nuclear ponds against Salt demand left after the fixed General pond", () => {
+it("balances two Nuclear ponds against Salt demand left after the fixed Default pond", () => {
   const nuclearBrine: Recipe = {
     id: "test-nuclear-brine-for-salt",
     name: "Nuclear Brine for Salt",

@@ -74,6 +74,10 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             "SmokeStackLarge",
             "NuclearWasteStorage",
             "Shredder",
+            "MaintenanceDepotT0",
+            "MaintenanceDepotT1",
+            "MaintenanceDepotT2",
+            "MaintenanceDepotT3",
         }, StringComparer.Ordinal);
     private static readonly string[] TrackedBuildingKeys = new[]
     {
@@ -401,7 +405,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":26,");
+            json.Append("\"schemaVersion\":27,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));

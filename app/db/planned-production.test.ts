@@ -9,13 +9,13 @@ import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power"
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { defaultActiveEdicts } from "./edicts";
 import {
-  GENERAL_MODULE_ID,
-  general,
-  modeledGeneralRecipeIds,
-  plannedGeneralBuildings,
-  plannedGeneralBuiltBuildings,
-  plannedNewGeneralBuildings,
-} from "./modules/general";
+  DEFAULT_MODULE_ID,
+  defaultArea as general,
+  modeledDefaultRecipeIds as modeledGeneralRecipeIds,
+  plannedDefaultBuildings as plannedGeneralBuildings,
+  plannedDefaultBuiltBuildings as plannedGeneralBuiltBuildings,
+  plannedNewDefaultBuildings as plannedNewGeneralBuildings,
+} from "./modules/default";
 import { modules } from "./modules/modules";
 import {
   plannedProcessSteamBuildings,
@@ -180,7 +180,7 @@ describe("planned advanced production", () => {
     });
   });
 
-  it("runs the completed advanced chain through General", () => {
+  it("runs the completed advanced chain through Default", () => {
     const factory = calculateFactoryTotal(modules, [], undefined, outputModifiers);
     const plannedIds = new Set(Object.keys(plannedBuildings));
     const lines = factory.allLines.filter(({ recipe }) => plannedIds.has(recipe.id));
@@ -200,7 +200,7 @@ describe("planned advanced production", () => {
     expect(lines.every(({ dataSource }) => dataSource === "planned")).toBe(true);
     expect(plannedIds.size).toBe(0);
     expect(plannedIds.has("distillation-stage-iii-titanium-purification")).toBe(false);
-    expect(lines.every(({ moduleId }) => moduleId === GENERAL_MODULE_ID)).toBe(true);
+    expect(lines.every(({ moduleId }) => moduleId === DEFAULT_MODULE_ID)).toBe(true);
     expect(factoryResult("assembly-v-electronics-iv")?.actualOutputs).toContainEqual({
       resourceId: "electronicsIv",
       quantity: 4,

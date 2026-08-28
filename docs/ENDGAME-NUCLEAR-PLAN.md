@@ -68,7 +68,7 @@ one active Electrolyzer II and one active Heated Evaporation Pond. The second po
 second Nuclear Electrolyzer remain paused. The two Liquid Dumps remain the final,
 demand-balanced local overflow path after useful exports: one handles up to
 200 Water per cycle and one handles up to 200 Brine per cycle. A separate
-General Heated Evaporation Pond converts only non-Nuclear global Brine surplus
+Default Heated Evaporation Pond converts only non-Nuclear global Brine surplus
 to Salt. No Brine branch is reserved for Aluminum at this checkpoint; if
 Aluminum later leaves too little Brine for Salt, add the secondary supply then.
 
@@ -98,7 +98,7 @@ feeds the utility-steam header.
 
 Build two Electrolyzer IIs for Chlorine and two Heated Evaporation Ponds for
 Salt inside the Nuclear station. Run one pond, and keep the second pond and
-Electrolyzer paused. After commissioning, add one General Heated Evaporation
+Electrolyzer paused. After commissioning, add one Default Heated Evaporation
 Pond for non-Nuclear global Brine surplus.
 
 ### Stage 3: commission the closed loop

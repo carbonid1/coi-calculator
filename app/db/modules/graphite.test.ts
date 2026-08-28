@@ -10,7 +10,11 @@ import { calculateTreeGrowthSpeed } from "../../helpers/modifiers/calculate-tree
 import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
-import { createMaintenanceModule, MAINTENANCE_MODULE_ID } from "./maintenance";
+import {
+  attachMaintenanceDepotsToModule,
+  resolveMaintenanceDepotModuleAssignments,
+} from "./area-maintenance";
+import { DEFAULT_MODULE_ID } from "./default";
 import { modules } from "./modules";
 import {
   createNuclearModule,
@@ -23,19 +27,26 @@ it("keeps process waste and graphite balanced with the current coal-route capaci
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
   );
+  const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
+    defaultModuleId: DEFAULT_MODULE_ID,
+    demand: {
+      maintenanceI: 547.8,
+      maintenanceII: 194.22,
+      maintenanceIII: 236.55,
+    },
+    modules,
+  });
   const configuredModules = modules.map(module => {
+    const maintenanceAssignment = maintenanceAssignments[module.id];
+
+    if (maintenanceAssignment) {
+      module = attachMaintenanceDepotsToModule(module, maintenanceAssignment, "modeled");
+    }
+
     if (module.id === NUCLEAR_MODULE_ID) {
       return createNuclearModule(defaultNuclearConfig, {
         averageGeneratorOutputMw: 77,
         hydrogenFuelDemandPerCycle: 46.5,
-      });
-    }
-
-    if (module.id === MAINTENANCE_MODULE_ID) {
-      return createMaintenanceModule({
-        maintenanceI: 547.8,
-        maintenanceII: 194.22,
-        maintenanceIII: 236.55,
       });
     }
 

@@ -316,10 +316,15 @@ Verified against installed v0.8.7 `VehicleDepotsData`, `Ids.Buildings`, and
 
 ## Solar panels
 
-The Solar Power module uses completed entity counts from exporter schema v7;
-without synced data both panel counts are zero. The installed prototype IDs are
-`SolarPanel` and `SolarPanelMono`. Synced counts feed both the Solar Power tab
-and Factory Total generation. The exporter does not estimate instantaneous
+Solar panels use completed entity counts from exporter schema v7; without
+synced data both panel counts are zero. The installed prototype IDs are
+`SolarPanel` and `SolarPanelMono`. From schema v24 onward, panels are shown as
+buildings in the calculator module matching their game area. The game's
+immutable Default area is represented by no area membership. Panels whose area
+does not match exactly one calculator module also fall back to Default so an
+unmatched or overlapping area cannot drop or duplicate their generation. The
+factory-wide construction target is distributed once across running and paused
+capacity in all owning modules. The exporter does not estimate instantaneous
 generation; the calculator keeps using its existing weather-average, research,
 and edict multipliers.
 
@@ -410,7 +415,7 @@ The primary chain's full-building rates are:
 | Aluminum Cell     | 24 Alumina + 6 Graphite          | 24 Molten Aluminum + 18 Carbon Dioxide |
 | Cooled Caster II  | 24 Molten Aluminum               | 24 Aluminum                            |
 
-General owns the planned primary Aluminum chain and sizes it against Rocket II,
+Default owns the planned primary Aluminum chain and sizes it against Rocket II,
 Composite Core, and Titanium Alloy demand. Bauxite is represented as a
 demand-mined terrain resource in Mines; installed terrain data confirms that it
 is directly mineable in addition to the world-map Bauxite quarry. Four planned
@@ -419,7 +424,7 @@ dumping it.
 
 ## Titanium recipes
 
-General owns Titanium ore crushing, smelting, chlorination, reduction, sponge
+Default owns Titanium ore crushing, smelting, chlorination, reduction, sponge
 smelting, alloy mixing, and cooled casting. Process Steam owns chloride
 purification because its Distillation Stage III consumes High Steam. Titanium
 Ore remains a demand-mined terrain resource in Mines. The former experimental

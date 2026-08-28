@@ -40,7 +40,7 @@ it("omits steam and FBR power-chain advice from Building Attention", () => {
     <BuildingAttentionView
       diagnostics={[
         ...excludedBuildings.map(diagnostic),
-        { ...diagnostic("Assembly V"), moduleId: "general", moduleName: "General" },
+        { ...diagnostic("Assembly V"), moduleId: "general", moduleName: "Default" },
       ]}
       onOpenBuilding={vi.fn()}
     />,

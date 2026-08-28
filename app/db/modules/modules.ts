@@ -3,18 +3,16 @@ import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-la
 import { type Recipe } from "../recipes";
 import { type ResourceId } from "../resources";
 import { computing } from "./computing";
+import { defaultArea } from "./default";
 import { chickenFarms, greenhouses } from "./farms";
 import { forestry } from "./forestry";
-import { general } from "./general";
 import { housing } from "./housing";
-import { maintenance } from "./maintenance";
 import { mines } from "./mines";
 import { nuclear } from "./nuclear";
 import { offices } from "./offices";
 import { processSteam } from "./process-steam";
 import { research } from "./research";
 import { reserves } from "./reserves";
-import { solarPower } from "./solar-power";
 import { spaceStation } from "./space-station";
 import { staticInfrastructure } from "./static-infrastructure";
 
@@ -29,6 +27,8 @@ export interface Preset {
   /** Recipes forced to run at active capacity. Every other recipe is automatically balanced. */
   fixed: string[];
   outputTargets?: Partial<Record<ResourceId, number>>;
+  /** Per-recipe observed targets used when several recipes produce the same resource. */
+  recipeOutputTargets?: Record<string, Partial<Record<ResourceId, number>>>;
   builtBuildings?: Record<string, number>;
   speedLevels?: Record<string, number>;
   /** Manually measured resource use outside the currently modeled recipes. */
@@ -91,7 +91,7 @@ export interface Module {
 }
 
 export const modules: [Module, ...Module[]] = [
-  general,
+  defaultArea,
   forestry,
   processSteam,
   research,
@@ -104,7 +104,5 @@ export const modules: [Module, ...Module[]] = [
   mines,
   reserves,
   nuclear,
-  solarPower,
   computing,
-  maintenance,
 ];

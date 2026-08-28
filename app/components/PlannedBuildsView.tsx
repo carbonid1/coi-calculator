@@ -126,7 +126,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
   return (
     <section className={getDataSourceSurfaceClassName(
       "planned",
-      "rounded-lg border p-3",
+      { className: "rounded-lg border p-3" },
     )}>
       <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">
         Plan checklist

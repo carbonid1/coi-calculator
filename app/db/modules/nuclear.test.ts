@@ -6,18 +6,37 @@ import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total
 import { calculateSolarPower } from "../../helpers/modifiers/calculate-solar-power";
 import { emptyPlanningBaselines } from "../planning-baselines";
 import { defaultInfiniteResearchLevels } from "../research";
+import { attachSolarPanelsToModule } from "./area-solar";
+import { type Module } from "./modules";
 import {
   createNuclearModule,
   defaultNuclearConfig,
   plannedNuclearOperation,
 } from "./nuclear";
-import { createSolarPowerModule } from "./solar-power";
 
 const nuclear = createNuclearModule(defaultNuclearConfig, {
   averageGeneratorOutputMw: 77,
   hydrogenFuelDemandPerCycle: 46.5,
 });
-const solarPower = createSolarPowerModule({ standard: 38, mono: 195 });
+const emptyDefaultModule: Module = {
+  id: "general",
+  name: "Default",
+  description: "Default-area test module",
+  builtBuildings: {},
+  presets: [{
+    id: "current",
+    name: "Current",
+    description: "Current production",
+    activeBuildings: {},
+    fixed: [],
+  }],
+  defaultPresetId: "current",
+};
+const defaultWithSolar = attachSolarPanelsToModule(
+  emptyDefaultModule,
+  { standard: 38, mono: 195 },
+  { standard: 38, mono: 195 },
+);
 
 const syncedEntity = (
   entityId: number,
@@ -433,7 +452,7 @@ it("treats the baseline as nuclear generation in addition to solar", () => {
     0,
   );
   const result = calculateFactoryTotal(
-    [nuclear, solarPower],
+    [nuclear, defaultWithSolar],
     [],
     50,
     { solarPower: solarPowerOutput.multiplier },

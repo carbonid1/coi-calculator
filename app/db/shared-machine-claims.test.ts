@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { type SyncedMachineInventoryItem } from "../game-state";
 import { allocateSharedMachines } from "../helpers/machine-allocation/machine-allocation";
+import { createDefaultModule } from "./modules/default";
 import { createGreenhousesModule } from "./modules/farms";
-import { createGeneralModule } from "./modules/general";
 import {
-  GENERAL_GROUNDWATER_CLAIM_ID,
+  DEFAULT_GROUNDWATER_CLAIM_ID,
   GREENHOUSES_GROUNDWATER_CLAIM_ID,
   groundwaterPumpClaims,
 } from "./shared-machine-claims";
@@ -40,7 +40,7 @@ describe("Groundwater Pump module claims", () => {
       undefined,
       allocation.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID],
     );
-    const general = createGeneralModule(allocation.claims[GENERAL_GROUNDWATER_CLAIM_ID]);
+    const general = createDefaultModule(allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]);
 
     expect(greenhouses.presets[0].activeBuildings["groundwater-pump"]).toBe(5);
     expect(greenhouses.presets[0].dataSources?.["groundwater-pump"]).toBe("planned");
@@ -70,7 +70,7 @@ describe("Groundwater Pump module claims", () => {
       undefined,
       allocation.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID],
     );
-    const general = createGeneralModule(allocation.claims[GENERAL_GROUNDWATER_CLAIM_ID]);
+    const general = createDefaultModule(allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]);
 
     expect(greenhouses.presets[0].activeBuildings["groundwater-pump"]).toBe(5);
     expect(greenhouses.presets[0].dataSources?.["groundwater-pump"]).toBe("synced");
@@ -84,13 +84,13 @@ describe("Groundwater Pump module claims", () => {
     expect(general.builtBuildings["groundwater-pump-factory-reserve"]).toBe(3);
   });
 
-  it("keeps the live General reserve inventory synced without generating a plan", () => {
+  it("keeps the live Default reserve inventory synced without generating a plan", () => {
     const allocation = allocateSharedMachines([
       machine(1, true, []),
       machine(2, false, []),
       machine(3, false, []),
     ], groundwaterPumpClaims);
-    const general = createGeneralModule(allocation.claims[GENERAL_GROUNDWATER_CLAIM_ID]);
+    const general = createDefaultModule(allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]);
 
     expect(general.presets[0]).toMatchObject({
       activeBuildings: { "groundwater-pump-factory-reserve": 1 },

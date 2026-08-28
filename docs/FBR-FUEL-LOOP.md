@@ -61,7 +61,7 @@ set covers current factory-wide Hydrogen demand while remaining demand-balanced.
 Hydrogen demand is allocated first. The desalinators then run only as much as
 needed for Water and Brine, preferring four Depleted-Steam units before five
 Super-Steam units. Low Steam from ordinary factory processing is handled in the
-separate General module by one Seawater Pump, two Thermal Desalinators, and one
+separate Default module by one Seawater Pump, two Thermal Desalinators, and one
 Large Cooling Tower; that physical network does not share Seawater Pump capacity
 with Nuclear. The four physical nuclear cooling towers have both Super- and
 Depleted-Steam recipes enabled. Three remain active and share their capacity
@@ -94,7 +94,7 @@ beyond the active capacity stays visible as excess in the calculator.
 
 Run one Nuclear Heated Evaporation Pond and keep the second paused. Nuclear Brine satisfies ordinary
 factory demand first and its local remainder is dumped. A separate
-General Heated Evaporation Pond converts only non-Nuclear global Brine surplus
+Default Heated Evaporation Pond converts only non-Nuclear global Brine surplus
 to Salt. Aluminum has no reserved Brine branch in this checkpoint; introduce a
 secondary Salt plan later if Aluminum consumption makes the available Brine
 insufficient.

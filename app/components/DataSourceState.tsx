@@ -41,7 +41,16 @@ export const getDataSourcePresentation = (source: ValueSource) => (
   dataSourcePresentations[getDataSourceMode(source)]
 );
 
+interface DataSourceSurfaceOptions {
+  className?: string;
+  inactive?: boolean;
+}
+
 export const getDataSourceSurfaceClassName = (
   source: ValueSource,
-  className?: string,
-) => cn(getDataSourcePresentation(source).surfaceClassName, className);
+  { className, inactive = false }: DataSourceSurfaceOptions = {},
+) => cn(
+  getDataSourcePresentation(source).surfaceClassName,
+  inactive && getDataSourceMode(source) === "synced" && "border-success/20",
+  className,
+);

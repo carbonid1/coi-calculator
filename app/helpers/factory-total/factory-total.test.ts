@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { activeContracts } from "../../db/contracts";
 import {
-  createMaintenanceModule,
-  MAINTENANCE_MODULE_ID,
-} from "../../db/modules/maintenance";
+  attachMaintenanceDepotsToModule,
+  resolveMaintenanceDepotModuleAssignments,
+} from "../../db/modules/area-maintenance";
+import { DEFAULT_MODULE_ID } from "../../db/modules/default";
 import { modules } from "../../db/modules/modules";
 import {
   createNuclearModule,
@@ -16,19 +17,27 @@ import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-o
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { calculateFactoryTotal } from "./factory-total";
 
+const maintenanceDemand = {
+  maintenanceI: 547.8,
+  maintenanceII: 194.22,
+  maintenanceIII: 236.55,
+};
+const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
+  defaultModuleId: DEFAULT_MODULE_ID,
+  demand: maintenanceDemand,
+  modules,
+});
 const modulesWithSyncedHistory = modules.map(module => {
+  const maintenanceAssignment = maintenanceAssignments[module.id];
+
+  if (maintenanceAssignment) {
+    module = attachMaintenanceDepotsToModule(module, maintenanceAssignment, "modeled");
+  }
+
   if (module.id === NUCLEAR_MODULE_ID) {
     return createNuclearModule(defaultNuclearConfig, {
       averageGeneratorOutputMw: 77,
       hydrogenFuelDemandPerCycle: 46.5,
-    });
-  }
-
-  if (module.id === MAINTENANCE_MODULE_ID) {
-    return createMaintenanceModule({
-      maintenanceI: 547.8,
-      maintenanceII: 194.22,
-      maintenanceIII: 236.55,
     });
   }
 

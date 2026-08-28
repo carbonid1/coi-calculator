@@ -132,7 +132,7 @@ describe("planned build summaries", () => {
   it("keeps sequenced pause reminders in the checklist", () => {
     const plannedModule: Module = {
       id: "general",
-      name: "General",
+      name: "Default",
       description: "",
       builtBuildings: { bread: 3 },
       defaultPresetId: "plan",
@@ -154,7 +154,7 @@ describe("planned build summaries", () => {
     const bread = diagnostic({
       key: "general:bread",
       moduleId: "general",
-      moduleName: "General",
+      moduleName: "Default",
       buildingName: "Baking Unit",
       recipeName: "Bread",
       active: 4,

@@ -762,7 +762,7 @@ describe("active crop farm plan", () => {
     expect(pump?.recipe.groundwaterConstraint).toEqual(constraint);
   });
 
-  it("uses separate dedicated v0.8.7 Carcass processors in General", () => {
+  it("uses separate dedicated v0.8.7 Carcass processors in Default", () => {
     const mixed = recipes.find((recipe) => recipe.id === "food-processor-meat");
     const trimmingsOnly = recipes.find(
       (recipe) => recipe.id === "food-processor-meat-trimmings",

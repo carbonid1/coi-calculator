@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { general } from "./modules/general";
+import { defaultArea as general } from "./modules/default";
 import { recipes } from "./recipes";
 
 const digestionRecipeIds = [

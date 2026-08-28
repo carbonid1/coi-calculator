@@ -231,7 +231,8 @@ export const COMPUTING_ENTITY_SCHEMA_VERSION = 23 as const
 export const AREA_INVENTORY_SCHEMA_VERSION = 24 as const
 export const NAMED_AREA_ENTITY_SCHEMA_VERSION = 25 as const
 export const GROUNDWATER_RESERVE_SCHEMA_VERSION = 26 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 26 as const
+export const MAINTENANCE_ENTITY_SCHEMA_VERSION = 27 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 27 as const
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -253,6 +254,7 @@ export type SupportedGameStateSchemaVersion =
   | 23
   | 24
   | 25
+  | 26
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -907,6 +909,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 23 &&
     schemaVersion !== 24 &&
     schemaVersion !== 25 &&
+    schemaVersion !== 26 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null

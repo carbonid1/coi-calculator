@@ -28,7 +28,8 @@ export const buildModuleLines = (
         : built,
     );
     const targetRatios = recipe.outputs.flatMap((output) => {
-      const target = preset?.outputTargets?.[output.resourceId];
+      const target = preset?.recipeOutputTargets?.[recipe.id]?.[output.resourceId]
+        ?? preset?.outputTargets?.[output.resourceId];
 
       if (target == null) return [];
 

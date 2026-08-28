@@ -1,4 +1,4 @@
-import { Card } from "@carbonid1/design-system";
+import { Card, cn } from "@carbonid1/design-system";
 import { Sparkles } from "lucide-react";
 
 import { baseConfig } from "../db/config";
@@ -15,6 +15,8 @@ import {
 import { type FocusEffectId } from "../db/offices";
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
+import { type GameStateSnapshot } from "../game-state";
+import { formatHistoryWindow } from "../helpers/game-history/format-history-window";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
@@ -26,9 +28,11 @@ import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power"
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-mine-output";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
-import { getDataSourceSurfaceClassName } from "./DataSourceState";
+import { getDataSourceMode, getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {
+  electricityGenerationCapacityMw: number;
+  maintenanceHistory: GameStateSnapshot["history"]["maintenance"] | null;
   edictLevels: Record<EdictId, EdictLevel>;
   edictSources: Record<EdictId, ValueSource>;
   unityBudget: UnityBudget;
@@ -46,6 +50,60 @@ interface Props {
 const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
 const formatSignedPercent = (value: number) => (
   value > 0 ? `+${value}%` : `${value}%`
+);
+const formatPower = (value: number) => (
+  `${parseFloat(value.toFixed(2)).toLocaleString("en-US")} MW`
+);
+
+const maintenanceTiers = [
+  ["maintenanceI", "Maintenance I"],
+  ["maintenanceII", "Maintenance II"],
+  ["maintenanceIII", "Maintenance III"],
+] as const;
+
+export const MaintenanceDemandOverview = ({
+  history,
+}: {
+  history: GameStateSnapshot["history"]["maintenance"];
+}) => (
+  <section className="space-y-3">
+    <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+      Maintenance demand
+    </h3>
+    <Card.Root
+      data-data-source="synced"
+      className={getDataSourceSurfaceClassName("synced")}
+    >
+      <Card.Content className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-success">Synced</span>
+          {" · Actual consumption across completed game cycles"}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {maintenanceTiers
+            .filter(([id]) => history[id].sampleMonths > 0)
+            .map(([id, label]) => {
+              const average = history[id];
+
+              return (
+                <div key={id} className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="font-mono font-semibold tabular-nums text-foreground">
+                    {average.averagePerCycle.toLocaleString("en-US", {
+                      maximumFractionDigits: 2,
+                    })}
+                    {" / cycle"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatHistoryWindow(average.sampleMonths)}
+                  </p>
+                </div>
+              );
+            })}
+        </div>
+      </Card.Content>
+    </Card.Root>
+  </section>
 );
 
 export const EdictCard = ({
@@ -67,9 +125,12 @@ export const EdictCard = ({
     ?? (active.unityCostPerCycle > 0 ? -active.unityCostPerCycle : 0);
 
   return (
-    <Card.Root className={source === "planned"
-      ? getDataSourceSurfaceClassName("planned")
-      : undefined}
+    <Card.Root
+      data-data-source={getDataSourceMode(source)}
+      className={cn(
+        value === 0 && "[&>*]:opacity-40 shadow-none",
+        getDataSourceSurfaceClassName(source, { inactive: value === 0 }),
+      )}
     >
       <Card.Content className="p-3">
         <Card.Header>
@@ -94,6 +155,8 @@ export const EdictCard = ({
 };
 
 export const ModifiersView: React.FC<Props> = ({
+  electricityGenerationCapacityMw,
+  maintenanceHistory,
   edictLevels,
   edictSources,
   unityBudget,
@@ -153,8 +216,21 @@ export const ModifiersView: React.FC<Props> = ({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">Unity &amp; Policies</h2>
+        <h2 className="text-xl font-semibold text-foreground">General Info</h2>
       </div>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Factory overview</h3>
+        <Card.Root>
+          <Card.Content className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div><p className="text-sm text-muted-foreground">Electricity generation capacity</p><p className="font-mono font-semibold text-foreground">{formatPower(electricityGenerationCapacityMw)}</p></div>
+            <div><p className="text-sm text-muted-foreground">Average sunlight ({planningWeather.horizonYears}Y)</p><p className="font-mono font-semibold text-foreground">{planningWeather.averageSunIntensityPercent}%</p></div>
+            <div><p className="text-sm text-muted-foreground">Base recycling</p><p className="font-mono font-semibold text-foreground">{baseConfig.recyclingEfficiencyPercent}%</p></div>
+          </Card.Content>
+        </Card.Root>
+      </section>
+
+      {maintenanceHistory && <MaintenanceDemandOverview history={maintenanceHistory} />}
 
       <section className="space-y-3">
         <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Unity budget</h3>
@@ -263,15 +339,6 @@ export const ModifiersView: React.FC<Props> = ({
         </Card.Root>
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Game base</h3>
-        <Card.Root>
-          <Card.Content className="grid gap-4 sm:grid-cols-2">
-            <div><p className="text-sm text-muted-foreground">Base recycling</p><p className="font-mono font-semibold text-foreground">{baseConfig.recyclingEfficiencyPercent}%</p></div>
-            <div><p className="text-sm text-muted-foreground">Average sunlight ({planningWeather.horizonYears}Y)</p><p className="font-mono font-semibold text-foreground">{planningWeather.averageSunIntensityPercent}%</p></div>
-          </Card.Content>
-        </Card.Root>
-      </section>
     </div>
   );
 };

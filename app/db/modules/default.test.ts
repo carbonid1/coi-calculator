@@ -10,20 +10,20 @@ import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
 import {
+  defaultArea as general,
+  modeledDefaultRecipeIds,
+  plannedNewDefaultBuildings,
+} from "./default";
+import {
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
 } from "./farms";
 import { createFbrPowerPlantModule } from "./fbr-power-plant";
-import {
-  general,
-  modeledGeneralRecipeIds,
-  plannedNewGeneralBuildings,
-} from "./general";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
 import { processSteam } from "./process-steam";
 
-it("models the physical General Low Steam recovery cluster", () => {
+it("models the physical Default-area Low Steam recovery cluster", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -85,7 +85,7 @@ it("provides two active Rubber Makers for the Ethanol route", () => {
   });
 });
 
-it("treats the completed General Titanium machines as modeled active capacity", () => {
+it("treats the completed Default-area Titanium machines as modeled active capacity", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -327,7 +327,7 @@ it("models all three Microchip Machine II stages as three built and active", () 
   ))).toBe(true);
 });
 
-it("keeps Station Parts ownership out of General", () => {
+it("keeps Station Parts ownership out of Default", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -501,7 +501,7 @@ it("pauses three Gold Ore buildings and disables the Gold Furnace concentrate re
   expect(goldLines.every(({ dataSource }) => dataSource === "modeled")).toBe(true);
 });
 
-it("combines Tree Sapling and food-process Biomass in the local General recovery line", () => {
+it("combines Tree Sapling and food-process Biomass in the local Default recovery line", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -580,8 +580,8 @@ it("keeps the completed advanced recipes current in their operating modules", ()
     ({ recipe }) => recipe.id === "distillation-stage-iii-titanium-purification",
   );
 
-  expect(Object.keys(plannedNewGeneralBuildings)).toHaveLength(0);
-  expect(modeledGeneralRecipeIds).toEqual(expect.arrayContaining([
+  expect(Object.keys(plannedNewDefaultBuildings)).toHaveLength(0);
+  expect(modeledDefaultRecipeIds).toEqual(expect.arrayContaining([
     "assembly-v-composite-panel",
     "lens-polisher",
   ]));
@@ -635,7 +635,7 @@ it("demand-balances enough Yellowcake for the two-FBR target", () => {
   });
 });
 
-it("keeps Greenhouse Groundwater Pumps local while General supplies factory reserve", () => {
+it("keeps Greenhouse Groundwater Pumps local while Default supplies factory reserve", () => {
   const result = calculateFactoryTotal(
     modules
       .filter((module) => module.id !== NUCLEAR_MODULE_ID)

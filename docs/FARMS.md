@@ -57,7 +57,7 @@ In v0.8.6, farm crop growth does not read sunlight. Weather affects crops throug
 The projected crop layout uses nine Greenhouse IIs across nine fixed rotation
 configurations, Fertilizer II at 140%, and full irrigation. The rotations cover
 the current Factory Total demand, including Poppy for Morphine and Tree Saplings.
-Carcass processing belongs to the General module, not Chicken Farms: one
+Carcass processing belongs to the Default module, not Chicken Farms: one
 dedicated Food Processor makes Meat + Trimmings, and a second dedicated Food
 Processor converts only surplus Carcasses into Trimmings. Surplus Trimmings
 continue through Fuel Gas into Diesel, which is intentionally retained as a
@@ -73,10 +73,10 @@ Greenhouses, with all five active. Chicken Farm water is imported
 from Factory Total and can never increase those pumps' modeled output.
 
 Schema 17 treats Groundwater Pumps as a shared physical inventory because the
-same building also supplies General's factory-water reserve. Schema 18 exports
+same building also supplies Default's factory-water reserve. Schema 18 exports
 vehicle-zone membership. A `Greenhouses` zone automatically owns the pumps it
 contains, while pumps outside every non-default zone belong to Default and
-therefore General. Other zone names can be mapped once in Factory Total. Paused
+therefore Default. Other zone names can be mapped once in Factory Total. Paused
 pumps remain physical inventory but do not increase active production, and
 overlapping zones mapped to different modules remain explicit conflicts.
 

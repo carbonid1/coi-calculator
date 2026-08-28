@@ -8,7 +8,6 @@ import { ComputingSettings } from './components/ComputingSettings'
 import { ContractsView } from './components/ContractsView'
 import { GameSyncStatus } from './components/GameSyncStatus'
 import { HousingView } from './components/HousingView'
-import { MaintenancePlanningSettings } from './components/MaintenancePlanningSettings'
 import { MinesView } from './components/MinesView'
 import { ModifiersView } from './components/ModifiersView'
 import { ModuleSwitcher } from './components/ModuleSwitcher'
@@ -21,7 +20,6 @@ import { InfiniteResearchSettings, ResearchSettings } from './components/Researc
 import { ReservesView } from './components/ReservesView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
-import { SolarPowerSettings } from './components/SolarPowerSettings'
 import { SpaceStationView } from './components/SpaceStationView'
 import { StorageCard } from './components/StorageCard'
 import { buildings } from './db/buildings'
@@ -49,19 +47,24 @@ import {
   resolvedCurrentHousingCount,
   resolvedHousingCount,
 } from './db/housing'
+import {
+  attachMaintenanceDepotsToModule,
+  resolveMaintenanceDepotModuleAssignments,
+  selectMaintenanceDepotLines,
+} from './db/modules/area-maintenance'
+import {
+  attachSolarPanelsToModule,
+  resolveSolarPanelModuleAssignments,
+} from './db/modules/area-solar'
 import { createComputingModule, COMPUTING_MODULE_ID } from './db/modules/computing'
+import { createDefaultModule, DEFAULT_MODULE_ID } from './db/modules/default'
 import {
   createChickenFarmsModule,
   createGreenhousesModule,
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
 } from './db/modules/farms'
-import {
-  createGeneralModule,
-  GENERAL_MODULE_ID,
-} from './db/modules/general'
 import { createHousingModule, HOUSING_MODULE_ID } from './db/modules/housing'
-import { createMaintenanceModule, MAINTENANCE_MODULE_ID } from './db/modules/maintenance'
 import { MINES_MODULE_ID } from './db/modules/mines'
 import { modules } from './db/modules/modules'
 import {
@@ -73,12 +76,6 @@ import {
 import { createOfficesModule, OFFICES_MODULE_ID } from './db/modules/offices'
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from './db/modules/research'
 import { createReservesModule, RESERVES_MODULE_ID } from './db/modules/reserves'
-import {
-  createSolarPowerModule,
-  plannedSolarPanelTargets,
-  resolveSolarPanelPlan,
-  SOLAR_POWER_MODULE_ID,
-} from './db/modules/solar-power'
 import { createSpaceStationModule, SPACE_STATION_MODULE_ID } from './db/modules/space-station'
 import {
   createStaticInfrastructureModule,
@@ -96,11 +93,11 @@ import {
 } from './db/rocket-infrastructure'
 import { settlementRecipeIds } from './db/settlement'
 import {
-  GENERAL_GROUNDWATER_CLAIM_ID,
+  DEFAULT_GROUNDWATER_CLAIM_ID,
   GREENHOUSES_GROUNDWATER_CLAIM_ID,
   groundwaterPumpClaims,
 } from './db/shared-machine-claims'
-import { emptySolarPanelCounts, solarPanelOrder, solarPanels } from './db/solar'
+import { plannedSolarPanelTargets } from './db/solar'
 import {
   calculateRocketIiRecurringLogistics,
   defaultRocketIiRecurringLogistics,
@@ -117,6 +114,7 @@ import {
   COMPUTING_ENTITY_SCHEMA_VERSION,
   MACHINE_INVENTORY_SCHEMA_VERSION,
   MACHINE_ZONE_SCHEMA_VERSION,
+  MAINTENANCE_ENTITY_SCHEMA_VERSION,
   NAMED_AREA_ENTITY_SCHEMA_VERSION,
   ROCKET_INFRASTRUCTURE_SCHEMA_VERSION,
   syncedInfrastructureBuildingIds,
@@ -214,8 +212,7 @@ interface Props {
 export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const gameState = useGameState(initialGameState)
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID)
-  const [machineZoneAssignments, setMachineZoneAssignments] =
-    useState<MachineZoneAssignments>({})
+  const [machineZoneAssignments, setMachineZoneAssignments] = useState<MachineZoneAssignments>({})
   const [buildingTarget, setBuildingTarget] = useState<{
     key: string
     moduleId: string
@@ -251,9 +248,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
         for (const [zoneId, claimId] of Object.entries(stored)) {
           if (
-            /^-?\d+$/.test(zoneId)
-            && typeof claimId === 'string'
-            && groundwaterPumpClaims.some(claim => claim.id === claimId)
+            /^-?\d+$/.test(zoneId) &&
+            typeof claimId === 'string' &&
+            groundwaterPumpClaims.some(claim => claim.id === claimId)
           ) {
             assignments[Number(zoneId)] = claimId
           }
@@ -318,53 +315,52 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     setActiveModuleId(diagnostic.moduleId)
   }
 
-  const sharedMachineAllocation = gameState.snapshot
-    && gameState.snapshot.schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION
-    ? allocateSharedMachines(
-        gameState.snapshot.machines,
-        groundwaterPumpClaims,
-        machineZoneAssignments,
-        gameState.snapshot.schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION,
-      )
-    : null
-  const greenhousesGroundwaterResolution = sharedMachineAllocation
-    ?.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID]
-  const generalGroundwaterResolution = sharedMachineAllocation
-    ?.claims[GENERAL_GROUNDWATER_CLAIM_ID]
+  const sharedMachineAllocation =
+    gameState.snapshot && gameState.snapshot.schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION
+      ? allocateSharedMachines(
+          gameState.snapshot.machines,
+          groundwaterPumpClaims,
+          machineZoneAssignments,
+          gameState.snapshot.schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION,
+        )
+      : null
+  const greenhousesGroundwaterResolution =
+    sharedMachineAllocation?.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID]
+  const defaultGroundwaterResolution = sharedMachineAllocation?.claims[DEFAULT_GROUNDWATER_CLAIM_ID]
   const groundwaterClaimLimits = calculateGroundwaterClaimLimits(
     [
       ...(greenhousesGroundwaterResolution
-        ? [{
-            claimId: GREENHOUSES_GROUNDWATER_CLAIM_ID,
-            projectedPumpCount: Math.max(
-              greenhousesGroundwaterResolution.running,
-              greenhousesGroundwaterResolution.claim.target,
-            ),
-            machines: [
-              ...greenhousesGroundwaterResolution.machines,
-              ...greenhousesGroundwaterResolution.suggestedMachines,
-            ],
-          }]
+        ? [
+            {
+              claimId: GREENHOUSES_GROUNDWATER_CLAIM_ID,
+              projectedPumpCount: Math.max(
+                greenhousesGroundwaterResolution.running,
+                greenhousesGroundwaterResolution.claim.target,
+              ),
+              machines: [
+                ...greenhousesGroundwaterResolution.machines,
+                ...greenhousesGroundwaterResolution.suggestedMachines,
+              ],
+            },
+          ]
         : []),
-      ...(generalGroundwaterResolution
-        ? [{
-            claimId: GENERAL_GROUNDWATER_CLAIM_ID,
-            projectedPumpCount: generalGroundwaterResolution.running,
-            machines: [
-              ...generalGroundwaterResolution.machines,
-              ...generalGroundwaterResolution.suggestedMachines,
-            ],
-          }]
+      ...(defaultGroundwaterResolution
+        ? [
+            {
+              claimId: DEFAULT_GROUNDWATER_CLAIM_ID,
+              projectedPumpCount: defaultGroundwaterResolution.running,
+              machines: [
+                ...defaultGroundwaterResolution.machines,
+                ...defaultGroundwaterResolution.suggestedMachines,
+              ],
+            },
+          ]
         : []),
     ],
     gameState.snapshot?.groundwater ?? null,
   )
-  const greenhousesGroundwaterConstraint = groundwaterClaimLimits[
-    GREENHOUSES_GROUNDWATER_CLAIM_ID
-  ]
-  const generalGroundwaterConstraint = groundwaterClaimLimits[
-    GENERAL_GROUNDWATER_CLAIM_ID
-  ]
+  const greenhousesGroundwaterConstraint = groundwaterClaimLimits[GREENHOUSES_GROUNDWATER_CLAIM_ID]
+  const defaultGroundwaterConstraint = groundwaterClaimLimits[DEFAULT_GROUNDWATER_CLAIM_ID]
   const staticInfrastructureBuiltConfig: StaticInfrastructureConfig = {
     ...emptyStaticInfrastructureConfig,
   }
@@ -378,14 +374,24 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     ...emptyRocketInfrastructureConfig,
   }
   const productionEntities = gameState.snapshot?.productionEntities ?? []
-  const hasExactArea = (name: string) => Boolean(
-    gameState.snapshot
-    && gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION
-    && gameState.snapshot.logisticsZones.some(zone => zone.name === name),
-  )
+  const hasExactArea = (name: string) =>
+    Boolean(
+      gameState.snapshot &&
+      gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION &&
+      gameState.snapshot.logisticsZones.some(zone => zone.name === name),
+    )
   const usesInfrastructureArea = hasExactArea('Infrastructure')
   const usesSpaceStationArea = hasExactArea('Space Station')
-  const usesSolarPowerArea = hasExactArea('Solar Power')
+  const hasAreaBuildingInventory = Boolean(
+    gameState.snapshot &&
+    gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION &&
+    gameState.snapshot.productionEntities,
+  )
+  const hasMaintenanceDepotInventory = Boolean(
+    gameState.snapshot &&
+    gameState.snapshot.schemaVersion >= MAINTENANCE_ENTITY_SCHEMA_VERSION &&
+    gameState.snapshot.productionEntities,
+  )
   const infrastructureAreaCounts = usesInfrastructureArea
     ? resolveAreaBuildingCounts(productionEntities, 'Infrastructure')
     : {}
@@ -402,17 +408,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           'StationPartsAssembly',
         )
       : undefined
-  const solarPowerAreaCounts = usesSolarPowerArea
-    ? resolveAreaBuildingCounts(productionEntities, 'Solar Power')
-    : {}
 
   if (gameState.snapshot) {
     for (const id of syncedInfrastructureBuildingIds) {
       // Moving locomotives are global; their transient position must not assign
       // them to a module area.
-      const count = usesInfrastructureArea && id !== 'electricLocomotiveII'
-        ? infrastructureAreaCounts[id] ?? { built: 0, running: 0 }
-        : gameState.snapshot.buildings[id]
+      const count =
+        usesInfrastructureArea && id !== 'electricLocomotiveII'
+          ? (infrastructureAreaCounts[id] ?? { built: 0, running: 0 })
+          : gameState.snapshot.buildings[id]
 
       staticInfrastructureBuiltConfig[id] = count.built
       staticInfrastructureRunningConfig[id] = count.running
@@ -421,7 +425,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     if (gameState.snapshot.schemaVersion >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION) {
       for (const id of syncedRocketBuildingIds) {
         const count = usesSpaceStationArea
-          ? spaceStationAreaCounts[id] ?? { built: 0, running: 0 }
+          ? (spaceStationAreaCounts[id] ?? { built: 0, running: 0 })
           : gameState.snapshot.buildings[id]
 
         rocketInfrastructureBuiltConfig[id] = count.built
@@ -433,18 +437,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     staticInfrastructureRunningConfig.vehicles = gameState.snapshot.vehicles.workersAssigned
   }
 
-  const syncedStandardSolar = usesSolarPowerArea
-    ? solarPowerAreaCounts.solarPanel ?? { built: 0, running: 0 }
-    : gameState.snapshot?.buildings.solarPanel
-  const syncedMonoSolar = usesSolarPowerArea
-    ? solarPowerAreaCounts.solarPanelMono ?? { built: 0, running: 0 }
-    : gameState.snapshot?.buildings.solarPanelMono
-  const solarPanelBuiltCounts = syncedStandardSolar && syncedMonoSolar
-    ? {
-        standard: syncedStandardSolar.built,
-        mono: syncedMonoSolar.built,
-      }
-    : emptySolarPanelCounts
   const syncedSpaceStation = gameState.snapshot?.spaceStation
   const spaceStationConfig = syncedSpaceStation
     ? {
@@ -453,17 +445,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         highestLevelAchieved: syncedSpaceStation.highestLevelAchieved,
       }
     : defaultSpaceStationConfig
-  const solarPanelRunningCounts = syncedStandardSolar && syncedMonoSolar
-    ? {
-        standard: syncedStandardSolar.running,
-        mono: syncedMonoSolar.running,
-      }
-    : emptySolarPanelCounts
-  const projectedSolarPanelCounts = resolveSolarPanelPlan(
-    solarPanelBuiltCounts,
-    solarPanelRunningCounts,
-    plannedSolarPanelTargets,
-  ).activeCounts
   const planningBaselines = resolvePlanningBaselines(gameState.snapshot)
   const syncedHistory = gameState.snapshot?.history
   const syncedMaintenance = syncedHistory?.maintenance
@@ -486,9 +467,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const officePlanCalculation = calculateOfficePlan(officePlan, researchLevels.focusPoints)
   const focusBonuses = officePlanCalculation.bonuses
   const syncedEdictStates = gameState.snapshot?.edicts
-  const resolvedEdictLevels = mapEdictValues(edictId => (
-    resolveEdictLevel(edictId, syncedEdictStates?.[edictId].activeLevel)
-  ))
+  const resolvedEdictLevels = mapEdictValues(edictId =>
+    resolveEdictLevel(edictId, syncedEdictStates?.[edictId].activeLevel),
+  )
   const edictLevels: Record<EdictId, EdictLevel> = mapEdictValues(
     edictId => resolvedEdictLevels[edictId].value,
   )
@@ -509,27 +490,24 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const globalSyncedComputingConfigs = gameState.snapshot?.computing
     ? getSyncedComputingConfigs(gameState.snapshot.computing)
     : null
-  const syncedComputingConfigs = gameState.snapshot
-    && gameState.snapshot.schemaVersion >= COMPUTING_ENTITY_SCHEMA_VERSION
-    && gameState.snapshot.productionEntities
-    ? resolveComputingEntityInventory(gameState.snapshot.productionEntities)
-    : globalSyncedComputingConfigs
-  const computingBuiltConfig = syncedComputingConfigs?.built
-    ?? resolvedCurrentComputingConfig.value
-  const computingRunningConfig = syncedComputingConfigs?.running
-    ?? resolvedCurrentComputingConfig.value
+  const syncedComputingConfigs =
+    gameState.snapshot &&
+    gameState.snapshot.schemaVersion >= COMPUTING_ENTITY_SCHEMA_VERSION &&
+    gameState.snapshot.productionEntities
+      ? resolveComputingEntityInventory(gameState.snapshot.productionEntities)
+      : globalSyncedComputingConfigs
+  const computingBuiltConfig = syncedComputingConfigs?.built ?? resolvedCurrentComputingConfig.value
+  const computingRunningConfig =
+    syncedComputingConfigs?.running ?? resolvedCurrentComputingConfig.value
   const computingCurrentSource = syncedComputingConfigs
-    ? 'synced' as const
+    ? ('synced' as const)
     : resolvedCurrentComputingConfig.source
   const computingConfig = {
     dataCenterCount: Math.max(
       computingRunningConfig.dataCenterCount,
       resolvedComputingConfig.value.dataCenterCount,
     ),
-    rackCount: Math.max(
-      computingRunningConfig.rackCount,
-      resolvedComputingConfig.value.rackCount,
-    ),
+    rackCount: Math.max(computingRunningConfig.rackCount, resolvedComputingConfig.value.rackCount),
     waterChillers: Math.max(
       computingRunningConfig.waterChillers,
       resolvedComputingConfig.value.waterChillers,
@@ -546,9 +524,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     : null
   const usesGreenhousesArea = hasExactArea('Greenhouses')
   const currentCropFarmEntities = usesGreenhousesArea
-    ? allCurrentCropFarmEntities?.filter(entity => (
-        entity.zones?.some(zone => zone.name === 'Greenhouses')
-      )) ?? []
+    ? (allCurrentCropFarmEntities?.filter(entity =>
+        entity.zones?.some(zone => zone.name === 'Greenhouses'),
+      ) ?? [])
     : allCurrentCropFarmEntities
   const globalCropFarmConfigurations = gameState.snapshot?.cropFarms
     ? getSyncedCropFarmConfigurations(gameState.snapshot.cropFarms)
@@ -557,24 +535,28 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     ? getCropFarmConfigurationsFromEntities(currentCropFarmEntities ?? [])
     : globalCropFarmConfigurations
   const plannedChickenFarmLayout = resolvedChickenFarmSettings.value
-  const ownedChickenFarmEntities = currentChickenFarmEntities?.filter(entity => (
-    entity.zones.some(zone => zone.name === 'Chicken Farms')
-  )) ?? []
-  const desiredChickenConfigurations = currentChickenConfigurations?.filter(
-    configuration => configuration.slaughtering === plannedChickenFarmLayout.slaughtering,
-  ) ?? []
+  const ownedChickenFarmEntities =
+    currentChickenFarmEntities?.filter(entity =>
+      entity.zones.some(zone => zone.name === 'Chicken Farms'),
+    ) ?? []
+  const desiredChickenConfigurations =
+    currentChickenConfigurations?.filter(
+      configuration => configuration.slaughtering === plannedChickenFarmLayout.slaughtering,
+    ) ?? []
   const desiredRunningChickenFarms = currentChickenFarmEntities?.length
-    ? ownedChickenFarmEntities.filter(entity => (
-        entity.running && entity.slaughtering === plannedChickenFarmLayout.slaughtering
-      )).length
+    ? ownedChickenFarmEntities.filter(
+        entity => entity.running && entity.slaughtering === plannedChickenFarmLayout.slaughtering,
+      ).length
     : desiredChickenConfigurations.reduce(
         (total, configuration) => total + configuration.running,
         0,
       )
   const desiredRunningChickens = currentChickenFarmEntities?.length
-    ? ownedChickenFarmEntities.filter(entity => (
-        entity.running && entity.slaughtering === plannedChickenFarmLayout.slaughtering
-      )).reduce((total, entity) => total + entity.chickens, 0)
+    ? ownedChickenFarmEntities
+        .filter(
+          entity => entity.running && entity.slaughtering === plannedChickenFarmLayout.slaughtering,
+        )
+        .reduce((total, entity) => total + entity.chickens, 0)
     : desiredChickenConfigurations.reduce(
         (total, configuration) => total + configuration.runningChickens,
         0,
@@ -583,168 +565,190 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     plannedChickenFarmLayout.totalChickenCount,
   ).farmCount
   const chickenPlanReached = Boolean(
-    currentChickenConfigurations
-    && desiredRunningChickenFarms >= plannedChickenFarmCount
-    && desiredRunningChickens >= plannedChickenFarmLayout.totalChickenCount,
+    currentChickenConfigurations &&
+    desiredRunningChickenFarms >= plannedChickenFarmCount &&
+    desiredRunningChickens >= plannedChickenFarmLayout.totalChickenCount,
   )
   const chickenFarmSettings = chickenPlanReached
     ? {
         totalChickenCount: desiredRunningChickens,
         slaughtering: plannedChickenFarmLayout.slaughtering,
-    }
+      }
     : plannedChickenFarmLayout
   const usesPopulationArea = Boolean(
-    gameState.snapshot
-    && gameState.snapshot.schemaVersion >= NAMED_AREA_ENTITY_SCHEMA_VERSION
-    && hasExactArea('Population'),
+    gameState.snapshot &&
+    gameState.snapshot.schemaVersion >= NAMED_AREA_ENTITY_SCHEMA_VERSION &&
+    hasExactArea('Population'),
   )
   const populationEntityInventory = usesPopulationArea
     ? resolvePopulationEntityInventory(productionEntities)
     : undefined
 
-  const configureModules = () => modules.map(module => {
-    if (module.id === GENERAL_MODULE_ID) {
-      return createGeneralModule(
-        generalGroundwaterResolution,
-        generalGroundwaterConstraint,
-      )
-    }
+  const configureModules = () =>
+    modules.map(module => {
+      if (module.id === DEFAULT_MODULE_ID) {
+        return createDefaultModule(defaultGroundwaterResolution, defaultGroundwaterConstraint)
+      }
 
-    if (module.id === STATIC_INFRASTRUCTURE_MODULE_ID) {
-      return createStaticInfrastructureModule(
-        staticInfrastructureBuiltConfig,
-        staticInfrastructureRunningConfig,
-        {
-          syncedCounts: Boolean(gameState.snapshot),
-        },
-      )
-    }
+      if (module.id === STATIC_INFRASTRUCTURE_MODULE_ID) {
+        return createStaticInfrastructureModule(
+          staticInfrastructureBuiltConfig,
+          staticInfrastructureRunningConfig,
+          {
+            syncedCounts: Boolean(gameState.snapshot),
+          },
+        )
+      }
 
-    if (module.id === SPACE_STATION_MODULE_ID) {
-      return createSpaceStationModule(
-        spaceStationConfig,
-        rocketInfrastructureBuiltConfig,
-        plannedRocketInfrastructureConfig,
-        {
-          rocketRunningConfig: rocketInfrastructureRunningConfig,
-          rocketSource:
-            (gameState.snapshot?.schemaVersion ?? 0) >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION
-              ? 'synced'
-              : 'modeled',
-          stationPartsAssembly: stationPartsAssemblyCount
-            ? { ...stationPartsAssemblyCount, source: 'synced' }
-            : undefined,
-          stationSource: syncedSpaceStation ? 'synced' : 'modeled',
-        },
-      )
-    }
+      if (module.id === SPACE_STATION_MODULE_ID) {
+        return createSpaceStationModule(
+          spaceStationConfig,
+          rocketInfrastructureBuiltConfig,
+          plannedRocketInfrastructureConfig,
+          {
+            rocketRunningConfig: rocketInfrastructureRunningConfig,
+            rocketSource:
+              (gameState.snapshot?.schemaVersion ?? 0) >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION
+                ? 'synced'
+                : 'modeled',
+            stationPartsAssembly: stationPartsAssemblyCount
+              ? { ...stationPartsAssemblyCount, source: 'synced' }
+              : undefined,
+            stationSource: syncedSpaceStation ? 'synced' : 'modeled',
+          },
+        )
+      }
 
-    if (module.id === COMPUTING_MODULE_ID) {
-      return createComputingModule(
-        resolvedComputingConfig.value,
-        computingBuiltConfig,
-        resolvedComputingConfig.source,
-        computingCurrentSource,
-        computingRunningConfig,
-      )
-    }
+      if (module.id === COMPUTING_MODULE_ID) {
+        return createComputingModule(
+          resolvedComputingConfig.value,
+          computingBuiltConfig,
+          resolvedComputingConfig.source,
+          computingCurrentSource,
+          computingRunningConfig,
+        )
+      }
 
-    if (module.id === CHICKEN_FARMS_MODULE_ID) {
-      return createChickenFarmsModule(
-        resolvedChickenFarmSettings.value,
-        resolvedCurrentChickenFarmSettings.value,
-        resolvedChickenFarmSettings.source,
-        currentChickenConfigurations ? 'synced' : resolvedCurrentChickenFarmSettings.source,
-        currentChickenConfigurations ?? undefined,
-        undefined,
-        currentChickenFarmEntities?.length ? currentChickenFarmEntities : undefined,
-      )
-    }
+      if (module.id === CHICKEN_FARMS_MODULE_ID) {
+        return createChickenFarmsModule(
+          resolvedChickenFarmSettings.value,
+          resolvedCurrentChickenFarmSettings.value,
+          resolvedChickenFarmSettings.source,
+          currentChickenConfigurations ? 'synced' : resolvedCurrentChickenFarmSettings.source,
+          currentChickenConfigurations ?? undefined,
+          undefined,
+          currentChickenFarmEntities?.length ? currentChickenFarmEntities : undefined,
+        )
+      }
 
-    if (module.id === GREENHOUSES_MODULE_ID) {
-      return currentCropFarmConfigurations
-        ? createGreenhousesModule(
-            activeCropFarmGroups,
-            currentCropFarmConfigurations,
-            'synced',
-            undefined,
-            greenhousesGroundwaterResolution,
-            currentCropFarmEntities ?? undefined,
-            greenhousesGroundwaterConstraint,
-          )
-        : createGreenhousesModule()
-    }
+      if (module.id === GREENHOUSES_MODULE_ID) {
+        return currentCropFarmConfigurations
+          ? createGreenhousesModule(
+              activeCropFarmGroups,
+              currentCropFarmConfigurations,
+              'synced',
+              undefined,
+              greenhousesGroundwaterResolution,
+              currentCropFarmEntities ?? undefined,
+              greenhousesGroundwaterConstraint,
+            )
+          : createGreenhousesModule()
+      }
 
-    if (module.id === SOLAR_POWER_MODULE_ID) {
-      return createSolarPowerModule(
-        solarPanelBuiltCounts,
-        solarPanelRunningCounts,
-        plannedSolarPanelTargets,
-        gameState.snapshot ? 'synced' : 'modeled',
-      )
-    }
+      if (module.id === NUCLEAR_MODULE_ID) {
+        return createNuclearModule(
+          defaultNuclearConfig,
+          planningBaselines,
+          plannedNuclearOperation,
+          gameState.snapshot?.productionEntities ?? undefined,
+        )
+      }
 
-    if (module.id === NUCLEAR_MODULE_ID) {
-      return createNuclearModule(
-        defaultNuclearConfig,
-        planningBaselines,
-        plannedNuclearOperation,
-        gameState.snapshot?.productionEntities ?? undefined,
-      )
-    }
+      if (module.id === OFFICES_MODULE_ID) {
+        return createOfficesModule(
+          officePlan,
+          resolvedCurrentOfficePlan.value,
+          resolvedOfficePlan.source,
+          resolvedCurrentOfficePlan.source,
+        )
+      }
 
-    if (module.id === MAINTENANCE_MODULE_ID) {
-      return createMaintenanceModule(maintenanceDemand)
-    }
+      if (module.id === HOUSING_MODULE_ID) {
+        return createHousingModule(
+          resolvedHousingCount.value,
+          housingCapacityLevel,
+          resolvedCurrentHousingCount.value,
+          resolvedHousingCount.source,
+          populationEntityInventory,
+        )
+      }
 
-    if (module.id === OFFICES_MODULE_ID) {
-      return createOfficesModule(
-        officePlan,
-        resolvedCurrentOfficePlan.value,
-        resolvedOfficePlan.source,
-        resolvedCurrentOfficePlan.source,
-      )
-    }
+      if (module.id === RESERVES_MODULE_ID) {
+        return createReservesModule(gameState.snapshot?.reserves ?? null)
+      }
 
-    if (module.id === HOUSING_MODULE_ID) {
-      return createHousingModule(
-        resolvedHousingCount.value,
-        housingCapacityLevel,
-        resolvedCurrentHousingCount.value,
-        resolvedHousingCount.source,
-        populationEntityInventory,
-      )
-    }
-
-    if (module.id === RESERVES_MODULE_ID) {
-      return createReservesModule(gameState.snapshot?.reserves ?? null)
-    }
-
-    return module
+      return module
+    })
+  const configuredAreaModules = configureModules()
+  const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
+    defaultModuleId: DEFAULT_MODULE_ID,
+    demand: maintenanceDemand,
+    modules: configuredAreaModules,
+    productionEntities: hasMaintenanceDepotInventory ? productionEntities : undefined,
   })
-  const configuredModules = configureModules()
+  const configuredModulesWithoutSolar = configuredAreaModules.map(module => {
+    const assignment = maintenanceAssignments[module.id]
+
+    return assignment
+      ? attachMaintenanceDepotsToModule(
+          module,
+          assignment,
+          hasMaintenanceDepotInventory ? 'synced' : 'modeled',
+        )
+      : module
+  })
+  const solarAssignments = resolveSolarPanelModuleAssignments({
+    defaultModuleId: DEFAULT_MODULE_ID,
+    fallbackInventory: {
+      builtCounts: {
+        standard: gameState.snapshot?.buildings.solarPanel?.built ?? 0,
+        mono: gameState.snapshot?.buildings.solarPanelMono?.built ?? 0,
+      },
+      runningCounts: {
+        standard: gameState.snapshot?.buildings.solarPanel?.running ?? 0,
+        mono: gameState.snapshot?.buildings.solarPanelMono?.running ?? 0,
+      },
+    },
+    modules: configuredModulesWithoutSolar,
+    plannedTargets: plannedSolarPanelTargets,
+    productionEntities: hasAreaBuildingInventory ? productionEntities : undefined,
+  })
+  const configuredModules = configuredModulesWithoutSolar.map(module => {
+    const solarAssignment = solarAssignments[module.id]
+
+    if (!solarAssignment) return module
+
+    return attachSolarPanelsToModule(
+      module,
+      solarAssignment.builtCounts,
+      solarAssignment.runningCounts,
+      solarAssignment.plannedTargets,
+      gameState.snapshot ? 'synced' : 'modeled',
+    )
+  })
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
-  const configuredHousingModule = configuredModules.find(
-    module => module.id === HOUSING_MODULE_ID,
-  )
+  const configuredHousingModule = configuredModules.find(module => module.id === HOUSING_MODULE_ID)
   const configuredHousingPreset = configuredHousingModule?.presets.find(
     preset => preset.id === configuredHousingModule.defaultPresetId,
   )
-  const housingCount = configuredHousingPreset
-    ?.activeBuildings[settlementRecipeIds.residents]
-    ?? resolvedHousingCount.value
-  const housingIiCount = configuredHousingPreset
-    ?.activeBuildings[settlementRecipeIds.residentsII]
-    ?? 0
-  const populationCapacity = calculatePopulationCapacity(
-    activeHousingType,
-    housingCount,
-    housingCapacity.multiplier,
-  ) + calculatePopulationCapacity(
-    housingTypes.housingII,
-    housingIiCount,
-    housingCapacity.multiplier,
-  )
+  const housingCount =
+    configuredHousingPreset?.activeBuildings[settlementRecipeIds.residents] ??
+    resolvedHousingCount.value
+  const housingIiCount =
+    configuredHousingPreset?.activeBuildings[settlementRecipeIds.residentsII] ?? 0
+  const populationCapacity =
+    calculatePopulationCapacity(activeHousingType, housingCount, housingCapacity.multiplier) +
+    calculatePopulationCapacity(housingTypes.housingII, housingIiCount, housingCapacity.multiplier)
   const spaceStationIncludedInFactoryTotals =
     configuredModules.find(module => module.id === SPACE_STATION_MODULE_ID)
       ?.includedInFactoryTotals !== false
@@ -976,19 +980,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const computingCapacityTflops = calculateComputingCapacityTflops(
     factoryResult.allLines.filter(line => line.moduleId === COMPUTING_MODULE_ID),
   )
-  const solarGenerationCapacityMw = calculateGenerationCapacityMw(
-    factoryResult.allLines.filter(line => line.moduleId === SOLAR_POWER_MODULE_ID),
-  )
-  const currentSolarGenerationCapacityMw = solarPanelOrder.reduce(
-    (total, panel) => (
-      total
-      + solarPanels[panel].sunnyOutputKw
-        / 1000
-        * Math.min(solarPanelBuiltCounts[panel], solarPanelRunningCounts[panel])
-        * solarPowerOutput.multiplier
-    ),
-    0,
-  )
   const nuclearGenerationCapacityMw =
     activeModule?.id === NUCLEAR_MODULE_ID && moduleResult
       ? calculateGenerationCapacityMw(moduleResult.lines)
@@ -1002,6 +993,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         }))
         .filter(g => g.items.length > 0)
     : []
+  const usesSpecializedAreaLayout = activeModule
+    ? [MINES_MODULE_ID, NUCLEAR_MODULE_ID, RESERVES_MODULE_ID].includes(activeModule.id)
+    : false
+  const supplementalAreaLines =
+    usesSpecializedAreaLayout && moduleResult ? selectMaintenanceDepotLines(moduleResult.lines) : []
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
@@ -1027,12 +1023,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         onChange={setActiveModuleId}
       />
 
-      {activeModule?.description && activeModule.id !== SOLAR_POWER_MODULE_ID && (
+      {activeModule?.description && (
         <p className="text-sm text-muted-foreground">{activeModule.description}</p>
       )}
 
       {isModifiers && (
         <ModifiersView
+          electricityGenerationCapacityMw={factoryGenerationCapacityMw}
+          maintenanceHistory={hasMaintenanceHistory ? (syncedMaintenance ?? null) : null}
           edictLevels={edictLevels}
           edictSources={edictSources}
           unityBudget={unityBudget}
@@ -1079,26 +1077,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         />
       )}
 
-      {activeModule?.id === SOLAR_POWER_MODULE_ID && (
-        <SolarPowerSettings
-          currentAverageGenerationMw={currentSolarGenerationCapacityMw}
-          focusedTargetKey={
-            buildingTarget?.moduleId === activeModule.id ? buildingTarget.key : undefined
-          }
-          builtCounts={solarPanelBuiltCounts}
-          plannedTargets={plannedSolarPanelTargets}
-          projectedCounts={projectedSolarPanelCounts}
-          projectedAverageGenerationMw={solarGenerationCapacityMw}
-          runningCounts={solarPanelRunningCounts}
-        />
-      )}
-
       {activeModule?.id === NUCLEAR_MODULE_ID && syncedHistory && hasOperatingHistory && (
         <NuclearPlanningSettings history={syncedHistory} values={planningBaselines} />
-      )}
-
-      {activeModule?.id === MAINTENANCE_MODULE_ID && syncedMaintenance && hasMaintenanceHistory && (
-        <MaintenancePlanningSettings demand={maintenanceDemand} history={syncedMaintenance} />
       )}
 
       {activeModule?.id === COMPUTING_MODULE_ID && (
@@ -1149,188 +1129,221 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         />
       )}
 
-      {moduleResult &&
-        activeModule &&
-        activeModule.id !== SOLAR_POWER_MODULE_ID &&
-        activeModule.id !== RESERVES_MODULE_ID && (
-          <>
-            {activeModule.id === MINES_MODULE_ID && (
-              <MinesView
-                focusedTargetKey={
-                  buildingTarget?.moduleId === activeModule.id ? buildingTarget.key : undefined
-                }
-                sourceResults={moduleResult.sourceResults}
-                sinkResults={moduleResult.sinkResults}
-              />
-            )}
+      {moduleResult && activeModule && (
+        <>
+          {activeModule.id === MINES_MODULE_ID && (
+            <MinesView
+              focusedTargetKey={
+                buildingTarget?.moduleId === activeModule.id ? buildingTarget.key : undefined
+              }
+              sourceResults={moduleResult.sourceResults}
+              sinkResults={moduleResult.sinkResults}
+            />
+          )}
 
-            {activeModule.id !== MINES_MODULE_ID && (
-              <NetSummary
-                flows={displayedResourceFlows}
-                workers={buildingStats.workers}
-                electricityConsumptionKw={buildingStats.electricityKw}
-                electricityGenerationCapacityMw={nuclearGenerationCapacityMw}
-                computingConsumptionTflops={buildingStats.computingTflops}
-                computingGenerationCapacityTflops={
-                  activeModule.id === COMPUTING_MODULE_ID ? computingCapacityTflops : undefined
-                }
-              />
-            )}
+          {activeModule.id !== MINES_MODULE_ID && activeModule.id !== RESERVES_MODULE_ID && (
+            <NetSummary
+              flows={displayedResourceFlows}
+              workers={buildingStats.workers}
+              electricityConsumptionKw={buildingStats.electricityKw}
+              electricityGenerationCapacityMw={nuclearGenerationCapacityMw}
+              computingConsumptionTflops={buildingStats.computingTflops}
+              computingGenerationCapacityTflops={
+                activeModule.id === COMPUTING_MODULE_ID ? computingCapacityTflops : undefined
+              }
+            />
+          )}
 
-            {activeModule.id === NUCLEAR_MODULE_ID ? (
-              <NuclearModuleSections
-                focusedTargetKey={
-                  buildingTarget?.moduleId === activeModule.id ? buildingTarget.key : undefined
-                }
-                lines={moduleResult.lines}
-                regularResults={moduleResult.regularResults}
-                sourceResults={moduleResult.sourceResults}
-                sinkResults={moduleResult.sinkResults}
-                diagnostics={activeBuildingDiagnostics}
-                outputModifiers={outputModifiers}
-              />
-            ) : (
-              activeModule.id !== MINES_MODULE_ID &&
-              grouped.map(({ group, label, items }) => {
-                const groupTargetKey =
-                  activeModule.id === GREENHOUSES_MODULE_ID && group === 'production'
-                    ? `${activeModule.id}:crop-rebalance`
-                    : `${activeModule.id}:group:${group}`
+          {activeModule.id === NUCLEAR_MODULE_ID ? (
+            <NuclearModuleSections
+              focusedTargetKey={
+                buildingTarget?.moduleId === activeModule.id ? buildingTarget.key : undefined
+              }
+              lines={moduleResult.lines}
+              regularResults={moduleResult.regularResults}
+              sourceResults={moduleResult.sourceResults}
+              sinkResults={moduleResult.sinkResults}
+              diagnostics={activeBuildingDiagnostics}
+              outputModifiers={outputModifiers}
+            />
+          ) : (
+            activeModule.id !== MINES_MODULE_ID &&
+            activeModule.id !== RESERVES_MODULE_ID &&
+            grouped.map(({ group, label, items }) => {
+              const groupTargetKey =
+                activeModule.id === GREENHOUSES_MODULE_ID && group === 'production'
+                  ? `${activeModule.id}:crop-rebalance`
+                  : `${activeModule.id}:group:${group}`
 
-                return (
-                  <BuildingCardTarget
-                    key={group}
-                    className="space-y-2"
-                    focused={buildingTarget?.key === groupTargetKey}
-                    stretchChild={false}
-                    targetKey={groupTargetKey}
-                  >
-                    <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {label}
-                    </h2>
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                      {groupProductionCardLines(items).map(({ key, targetKey, lines }) => {
-                        const line = lines[0]
+              return (
+                <BuildingCardTarget
+                  key={group}
+                  className="space-y-2"
+                  focused={buildingTarget?.key === groupTargetKey}
+                  stretchChild={false}
+                  targetKey={groupTargetKey}
+                >
+                  <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {label}
+                  </h2>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {groupProductionCardLines(items).map(({ key, targetKey, lines }) => {
+                      const line = lines[0]
 
-                        if (!line) return null
+                      if (!line) return null
 
-                        if (group === 'source') {
-                          const result = moduleResult.sourceResults.find(
-                            source => source.recipe.id === line.recipe.id,
-                          )
-
-                          return result ? (
-                            <BuildingCardTarget
-                              key={key}
-                              focused={buildingTarget?.key === targetKey}
-                              targetKey={targetKey}
-                            >
-                              <SinkCard
-                                dataSource={line.dataSource}
-                                result={result}
-                                role="source"
-                              />
-                            </BuildingCardTarget>
-                          ) : null
-                        }
-                        if (group === 'sink') {
-                          const result = moduleResult.sinkResults.find(
-                            sink => sink.recipe.id === line.recipe.id,
-                          )
-
-                          return result ? (
-                            <BuildingCardTarget
-                              key={key}
-                              focused={buildingTarget?.key === targetKey}
-                              targetKey={targetKey}
-                            >
-                              <SinkCard
-                                dataSource={line.dataSource}
-                                result={result}
-                                role="sink"
-                              />
-                            </BuildingCardTarget>
-                          ) : null
-                        }
-
-                        if (lines.length > 1) {
-                          return (
-                            <BuildingCardTarget
-                              key={key}
-                              focused={buildingTarget?.key === targetKey}
-                              targetKey={targetKey}
-                            >
-                              <SharedRecipeCard
-                                dataSource={line.dataSource}
-                                lines={lines}
-                                results={lines.map(sharedLine =>
-                                  moduleResult.regularResults.find(
-                                    result => result.recipe.id === sharedLine.recipe.id,
-                                  ),
-                                )}
-                                outputModifiers={outputModifiers}
-                                diagnostic={activeBuildingDiagnostics.find(
-                                  diagnostic => diagnostic.key === targetKey,
-                                )}
-                              />
-                            </BuildingCardTarget>
-                          )
-                        }
-
-                        const result = moduleResult.regularResults.find(
-                          regularResult => regularResult.recipe.id === line.recipe.id,
+                      if (group === 'source') {
+                        const result = moduleResult.sourceResults.find(
+                          source => source.recipe.id === line.recipe.id,
                         )
 
-                        if (line.recipe.decayStorage) {
-                          return (
-                            <BuildingCardTarget
-                              key={key}
-                              focused={buildingTarget?.key === targetKey}
-                              targetKey={targetKey}
-                            >
-                              <StorageCard
-                                dataSource={line.dataSource}
-                                recipe={line.recipe}
-                                storage={line.recipe.decayStorage}
-                                activeBuildings={line.activeBuildings}
-                                builtBuildings={line.builtBuildings}
-                                operatingMode={result?.operatingMode ?? 'balanced'}
-                              />
-                            </BuildingCardTarget>
-                          )
-                        }
+                        return result ? (
+                          <BuildingCardTarget
+                            key={key}
+                            focused={buildingTarget?.key === targetKey}
+                            targetKey={targetKey}
+                          >
+                            <SinkCard dataSource={line.dataSource} result={result} role="source" />
+                          </BuildingCardTarget>
+                        ) : null
+                      }
+                      if (group === 'sink') {
+                        const result = moduleResult.sinkResults.find(
+                          sink => sink.recipe.id === line.recipe.id,
+                        )
 
+                        return result ? (
+                          <BuildingCardTarget
+                            key={key}
+                            focused={buildingTarget?.key === targetKey}
+                            targetKey={targetKey}
+                          >
+                            <SinkCard dataSource={line.dataSource} result={result} role="sink" />
+                          </BuildingCardTarget>
+                        ) : null
+                      }
+
+                      if (lines.length > 1) {
                         return (
                           <BuildingCardTarget
                             key={key}
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
-                            <RecipeCard
+                            <SharedRecipeCard
                               dataSource={line.dataSource}
-                              recipe={line.recipe}
-                              activeBuildings={line.activeBuildings}
-                              builtBuildings={line.builtBuildings}
-                              diagnostic={factoryBuildingDiagnostics.find(
-                                diagnostic => diagnostic.key === key,
+                              lines={lines}
+                              results={lines.map(sharedLine =>
+                                moduleResult.regularResults.find(
+                                  result => result.recipe.id === sharedLine.recipe.id,
+                                ),
                               )}
-                              supplyRatio={result?.supplyRatio ?? 1}
-                              operatingMode={result?.operatingMode ?? 'balanced'}
-                              speedLevel={line.speedLevel}
-                              actualInputs={result?.actualInputs}
-                              actualOutputs={result?.actualOutputs}
                               outputModifiers={outputModifiers}
+                              diagnostic={activeBuildingDiagnostics.find(
+                                diagnostic => diagnostic.key === targetKey,
+                              )}
                             />
                           </BuildingCardTarget>
                         )
-                      })}
-                    </div>
-                  </BuildingCardTarget>
-                )
-              })
-            )}
-          </>
-        )}
+                      }
+
+                      const result = moduleResult.regularResults.find(
+                        regularResult => regularResult.recipe.id === line.recipe.id,
+                      )
+
+                      if (line.recipe.decayStorage) {
+                        return (
+                          <BuildingCardTarget
+                            key={key}
+                            focused={buildingTarget?.key === targetKey}
+                            targetKey={targetKey}
+                          >
+                            <StorageCard
+                              dataSource={line.dataSource}
+                              recipe={line.recipe}
+                              storage={line.recipe.decayStorage}
+                              activeBuildings={line.activeBuildings}
+                              builtBuildings={line.builtBuildings}
+                              operatingMode={result?.operatingMode ?? 'balanced'}
+                            />
+                          </BuildingCardTarget>
+                        )
+                      }
+
+                      return (
+                        <BuildingCardTarget
+                          key={key}
+                          focused={buildingTarget?.key === targetKey}
+                          targetKey={targetKey}
+                        >
+                          <RecipeCard
+                            dataSource={line.dataSource}
+                            recipe={line.recipe}
+                            activeBuildings={line.activeBuildings}
+                            builtBuildings={line.builtBuildings}
+                            diagnostic={factoryBuildingDiagnostics.find(
+                              diagnostic => diagnostic.key === key,
+                            )}
+                            supplyRatio={result?.supplyRatio ?? 1}
+                            operatingMode={result?.operatingMode ?? 'balanced'}
+                            speedLevel={line.speedLevel}
+                            actualInputs={result?.actualInputs}
+                            actualOutputs={result?.actualOutputs}
+                            outputModifiers={outputModifiers}
+                          />
+                        </BuildingCardTarget>
+                      )
+                    })}
+                  </div>
+                </BuildingCardTarget>
+              )
+            })
+          )}
+
+          {supplementalAreaLines.length > 0 && (
+            <section className="space-y-2" aria-labelledby="area-buildings-heading">
+              <h2
+                id="area-buildings-heading"
+                className="text-sm font-medium uppercase tracking-wide text-muted-foreground"
+              >
+                Area buildings
+              </h2>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {supplementalAreaLines.map(line => {
+                  const targetKey = line.capacityPoolId ?? `${line.moduleId}:${line.recipe.id}`
+                  const result = moduleResult.regularResults.find(
+                    candidate => candidate.recipe.id === line.recipe.id,
+                  )
+
+                  return (
+                    <BuildingCardTarget
+                      key={line.recipe.id}
+                      focused={buildingTarget?.key === targetKey}
+                      targetKey={targetKey}
+                    >
+                      <RecipeCard
+                        dataSource={line.dataSource}
+                        recipe={line.recipe}
+                        activeBuildings={line.activeBuildings}
+                        builtBuildings={line.builtBuildings}
+                        diagnostic={activeBuildingDiagnostics.find(
+                          candidate => candidate.key === targetKey,
+                        )}
+                        supplyRatio={result?.supplyRatio ?? 1}
+                        operatingMode={result?.operatingMode ?? 'balanced'}
+                        speedLevel={line.speedLevel}
+                        actualInputs={result?.actualInputs}
+                        actualOutputs={result?.actualOutputs}
+                        outputModifiers={outputModifiers}
+                      />
+                    </BuildingCardTarget>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+        </>
+      )}
 
       {activeModule?.id === RESEARCH_MODULE_ID && (
         <InfiniteResearchSettings levels={researchLevels} synced={Boolean(syncedResearchLevels)} />

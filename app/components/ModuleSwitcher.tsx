@@ -5,7 +5,7 @@ import {
   CircleHelp,
   Factory,
   Handshake,
-  Landmark,
+  Info,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,10 +71,10 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
     })}
     <SwitchButton
       active={active === modifiersId}
-      icon={Landmark}
+      icon={Info}
       onClick={() => onChange(modifiersId)}
     >
-      Unity &amp; Policies
+      General Info
     </SwitchButton>
     <SwitchButton
       active={active === contractsId}

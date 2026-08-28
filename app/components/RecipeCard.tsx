@@ -29,18 +29,34 @@ interface Props {
   showConfigurationSummary?: boolean;
 }
 
+export const isCompactSyncedElectricitySource = (
+  recipe: Recipe,
+  dataSource?: ValueSource,
+) => (
+  dataSource === "synced"
+  && recipe.inputs.length === 0
+  && recipe.outputs.length === 1
+  && recipe.outputs[0]?.resourceId === "electricity"
+);
+
 export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
   const hasFlows = recipe.inputs.length > 0 || recipe.outputs.length > 0;
+  const compactSyncedElectricitySource = isCompactSyncedElectricitySource(
+    recipe,
+    dataSource,
+  );
+  const displaysFlows = !inactive && hasFlows && !compactSyncedElectricitySource;
   const tflopsPerMachine = buildings[recipe.building]?.computingTflops ?? 0;
   const computingTflops = recipe.computingScalesWithSpeed
     ? tflopsPerMachine * buildingMultiplier * speedLevel
     : tflopsPerMachine;
   const recipeDisplayName = getRecipeDisplayName(recipe);
   const displaysConfiguration = showConfigurationSummary
-    && recipe.showConfigurationSummary !== false;
+    && recipe.showConfigurationSummary !== false
+    && !compactSyncedElectricitySource;
 
   return (
     <ProductionCard
@@ -49,7 +65,10 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
       inactive={inactive}
       className="p-3"
     >
-      <div className="mb-2 flex items-start justify-between gap-3">
+      <div className={displaysFlows
+        ? "mb-2 flex items-start justify-between gap-3"
+        : "flex items-start justify-between gap-3"}
+      >
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             {recipe.building}
@@ -105,7 +124,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
         />
       </div>
 
-      {!inactive && hasFlows && (
+      {displaysFlows && (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="min-w-0 space-y-1">
             {recipe.inputs.map((input) => {

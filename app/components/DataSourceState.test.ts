@@ -7,6 +7,7 @@ vi.mock("@carbonid1/design-system", () => ({
 import {
   getDataSourceMode,
   getDataSourcePresentation,
+  getDataSourceSurfaceClassName,
 } from "./DataSourceState";
 
 describe("data source surface", () => {
@@ -30,4 +31,15 @@ describe("data source surface", () => {
       expect(className).toContain("bg-");
     },
   );
+
+  it("softens the synced border when the represented value is inactive", () => {
+    expect(getDataSourceSurfaceClassName("synced", { inactive: true }))
+      .toContain("border-success/20");
+    expect(getDataSourceSurfaceClassName("synced"))
+      .not.toContain("border-success/20");
+    expect(getDataSourceSurfaceClassName("modeled", { inactive: true }))
+      .not.toContain("border-success/20");
+    expect(getDataSourceSurfaceClassName("planned", { inactive: true }))
+      .not.toContain("border-success/20");
+  });
 });

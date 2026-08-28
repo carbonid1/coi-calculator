@@ -19,7 +19,7 @@ const claims: SharedMachineClaim[] = [
   {
     id: "general-groundwater",
     moduleId: "general",
-    moduleName: "General",
+    moduleName: "Default",
     recipeId: "groundwater-pump-factory-reserve",
     machineName: "Groundwater Pump",
     kind: "groundwater-pump",
@@ -43,7 +43,7 @@ const machine = (
 });
 
 describe("shared machine allocation", () => {
-  it("auto-assigns the live Greenhouses zone and Default to General", () => {
+  it("auto-assigns the live Greenhouses and Default areas", () => {
     const result = allocateSharedMachines([
       ...[1, 2, 3, 4, 5].map(id => machine(id, true, [
         { id: 10, name: "Greenhouses" },

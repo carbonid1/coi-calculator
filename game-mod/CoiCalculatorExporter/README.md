@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.26 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.27 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -33,9 +33,8 @@ identified by its stable save-local ID and optional in-game name. Factory Total
 can map a zone once to an abstract calculator module; all current and future
 tracked machines inside that zone follow the mapping without per-machine names.
 Exact module-name matches resolve automatically. A machine outside every
-non-default zone is shown under Default, which the calculator assigns to
-General. Overlapping mapped zones remain explicit conflicts rather than being
-guessed.
+non-default zone is shown under the calculator's Default area. Overlapping
+mapped zones remain explicit conflicts rather than being guessed.
 Schema 19 adds one record per completed Greenhouse and Greenhouse II, including
 its stable save-local entity ID, pause state, crop schedule, and fertility
 target. The calculator uses these identities to layer planned configurations
@@ -62,12 +61,10 @@ calculator binds these entities only through an exact `Computing` area-name
 match; schema 22 and older continue to use the global computing totals.
 Schema 24 adds the named vehicle-zone catalog, zone membership to Greenhouse
 identities, and stable identities for the already tracked rocket, solar, and
-stationary infrastructure buildings. Exact `Greenhouses`, `Solar Power`,
-`Space Station`, and `Infrastructure` areas can therefore replace aggregate
-counts for their physical inventory. When a matching area does not exist, the
-calculator retains the aggregate-count compatibility fallback. Moving vehicles
-and locomotives remain global rather than being assigned by their transient
-position.
+stationary infrastructure buildings. Exact module-name areas can therefore
+replace aggregate counts for their physical inventory; unzoned and unmatched
+solar panels belong to Default. Moving vehicles and locomotives remain global
+rather than being assigned by their transient position.
 Schema 25 exports completed production, worker, and settlement entities that
 overlap any named vehicle area. Tracks, transports, and storage remain out of
 the generic payload. The calculator still decides which prototypes belong to
@@ -80,6 +77,9 @@ pump speed and dry emergency-replenishment settings. The calculator combines
 these synced values with the installed v0.8.7 rain-recharge rule and planning
 weather, caps the steady-state Water output of pumps sharing an aquifer, and
 does not count one aquifer's recharge once per calculator module.
+Schema 27 adds stable, recipe-aware identities for all four Maintenance Depot
+tiers, including pause state and area membership. Unzoned depots belong to the
+game's immutable Default area; exact named-area matches move with that area.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as

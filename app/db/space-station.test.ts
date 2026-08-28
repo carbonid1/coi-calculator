@@ -7,7 +7,7 @@ import {
   getPlanMismatchSummaries,
   getPlannedBuildSummaries,
 } from "../helpers/planned-builds/planned-builds";
-import { general } from "./modules/general";
+import { defaultArea as general } from "./modules/default";
 import { processSteam } from "./modules/process-steam";
 import { createResearchModule } from "./modules/research";
 import { createSpaceStationModule, spaceStation } from "./modules/space-station";

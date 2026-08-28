@@ -415,6 +415,22 @@ const schema26Snapshot = {
     replenishWhenLowPercent: 7,
   },
 }
+const schema27Snapshot = {
+  ...schema26Snapshot,
+  schemaVersion: 27,
+  productionEntities: [
+    ...schema26Snapshot.productionEntities,
+    {
+      entityId: 807,
+      prototypeId: 'MaintenanceDepotT1',
+      running: true,
+      recipeIds: ['MaintenanceT1Recycling'],
+      zones: [],
+      nuclearReactor: null,
+      dataCenterRacks: null,
+    },
+  ],
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -549,6 +565,12 @@ describe('game-state snapshot validation', () => {
         replenishWhenLowPercent: 7,
       },
       machines: [{ aquifer: groundwaterAquifer }, { aquifer: groundwaterAquifer }],
+    })
+    expect(normalizeGameStateSnapshot(schema27Snapshot)).toMatchObject({
+      schemaVersion: 27,
+      productionEntities: expect.arrayContaining([
+        expect.objectContaining({ prototypeId: 'MaintenanceDepotT1' }),
+      ]),
     })
   })
 

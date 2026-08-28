@@ -31,7 +31,7 @@ it("demand-mines Coal when local Coal Makers are paused", () => {
   expect(coalMine?.actualOutputs).toEqual([{ resourceId: "coal", quantity: 84 }]);
 });
 
-it("does not own the General factory water reserve", () => {
+it("does not own the Default factory water reserve", () => {
   const lines = buildModuleLines(mines, null).lines;
   const result = calculateNet(lines, {}, 90, {}, { water: 60 });
   const groundwater = result.sourceResults.find(({ recipe }) => (

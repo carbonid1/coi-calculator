@@ -902,7 +902,7 @@ export const recipes: Recipe[] = [
     // Captain of Industry v0.8.7 game data: 4 Tree Saplings become 4 Biomass
     // every 10 seconds, normalized here to one 60-second production cycle.
     // Forestry reserves its planting demand first; this line shreds only the
-    // remaining crop surplus into the General module's local Biomass belt.
+    // remaining crop surplus into the Default module's local Biomass belt.
     id: 'shredder-tree-saplings',
     name: 'Shredder (Tree Saplings → Biomass)',
     building: 'Shredder',
@@ -922,7 +922,7 @@ export const recipes: Recipe[] = [
     group: 'production',
     cycleDurationSeconds: 60,
     balanceBy: 'input',
-    // This installation is physically fed by the General food processors and
+    // This installation is physically fed by the Default-area food processors and
     // Tree Sapling shredder. It cannot accept Biomass exported by other modules.
     balanceInputScope: 'module',
     sharedCapacity: {

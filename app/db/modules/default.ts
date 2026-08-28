@@ -6,13 +6,14 @@ import {
 } from "../space-station";
 import { type Module } from "./modules";
 
-export const GENERAL_MODULE_ID = "general";
-export const GENERAL_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
+/** Stable internal ID retained so existing deep links and saved UI state keep working. */
+export const DEFAULT_MODULE_ID = "general";
+export const DEFAULT_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
-export const plannedNewGeneralBuildings = {} as const;
+export const plannedNewDefaultBuildings = {} as const;
 
-/** Current General values manually confirmed from the game but not snapshot-synced yet. */
-export const modeledGeneralRecipeIds = [
+/** Current Default-area values manually confirmed from the game but not snapshot-synced yet. */
+export const modeledDefaultRecipeIds = [
   "assembly-v-composite-core",
   "assembly-v-composite-panel",
   "assembly-v-crew-supplies",
@@ -63,18 +64,18 @@ export const modeledGeneralRecipeIds = [
   "silicon-reactor-poly-silicon",
 ] as const;
 
-export const plannedGeneralBuildings = {
-  ...plannedNewGeneralBuildings,
+export const plannedDefaultBuildings = {
+  ...plannedNewDefaultBuildings,
 } as const;
 
-export const plannedGeneralBuiltBuildings = Object.fromEntries(
-  Object.keys(plannedNewGeneralBuildings).map((recipeId) => [recipeId, 0]),
+export const plannedDefaultBuiltBuildings = Object.fromEntries(
+  Object.keys(plannedNewDefaultBuildings).map((recipeId) => [recipeId, 0]),
 );
 
-const generalBase: Module = {
-  id: GENERAL_MODULE_ID,
-  name: "General",
-  description: "Shared production for metals, electronics, supporting materials, locally combined Biomass recovery, and Low Steam recovery",
+const defaultBase: Module = {
+  id: DEFAULT_MODULE_ID,
+  name: "Default",
+  description: "Production in the game's immutable Default area: metals, electronics, supporting materials, locally combined Biomass recovery, and Low Steam recovery",
   builtBuildings: {
     "seawater-pump": 1,
     "thermal-desalinator-low": 3,
@@ -200,7 +201,7 @@ const generalBase: Module = {
     "arc-furnace-ii-iron-ore": 5,
     "crusher-large-iron": 1,
     "wastewater-treatment-toxic-slurry": 1,
-    ...plannedGeneralBuiltBuildings,
+    ...plannedDefaultBuiltBuildings,
   },
   presets: [
     {
@@ -332,7 +333,7 @@ const generalBase: Module = {
         "arc-furnace-ii-iron-ore": 5,
         "crusher-large-iron": 1,
         "wastewater-treatment-toxic-slurry": 1,
-        ...plannedGeneralBuiltBuildings,
+        ...plannedDefaultBuiltBuildings,
       },
       activeBuildings: {
         "crusher-large-bauxite": 3,
@@ -389,12 +390,12 @@ const generalBase: Module = {
         "anaerobic-digester-vegetables": 2,
         "anaerobic-digester-poppy": 2,
         "cracking-unit-fuel-gas-diesel": 1,
-        ...plannedGeneralBuildings,
+        ...plannedDefaultBuildings,
       },
       dataSources: {
-        ...Object.fromEntries(modeledGeneralRecipeIds.map((recipeId) => [recipeId, "modeled"])),
+        ...Object.fromEntries(modeledDefaultRecipeIds.map((recipeId) => [recipeId, "modeled"])),
         ...Object.fromEntries(
-          Object.keys(plannedGeneralBuildings).map((recipeId) => [recipeId, "planned"]),
+          Object.keys(plannedDefaultBuildings).map((recipeId) => [recipeId, "planned"]),
         ),
       },
       fixed: [
@@ -413,7 +414,7 @@ const generalBase: Module = {
 
 const defaultFactoryReservePumpTarget = 1;
 
-export const createGeneralModule = (
+export const createDefaultModule = (
   groundwaterPumpResolution?: SharedMachineClaimResolution,
   groundwaterConstraint?: GroundwaterSourceConstraint,
 ): Module => {
@@ -422,31 +423,31 @@ export const createGeneralModule = (
   const running = groundwaterPumpResolution?.running ?? defaultFactoryReservePumpTarget;
 
   return {
-    ...generalBase,
-    description: `${generalBase.description}, plus Default-zone factory water reserve`,
+    ...defaultBase,
+    description: `${defaultBase.description}, plus the Default-area factory water reserve`,
     recipes: groundwaterConstraint
-      ? [createGroundwaterPumpRecipe(GENERAL_GROUNDWATER_RECIPE_ID, groundwaterConstraint)]
-      : generalBase.recipes,
+      ? [createGroundwaterPumpRecipe(DEFAULT_GROUNDWATER_RECIPE_ID, groundwaterConstraint)]
+      : defaultBase.recipes,
     builtBuildings: {
-      ...generalBase.builtBuildings,
-      [GENERAL_GROUNDWATER_RECIPE_ID]: built,
+      ...defaultBase.builtBuildings,
+      [DEFAULT_GROUNDWATER_RECIPE_ID]: built,
     },
-    presets: generalBase.presets.map(preset => ({
+    presets: defaultBase.presets.map(preset => ({
       ...preset,
       builtBuildings: {
         ...preset.builtBuildings,
-        [GENERAL_GROUNDWATER_RECIPE_ID]: built,
+        [DEFAULT_GROUNDWATER_RECIPE_ID]: built,
       },
       activeBuildings: {
         ...preset.activeBuildings,
-        [GENERAL_GROUNDWATER_RECIPE_ID]: running,
+        [DEFAULT_GROUNDWATER_RECIPE_ID]: running,
       },
       dataSources: {
         ...preset.dataSources,
-        [GENERAL_GROUNDWATER_RECIPE_ID]: source,
+        [DEFAULT_GROUNDWATER_RECIPE_ID]: source,
       },
     })),
   };
 };
 
-export const general = createGeneralModule();
+export const defaultArea = createDefaultModule();

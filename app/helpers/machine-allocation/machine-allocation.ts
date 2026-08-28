@@ -108,7 +108,7 @@ export const allocateSharedMachines = (
     const automaticMatches = claims.filter(claim => (
       claim.kind === machine.kind
       && (
-        (zone.id === DEFAULT_ZONE_ID && normalizeZoneName(claim.moduleName) === "general")
+        (zone.id === DEFAULT_ZONE_ID && normalizeZoneName(claim.moduleName) === "default")
         || (
           normalizedZoneName.length > 0
           && normalizedZoneName === normalizeZoneName(claim.moduleName)

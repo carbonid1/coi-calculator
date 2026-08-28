@@ -75,7 +75,7 @@ export const SpaceStationView: React.FC<Props> = ({ config, logistics }) => {
         <p className="text-xs text-muted-foreground">
           Net Summary and the production cards below carry resource pressure, Space Research
           Points, workforce, power, and computing. Launch demand includes full cargo launches,
-          the 24-cycle crew rotation, and Composite Panels supplied by General.
+          the 24-cycle crew rotation, and Composite Panels supplied by Default.
           Station construction costs are excluded.
         </p>
       </Card.Content>
