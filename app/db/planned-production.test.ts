@@ -17,7 +17,6 @@ import {
 } from "./modules/general";
 import { modules } from "./modules/modules";
 import {
-  PROCESS_STEAM_MODULE_ID,
   plannedProcessSteamBuildings,
   plannedProcessSteamBuiltBuildings,
   processSteam,
@@ -124,7 +123,7 @@ describe("planned advanced production", () => {
       cycleDurationSeconds: 15,
       inputs: [
         { resourceId: "compositeCore", quantity: 16 },
-        { resourceId: "solarCell", quantity: 8 },
+        { resourceId: "solarCellMono", quantity: 8 },
         { resourceId: "chemicalFuel", quantity: 4 },
       ],
       outputs: [{ resourceId: "stationParts", quantity: 8 }],
@@ -139,16 +138,25 @@ describe("planned advanced production", () => {
       ],
       outputs: [{ resourceId: "crewSupplies", quantity: 16 }],
     });
+    expect(getRecipe("assembly-v-solar-cell-mono")).toMatchObject({
+      building: "Assembly V",
+      inputs: [
+        { resourceId: "steel", quantity: 1.5 },
+        { resourceId: "polySilicon", quantity: 18 },
+        { resourceId: "glass", quantity: 6 },
+      ],
+      outputs: [{ resourceId: "solarCellMono", quantity: 12 }],
+    });
   });
 
-  it("keeps every advanced building planned while assigning it to its operating module", () => {
+  it("keeps the remaining advanced buildings planned in their operating modules", () => {
     const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId);
     const processSteamPreset = processSteam.presets.find(
       ({ id }) => id === processSteam.defaultPresetId,
     );
 
     expect(modules.some(({ id }) => id === "space-points-expansion")).toBe(false);
-    expect(Object.keys(plannedBuildings)).toHaveLength(26);
+    expect(Object.keys(plannedBuildings)).toHaveLength(11);
     expect(Object.values({
       ...plannedGeneralBuiltBuildings,
       ...plannedProcessSteamBuiltBuildings,
@@ -161,16 +169,14 @@ describe("planned advanced production", () => {
       ),
       "groundwater-pump-factory-reserve": "modeled",
     });
-    expect(processSteamPreset?.dataSources).toEqual(Object.fromEntries(
-      Object.keys(plannedProcessSteamBuildings).map((recipeId) => [recipeId, "planned"]),
-    ));
+    expect(processSteamPreset?.dataSources).toBeUndefined();
     expect(generalPreset?.outputTargets).toEqual({
       compositePanel: defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4,
       titaniumAlloy: defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,
     });
   });
 
-  it("runs the same planned chain through General and Process Steam", () => {
+  it("runs the remaining planned chain through General", () => {
     const factory = calculateFactoryTotal(modules, [], undefined, outputModifiers);
     const plannedIds = new Set(Object.keys(plannedBuildings));
     const lines = factory.allLines.filter(({ recipe }) => plannedIds.has(recipe.id));
@@ -178,6 +184,9 @@ describe("planned advanced production", () => {
       ({ recipe }) => plannedIds.has(recipe.id),
     );
     const result = (recipeId: string) => results.find(
+      ({ recipe }) => recipe.id === recipeId,
+    );
+    const factoryResult = (recipeId: string) => factory.calculation.regularResults.find(
       ({ recipe }) => recipe.id === recipeId,
     );
     const stats = calculateBuildingStats(lines, {
@@ -188,12 +197,8 @@ describe("planned advanced production", () => {
 
     expect(lines).toHaveLength(plannedIds.size);
     expect(lines.every(({ dataSource }) => dataSource === "planned")).toBe(true);
-    expect(lines.find(
-      ({ recipe }) => recipe.id === "distillation-stage-iii-titanium-purification",
-    )?.moduleId).toBe(PROCESS_STEAM_MODULE_ID);
-    expect(lines.filter(
-      ({ recipe }) => recipe.id !== "distillation-stage-iii-titanium-purification",
-    ).every(({ moduleId }) => moduleId === GENERAL_MODULE_ID)).toBe(true);
+    expect(plannedIds.has("distillation-stage-iii-titanium-purification")).toBe(false);
+    expect(lines.every(({ moduleId }) => moduleId === GENERAL_MODULE_ID)).toBe(true);
     expect(result("assembly-v-electronics-iv")?.actualOutputs).toContainEqual({
       resourceId: "electronicsIv",
       quantity: 4,
@@ -201,13 +206,23 @@ describe("planned advanced production", () => {
     expect(result("assembly-v-composite-panel")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "compositePanel",
     )?.quantity).toBeCloseTo(defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4, 6);
-    expect(result("cooled-caster-ii-titanium-alloy")?.actualOutputs.find(
+    expect(factoryResult("cooled-caster-ii-titanium-alloy")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "titaniumAlloy",
     )?.quantity).toBeCloseTo(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2, 6);
-    expect(result("settling-tank-red-mud-acid")?.actualOutputs.find(
+    expect(factoryResult("settling-tank-red-mud-acid")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "ironOreCrushed",
     )?.quantity).toBeCloseTo(17.4065255732, 6);
-    expect(stats.workers).toBe(308);
+    for (const recipeId of [
+      "aluminum-cell-electrolysis",
+      "cooled-caster-ii-aluminum",
+    ]) {
+      const building = factoryResult(recipeId);
+
+      expect(building?.activeBuildings).toBe(3);
+      expect((building?.activeBuildings ?? 0) * (building?.supplyRatio ?? 0))
+        .toBeGreaterThan(2);
+    }
+    expect(stats.workers).toBe(56);
     expect(stats.computingTflops).toBe(32);
   });
 });

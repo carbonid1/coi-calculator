@@ -297,6 +297,124 @@ const schema21Snapshot = {
   schemaVersion: 21,
   saveId: 'Carbon Island',
 }
+const productionEntities = [
+  {
+    entityId: 801,
+    prototypeId: 'FastBreederReactor',
+    running: true,
+    recipeIds: [],
+    zones: [{ id: 14, name: 'Nuclear' }],
+    nuclearReactor: {
+      enrichmentStep: 0,
+      targetPowerPercent: 400,
+    },
+  },
+  {
+    entityId: 802,
+    prototypeId: 'HydrogenReformer',
+    running: false,
+    recipeIds: ['HydrogenProductionFromSteamSp'],
+    zones: [{ id: 14, name: 'Nuclear' }],
+    nuclearReactor: null,
+  },
+]
+const schema22Snapshot = {
+  ...schema21Snapshot,
+  schemaVersion: 22,
+  productionEntities,
+}
+const computingProductionEntities = [
+  ...productionEntities.map(entity => ({ ...entity, dataCenterRacks: null })),
+  {
+    entityId: 803,
+    prototypeId: 'DataCenter',
+    running: true,
+    recipeIds: [],
+    zones: [{ id: 15, name: 'Computing' }],
+    nuclearReactor: null,
+    dataCenterRacks: 48,
+  },
+  {
+    entityId: 804,
+    prototypeId: 'WaterChiller',
+    running: false,
+    recipeIds: [],
+    zones: [{ id: 15, name: 'Computing' }],
+    nuclearReactor: null,
+    dataCenterRacks: null,
+  },
+]
+const schema23Snapshot = {
+  ...schema22Snapshot,
+  schemaVersion: 23,
+  productionEntities: computingProductionEntities,
+}
+const logisticsZones = [
+  { id: 7, name: 'Greenhouses' },
+  { id: 15, name: 'Computing' },
+  { id: 20, name: 'Solar Power' },
+]
+const areaProductionEntities = [
+  ...computingProductionEntities,
+  {
+    entityId: 805,
+    prototypeId: 'SolarPanelMono',
+    running: true,
+    recipeIds: [],
+    zones: [{ id: 20, name: 'Solar Power' }],
+    nuclearReactor: null,
+    dataCenterRacks: null,
+  },
+]
+const schema24Snapshot = {
+  ...schema23Snapshot,
+  schemaVersion: 24,
+  logisticsZones,
+  cropFarms: {
+    ...schema23Snapshot.cropFarms,
+    entities: cropFarmEntities.map(entity => ({
+      ...entity,
+      zones: [{ id: 7, name: 'Greenhouses' }],
+    })),
+  },
+  productionEntities: areaProductionEntities,
+}
+const schema25Snapshot = {
+  ...schema24Snapshot,
+  schemaVersion: 25,
+  logisticsZones: [...logisticsZones, { id: 25, name: 'Population' }],
+  productionEntities: [
+    ...areaProductionEntities,
+    {
+      entityId: 806,
+      prototypeId: 'HousingT3',
+      running: true,
+      recipeIds: [],
+      zones: [{ id: 25, name: 'Population' }],
+      nuclearReactor: null,
+      dataCenterRacks: null,
+    },
+  ],
+}
+const groundwaterAquifer = {
+  id: '100:200',
+  position: { x: 100, y: 200 },
+  quantity: 0,
+  capacity: 20_000,
+  configuredCapacity: 20_000,
+}
+const schema26Snapshot = {
+  ...schema25Snapshot,
+  schemaVersion: 26,
+  machines: zonedMachines.map(machine => ({
+    ...machine,
+    aquifer: groundwaterAquifer,
+  })),
+  groundwater: {
+    depletedPumpSpeedPercent: 40,
+    replenishWhenLowPercent: 7,
+  },
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -397,7 +515,143 @@ describe('game-state snapshot validation', () => {
     expect(normalizeGameStateSnapshot(schema21Snapshot)).toMatchObject({
       schemaVersion: 21,
       saveId: 'Carbon Island',
+      productionEntities: null,
     })
+    expect(normalizeGameStateSnapshot(schema22Snapshot)).toMatchObject({
+      schemaVersion: 22,
+      saveId: 'Carbon Island',
+      productionEntities,
+    })
+    expect(normalizeGameStateSnapshot(schema23Snapshot)).toMatchObject({
+      schemaVersion: 23,
+      saveId: 'Carbon Island',
+      productionEntities: computingProductionEntities,
+    })
+    expect(normalizeGameStateSnapshot(schema24Snapshot)).toMatchObject({
+      schemaVersion: 24,
+      logisticsZones,
+      productionEntities: areaProductionEntities,
+      cropFarms: {
+        entities: [{ zones: [{ id: 7, name: 'Greenhouses' }] }],
+      },
+    })
+    const normalizedSchema25 = normalizeGameStateSnapshot(schema25Snapshot)
+
+    expect(normalizedSchema25?.schemaVersion).toBe(25)
+    expect(normalizedSchema25?.logisticsZones).toContainEqual({ id: 25, name: 'Population' })
+    expect(normalizedSchema25?.productionEntities).toContainEqual(expect.objectContaining({
+      prototypeId: 'HousingT3',
+    }))
+    expect(normalizeGameStateSnapshot(schema26Snapshot)).toMatchObject({
+      schemaVersion: 26,
+      groundwater: {
+        depletedPumpSpeedPercent: 40,
+        replenishWhenLowPercent: 7,
+      },
+      machines: [{ aquifer: groundwaterAquifer }, { aquifer: groundwaterAquifer }],
+    })
+  })
+
+  it('requires consistent aquifer state and depleted behavior in schema 26', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema26Snapshot,
+      groundwater: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema26Snapshot,
+      groundwater: {
+        ...schema26Snapshot.groundwater,
+        depletedPumpSpeedPercent: 101,
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema26Snapshot,
+      machines: schema26Snapshot.machines.map((machine, index) => (
+        index === 0
+          ? { ...machine, aquifer: { ...machine.aquifer, quantity: 1 } }
+          : machine
+      )),
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema26Snapshot,
+      machines: schema26Snapshot.machines.map(machine => ({
+        ...machine,
+        aquifer: { ...machine.aquifer, quantity: 20_001 },
+      })),
+    })).toBeNull()
+  })
+
+  it('requires valid stable production identities in schema 22', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema22Snapshot,
+      productionEntities: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema22Snapshot,
+      productionEntities: [productionEntities[0], productionEntities[0]],
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema22Snapshot,
+      productionEntities: [{
+        ...productionEntities[1],
+        recipeIds: ['HydrogenProductionFromSteamSp', 'HydrogenProductionFromSteamSp'],
+      }],
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema22Snapshot,
+      productionEntities: [{
+        ...productionEntities[1],
+        nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 100 },
+      }],
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema22Snapshot,
+      productionEntities: [{
+        ...productionEntities[0],
+        nuclearReactor: null,
+      }],
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema22Snapshot,
+      productionEntities: [{
+        ...productionEntities[0],
+        nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 500 },
+      }],
+    })).toBeNull()
+  })
+
+  it('requires Data Center rack counts in schema 23', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema23Snapshot,
+      productionEntities: computingProductionEntities.map(entity => (
+        entity.prototypeId === 'DataCenter'
+          ? { ...entity, dataCenterRacks: null }
+          : entity
+      )),
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema23Snapshot,
+      productionEntities: computingProductionEntities.map(entity => (
+        entity.prototypeId === 'WaterChiller'
+          ? { ...entity, dataCenterRacks: 1 }
+          : entity
+      )),
+    })).toBeNull()
+  })
+
+  it('requires named areas and greenhouse area membership in schema 24', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema24Snapshot,
+      logisticsZones: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema24Snapshot,
+      logisticsZones: [logisticsZones[0], logisticsZones[0]],
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema24Snapshot,
+      cropFarms: schema23Snapshot.cropFarms,
+    })).toBeNull()
   })
 
   it('requires a non-empty save identity in schema 21', () => {

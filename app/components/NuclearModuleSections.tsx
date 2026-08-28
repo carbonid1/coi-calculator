@@ -43,6 +43,7 @@ const brineProcessingRecipeIds = [
 
 const intakeAndDisposalRecipeIds = [
   "seawater-pump",
+  "seawater-pump-tall",
   "nuclear-liquid-dump-water",
   "nuclear-liquid-dump-brine",
   "nuclear-smoke-stack-large-oxygen",

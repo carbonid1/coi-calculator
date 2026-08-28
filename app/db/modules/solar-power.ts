@@ -1,3 +1,4 @@
+import { type CurrentValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import {
   emptySolarPanelCounts,
   solarPanelOrder,
@@ -49,6 +50,7 @@ export const createSolarPowerModule = (
   builtCounts: SolarPanelCounts,
   runningCounts: SolarPanelCounts = builtCounts,
   plannedTargets?: Partial<SolarPanelCounts>,
+  currentSource?: CurrentValueSource,
 ): Module => {
   const plan = resolveSolarPanelPlan(builtCounts, runningCounts, plannedTargets);
   const builtBuildings = {
@@ -64,6 +66,8 @@ export const createSolarPowerModule = (
   for (const panel of solarPanelOrder) {
     if (plan.plannedPanels[panel]) {
       dataSources[solarPanels[panel].recipeId] = "planned";
+    } else if (currentSource) {
+      dataSources[solarPanels[panel].recipeId] = currentSource;
     }
   }
 

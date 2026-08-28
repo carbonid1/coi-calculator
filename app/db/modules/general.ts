@@ -1,4 +1,6 @@
+import { type GroundwaterSourceConstraint } from "../../helpers/groundwater/calculate-groundwater-production";
 import { type SharedMachineClaimResolution } from "../../helpers/machine-allocation/machine-allocation";
+import { createGroundwaterPumpRecipe } from "../recipes";
 import {
   defaultRocketIiRecurringLogistics,
 } from "../space-station";
@@ -8,20 +10,7 @@ export const GENERAL_MODULE_ID = "general";
 export const GENERAL_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
 export const plannedNewGeneralBuildings = {
-  "crusher-large-bauxite": 2,
-  "chemical-plant-ii-bauxite-digestion": 2,
-  "rotary-kiln-alumina-fuel-gas": 2,
-  "aluminum-cell-electrolysis": 2,
-  "cooled-caster-ii-aluminum": 2,
   "crystallizer-alumina": 1,
-  "settling-tank-red-mud-acid": 4,
-  "crusher-large-titanium": 1,
-  "arc-furnace-ii-titanium-ore": 1,
-  "chemical-plant-ii-titanium-chlorination": 1,
-  "chemical-plant-ii-titanium-reduction": 1,
-  "arc-furnace-ii-titanium-sponge": 1,
-  "alloy-mixer-titanium": 1,
-  "cooled-caster-ii-titanium-alloy": 1,
   "diamond-reactor-synthesis": 1,
   "chemical-plant-ii-diamond-paste-cooking-oil": 1,
   "chemical-plant-ii-diamond-paste-heavy-oil": 1,
@@ -29,7 +18,6 @@ export const plannedNewGeneralBuildings = {
   "assembly-v-composite-panel": 2,
   "assembly-v-electronics-iv": 1,
   "assembly-v-composite-core": 1,
-  "assembly-v-solar-cell": 1,
   "chemical-plant-ii-chemical-fuel": 1,
   "assembly-v-station-parts": 1,
   "assembly-v-crew-supplies": 1,
@@ -38,13 +26,7 @@ export const plannedNewGeneralBuildings = {
 export const plannedGeneralBuildings = {
   ...plannedNewGeneralBuildings,
   "baking-unit-bread": 4,
-  "settling-tank-red-mud-acid": 5,
   "exhaust-scrubber-limestone": 2,
-  "rotary-kiln-alumina-fuel-gas": 3,
-  "chemical-plant-ii-bauxite-digestion": 3,
-  "crusher-large-bauxite": 3,
-  "aluminum-cell-electrolysis": 3,
-  "cooled-caster-ii-aluminum": 3,
   "mixer-ii-acid": 3,
   "assembly-v-electronics-i": 3,
   "assembly-v-electronics-iii": 4,
@@ -84,6 +66,20 @@ const generalBase: Module = {
     "thermal-desalinator-low": 3,
     "cooling-tower-large-low": 1,
     "general-evaporation-pond-heated-brine-surplus": 1,
+    "crusher-large-bauxite": 3,
+    "chemical-plant-ii-bauxite-digestion": 3,
+    "settling-tank-red-mud-acid": 5,
+    "rotary-kiln-alumina-fuel-gas": 4,
+    "aluminum-cell-electrolysis": 3,
+    "cooled-caster-ii-aluminum": 3,
+    "assembly-v-solar-cell-mono": 1,
+    "crusher-large-titanium": 1,
+    "arc-furnace-ii-titanium-ore": 1,
+    "chemical-plant-ii-titanium-chlorination": 1,
+    "chemical-plant-ii-titanium-reduction": 1,
+    "arc-furnace-ii-titanium-sponge": 1,
+    "alloy-mixer-titanium": 1,
+    "cooled-caster-ii-titanium-alloy": 1,
     "crusher-large": 1,
     "settling-tank": 2,
     "mixer-ii-acid": 2,
@@ -193,6 +189,20 @@ const generalBase: Module = {
         "thermal-desalinator-low": 3,
         "cooling-tower-large-low": 1,
         "general-evaporation-pond-heated-brine-surplus": 1,
+        "crusher-large-bauxite": 3,
+        "chemical-plant-ii-bauxite-digestion": 3,
+        "settling-tank-red-mud-acid": 5,
+        "rotary-kiln-alumina-fuel-gas": 4,
+        "aluminum-cell-electrolysis": 3,
+        "cooled-caster-ii-aluminum": 3,
+        "assembly-v-solar-cell-mono": 1,
+        "crusher-large-titanium": 1,
+        "arc-furnace-ii-titanium-ore": 1,
+        "chemical-plant-ii-titanium-chlorination": 1,
+        "chemical-plant-ii-titanium-reduction": 1,
+        "arc-furnace-ii-titanium-sponge": 1,
+        "alloy-mixer-titanium": 1,
+        "cooled-caster-ii-titanium-alloy": 1,
         "crusher-large": 1,
         "settling-tank": 2,
         "mixer-ii-acid": 2,
@@ -293,6 +303,20 @@ const generalBase: Module = {
         ...plannedGeneralBuiltBuildings,
       },
       activeBuildings: {
+        "crusher-large-bauxite": 3,
+        "chemical-plant-ii-bauxite-digestion": 3,
+        "settling-tank-red-mud-acid": 5,
+        "rotary-kiln-alumina-fuel-gas": 3,
+        "aluminum-cell-electrolysis": 3,
+        "cooled-caster-ii-aluminum": 3,
+        "assembly-v-solar-cell-mono": 1,
+        "crusher-large-titanium": 1,
+        "arc-furnace-ii-titanium-ore": 1,
+        "chemical-plant-ii-titanium-chlorination": 1,
+        "chemical-plant-ii-titanium-reduction": 1,
+        "arc-furnace-ii-titanium-sponge": 1,
+        "alloy-mixer-titanium": 1,
+        "cooled-caster-ii-titanium-alloy": 1,
         "assembly-v-medical-supplies-ii": 1,
         "assembly-v-medical-supplies-iii": 1,
         "chemical-plant-ii-anesthetics": 1,
@@ -325,7 +349,10 @@ const generalBase: Module = {
       dataSources: Object.fromEntries(
         Object.keys(plannedGeneralBuildings).map((recipeId) => [recipeId, "planned"]),
       ),
-      fixed: ["cracking-unit-fuel-gas-diesel"],
+      fixed: [
+        "cracking-unit-fuel-gas-diesel",
+        "general-evaporation-pond-heated-brine-surplus",
+      ],
       outputTargets: {
         compositePanel:
           defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4,
@@ -350,6 +377,7 @@ const defaultFactoryReservePumpTarget = 1;
 
 export const createGeneralModule = (
   groundwaterPumpResolution?: SharedMachineClaimResolution,
+  groundwaterConstraint?: GroundwaterSourceConstraint,
 ): Module => {
   const source = groundwaterPumpResolution ? "synced" as const : "modeled" as const;
   const built = groundwaterPumpResolution?.built ?? defaultFactoryReservePumpTarget;
@@ -358,6 +386,9 @@ export const createGeneralModule = (
   return {
     ...generalBase,
     description: `${generalBase.description}, plus Default-zone factory water reserve`,
+    recipes: groundwaterConstraint
+      ? [createGroundwaterPumpRecipe(GENERAL_GROUNDWATER_RECIPE_ID, groundwaterConstraint)]
+      : generalBase.recipes,
     builtBuildings: {
       ...generalBase.builtBuildings,
       [GENERAL_GROUNDWATER_RECIPE_ID]: built,

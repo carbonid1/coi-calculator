@@ -152,6 +152,7 @@ export const resources = {
   compositePanel: { id: "compositePanel", name: "Composite Panel", state: "unit" },
   server: { id: "server", name: "Server", state: "unit" },
   solarCell: { id: "solarCell", name: "Solar Cell", state: "unit" },
+  solarCellMono: { id: "solarCellMono", name: "Solar Cell Mono", state: "unit" },
   fissionProduct: { id: "fissionProduct", name: "Fission Product", state: "unit" },
   retiredWaste: { id: "retiredWaste", name: "Retired Waste", state: "unit" },
   recyclables: { id: "recyclables", name: "Recyclables", state: "loose" },
@@ -331,6 +332,11 @@ export const resources = {
   },
   electronicsIv: { id: "electronicsIv", name: "Electronics IV", state: "unit" },
   rocketII: { id: "rocketII", name: "Rocket II", state: "unit" },
+  stationPartsBasic: {
+    id: "stationPartsBasic",
+    name: "Station Parts (Basic)",
+    state: "unit",
+  },
   stationParts: { id: "stationParts", name: "Station Parts", state: "unit" },
   crewSupplies: { id: "crewSupplies", name: "Crew Supplies", state: "unit" },
   spaceResearchPoints: {

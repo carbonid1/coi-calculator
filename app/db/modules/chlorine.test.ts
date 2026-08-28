@@ -30,7 +30,7 @@ const fixedLine = (recipe: Recipe, moduleId: string): ProductionLine => ({
   operatingMode: "fixed",
 });
 
-it("keeps Nuclear Brine processing local and adds a General surplus pond", () => {
+it("prioritizes the modeled General pond before balanced Nuclear salt production", () => {
   const generalPreset = general.presets.find(
     (candidate) => candidate.id === general.defaultPresetId,
   );
@@ -43,6 +43,9 @@ it("keeps Nuclear Brine processing local and adds a General surplus pond", () =>
   expect(generalPreset?.builtBuildings).toMatchObject({
     "general-evaporation-pond-heated-brine-surplus": 1,
   });
+  expect(generalPreset?.fixed).toContain(
+    "general-evaporation-pond-heated-brine-surplus",
+  );
   expect(nuclearPreset?.builtBuildings).toMatchObject({
     "electrolyzer-ii-chlorine": 2,
     "evaporation-pond-heated-salt-brine": 2,
@@ -53,7 +56,7 @@ it("keeps Nuclear Brine processing local and adds a General surplus pond", () =>
   });
 });
 
-it("keeps Nuclear Brine out of the General surplus pond", () => {
+it("exports Nuclear Brine to the fixed General pond before dumping the remainder", () => {
   const nuclearBrine: Recipe = {
     id: "test-nuclear-brine",
     name: "Nuclear Brine",
@@ -90,13 +93,56 @@ it("keeps Nuclear Brine out of the General surplus pond", () => {
   const dumpResult = result.sinkResults.find(
     (candidate) => candidate.recipe.id === nuclearDump.id,
   );
-  const pondResult = result.sinkResults.find(
+  const pondResult = result.regularResults.find(
     (candidate) => candidate.recipe.id === generalPond.id,
   );
 
-  expect(dumpResult?.actualInputs).toEqual([{ resourceId: "brine", quantity: 100 }]);
-  expect(pondResult?.actualInputs).toEqual([{ resourceId: "brine", quantity: 10 }]);
-  expect(pondResult?.actualOutputs).toEqual([{ resourceId: "salt", quantity: 1.25 }]);
+  expect(pondResult?.actualInputs).toEqual([{ resourceId: "brine", quantity: 96 }]);
+  expect(pondResult?.actualOutputs).toEqual([{ resourceId: "salt", quantity: 12 }]);
+  expect(dumpResult?.actualInputs[0]).toMatchObject({ resourceId: "brine" });
+  expect(dumpResult?.actualInputs[0]?.quantity).toBeCloseTo(14);
+});
+
+it("balances two Nuclear ponds against Salt demand left after the fixed General pond", () => {
+  const nuclearBrine: Recipe = {
+    id: "test-nuclear-brine-for-salt",
+    name: "Nuclear Brine for Salt",
+    building: "Test",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "brine", quantity: 192 }],
+  };
+  const generalPond = recipeById("general-evaporation-pond-heated-brine-surplus");
+  const nuclearPond = recipeById("evaporation-pond-heated-salt-brine");
+  const result = calculateNet(
+    [
+      fixedLine(nuclearBrine, "nuclear"),
+      fixedLine(generalPond, "general"),
+      {
+        ...balancedLine(nuclearPond),
+        moduleId: "nuclear",
+        activeBuildings: 2,
+        builtBuildings: 2,
+      },
+    ],
+    {},
+    50,
+    {},
+    { salt: 24 },
+  );
+  const generalResult = result.regularResults.find(
+    (candidate) => candidate.recipe.id === generalPond.id,
+  );
+  const nuclearResult = result.regularResults.find(
+    (candidate) => candidate.recipe.id === nuclearPond.id,
+  );
+
+  expect(generalResult?.supplyRatio).toBe(1);
+  expect(generalResult?.actualInputs).toEqual([{ resourceId: "brine", quantity: 96 }]);
+  expect(nuclearResult?.supplyRatio).toBe(0.5);
+  expect(nuclearResult?.actualInputs).toEqual([{ resourceId: "brine", quantity: 96 }]);
+  expect(result.allResourceFlows.find(({ resourceId }) => resourceId === "salt")?.net)
+    .toBe(0);
 });
 
 it("uses Titanium reduction Chlorine before running Electrolyzer II", () => {

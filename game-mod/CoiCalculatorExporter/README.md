@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.20 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.26 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -49,6 +49,37 @@ the game snapshot confirms it.
 Schema 21 adds the loaded game's stable name so browser-owned vehicle-zone
 mappings are isolated per save instead of reusing save-local zone IDs across
 different games.
+Schema 22 adds stable, recipe-aware identities for the production buildings
+currently modeled by the Nuclear module. Each entity includes its pause state,
+assigned game recipe IDs, and vehicle-zone membership. Fast Breeder Reactors
+also include their enrichment step and configured target power. The calculator
+binds only entities inside the exact `Nuclear` area, so those physical buildings
+replace modeled current capacity without being counted a second time. The
+payload itself is module-neutral and can be extended to more building types.
+Schema 23 adds stable Data Center and Water Chiller identities, vehicle-zone
+membership, and each Data Center's installed Basic Server Rack count. The
+calculator binds these entities only through an exact `Computing` area-name
+match; schema 22 and older continue to use the global computing totals.
+Schema 24 adds the named vehicle-zone catalog, zone membership to Greenhouse
+identities, and stable identities for the already tracked rocket, solar, and
+stationary infrastructure buildings. Exact `Greenhouses`, `Solar Power`,
+`Space Station`, and `Infrastructure` areas can therefore replace aggregate
+counts for their physical inventory. When a matching area does not exist, the
+calculator retains the aggregate-count compatibility fallback. Moving vehicles
+and locomotives remain global rather than being assigned by their transient
+position.
+Schema 25 exports completed production, worker, and settlement entities that
+overlap any named vehicle area. Tracks, transports, and storage remain out of
+the generic payload. The calculator still decides which prototypes belong to
+each module, so an overlapping building is not reassigned merely because it
+appears in an area. This removes the exporter allow-list from most future area
+and building sync work.
+Schema 26 adds each Groundwater Pump's physical aquifer identity, current
+quantity, capacity, and configured capacity. It also exports the live depleted
+pump speed and dry emergency-replenishment settings. The calculator combines
+these synced values with the installed v0.8.7 rain-recharge rule and planning
+weather, caps the steady-state Water output of pumps sharing an aquifer, and
+does not count one aquifer's recharge once per calculator module.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as

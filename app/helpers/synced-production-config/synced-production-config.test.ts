@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 
 import {
+  getCropFarmConfigurationsFromEntities,
   getSyncedChickenFarmConfigurations,
   getSyncedChickenFarmEntities,
   getSyncedComputingConfigs,
@@ -135,6 +136,32 @@ it("preserves stable greenhouse entity IDs for plan binding", () => {
     entityId: 42,
     tierId: "greenhouseII",
     running: false,
+    fertilityTargetPercent: 140,
+    schedule: ["corn", "wheat", "none", "none"],
+    zones: [],
+  }]);
+});
+
+it("groups only the greenhouse entities selected for an area", () => {
+  expect(getCropFarmConfigurationsFromEntities([
+    {
+      entityId: 42,
+      tierId: "greenhouseII",
+      running: true,
+      fertilityTargetPercent: 140,
+      schedule: ["corn", "wheat", "none", "none"],
+    },
+    {
+      entityId: 43,
+      tierId: "greenhouseII",
+      running: false,
+      fertilityTargetPercent: 140,
+      schedule: ["corn", "wheat", "none", "none"],
+    },
+  ])).toEqual([{
+    tierId: "greenhouseII",
+    built: 2,
+    running: 1,
     fertilityTargetPercent: 140,
     schedule: ["corn", "wheat", "none", "none"],
   }]);

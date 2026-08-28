@@ -1,9 +1,9 @@
 {
   "id": "CoiCalculatorExporter",
-  "version": "0.20.0",
+  "version": "0.26.0",
   "display_name": "CoI Calculator Exporter",
   "description_short": "Exports read-only factory counts, machine inventory, production identities and configurations, reserves, operating history, and train traffic health to the local CoI calculator.",
-  "description_long": "Writes a local JSON snapshot containing vehicle totals, selected completed/running entity counts, Groundwater Pump identity, pause state, locations, and vehicle-zone membership, computing capacity, stable Chicken Farm identities, settings, populations, and vehicle-zone membership, stable greenhouse identities and configurations, eligible standalone Gold and Fuel Gas reserves, current repeatable research and edicts, completed-cycle operating averages, and sustained train track waits. It does not modify gameplay state or expose a network service.",
+  "description_long": "Writes a local JSON snapshot containing vehicle totals, selected completed/running entity counts, Groundwater Pump identity, pause state, locations, vehicle-zone membership, aquifer reserve and capacity, and depleted-output settings, completed production, worker, and settlement entities inside named vehicle areas for module binding, recipe-aware production identities, zone-aware Data Centers, Water Chillers, greenhouse configurations, rocket infrastructure, solar panels, and stationary tracked infrastructure, eligible standalone Gold and Fuel Gas reserves, current repeatable research and edicts, completed-cycle operating averages, and sustained train track waits. It does not modify gameplay state or expose a network service.",
   "authors": "carbonid1",
   "min_game_version": "0.8.7",
   "max_verified_game_version": "0.8.7",

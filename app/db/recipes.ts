@@ -1,3 +1,4 @@
+import { type GroundwaterSourceConstraint } from '../helpers/groundwater/calculate-groundwater-production'
 import { chickenFarm } from './chicken-farm'
 import { computingRecipeIds, dataCenter } from './computing'
 import {
@@ -7,7 +8,7 @@ import {
   fertilizers,
   type CropFarmGroup,
 } from './crop-farming'
-import { activeHousingType } from './housing'
+import { activeHousingType, housingTypes } from './housing'
 import { maintenanceStatue } from './maintenance-statue'
 import { getOfficeRecipeId, officeCatalog, type OfficeBoostStep } from './offices'
 import { TREE_FULL_GROWTH_CYCLES } from './research'
@@ -113,6 +114,8 @@ export interface Recipe {
   /** Demand sources cover deficits; module-capped sources cannot supply consumers in other modules. */
   sourceMode?: 'demand' | 'demand-capped' | 'module-demand-capped'
   sourceKind?: SourceKind
+  /** Synced aquifer state and its weather-limited steady-state pump ceiling. */
+  groundwaterConstraint?: GroundwaterSourceConstraint
   /** Unbounded sinks remove every available unit of their declared excess inputs. */
   sinkMode?: 'unbounded'
   /** Module-scoped sinks can dispose only excess attributable to their own module. */
@@ -158,6 +161,10 @@ const radioactiveWasteStorageThroughput =
 const housingPopulationFlows = calculateSettlementPopulationFlows(
   activeHousingType.populationCapacity,
   activeHousingType,
+)
+const housingIiPopulationFlows = calculateSettlementPopulationFlows(
+  housingTypes.housingII.populationCapacity,
+  housingTypes.housingII,
 )
 
 export const createCropFarmRecipe = (group: CropFarmGroup): Recipe => {
@@ -241,6 +248,15 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: 'seaWater', quantity: 216 }],
     // Pumps are physically piped inside their module. Do not let spare pump
     // capacity in one network supply a different module's desalination plant.
+    sourceMode: 'module-demand-capped',
+  },
+  {
+    id: 'seawater-pump-tall',
+    name: 'Seawater Pump (Tall) (Fast)',
+    building: 'Seawater Pump (Tall)',
+    group: 'source',
+    inputs: [],
+    outputs: [{ resourceId: 'seaWater', quantity: 216 }],
     sourceMode: 'module-demand-capped',
   },
   {
@@ -557,6 +573,19 @@ export const recipes: Recipe[] = [
     outputs: housingPopulationFlows.outputs,
     // v0.8.6 settlement collection converts tracked recyclable sources with
     // its own 2:1 rule; the global recycling modifier is not applied here.
+    appliesRecyclingEfficiency: false,
+    electricityInputModifierId: 'settlementConsumption',
+    electricityScalesWithSpeed: true,
+  },
+  {
+    id: settlementRecipeIds.residentsII,
+    displayName: housingTypes.housingII.name,
+    name: `${housingTypes.housingII.name} Residents`,
+    building: housingTypes.housingII.name,
+    showConfigurationSummary: false,
+    group: 'production',
+    inputs: housingIiPopulationFlows.inputs,
+    outputs: housingIiPopulationFlows.outputs,
     appliesRecyclingEfficiency: false,
     electricityInputModifierId: 'settlementConsumption',
     electricityScalesWithSpeed: true,
@@ -1955,11 +1984,10 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'general-evaporation-pond-heated-brine-surplus',
-    name: 'Evaporation Pond (Global Brine Surplus → Salt)',
+    name: 'Evaporation Pond (Brine → Salt — priority)',
     building: 'Evaporation Pond (Heated)',
-    group: 'sink',
+    group: 'production',
     cycleDurationSeconds: 20,
-    sinkPriority: 10,
     inputs: [{ resourceId: 'brine', quantity: 96 }],
     outputs: [{ resourceId: 'salt', quantity: 12 }],
   },
@@ -2265,7 +2293,7 @@ export const recipes: Recipe[] = [
     balanceOutputIds: ['stationParts'],
     inputs: [
       { resourceId: 'compositeCore', quantity: 16 },
-      { resourceId: 'solarCell', quantity: 8 },
+      { resourceId: 'solarCellMono', quantity: 8 },
       { resourceId: 'chemicalFuel', quantity: 4 },
     ],
     outputs: [{ resourceId: 'stationParts', quantity: 8 }],
@@ -2578,8 +2606,8 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: 'polySilicon', quantity: 12 }],
   },
   {
-    id: 'assembly-v-solar-cell',
-    name: 'Assembly V (Solar Cell)',
+    id: 'assembly-v-solar-cell-mono',
+    name: 'Assembly V (Solar Cell Mono)',
     building: 'Assembly V',
     group: 'production',
     cycleDurationSeconds: 40,
@@ -2589,7 +2617,7 @@ export const recipes: Recipe[] = [
       { resourceId: 'polySilicon', quantity: 18 },
       { resourceId: 'glass', quantity: 6 },
     ],
-    outputs: [{ resourceId: 'solarCell', quantity: 12 }],
+    outputs: [{ resourceId: 'solarCellMono', quantity: 12 }],
   },
   {
     id: 'crystallizer-silicon-wafer',
@@ -3976,3 +4004,26 @@ export const recipes: Recipe[] = [
     outputs: [],
   },
 ]
+
+export const createGroundwaterPumpRecipe = (
+  recipeId: 'groundwater-pump' | 'groundwater-pump-factory-reserve',
+  constraint: GroundwaterSourceConstraint,
+): Recipe => {
+  const recipe = recipes.find(candidate => candidate.id === recipeId)
+
+  if (!recipe) throw new Error(`Missing groundwater recipe: ${recipeId}`)
+
+  const outputPerPump = constraint.projectedPumpCount > 0
+    ? constraint.sustainableOutputPerCycle / constraint.projectedPumpCount
+    : 0
+
+  return {
+    ...recipe,
+    outputs: recipe.outputs.map(output => (
+      output.resourceId === 'water'
+        ? { ...output, quantity: outputPerPump }
+        : output
+    )),
+    groundwaterConstraint: constraint,
+  }
+}

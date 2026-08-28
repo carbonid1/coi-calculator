@@ -55,6 +55,7 @@ export const settlementServiceBuildings = {
 
 export const settlementRecipeIds = {
   residents: "housing-residents",
+  residentsII: "housing-ii-residents",
   foodMarket: "housing-food-market",
   foodMarketII: "housing-food-market-ii",
   transformer: "housing-transformer",

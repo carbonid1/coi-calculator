@@ -1,6 +1,6 @@
 import { type ProductionLine, type RegularResult } from "../calculate/calculate";
 
-const REACTOR_RECIPE_IDS = ["fbr-3x", "fbr-0x"] as const;
+const REACTOR_RECIPE_IDS = ["fbr-3x", "fbr", "fbr-0x"] as const;
 const TURBINE_RECIPE_IDS = [
   "turbine-super",
   "turbine-high",

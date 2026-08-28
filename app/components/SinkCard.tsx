@@ -20,6 +20,7 @@ export const SinkCard: React.FC<Props> = ({
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.activeBuildings === 0 || !hasWork;
   const recipeDisplayName = getRecipeDisplayName(result.recipe);
+  const groundwaterConstraint = result.recipe.groundwaterConstraint;
 
   // Effective building count based on the first produced or consumed resource.
   const effectiveCount = hasWork
@@ -32,7 +33,9 @@ export const SinkCard: React.FC<Props> = ({
         const actualQuantity = result.actualOutputs[0]?.quantity
           ?? result.actualInputs[0]?.quantity
           ?? 0;
-        const maxQuantity = referenceQuantity * result.activeBuildings;
+        const maxQuantity = groundwaterConstraint
+          ? groundwaterConstraint.pumpCapacityPerCycle
+          : referenceQuantity * result.activeBuildings;
 
         return maxQuantity > 0
           ? result.activeBuildings * actualQuantity / maxQuantity
@@ -99,6 +102,31 @@ export const SinkCard: React.FC<Props> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {groundwaterConstraint && (
+        <dl className="mt-2 space-y-1 rounded-lg bg-surface-inset px-2 py-1.5 inset-shadow-surface">
+          <div className="flex items-baseline justify-between gap-2 text-xs">
+            <dt className="text-muted-foreground">
+              Synced {groundwaterConstraint.aquiferCount === 1 ? "aquifer" : "aquifers"} reserve
+            </dt>
+            <dd className="shrink-0 font-mono text-foreground">
+              {formatQuantity(groundwaterConstraint.currentReserve)} / {formatQuantity(groundwaterConstraint.reserveCapacity)}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-2 text-xs">
+            <dt className="text-muted-foreground">Aquifer ceiling</dt>
+            <dd className="shrink-0 font-mono text-foreground">
+              {formatQuantity(groundwaterConstraint.aquiferSustainableCeilingPerCycle)} Water / cycle
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+            <dt>Active pump ceiling</dt>
+            <dd className="shrink-0 font-mono">
+              {formatQuantity(groundwaterConstraint.pumpCapacityPerCycle)} Water / cycle
+            </dd>
+          </div>
+        </dl>
       )}
     </ProductionCard>
   );

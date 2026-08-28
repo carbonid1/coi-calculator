@@ -10,6 +10,13 @@ describe("recipe display names", () => {
     })).toBe("Bauxite Digestion");
   });
 
+  it("extracts only the final configuration when the building name has parentheses", () => {
+    expect(getRecipeDisplayName({
+      building: "Smoke stack (large)",
+      name: "Smoke stack (large) (Oxygen)",
+    })).toBe("Oxygen");
+  });
+
   it("keeps descriptive names that do not use a parenthesized configuration", () => {
     expect(getRecipeDisplayName({
       building: "Space Station Orbital Research",

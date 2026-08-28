@@ -4,11 +4,13 @@ import { buildModuleLines } from "../../helpers/build-module-lines/build-module-
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
+import { type ResolvedPopulationEntityInventory } from "../../helpers/population-entity-sync/population-entity-sync";
 import { buildings } from "../buildings";
 import {
   activeHousingType,
   calculatePopulationCapacity,
   defaultHousingCount,
+  housingTypes,
   plannedHousingCount,
   resolvedCurrentHousingCount,
   resolvedHousingCount,
@@ -16,6 +18,19 @@ import {
 import { defaultInfiniteResearchLevels } from "../research";
 import { settlementConfig, settlementRecipeIds } from "../settlement";
 import { createHousingModule } from "./housing";
+
+const populationInventory = (
+  counts: ResolvedPopulationEntityInventory["counts"],
+  housingIiCandidates: ResolvedPopulationEntityInventory["housingIiCandidates"] = {
+    built: 0,
+    running: 0,
+  },
+): ResolvedPopulationEntityInventory => ({
+  counts,
+  entities: [],
+  housingIiCandidates,
+  unmappedEntities: [],
+});
 
 it("keeps fifteen Housing III blocks built and plans two more for the workforce", () => {
   const capacityMultiplier = calculateHousingCapacity(
@@ -53,6 +68,160 @@ it("keeps fifteen Housing III blocks built and plans two more for the workforce"
     resolvedHousingCount.value,
     capacityMultiplier,
   )).toBe(4_896);
+});
+
+it("layers unfinished Population plans over exact synced building counts", () => {
+  const housing = createHousingModule(
+    17,
+    defaultInfiniteResearchLevels.housingCapacity,
+    15,
+    "planned",
+    populationInventory({
+      [settlementRecipeIds.residents]: { built: 15, running: 15 },
+      [settlementRecipeIds.foodMarket]: { built: 7, running: 6 },
+      [settlementRecipeIds.wastewaterTreatment]: { built: 2, running: 1 },
+      [settlementRecipeIds.anaerobicDigester]: { built: 3, running: 3 },
+    }),
+  );
+  const preset = housing.presets[0]!;
+
+  expect(housing.builtBuildings).toMatchObject({
+    [settlementRecipeIds.residents]: 15,
+    [settlementRecipeIds.foodMarket]: 7,
+    [settlementRecipeIds.wastewaterTreatment]: 2,
+    [settlementRecipeIds.anaerobicDigester]: 3,
+  });
+  expect(preset.activeBuildings).toMatchObject({
+    [settlementRecipeIds.residents]: 17,
+    [settlementRecipeIds.foodMarket]: 6,
+    [settlementRecipeIds.wastewaterTreatment]: 2,
+    [settlementRecipeIds.anaerobicDigester]: 3,
+  });
+  expect(preset.dataSources).toMatchObject({
+    [settlementRecipeIds.residents]: "planned",
+    [settlementRecipeIds.foodMarket]: "synced",
+    [settlementRecipeIds.wastewaterTreatment]: "planned",
+    [settlementRecipeIds.anaerobicDigester]: "synced",
+  });
+  expect(preset.planMismatches).toEqual([
+    expect.objectContaining({
+      recipeId: settlementRecipeIds.residents,
+      current: 15,
+      target: 17,
+      actions: [{ type: "build", label: "Build 2 Housing III buildings" }],
+    }),
+    expect.objectContaining({
+      recipeId: settlementRecipeIds.wastewaterTreatment,
+      current: 1,
+      target: 2,
+      actions: [{ type: "unpause", label: "Unpause 1 Wastewater Treatment" }],
+    }),
+  ]);
+});
+
+it("drops satisfied Population plans and keeps the larger synced inventory", () => {
+  const housing = createHousingModule(
+    17,
+    defaultInfiniteResearchLevels.housingCapacity,
+    15,
+    "planned",
+    populationInventory({
+      [settlementRecipeIds.residents]: { built: 18, running: 18 },
+      [settlementRecipeIds.wastewaterTreatment]: { built: 3, running: 3 },
+      [settlementRecipeIds.anaerobicDigester]: { built: 3, running: 3 },
+    }),
+  );
+  const preset = housing.presets[0]!;
+
+  expect(preset.activeBuildings[settlementRecipeIds.residents]).toBe(18);
+  expect(preset.activeBuildings[settlementRecipeIds.wastewaterTreatment]).toBe(3);
+  expect(preset.dataSources?.[settlementRecipeIds.residents]).toBe("synced");
+  expect(preset.dataSources?.[settlementRecipeIds.wastewaterTreatment]).toBe("synced");
+  expect(preset.planMismatches).toBeUndefined();
+  expect(preset.speedLevels?.[settlementRecipeIds.internetModule]).toBe(
+    18 * activeHousingType.populationCapacity
+      * calculateHousingCapacity(defaultInfiniteResearchLevels.housingCapacity).multiplier
+      / 100,
+  );
+});
+
+it("uses paused Housing II as upgrade capacity before planning new Housing III", () => {
+  const housing = createHousingModule(
+    17,
+    defaultInfiniteResearchLevels.housingCapacity,
+    15,
+    "planned",
+    populationInventory(
+      {
+        [settlementRecipeIds.residents]: { built: 15, running: 15 },
+        [settlementRecipeIds.wastewaterTreatment]: { built: 2, running: 2 },
+        [settlementRecipeIds.anaerobicDigester]: { built: 3, running: 3 },
+      },
+      { built: 5, running: 0 },
+    ),
+  );
+  const housingMismatch = housing.presets[0]?.planMismatches?.find(
+    mismatch => mismatch.recipeId === settlementRecipeIds.residents,
+  );
+  const housingIiLine = buildModuleLines(housing, housing.presets[0] ?? null).lines.find(
+    line => line.recipe.id === settlementRecipeIds.residentsII,
+  );
+
+  expect(housingMismatch?.actions).toEqual([{
+    type: "upgrade",
+    label: "Upgrade 2 Housing II buildings to Housing III",
+  }]);
+  expect(housingIiLine).toMatchObject({
+    activeBuildings: 0,
+    builtBuildings: 5,
+    dataSource: "synced",
+    speedLevel: calculateHousingCapacity(
+      defaultInfiniteResearchLevels.housingCapacity,
+    ).multiplier,
+    recipe: {
+      building: "Housing II",
+      showConfigurationSummary: false,
+    },
+  });
+});
+
+it("removes running Housing II consumed by a planned Housing III upgrade", () => {
+  const housing = createHousingModule(
+    17,
+    defaultInfiniteResearchLevels.housingCapacity,
+    15,
+    "planned",
+    populationInventory(
+      {
+        [settlementRecipeIds.residents]: { built: 15, running: 15 },
+        [settlementRecipeIds.wastewaterTreatment]: { built: 2, running: 2 },
+        [settlementRecipeIds.anaerobicDigester]: { built: 3, running: 3 },
+      },
+      { built: 3, running: 2 },
+    ),
+  );
+  const preset = housing.presets[0]!;
+  const capacityMultiplier = calculateHousingCapacity(
+    defaultInfiniteResearchLevels.housingCapacity,
+  ).multiplier;
+
+  expect(preset.activeBuildings).toMatchObject({
+    [settlementRecipeIds.residents]: 17,
+    [settlementRecipeIds.residentsII]: 1,
+  });
+  expect(preset.dataSources?.[settlementRecipeIds.residentsII]).toBe("planned");
+  expect(preset.planMismatches?.find(
+    mismatch => mismatch.recipeId === settlementRecipeIds.residents,
+  )?.actions).toEqual([{
+    type: "upgrade",
+    label: "Upgrade 2 Housing II buildings to Housing III",
+  }]);
+  expect(preset.speedLevels?.[settlementRecipeIds.internetModule]).toBe(
+    (
+      17 * activeHousingType.populationCapacity
+      + housingTypes.housingII.populationCapacity
+    ) * capacityMultiplier / 100,
+  );
 });
 
 it("applies settlement demand modifiers to Factory Total flows", () => {

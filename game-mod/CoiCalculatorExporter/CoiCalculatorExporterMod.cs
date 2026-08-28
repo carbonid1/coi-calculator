@@ -12,20 +12,27 @@ using Mafi.Core.Buildings.Farms;
 using Mafi.Core.Buildings.Storages;
 using Mafi.Core.Entities;
 using Mafi.Core.Entities.Static;
+using Mafi.Core.Factory;
 using Mafi.Core.Factory.Datacenters;
 using Mafi.Core.Factory.ElectricPower;
+using Mafi.Core.Factory.NuclearReactors;
+using Mafi.Core.Factory.Recipes;
 using Mafi.Core.Factory.WellPumps;
 using Mafi.Core.Game;
 using Mafi.Core.GameLoop;
 using Mafi.Core.Maintenance;
+using Mafi.Core.Map;
 using Mafi.Core.Mods;
 using Mafi.Core.Population;
 using Mafi.Core.Population.Edicts;
 using Mafi.Core.Prototypes;
+using Mafi.Core.PropertiesDb;
 using Mafi.Core.Research;
 using Mafi.Core.Simulation;
 using Mafi.Core.SpaceProgram;
 using Mafi.Core.Stats;
+using Mafi.Core.Terrain;
+using Mafi.Core.Terrain.Generation;
 using Mafi.Core.Trains;
 using Mafi.Core.Vehicles;
 
@@ -42,6 +49,32 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private const string ChickenFarmPrototypeId = "ChickenFarm";
     private const string GreenhousePrototypeId = "FarmT3";
     private const string GreenhouseIiPrototypeId = "FarmT4";
+    private const string OceanWaterPumpRuntimeTypeName =
+        "Mafi.Base.Prototypes.Machines.OceanWaterPump";
+    private static readonly HashSet<string> TrackedProductionPrototypeIds =
+        new HashSet<string>(new[]
+        {
+            DataCenterPrototypeId,
+            WaterChillerPrototypeId,
+            "FastBreederReactor",
+            "OceanWaterPumpLarge",
+            "NuclearReprocessingPlant",
+            "UraniumEnrichmentPlant",
+            "ChemicalPlant2",
+            "TurbineSuperPress",
+            "TurbineHighPressT2",
+            "TurbineLowPressT2",
+            "PowerGeneratorT2",
+            "HydrogenReformer",
+            "ThermalDesalinator",
+            "ElectrolyzerT2",
+            "EvaporationPondHeated",
+            "CoolingTowerT2",
+            "WasteDump",
+            "SmokeStackLarge",
+            "NuclearWasteStorage",
+            "Shredder",
+        }, StringComparer.Ordinal);
     private static readonly string[] TrackedBuildingKeys = new[]
     {
         "rocketAssemblyDepot",
@@ -144,6 +177,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private GameNameConfig m_gameNameConfig;
     private IEntitiesManager m_entitiesManager;
     private IConstructionManager m_constructionManager;
+    private IPropertiesDb m_propertiesDb;
+    private IVirtualResourceManager m_virtualResourceManager;
     private ElectricityManager m_electricityManager;
     private FuelStatsCollector m_fuelStatsCollector;
     private MaintenanceManager m_maintenanceManager;
@@ -170,7 +205,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 20; } }
+    public int Version { get { return 23; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -205,6 +240,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_gameNameConfig = resolver.Resolve<GameNameConfig>();
         m_entitiesManager = resolver.Resolve<IEntitiesManager>();
         m_constructionManager = resolver.Resolve<IConstructionManager>();
+        m_propertiesDb = resolver.Resolve<IPropertiesDb>();
+        m_virtualResourceManager = resolver.Resolve<IVirtualResourceManager>();
         m_electricityManager = resolver.Resolve<ElectricityManager>();
         m_fuelStatsCollector = resolver.Resolve<FuelStatsCollector>();
         m_maintenanceManager = resolver.Resolve<MaintenanceManager>();
@@ -304,6 +341,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_vehiclesManager = null;
         m_entitiesManager = null;
         m_constructionManager = null;
+        m_propertiesDb = null;
+        m_virtualResourceManager = null;
         m_electricityManager = null;
         m_fuelStatsCollector = null;
         m_maintenanceManager = null;
@@ -331,6 +370,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             || m_logisticsZonesManager == null
             || m_gameNameConfig == null
             || m_entitiesManager == null
+            || m_propertiesDb == null
+            || m_virtualResourceManager == null
             || m_electricityManager == null
             || m_fuelStatsCollector == null
             || m_maintenanceManager == null
@@ -360,7 +401,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":21,");
+            json.Append("\"schemaVersion\":26,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -392,6 +433,20 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             appendBuildingCount(json, "racks", production.Racks, true);
             appendBuildingCount(json, "waterChillers", production.WaterChillers, false);
             json.Append("},");
+            json.Append("\"logisticsZones\":[");
+            for (int i = 0; i < production.LogisticsZones.Count; i++)
+            {
+                LogisticsZoneSnapshot zone = production.LogisticsZones[i];
+                json.Append('{');
+                appendNumber(json, "id", zone.Id, true);
+                appendNullableString(json, "name", zone.Name, false);
+                json.Append('}');
+                if (i < production.LogisticsZones.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("],");
             json.Append("\"chickenFarms\":{");
             json.Append("\"configurations\":[");
             for (int i = 0; i < production.ChickenFarms.Count; i++)
@@ -512,6 +567,19 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                         json.Append(',');
                     }
                 }
+                json.Append("],\"zones\":[");
+                for (int zoneIndex = 0; zoneIndex < farm.Zones.Count; zoneIndex++)
+                {
+                    LogisticsZoneSnapshot zone = farm.Zones[zoneIndex];
+                    json.Append('{');
+                    appendNumber(json, "id", zone.Id, true);
+                    appendNullableString(json, "name", zone.Name, false);
+                    json.Append('}');
+                    if (zoneIndex < farm.Zones.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
                 json.Append("]}");
                 if (i < production.CropFarmEntities.Count - 1)
                 {
@@ -547,8 +615,118 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                         json.Append(',');
                     }
                 }
-                json.Append("]}");
+                json.Append("],\"aquifer\":");
+                if (machine.Aquifer == null)
+                {
+                    json.Append("null");
+                }
+                else
+                {
+                    json.Append('{');
+                    appendString(json, "id", machine.Aquifer.Id, true);
+                    json.Append("\"position\":{");
+                    appendNumber(json, "x", machine.Aquifer.PositionX, true);
+                    appendNumber(json, "y", machine.Aquifer.PositionY, false);
+                    json.Append("},");
+                    appendNumber(json, "quantity", machine.Aquifer.Quantity, true);
+                    appendNumber(json, "capacity", machine.Aquifer.Capacity, true);
+                    appendNumber(
+                        json,
+                        "configuredCapacity",
+                        machine.Aquifer.ConfiguredCapacity,
+                        false);
+                    json.Append('}');
+                }
+                json.Append('}');
                 if (i < production.Machines.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("],");
+            json.Append("\"groundwater\":{");
+            appendNumber(
+                json,
+                "depletedPumpSpeedPercent",
+                m_propertiesDb.GetProperty(
+                    IdsCore.PropertyIds.GroundWaterPumpSpeedWhenDepleted)
+                    .Value
+                    .ToIntPercentRounded(),
+                true);
+            appendNumber(
+                json,
+                "replenishWhenLowPercent",
+                m_propertiesDb.GetProperty(
+                    IdsCore.PropertyIds.GroundWaterReplenishWhenLow)
+                    .Value
+                    .ToIntPercentRounded(),
+                false);
+            json.Append("},");
+            json.Append("\"productionEntities\":[");
+            for (int i = 0; i < production.ProductionEntities.Count; i++)
+            {
+                ProductionEntitySnapshot entity = production.ProductionEntities[i];
+                json.Append('{');
+                appendNumber(json, "entityId", entity.EntityId, true);
+                appendString(json, "prototypeId", entity.PrototypeId, true);
+                json.Append("\"running\":");
+                json.Append(entity.Running ? "true" : "false");
+                json.Append(',');
+                json.Append("\"recipeIds\":[");
+                for (int recipeIndex = 0; recipeIndex < entity.RecipeIds.Count; recipeIndex++)
+                {
+                    json.Append('"');
+                    appendEscapedString(json, entity.RecipeIds[recipeIndex]);
+                    json.Append('"');
+                    if (recipeIndex < entity.RecipeIds.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("],\"zones\":[");
+                for (int zoneIndex = 0; zoneIndex < entity.Zones.Count; zoneIndex++)
+                {
+                    LogisticsZoneSnapshot zone = entity.Zones[zoneIndex];
+                    json.Append('{');
+                    appendNumber(json, "id", zone.Id, true);
+                    appendNullableString(json, "name", zone.Name, false);
+                    json.Append('}');
+                    if (zoneIndex < entity.Zones.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("],\"nuclearReactor\":");
+                if (entity.NuclearReactor == null)
+                {
+                    json.Append("null");
+                }
+                else
+                {
+                    json.Append('{');
+                    appendNumber(
+                        json,
+                        "enrichmentStep",
+                        entity.NuclearReactor.EnrichmentStep,
+                        true);
+                    appendNumber(
+                        json,
+                        "targetPowerPercent",
+                        entity.NuclearReactor.TargetPowerPercent,
+                        false);
+                    json.Append('}');
+                }
+                json.Append(",\"dataCenterRacks\":");
+                if (entity.DataCenterRacks.HasValue)
+                {
+                    json.Append(entity.DataCenterRacks.Value.ToString(CultureInfo.InvariantCulture));
+                }
+                else
+                {
+                    json.Append("null");
+                }
+                json.Append('}');
+                if (i < production.ProductionEntities.Count - 1)
                 {
                     json.Append(',');
                 }
@@ -693,6 +871,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             new Dictionary<string, CropFarmSnapshot>(StringComparer.Ordinal);
         List<CropFarmEntitySnapshot> cropFarmEntities = new List<CropFarmEntitySnapshot>();
         List<MachineInventorySnapshot> machines = new List<MachineInventorySnapshot>();
+        List<ProductionEntitySnapshot> productionEntities =
+            new List<ProductionEntitySnapshot>();
 
         foreach (IEntity entity in m_entitiesManager.Entities)
         {
@@ -704,6 +884,34 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             bool isRunning = !entity.IsPaused;
             string prototypeId = entity.Prototype.Id.ToString();
+            bool isOceanWaterPump = String.Equals(
+                entity.GetType().FullName,
+                OceanWaterPumpRuntimeTypeName,
+                StringComparison.Ordinal);
+            DataCenter dataCenterEntity = entity as DataCenter;
+            List<LogisticsZoneSnapshot> entityZones = getLogisticsZones(staticEntity);
+            if (TrackedProductionPrototypeIds.Contains(prototypeId)
+                || TrackedPrototypeIndices.ContainsKey(prototypeId)
+                || isOceanWaterPump
+                || isNamedAreaBuilding(entity, entityZones))
+            {
+                NuclearReactor reactor = entity as NuclearReactor;
+                productionEntities.Add(new ProductionEntitySnapshot(
+                    entity.Id.Value,
+                    prototypeId,
+                    isRunning,
+                    getAssignedRecipeIds(entity),
+                    entityZones,
+                    reactor == null
+                        ? null
+                        : new NuclearReactorConfigurationSnapshot(
+                            reactor.EnrichmentStep,
+                            reactor.TargetPowerLevel.ToIntPercentRounded()),
+                    dataCenterEntity == null
+                        ? (int?)null
+                        : dataCenterEntity.RacksCount));
+            }
+
             WellPump groundwaterPump = entity as WellPump;
             if (groundwaterPump != null)
             {
@@ -714,10 +922,10 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     groundwaterPump.CustomTitle.ValueOrNull,
                     groundwaterPump.CenterTile.X,
                     groundwaterPump.CenterTile.Y,
-                    getLogisticsZones(staticEntity)));
+                    entityZones,
+                    getGroundwaterAquifer(groundwaterPump)));
             }
 
-            DataCenter dataCenterEntity = entity as DataCenter;
             if (dataCenterEntity != null
                 && String.Equals(prototypeId, DataCenterPrototypeId, StringComparison.Ordinal))
             {
@@ -745,7 +953,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     isRunning,
                     animalFarm.IsSlaughteringEnabled,
                     animalFarm.AnimalsCount,
-                    getLogisticsZones(staticEntity)));
+                    entityZones));
                 continue;
             }
 
@@ -773,7 +981,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 prototypeId,
                 isRunning,
                 schedule,
-                fertilityTargetPercent));
+                fertilityTargetPercent,
+                entityZones));
             key.Append('|');
             key.Append(fertilityTargetPercent.ToString(CultureInfo.InvariantCulture));
 
@@ -819,16 +1028,65 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             return left.EntityId.CompareTo(right.EntityId);
         });
+        productionEntities.Sort(delegate(
+            ProductionEntitySnapshot left,
+            ProductionEntitySnapshot right)
+        {
+            return left.EntityId.CompareTo(right.EntityId);
+        });
 
         return new ProductionSnapshot(
             dataCenters,
             racks,
             waterChillers,
+            getNamedLogisticsZones(),
             chickenFarms,
             chickenFarmEntities,
             cropFarms,
             cropFarmEntities,
-            machines);
+            machines,
+            productionEntities);
+    }
+
+    private GroundwaterAquiferSnapshot getGroundwaterAquifer(WellPump pump)
+    {
+        IVirtualTerrainResource resource = m_virtualResourceManager
+            .RetrieveResourcesAt(pump.ProductToMine, pump.CenterTile.Tile2i)
+            .FirstOrDefault();
+        SimpleVirtualResource simpleResource = resource as SimpleVirtualResource;
+        if (resource == null || simpleResource == null)
+        {
+            return null;
+        }
+
+        Tile3i position = simpleResource.Position;
+        return new GroundwaterAquiferSnapshot(
+            position.X.ToString(CultureInfo.InvariantCulture)
+                + ":"
+                + position.Y.ToString(CultureInfo.InvariantCulture),
+            position.X,
+            position.Y,
+            resource.Quantity.Value,
+            resource.Capacity.Value,
+            resource.ConfiguredCapacity.Value);
+    }
+
+    private static List<string> getAssignedRecipeIds(IEntity entity)
+    {
+        List<string> recipeIds = new List<string>();
+        IEntityWithAssignedRecipes recipeEntity = entity as IEntityWithAssignedRecipes;
+        if (recipeEntity == null)
+        {
+            return recipeIds;
+        }
+
+        foreach (RecipeProto recipe in recipeEntity.RecipesAssigned)
+        {
+            recipeIds.Add(recipe.Id.ToString());
+        }
+
+        recipeIds.Sort(StringComparer.Ordinal);
+        return recipeIds;
     }
 
     private List<LogisticsZoneSnapshot> getLogisticsZones(IStaticEntity staticEntity)
@@ -847,6 +1105,56 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 zones.Add(new LogisticsZoneSnapshot(
                     zone.Id.Value,
                     zone.CustomName.ValueOrNull));
+            }
+        }
+        zones.Sort(delegate(LogisticsZoneSnapshot left, LogisticsZoneSnapshot right)
+        {
+            return left.Id.CompareTo(right.Id);
+        });
+        return zones;
+    }
+
+    private static bool containsNamedZone(List<LogisticsZoneSnapshot> zones)
+    {
+        for (int i = 0; i < zones.Count; i++)
+        {
+            if (!String.IsNullOrWhiteSpace(zones[i].Name))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool isNamedAreaBuilding(
+        IEntity entity,
+        List<LogisticsZoneSnapshot> zones)
+    {
+        if (!containsNamedZone(zones))
+        {
+            return false;
+        }
+
+        string entityNamespace = entity.GetType().Namespace;
+        return entity is IEntityWithAssignedRecipes
+            || entity is IEntityWithWorkers
+            || (!String.IsNullOrWhiteSpace(entityNamespace)
+                && entityNamespace.StartsWith(
+                    "Mafi.Core.Buildings.Settlements",
+                    StringComparison.Ordinal));
+    }
+
+    private List<LogisticsZoneSnapshot> getNamedLogisticsZones()
+    {
+        List<LogisticsZoneSnapshot> zones = new List<LogisticsZoneSnapshot>();
+        foreach (LogisticsZoneFast zoneFast in m_logisticsZonesManager.PlayerZonesFast)
+        {
+            LogisticsZone zone = zoneFast.Zone;
+            string name = zone.CustomName.ValueOrNull;
+            if (!String.IsNullOrWhiteSpace(name))
+            {
+                zones.Add(new LogisticsZoneSnapshot(zone.Id.Value, name));
             }
         }
         zones.Sort(delegate(LogisticsZoneSnapshot left, LogisticsZoneSnapshot right)
@@ -1650,19 +1958,22 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly bool Running;
         public readonly string[] Schedule;
         public readonly int FertilityTargetPercent;
+        public readonly List<LogisticsZoneSnapshot> Zones;
 
         public CropFarmEntitySnapshot(
             int entityId,
             string prototypeId,
             bool running,
             string[] schedule,
-            int fertilityTargetPercent)
+            int fertilityTargetPercent,
+            List<LogisticsZoneSnapshot> zones)
         {
             EntityId = entityId;
             PrototypeId = prototypeId;
             Running = running;
             Schedule = schedule;
             FertilityTargetPercent = fertilityTargetPercent;
+            Zones = zones;
         }
     }
 
@@ -1671,30 +1982,36 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly BuildingCountSnapshot DataCenters;
         public readonly BuildingCountSnapshot Racks;
         public readonly BuildingCountSnapshot WaterChillers;
+        public readonly List<LogisticsZoneSnapshot> LogisticsZones;
         public readonly List<ChickenFarmSnapshot> ChickenFarms;
         public readonly List<ChickenFarmEntitySnapshot> ChickenFarmEntities;
         public readonly List<CropFarmSnapshot> CropFarms;
         public readonly List<CropFarmEntitySnapshot> CropFarmEntities;
         public readonly List<MachineInventorySnapshot> Machines;
+        public readonly List<ProductionEntitySnapshot> ProductionEntities;
 
         public ProductionSnapshot(
             BuildingCountSnapshot dataCenters,
             BuildingCountSnapshot racks,
             BuildingCountSnapshot waterChillers,
+            List<LogisticsZoneSnapshot> logisticsZones,
             List<ChickenFarmSnapshot> chickenFarms,
             List<ChickenFarmEntitySnapshot> chickenFarmEntities,
             List<CropFarmSnapshot> cropFarms,
             List<CropFarmEntitySnapshot> cropFarmEntities,
-            List<MachineInventorySnapshot> machines)
+            List<MachineInventorySnapshot> machines,
+            List<ProductionEntitySnapshot> productionEntities)
         {
             DataCenters = dataCenters;
             Racks = racks;
             WaterChillers = waterChillers;
+            LogisticsZones = logisticsZones;
             ChickenFarms = chickenFarms;
             ChickenFarmEntities = chickenFarmEntities;
             CropFarms = cropFarms;
             CropFarmEntities = cropFarmEntities;
             Machines = machines;
+            ProductionEntities = productionEntities;
         }
     }
 
@@ -1707,6 +2024,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly int TileX;
         public readonly int TileY;
         public readonly List<LogisticsZoneSnapshot> Zones;
+        public readonly GroundwaterAquiferSnapshot Aquifer;
 
         public MachineInventorySnapshot(
             int entityId,
@@ -1715,7 +2033,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             string customTitle,
             int tileX,
             int tileY,
-            List<LogisticsZoneSnapshot> zones)
+            List<LogisticsZoneSnapshot> zones,
+            GroundwaterAquiferSnapshot aquifer)
         {
             EntityId = entityId;
             PrototypeId = prototypeId;
@@ -1724,6 +2043,76 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             TileX = tileX;
             TileY = tileY;
             Zones = zones;
+            Aquifer = aquifer;
+        }
+    }
+
+    private sealed class GroundwaterAquiferSnapshot
+    {
+        public readonly string Id;
+        public readonly int PositionX;
+        public readonly int PositionY;
+        public readonly int Quantity;
+        public readonly int Capacity;
+        public readonly int ConfiguredCapacity;
+
+        public GroundwaterAquiferSnapshot(
+            string id,
+            int positionX,
+            int positionY,
+            int quantity,
+            int capacity,
+            int configuredCapacity)
+        {
+            Id = id;
+            PositionX = positionX;
+            PositionY = positionY;
+            Quantity = quantity;
+            Capacity = capacity;
+            ConfiguredCapacity = configuredCapacity;
+        }
+    }
+
+    private sealed class ProductionEntitySnapshot
+    {
+        public readonly int EntityId;
+        public readonly string PrototypeId;
+        public readonly bool Running;
+        public readonly List<string> RecipeIds;
+        public readonly List<LogisticsZoneSnapshot> Zones;
+        public readonly NuclearReactorConfigurationSnapshot NuclearReactor;
+        public readonly int? DataCenterRacks;
+
+        public ProductionEntitySnapshot(
+            int entityId,
+            string prototypeId,
+            bool running,
+            List<string> recipeIds,
+            List<LogisticsZoneSnapshot> zones,
+            NuclearReactorConfigurationSnapshot nuclearReactor,
+            int? dataCenterRacks)
+        {
+            EntityId = entityId;
+            PrototypeId = prototypeId;
+            Running = running;
+            RecipeIds = recipeIds;
+            Zones = zones;
+            NuclearReactor = nuclearReactor;
+            DataCenterRacks = dataCenterRacks;
+        }
+    }
+
+    private sealed class NuclearReactorConfigurationSnapshot
+    {
+        public readonly int EnrichmentStep;
+        public readonly int TargetPowerPercent;
+
+        public NuclearReactorConfigurationSnapshot(
+            int enrichmentStep,
+            int targetPowerPercent)
+        {
+            EnrichmentStep = enrichmentStep;
+            TargetPowerPercent = targetPowerPercent;
         }
     }
 

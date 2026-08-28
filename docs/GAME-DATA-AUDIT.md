@@ -116,6 +116,37 @@ description mentioning only mines and oil rigs.
 Verified in installed v0.8.7 `WorldMapEntitiesData`, `WorldMapMineProto`, and
 `WorldMapMine.SimUpdateInternal`.
 
+## Island groundwater reserves
+
+Island Groundwater Pumps draw from finite `SimpleVirtualResource` aquifers.
+Several pumps can share the same aquifer, so pump count is only the mechanical
+throughput ceiling and must not multiply the aquifer's recharge.
+
+Installed v0.8.7 `GroundWaterManager` replenishes each aquifer once per in-game
+day. At 100% rain intensity it adds 0.185% of configured aquifer capacity,
+scaled by the current rain intensity and capped by the aquifer's current
+capacity. On the normal `SlowDown` difficulty behavior, a dry day with an empty
+normal reserve instead adds a fractional emergency quantity at 7% of that
+base recharge rate, up to the hidden emergency buffer. Pumps using that buffer
+run at 40% speed. With `StopWorking`, both depleted speed and emergency recharge
+are zero.
+
+Exporter schema 26 reads the aquifer identity, current quantity, capacity,
+configured capacity, depleted speed, and low-water replenish setting from the
+loaded game. The calculator warms the aquifer through the configured 100-year
+weather sequence, replays that sequence to measure its long-run rate, applies
+the shared-aquifer ceiling once, and allocates that sustainable Water output
+among calculator claims by projected pump count. The UI separately reports the
+physical aquifer's long-run recharge
+ceiling with enough pumps to collect it and the active pumps' mechanical
+ceiling. Current reserve is displayed as synced state but is not treated as an
+indefinitely renewable source.
+
+Verified in installed v0.8.7 `GroundWaterManager.GetDailyReplenishQuantity`,
+`GroundWaterManager.onNewDay`, `WellPump.TryGetNewWork`,
+`GameDifficultyApplier.applyDifficultyToProperties`, `SimpleVirtualResource`,
+and `IVirtualTerrainResource`.
+
 ## Cargo contracts
 
 The active Uranium size-4 cargo plan has one ship and four occupied large

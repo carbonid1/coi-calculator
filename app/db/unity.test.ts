@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 
 import { activeContracts } from "./contracts";
 import { defaultEdictLevels } from "./edicts";
-import { activeHousingType } from "./housing";
+import { activeHousingType, housingTypes } from "./housing";
 import { calculateUnityBudget } from "./unity";
 
 it("includes recurring Unity for every active contract", () => {
@@ -89,5 +89,21 @@ it("applies Office Focuses to settlement generation and contract cost", () => {
     baseline.consumptionPerCycle - contractConsumption
       + contractConsumption * 0.75,
     10,
+  );
+});
+
+it("includes additional synced housing tiers in Unity storage", () => {
+  const budget = calculateUnityBudget({
+    housing: activeHousingType,
+    housingCount: 1,
+    additionalHousing: [{ housing: housingTypes.housingII, housingCount: 2 }],
+    housingCapacityMultiplier: 1,
+    unityCapacityMultiplier: 1,
+    edictLevels: defaultEdictLevels,
+    contracts: [],
+  });
+
+  expect(budget.storageCapacity).toBe(
+    20 + activeHousingType.unityStorage + 2 * housingTypes.housingII.unityStorage,
   );
 });

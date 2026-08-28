@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "../../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food-consumption";
@@ -731,6 +732,34 @@ describe("active crop farm plan", () => {
     expect(greenhouses.builtBuildings["groundwater-pump"]).toBe(5);
     expect(greenhousePreset?.activeBuildings["groundwater-pump"]).toBe(5);
     expect(chickenFarmsModule.builtBuildings).not.toHaveProperty("groundwater-pump");
+  });
+
+  it("caps projected pump throughput at the synced aquifer sustainable ceiling", () => {
+    const constraint = {
+      aquiferCount: 1,
+      currentReserve: 0,
+      reserveCapacity: 20_000,
+      projectedPumpCount: 5,
+      aquiferSustainableCeilingPerCycle: 100,
+      pumpCapacityPerCycle: 240,
+      sustainableOutputPerCycle: 100,
+    };
+    const greenhousesModule = createGreenhousesModule(
+      activeCropFarmGroups,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      constraint,
+    );
+    const preset = greenhousesModule.presets[0];
+    const pump = buildModuleLines(greenhousesModule, preset).lines.find(
+      line => line.recipe.id === "groundwater-pump",
+    );
+
+    expect(pump?.recipe.outputs).toEqual([{ resourceId: "water", quantity: 20 }]);
+    expect(pump?.recipe.groundwaterConstraint).toEqual(constraint);
   });
 
   it("uses separate dedicated v0.8.7 Carcass processors in General", () => {

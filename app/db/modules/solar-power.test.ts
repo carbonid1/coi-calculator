@@ -71,6 +71,20 @@ it("treats synced capacity above the target as complete", () => {
   expect(solarModule.presets[0]?.dataSources).toBeUndefined();
 });
 
+it("keeps reached live panel counts visibly synced", () => {
+  const solarModule = createSolarPowerModule(
+    { standard: 10, mono: 27 },
+    { standard: 8, mono: 27 },
+    { mono: 25 },
+    "synced",
+  );
+
+  expect(solarModule.presets[0]?.dataSources).toEqual({
+    "solar-panel": "synced",
+    "solar-panel-mono": "synced",
+  });
+});
+
 it("keeps the target planned until enough built panels are running", () => {
   const solarModule = createSolarPowerModule(
     { standard: 10, mono: 25 },

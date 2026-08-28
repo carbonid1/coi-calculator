@@ -9,7 +9,7 @@ type DisplayableRecipe = Pick<Recipe, "building" | "displayName" | "name">;
 export const getRecipeDisplayName = (recipe: DisplayableRecipe) => {
   if (recipe.displayName) return recipe.displayName;
 
-  const configuration = recipe.name.match(/\((.+)\)$/)?.[1];
+  const configuration = recipe.name.match(/\(([^()]*)\)$/)?.[1];
 
   if (configuration) return configuration;
 

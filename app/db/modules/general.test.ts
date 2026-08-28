@@ -20,7 +20,7 @@ import {
 } from "./general";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
-import { plannedProcessSteamBuildings, processSteam } from "./process-steam";
+import { processSteam } from "./process-steam";
 
 it("models the physical General Low Steam recovery cluster", () => {
   const preset = general.presets.find((candidate) => (
@@ -66,6 +66,64 @@ it("provides two active Rubber Makers for the Ethanol route", () => {
     activeBuildings: 2,
     builtBuildings: 2,
   });
+});
+
+it("treats the completed General Titanium machines as modeled active capacity", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+
+  for (const recipeId of [
+    "crusher-large-titanium",
+    "arc-furnace-ii-titanium-ore",
+    "chemical-plant-ii-titanium-chlorination",
+    "chemical-plant-ii-titanium-reduction",
+    "arc-furnace-ii-titanium-sponge",
+    "alloy-mixer-titanium",
+    "cooled-caster-ii-titanium-alloy",
+  ]) {
+    expect(lines.find((line) => line.recipe.id === recipeId)).toMatchObject({
+      activeBuildings: 1,
+      builtBuildings: 1,
+    });
+    expect(lines.find((line) => line.recipe.id === recipeId)?.dataSource)
+      .toBeUndefined();
+  }
+});
+
+it("treats the completed front half of the Aluminum chain as current capacity", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+  const expectedCounts = {
+    "crusher-large-bauxite": { activeBuildings: 3, builtBuildings: 3 },
+    "chemical-plant-ii-bauxite-digestion": { activeBuildings: 3, builtBuildings: 3 },
+    "settling-tank-red-mud-acid": { activeBuildings: 5, builtBuildings: 5 },
+    "rotary-kiln-alumina-fuel-gas": { activeBuildings: 3, builtBuildings: 4 },
+    "aluminum-cell-electrolysis": { activeBuildings: 3, builtBuildings: 3 },
+    "cooled-caster-ii-aluminum": { activeBuildings: 3, builtBuildings: 3 },
+  };
+
+  for (const [recipeId, counts] of Object.entries(expectedCounts)) {
+    const line = lines.find((candidate) => candidate.recipe.id === recipeId);
+
+    expect(line).toMatchObject(counts);
+    expect(line?.dataSource).toBeUndefined();
+  }
+});
+
+it("models the completed Solar Cell Mono recipe as current capacity", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "assembly-v-solar-cell-mono",
+  );
+
+  expect(line).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
+  expect(line?.dataSource).toBeUndefined();
 });
 
 it("keeps the Air Separator paused after the temporary run", () => {
@@ -267,7 +325,7 @@ it("shreds only the Tree Sapling surplus left by the settlement", () => {
     )?.quantity ?? 0);
 });
 
-it("places steam-consuming planned production in Process Steam and the rest in General", () => {
+it("keeps Titanium purification current in Process Steam and remaining plans in General", () => {
   const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId) ?? null;
   const processSteamPreset = processSteam.presets.find(
     ({ id }) => id === processSteam.defaultPresetId,
@@ -275,8 +333,8 @@ it("places steam-consuming planned production in Process Steam and the rest in G
   const generalLines = buildModuleLines(general, generalPreset).lines.filter(
     ({ recipe }) => recipe.id in plannedNewGeneralBuildings,
   );
-  const processSteamLines = buildModuleLines(processSteam, processSteamPreset).lines.filter(
-    ({ recipe }) => recipe.id in plannedProcessSteamBuildings,
+  const titaniumPurification = buildModuleLines(processSteam, processSteamPreset).lines.find(
+    ({ recipe }) => recipe.id === "distillation-stage-iii-titanium-purification",
   );
 
   expect(generalLines).toHaveLength(Object.keys(plannedNewGeneralBuildings).length);
@@ -285,10 +343,9 @@ it("places steam-consuming planned production in Process Steam and the rest in G
     && line.builtBuildings === 0
     && !line.recipe.inputs.some(({ resourceId }) => resourceId.startsWith("steam"))
   ))).toBe(true);
-  expect(processSteamLines).toMatchObject([{
-    dataSource: "planned",
-    builtBuildings: 0,
+  expect(titaniumPurification).toMatchObject({
     activeBuildings: 1,
+    builtBuildings: 1,
     recipe: {
       id: "distillation-stage-iii-titanium-purification",
       inputs: [
@@ -296,7 +353,8 @@ it("places steam-consuming planned production in Process Steam and the rest in G
         { resourceId: "steamHigh", quantity: 3 },
       ],
     },
-  }]);
+  });
+  expect(titaniumPurification?.dataSource).toBeUndefined();
 });
 
 it("demand-balances enough Yellowcake for the two-FBR target", () => {

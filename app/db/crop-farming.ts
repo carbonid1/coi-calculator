@@ -82,6 +82,7 @@ export interface CurrentCropFarmEntity {
   schedule: readonly string[];
   fertilityTargetPercent: number;
   running: boolean;
+  zones?: readonly { id: number; name: string | null }[];
 }
 
 /**

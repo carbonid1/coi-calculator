@@ -14,4 +14,12 @@ describe("formatBuildingLoad", () => {
   it("rounds ordinary loads to two decimal places", () => {
     expect(formatBuildingLoad(0.126)).toBe(0.13);
   });
+
+  it("does not hide a load just above a whole-building boundary", () => {
+    expect(formatBuildingLoad(2.005)).toBe(2.01);
+  });
+
+  it("ignores floating-point noise above a whole-building boundary", () => {
+    expect(formatBuildingLoad(2 + Number.EPSILON)).toBe(2);
+  });
 });

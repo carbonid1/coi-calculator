@@ -103,6 +103,7 @@ export const getSyncedCropFarmEntities = (
       schedule: mapCropSchedule(entity.schedule),
       fertilityTargetPercent: entity.fertilityTargetPercent,
       running: entity.running,
+      zones: entity.zones ?? [],
     }));
   }
 
@@ -118,4 +119,35 @@ export const getSyncedCropFarmEntities = (
       running: index < configuration.running,
     }),
   ));
+};
+
+export const getCropFarmConfigurationsFromEntities = (
+  entities: readonly CurrentCropFarmEntity[],
+): CurrentCropFarmConfiguration[] => {
+  const grouped = new Map<string, CurrentCropFarmConfiguration>();
+
+  for (const entity of entities) {
+    const key = [
+      entity.tierId,
+      entity.schedule.join("/"),
+      entity.fertilityTargetPercent,
+    ].join("|");
+    const existing = grouped.get(key);
+
+    if (existing) {
+      existing.built++;
+      existing.running += Number(entity.running);
+      continue;
+    }
+
+    grouped.set(key, {
+      tierId: entity.tierId,
+      schedule: [...entity.schedule],
+      fertilityTargetPercent: entity.fertilityTargetPercent,
+      built: 1,
+      running: Number(entity.running),
+    });
+  }
+
+  return [...grouped.values()];
 };

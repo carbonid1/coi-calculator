@@ -3,6 +3,7 @@ import {
   resolveGreenhouseEntityPlan,
   type GreenhousePlanOptions,
 } from "../../helpers/greenhouse-plan/greenhouse-plan";
+import { type GroundwaterSourceConstraint } from "../../helpers/groundwater/calculate-groundwater-production";
 import { type SharedMachineClaimResolution } from "../../helpers/machine-allocation/machine-allocation";
 import {
   resolveDirectionalPlan,
@@ -27,7 +28,10 @@ import {
   type CurrentCropFarmEntity,
   resolvedCurrentCropFarmGroups,
 } from "../crop-farming";
-import { createCropFarmRecipe } from "../recipes";
+import {
+  createCropFarmRecipe,
+  createGroundwaterPumpRecipe,
+} from "../recipes";
 import {
   type Module,
   type PlanMismatch,
@@ -144,6 +148,7 @@ export const createGreenhousesModule = (
   planOptions: GreenhousePlanOptions = plannedGreenhousePlan,
   groundwaterPumpResolution?: SharedMachineClaimResolution,
   currentEntities?: readonly CurrentCropFarmEntity[],
+  groundwaterConstraint?: GroundwaterSourceConstraint,
 ): Module => {
   const inventory: CropFarmInventory[] = currentConfigurations.map((configuration) => ({
     ...configuration,
@@ -226,7 +231,12 @@ export const createGreenhousesModule = (
       id: GREENHOUSES_MODULE_ID,
       name: "Greenhouses",
       description: "",
-      recipes: resolved.groups.map(({ group }) => createCropFarmRecipe(group)),
+      recipes: [
+        ...resolved.groups.map(({ group }) => createCropFarmRecipe(group)),
+        ...(groundwaterConstraint
+          ? [createGroundwaterPumpRecipe("groundwater-pump", groundwaterConstraint)]
+          : []),
+      ],
       builtBuildings: {
         "groundwater-pump": currentGroundwaterPumpBuilt,
         ...builtCropFarmTotals,
@@ -427,6 +437,9 @@ export const createGreenhousesModule = (
     id: GREENHOUSES_MODULE_ID,
     name: "Greenhouses",
     description: "",
+    recipes: groundwaterConstraint
+      ? [createGroundwaterPumpRecipe("groundwater-pump", groundwaterConstraint)]
+      : undefined,
     builtBuildings: {
       "groundwater-pump": currentGroundwaterPumpBuilt,
       ...builtCropFarmTotals,

@@ -58,6 +58,7 @@ interface ContractUnityInput {
 export const calculateUnityBudget = ({
   housing,
   housingCount,
+  additionalHousing = [],
   housingCapacityMultiplier,
   unityCapacityMultiplier,
   edictLevels,
@@ -69,6 +70,7 @@ export const calculateUnityBudget = ({
 }: {
   housing: HousingType;
   housingCount: number;
+  additionalHousing?: { housing: HousingType; housingCount: number }[];
   housingCapacityMultiplier: number;
   unityCapacityMultiplier: number;
   edictLevels: Record<EdictId, EdictLevel>;
@@ -79,8 +81,17 @@ export const calculateUnityBudget = ({
   buildingGeneration?: UnityBreakdownItem[];
 }): UnityBudget => {
   const normalizedHousingCount = Math.max(0, Math.trunc(housingCount));
+  const normalizedAdditionalHousing = additionalHousing.map(group => ({
+    housing: group.housing,
+    housingCount: Math.max(0, Math.trunc(group.housingCount)),
+  }));
   const population = normalizedHousingCount
-    * Math.round(housing.populationCapacity * housingCapacityMultiplier);
+    * Math.round(housing.populationCapacity * housingCapacityMultiplier)
+    + normalizedAdditionalHousing.reduce(
+      (total, group) => total + group.housingCount
+        * Math.round(group.housing.populationCapacity * housingCapacityMultiplier),
+      0,
+    );
   const activeServices = unityServiceDefinitions.filter((service) => service.active);
   const activeServiceNames = new Set(activeServices.map((service) => service.name));
   const housingMultiplier = housing.unityBonusTiers
@@ -169,6 +180,10 @@ export const calculateUnityBudget = ({
     netPerCycle: generationPerCycle - consumptionPerCycle,
     storageCapacity: (
       baseUnityStorage + housing.unityStorage * normalizedHousingCount
+      + normalizedAdditionalHousing.reduce(
+        (total, group) => total + group.housing.unityStorage * group.housingCount,
+        0,
+      )
     ) * unityCapacityMultiplier,
     housingMultiplier,
     generation,

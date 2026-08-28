@@ -1,4 +1,4 @@
-import { activeHousingType } from "./housing";
+import { activeHousingType, housingTypes } from "./housing";
 import { settlementConfig } from "./settlement";
 import { defaultSpaceStationLevel } from "./space-station";
 
@@ -20,6 +20,12 @@ export const buildings: Record<string, BuildingData> = {
       * settlementConfig.electricityKwPerPop
       * activeHousingType.serviceDemandMultipliers.electricity,
   },
+  [housingTypes.housingII.name]: {
+    workers: 0,
+    electricityKw: housingTypes.housingII.populationCapacity
+      * settlementConfig.electricityKwPerPop
+      * housingTypes.housingII.serviceDemandMultipliers.electricity,
+  },
   "Internet Module": {
     workers: 12,
     electricityKw: 500,
@@ -40,7 +46,10 @@ export const buildings: Record<string, BuildingData> = {
   "Sour Water Stripper": { workers: 8, electricityKw: 160 },
   "Cracking Unit": { workers: 12, electricityKw: 160 },
   "Forestry Control Tower": { workers: 0, electricityKw: 0 },
-  "Seawater Pump": { workers: 1, electricityKw: 100 },
+  // The calculator models the game's fast recipes, whose 300% power
+  // multiplier raises the T1/T2 base draws from 100/200 kW to 300/600 kW.
+  "Seawater Pump": { workers: 1, electricityKw: 300 },
+  "Seawater Pump (Tall)": { workers: 1, electricityKw: 600 },
   "Groundwater Pump": { workers: 2, electricityKw: 120 },
   "Fast Breeder Reactor": { workers: 200, electricityKw: 0 },
   "Super-Pressure Turbine": { workers: 1, electricityKw: 0 },

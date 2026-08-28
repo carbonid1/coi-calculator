@@ -3,17 +3,23 @@ import { type PlanMismatchAction } from "./modules";
 interface AtLeastBuildingActionsOptions {
   built: number;
   name: string;
+  pluralName?: string;
   running: number;
   target: number;
 }
 
 interface AtMostBuildingActionsOptions {
   name: string;
+  pluralName?: string;
   running: number;
   target: number;
 }
 
-const pluralize = (name: string, count: number) => `${name}${count === 1 ? "" : "s"}`;
+const pluralize = (
+  name: string,
+  count: number,
+  pluralName?: string,
+) => count === 1 ? name : pluralName ?? `${name}s`;
 
 /**
  * Describes the independent operating changes needed to reach an at-least
@@ -22,6 +28,7 @@ const pluralize = (name: string, count: number) => `${name}${count === 1 ? "" : 
 export const createAtLeastBuildingActions = ({
   built,
   name,
+  pluralName,
   running,
   target,
 }: AtLeastBuildingActionsOptions): PlanMismatchAction[] => {
@@ -41,13 +48,13 @@ export const createAtLeastBuildingActions = ({
     ...(unpauseCount > 0
       ? [{
           type: "unpause" as const,
-          label: `Unpause ${unpauseCount} ${pluralize(name, unpauseCount)}`,
+          label: `Unpause ${unpauseCount} ${pluralize(name, unpauseCount, pluralName)}`,
         }]
       : []),
     ...(buildCount > 0
       ? [{
           type: "build" as const,
-          label: `Build ${buildCount} ${pluralize(name, buildCount)}`,
+          label: `Build ${buildCount} ${pluralize(name, buildCount, pluralName)}`,
         }]
       : []),
   ];
@@ -56,6 +63,7 @@ export const createAtLeastBuildingActions = ({
 /** Describes the operating change needed to reach an at-most building target. */
 export const createAtMostBuildingActions = ({
   name,
+  pluralName,
   running,
   target,
 }: AtMostBuildingActionsOptions): PlanMismatchAction[] => {
@@ -66,7 +74,7 @@ export const createAtMostBuildingActions = ({
   return pauseCount > 0
     ? [{
         type: "pause",
-        label: `Pause ${pauseCount} ${pluralize(name, pauseCount)}`,
+        label: `Pause ${pauseCount} ${pluralize(name, pauseCount, pluralName)}`,
       }]
     : [];
 };

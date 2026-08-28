@@ -19,6 +19,8 @@ export interface SharedMachineClaimResolution {
   running: number;
   suggestedBuilt: number;
   suggestedRunning: number;
+  machines: SyncedMachineInventoryItem[];
+  suggestedMachines: SyncedMachineInventoryItem[];
   actions: PlanMismatchAction[];
 }
 
@@ -234,6 +236,8 @@ export const allocateSharedMachines = (
       running,
       suggestedBuilt: suggested.length,
       suggestedRunning,
+      machines: explicit,
+      suggestedMachines: suggested,
       actions,
     };
   }

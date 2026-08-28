@@ -22,6 +22,7 @@ const machine = (
   customTitle: null,
   tile: { x: entityId, y: 0 },
   zones,
+  aquifer: null,
 });
 
 describe("Groundwater Pump module claims", () => {

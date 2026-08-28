@@ -18,6 +18,12 @@ const powerLevelLabels: Record<number, string> = {
   4: "IV",
 };
 
+const breedingLevelLabels: Record<string, string> = {
+  "fbr-0x": "0×",
+  fbr: "1×",
+  "fbr-3x": "3×",
+};
+
 export const NuclearPowerBlocks: React.FC<Props> = ({
   focusedTargetKey,
   lines,
@@ -33,9 +39,9 @@ export const NuclearPowerBlocks: React.FC<Props> = ({
         <section key={block.id} className="space-y-2 rounded-lg border border-border p-3">
           <h3 className="font-semibold text-foreground">
             {block.label} · Power {powerLevelLabels[block.reactor.line.speedLevel]
-              ?? block.reactor.line.speedLevel} · Breeding {block.reactor.line.recipe.id === "fbr-3x"
-              ? "3×"
-              : "0×"}
+              ?? block.reactor.line.speedLevel} · Breeding {breedingLevelLabels[
+              block.reactor.line.recipe.id
+            ]}
           </h3>
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -64,7 +70,7 @@ export const NuclearPowerBlocks: React.FC<Props> = ({
                     actualInputs={result?.actualInputs}
                     actualOutputs={result?.actualOutputs}
                     outputModifiers={outputModifiers}
-                    showConfigurationSummary={!line.recipe.id.startsWith("fbr-")}
+                    showConfigurationSummary={line.recipe.building !== "Fast Breeder Reactor"}
                   />
                 </BuildingCardTarget>
               );
