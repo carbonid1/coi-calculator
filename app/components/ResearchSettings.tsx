@@ -12,6 +12,10 @@ import {
   type InfiniteResearchId,
 } from "../db/research";
 import { type ResearchEfficiencyBreakdown } from "../helpers/modifiers/calculate-research-efficiency";
+import {
+  getDefaultResearchProgressMode,
+  type ResearchProgressMode,
+} from "../helpers/research-progress/get-default-research-progress-mode";
 
 interface ResearchSettingsProps {
   config: ResearchModuleConfig;
@@ -22,8 +26,6 @@ interface InfiniteResearchSettingsProps {
   levels: Readonly<Record<InfiniteResearchId, number>>;
   synced: boolean;
 }
-
-type ResearchProgressMode = "before-space" | "full-range";
 
 const formatResearchPoints = (value: number) => value.toLocaleString("en-US");
 
@@ -184,7 +186,10 @@ export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> =
   levels,
   synced,
 }) => {
-  const [mode, setMode] = useState<ResearchProgressMode>("before-space");
+  const defaultMode = getDefaultResearchProgressMode(levels);
+  const [selectedMode, setSelectedMode] = useState<ResearchProgressMode>();
+  const mode = selectedMode ?? defaultMode;
+
   const completedCount = infiniteResearchCatalog.filter((research) => (
     levels[research.id] >= getResearchTarget(research, mode)
   )).length;
@@ -205,7 +210,7 @@ export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> =
 
         <SegmentedControl.Root
           aria-label="Infinite research progress target"
-          onValueChange={setMode}
+          onValueChange={setSelectedMode}
           value={mode}
         >
           <SegmentedControl.Item value="before-space">
