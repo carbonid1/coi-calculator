@@ -15,7 +15,17 @@ vi.mock("@carbonid1/design-system", () => ({
 }));
 
 import { edictCatalog, getEdict } from "../db/edicts";
-import { EdictCard, MaintenanceDemandOverview } from "./ModifiersView";
+import {
+  EdictCard,
+  formatSignedPercent,
+  MaintenanceDemandOverview,
+} from "./ModifiersView";
+
+it("rounds calculated percentages before displaying them", () => {
+  expect(formatSignedPercent(-19.999999999999996)).toBe("-20%");
+  expect(formatSignedPercent(14.126)).toBe("+14.13%");
+  expect(formatSignedPercent(-0.0000001)).toBe("0%");
+});
 
 it("shows synced maintenance demand with its completed-cycle history window", () => {
   const html = renderToStaticMarkup(

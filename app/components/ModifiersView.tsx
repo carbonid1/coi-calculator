@@ -48,9 +48,11 @@ interface Props {
 }
 
 const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
-const formatSignedPercent = (value: number) => (
-  value > 0 ? `+${value}%` : `${value}%`
-);
+export const formatSignedPercent = (value: number) => {
+  const rounded = parseFloat(value.toFixed(2));
+
+  return rounded > 0 ? `+${rounded}%` : `${rounded}%`;
+};
 const formatPower = (value: number) => (
   `${parseFloat(value.toFixed(2)).toLocaleString("en-US")} MW`
 );
