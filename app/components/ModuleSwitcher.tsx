@@ -6,6 +6,7 @@ import {
   Factory,
   Handshake,
   Info,
+  MapPinned,
   type LucideIcon,
 } from "lucide-react";
 
@@ -49,7 +50,7 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
       Factory Total
     </SwitchButton>
     {modules.map((mod) => {
-      const Icon = moduleIcons[mod.id] ?? CircleHelp;
+      const Icon = mod.liveArea ? MapPinned : (moduleIcons[mod.id] ?? CircleHelp);
       const inclusionLabel = mod.includedInFactoryTotals === false
         ? `${mod.name}, planning-only and excluded from current Factory Total`
         : undefined;

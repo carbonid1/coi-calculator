@@ -158,6 +158,49 @@ export interface SyncedProductionEntity {
   dataCenterRacks?: number | null
 }
 
+export interface SyncedAreaRecipeProduct {
+  productId: string
+  name: string
+  quantity: number
+}
+
+export interface SyncedAreaRecipe {
+  id: string
+  name: string
+  durationSeconds: number
+  assigned: boolean
+  inputs: SyncedAreaRecipeProduct[]
+  outputs: SyncedAreaRecipeProduct[]
+}
+
+export type SyncedConstructionState =
+  | 'NotInitialized'
+  | 'NotStarted'
+  | 'InConstruction'
+  | 'Constructed'
+  | 'PreparingUpgrade'
+  | 'BeingUpgraded'
+  | 'PendingDeconstruction'
+  | 'InDeconstruction'
+  | 'Deconstructed'
+  | 'Invalid'
+
+/** Runtime recipe and construction identity for a building inside a named game area. */
+export interface SyncedAreaEntity {
+  entityId: number
+  prototypeId: string
+  prototypeName: string
+  constructionState: SyncedConstructionState
+  constructed: boolean
+  running: boolean
+  tile: {
+    x: number
+    y: number
+  }
+  zones: SyncedLogisticsZoneRef[]
+  recipes: SyncedAreaRecipe[]
+}
+
 export interface SyncedLogisticsZoneRef {
   id: number
   name: string | null
@@ -232,7 +275,8 @@ export const AREA_INVENTORY_SCHEMA_VERSION = 24 as const
 export const NAMED_AREA_ENTITY_SCHEMA_VERSION = 25 as const
 export const GROUNDWATER_RESERVE_SCHEMA_VERSION = 26 as const
 export const MAINTENANCE_ENTITY_SCHEMA_VERSION = 27 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 27 as const
+export const AREA_GHOST_SCHEMA_VERSION = 28 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 28 as const
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -255,6 +299,7 @@ export type SupportedGameStateSchemaVersion =
   | 24
   | 25
   | 26
+  | 27
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -270,6 +315,7 @@ export interface GameStateSnapshot {
   machines: SyncedMachineInventoryItem[]
   groundwater: SyncedGroundwaterState | null
   productionEntities: SyncedProductionEntity[] | null
+  areaEntities: SyncedAreaEntity[]
   vehicles: {
     total: number
     workersAssigned: number
@@ -674,6 +720,96 @@ const normalizeProductionEntities = (
     : null
 }
 
+const constructionStates = new Set<string>([
+  'NotInitialized',
+  'NotStarted',
+  'InConstruction',
+  'Constructed',
+  'PreparingUpgrade',
+  'BeingUpgraded',
+  'PendingDeconstruction',
+  'InDeconstruction',
+  'Deconstructed',
+  'Invalid',
+])
+
+const isAreaRecipeProduct = (value: unknown): value is SyncedAreaRecipeProduct =>
+  isUnknownRecord(value) &&
+  typeof value.productId === 'string' &&
+  value.productId.length > 0 &&
+  typeof value.name === 'string' &&
+  value.name.length > 0 &&
+  isNonNegativeInteger(value.quantity)
+
+const isAreaRecipe = (value: unknown): value is SyncedAreaRecipe => {
+  if (
+    !isUnknownRecord(value) ||
+    typeof value.id !== 'string' ||
+    value.id.length === 0 ||
+    typeof value.name !== 'string' ||
+    value.name.length === 0 ||
+    !isNonNegativeFiniteNumber(value.durationSeconds) ||
+    value.durationSeconds <= 0 ||
+    typeof value.assigned !== 'boolean' ||
+    !Array.isArray(value.inputs) ||
+    !Array.isArray(value.outputs)
+  ) return false
+
+  const inputs = value.inputs.filter(isAreaRecipeProduct)
+  const outputs = value.outputs.filter(isAreaRecipeProduct)
+
+  return inputs.length === value.inputs.length &&
+    outputs.length === value.outputs.length &&
+    new Set(inputs.map(input => input.productId)).size === inputs.length &&
+    new Set(outputs.map(output => output.productId)).size === outputs.length
+}
+
+const isAreaEntity = (value: unknown): value is SyncedAreaEntity => {
+  if (
+    !isUnknownRecord(value) ||
+    !isNonNegativeInteger(value.entityId) ||
+    typeof value.prototypeId !== 'string' ||
+    value.prototypeId.length === 0 ||
+    typeof value.prototypeName !== 'string' ||
+    value.prototypeName.length === 0 ||
+    typeof value.constructionState !== 'string' ||
+    !constructionStates.has(value.constructionState) ||
+    typeof value.constructed !== 'boolean' ||
+    typeof value.running !== 'boolean' ||
+    (value.running && !value.constructed) ||
+    !isUnknownRecord(value.tile) ||
+    typeof value.tile.x !== 'number' ||
+    !Number.isInteger(value.tile.x) ||
+    typeof value.tile.y !== 'number' ||
+    !Number.isInteger(value.tile.y) ||
+    !Array.isArray(value.zones) ||
+    !Array.isArray(value.recipes)
+  ) return false
+
+  const zones = value.zones.filter(isLogisticsZoneRef)
+  const recipes = value.recipes.filter(isAreaRecipe)
+
+  return zones.length === value.zones.length &&
+    recipes.length === value.recipes.length &&
+    new Set(zones.map(zone => zone.id)).size === zones.length &&
+    new Set(recipes.map(recipe => recipe.id)).size === recipes.length
+}
+
+const normalizeAreaEntities = (
+  value: unknown,
+  schemaVersion: SupportedGameStateSchemaVersion,
+): SyncedAreaEntity[] | null => {
+  if (schemaVersion < AREA_GHOST_SCHEMA_VERSION) return []
+  if (!Array.isArray(value)) return null
+
+  const entities = value.filter(isAreaEntity)
+
+  return entities.length === value.length &&
+    new Set(entities.map(entity => entity.entityId)).size === entities.length
+    ? entities
+    : null
+}
+
 type LegacySyncedBuildingId = Exclude<
   SyncedBuildingId,
   | 'rocketAssemblyDepot'
@@ -910,6 +1046,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 24 &&
     schemaVersion !== 25 &&
     schemaVersion !== 26 &&
+    schemaVersion !== 27 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null
@@ -932,6 +1069,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     snapshot.productionEntities,
     schemaVersion,
   )
+  const areaEntities = normalizeAreaEntities(snapshot.areaEntities, schemaVersion)
   const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
   const total = vehicles?.total
   const trucks = vehicles?.trucks
@@ -961,6 +1099,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     (schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && !groundwater) ||
     (schemaVersion >= SAVE_ID_SCHEMA_VERSION && !saveId) ||
     (schemaVersion >= PRODUCTION_ENTITY_SCHEMA_VERSION && !productionEntities) ||
+    (schemaVersion >= AREA_GHOST_SCHEMA_VERSION && !areaEntities) ||
     !vehicles ||
     !isNonNegativeInteger(total) ||
     !isNonNegativeInteger(workersAssigned) ||
@@ -1074,6 +1213,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     machines: schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION ? (machines ?? []) : [],
     groundwater: schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION ? groundwater : null,
     productionEntities,
+    areaEntities: areaEntities ?? [],
     vehicles: {
       total,
       workersAssigned,

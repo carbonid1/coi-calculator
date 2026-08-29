@@ -40,6 +40,9 @@ export const buildModuleLines = (
     const allocationRatio = targetRatios.length > 0 && active > 0
       ? Math.min(1, Math.max(...targetRatios) / active)
       : undefined;
+    const capacityPool = recipe.sharedCapacity
+      ? preset?.capacityPools?.[recipe.sharedCapacity.id]
+      : undefined;
 
     return {
       recipe,
@@ -48,8 +51,12 @@ export const buildModuleLines = (
       capacityPoolId: recipe.sharedCapacity
         ? `${mod.id}:${recipe.sharedCapacity.id}`
         : undefined,
+      capacityPoolActiveBuildings: capacityPool?.active,
+      capacityPoolBuiltBuildings: capacityPool?.built,
+      capacityPoolPlannedBuildings: capacityPool?.planned,
       activeBuildings: active,
       builtBuildings: built,
+      plannedBuildings: preset?.plannedBuildings?.[recipe.id] ?? 0,
       speedLevel,
       operatingMode: fixedIds.has(recipe.id) ? "fixed" : "balanced",
       allocationRatio,

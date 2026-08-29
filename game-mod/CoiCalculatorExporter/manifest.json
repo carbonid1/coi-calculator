@@ -1,9 +1,9 @@
 {
   "id": "CoiCalculatorExporter",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "display_name": "CoI Calculator Exporter",
-  "description_short": "Exports read-only factory counts, machine inventory, production identities and configurations, reserves, operating history, and train traffic health to the local CoI calculator.",
-  "description_long": "Writes a local JSON snapshot containing vehicle totals, selected completed/running entity counts, Groundwater Pump identity, pause state, locations, vehicle-zone membership, aquifer reserve and capacity, and depleted-output settings, completed production, worker, and settlement entities inside named vehicle areas for module binding, recipe-aware production identities, zone-aware Data Centers, Water Chillers, greenhouse configurations, rocket infrastructure, solar panels, maintenance depots, and stationary tracked infrastructure, eligible standalone Gold and Fuel Gas reserves, current repeatable research and edicts, completed-cycle operating averages, and sustained train track waits. It does not modify gameplay state or expose a network service.",
+  "description_short": "Exports read-only factory counts, live named-area construction ghosts and recipes, reserves, operating history, and train traffic health to the local CoI calculator.",
+  "description_long": "Writes a local JSON snapshot containing vehicle totals, selected completed/running entity counts, named vehicle areas, completed buildings and construction ghosts with effective machine recipes, Groundwater Pump identity, pause state, locations, vehicle-zone membership, aquifer reserve and capacity, and depleted-output settings, recipe-aware production identities, zone-aware Data Centers, Water Chillers, greenhouse configurations, rocket infrastructure, solar panels, maintenance depots, and stationary tracked infrastructure, eligible standalone Gold and Fuel Gas reserves, current repeatable research and edicts, completed-cycle operating averages, and sustained train track waits. It does not modify gameplay state or expose a network service.",
   "authors": "carbonid1",
   "min_game_version": "0.8.7",
   "max_verified_game_version": "0.8.7",

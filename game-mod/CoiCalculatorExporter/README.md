@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.27 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.28 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -80,6 +80,15 @@ does not count one aquifer's recharge once per calculator module.
 Schema 27 adds stable, recipe-aware identities for all four Maintenance Depot
 tiers, including pause state and area membership. Unzoned depots belong to the
 game's immutable Default area; exact named-area matches move with that area.
+Schema 28 adds every completed building and construction ghost inside a named
+vehicle area, including its construction state, game-localized prototype name,
+tile, zone membership, and machine-effective recipe duration and quantities.
+The calculator creates a planning-only tab for each unmatched named area as soon
+as the area exists. Completed buildings remain Synced; construction ghosts are
+Planned capacity. A ghost with one available recipe is projected automatically,
+while a multi-recipe machine stays visible as needing configuration until the
+game exposes an assigned recipe. Removing the ghost removes that planned
+capacity on the next snapshot.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as

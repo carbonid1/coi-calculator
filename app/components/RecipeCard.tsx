@@ -12,6 +12,7 @@ import {
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
+import { GhostBuildingBadge } from "./GhostBuildingBadge";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   dataSource?: ValueSource;
   activeBuildings: number;
   builtBuildings: number;
+  plannedBuildings?: number;
   supplyRatio: number;
   operatingMode: OperatingMode;
   speedLevel: number;
@@ -39,7 +41,7 @@ export const isCompactSyncedElectricitySource = (
   && recipe.outputs[0]?.resourceId === "electricity"
 );
 
-export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, plannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -78,6 +80,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
               {recipeDisplayName}
             </p>
           )}
+          <GhostBuildingBadge count={plannedBuildings} />
           {recipe.farmFertilizer && (
             <p className="text-xs text-muted-foreground">
               Fertility target{" "}
@@ -109,6 +112,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
           load={buildingMultiplier}
           active={activeBuildings}
           built={builtBuildings}
+          planned={plannedBuildings}
           attention={diagnostic?.attention}
           attentionCount={diagnostic?.attentionCount}
           animalPopulation={diagnostic?.animalPopulation ?? (

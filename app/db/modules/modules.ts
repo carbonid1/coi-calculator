@@ -30,6 +30,10 @@ export interface Preset {
   /** Per-recipe observed targets used when several recipes produce the same resource. */
   recipeOutputTargets?: Record<string, Partial<Record<ResourceId, number>>>;
   builtBuildings?: Record<string, number>;
+  /** Construction ghosts included as future capacity in a live area. */
+  plannedBuildings?: Record<string, number>;
+  /** Physical inventory shared by runtime recipes using the same machine prototype. */
+  capacityPools?: Record<string, CapacityPoolInventory>;
   speedLevels?: Record<string, number>;
   /** Manually measured resource use outside the currently modeled recipes. */
   fixedDemands?: Partial<Record<ResourceId, number>>;
@@ -39,6 +43,27 @@ export interface Preset {
   plannedFollowUps?: PlannedFollowUp[];
   /** Unmet directional targets shown only in the consolidated Factory Total checklist. */
   planMismatches?: PlanMismatch[];
+}
+
+export interface CapacityPoolInventory {
+  active: number;
+  built: number;
+  planned: number;
+}
+
+export interface LiveAreaIssue {
+  id: string;
+  building: string;
+  count: number;
+  message: string;
+}
+
+export interface LiveAreaModuleState {
+  zoneId: number;
+  trackedBuildings: number;
+  constructedBuildings: number;
+  plannedBuildings: number;
+  issues: LiveAreaIssue[];
 }
 
 export interface PlanMismatch {
@@ -88,6 +113,8 @@ export interface Module {
   defaultPresetId: string | null;
   /** Resources reported inside this module but intentionally excluded from Factory Total. */
   localResources?: ResourceId[];
+  /** Live named-area inventory supplied by the game exporter. */
+  liveArea?: LiveAreaModuleState;
 }
 
 export const modules: [Module, ...Module[]] = [

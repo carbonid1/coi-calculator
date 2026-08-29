@@ -15,6 +15,7 @@ using Mafi.Core.Entities.Static;
 using Mafi.Core.Factory;
 using Mafi.Core.Factory.Datacenters;
 using Mafi.Core.Factory.ElectricPower;
+using Mafi.Core.Factory.Machines;
 using Mafi.Core.Factory.NuclearReactors;
 using Mafi.Core.Factory.Recipes;
 using Mafi.Core.Factory.WellPumps;
@@ -405,7 +406,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":27,");
+            json.Append("\"schemaVersion\":28,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -736,6 +737,63 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 }
             }
             json.Append("],");
+            json.Append("\"areaEntities\":[");
+            for (int i = 0; i < production.AreaEntities.Count; i++)
+            {
+                AreaEntitySnapshot entity = production.AreaEntities[i];
+                json.Append('{');
+                appendNumber(json, "entityId", entity.EntityId, true);
+                appendString(json, "prototypeId", entity.PrototypeId, true);
+                appendString(json, "prototypeName", entity.PrototypeName, true);
+                appendString(json, "constructionState", entity.ConstructionState, true);
+                json.Append("\"constructed\":");
+                json.Append(entity.Constructed ? "true" : "false");
+                json.Append(',');
+                json.Append("\"running\":");
+                json.Append(entity.Running ? "true" : "false");
+                json.Append(',');
+                json.Append("\"tile\":{");
+                appendNumber(json, "x", entity.TileX, true);
+                appendNumber(json, "y", entity.TileY, false);
+                json.Append("},\"zones\":[");
+                for (int zoneIndex = 0; zoneIndex < entity.Zones.Count; zoneIndex++)
+                {
+                    LogisticsZoneSnapshot zone = entity.Zones[zoneIndex];
+                    json.Append('{');
+                    appendNumber(json, "id", zone.Id, true);
+                    appendNullableString(json, "name", zone.Name, false);
+                    json.Append('}');
+                    if (zoneIndex < entity.Zones.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("],\"recipes\":[");
+                for (int recipeIndex = 0; recipeIndex < entity.Recipes.Count; recipeIndex++)
+                {
+                    AreaRecipeSnapshot recipe = entity.Recipes[recipeIndex];
+                    json.Append('{');
+                    appendString(json, "id", recipe.Id, true);
+                    appendString(json, "name", recipe.Name, true);
+                    appendDecimal(json, "durationSeconds", recipe.DurationSeconds, true);
+                    json.Append("\"assigned\":");
+                    json.Append(recipe.Assigned ? "true" : "false");
+                    json.Append(',');
+                    appendAreaRecipeProducts(json, "inputs", recipe.Inputs, true);
+                    appendAreaRecipeProducts(json, "outputs", recipe.Outputs, false);
+                    json.Append('}');
+                    if (recipeIndex < entity.Recipes.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("]}");
+                if (i < production.AreaEntities.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("],");
             json.Append("\"vehicles\":{");
             appendNumber(json, "total", m_vehiclesManager.AllVehicles.Count, true);
             appendNumber(json, "workersAssigned", workersAssigned, true);
@@ -877,11 +935,36 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         List<MachineInventorySnapshot> machines = new List<MachineInventorySnapshot>();
         List<ProductionEntitySnapshot> productionEntities =
             new List<ProductionEntitySnapshot>();
+        List<AreaEntitySnapshot> areaEntities = new List<AreaEntitySnapshot>();
 
         foreach (IEntity entity in m_entitiesManager.Entities)
         {
             IStaticEntity staticEntity = entity as IStaticEntity;
-            if (entity.IsDestroyed || (staticEntity != null && !staticEntity.IsConstructed))
+            if (entity.IsDestroyed)
+            {
+                continue;
+            }
+
+            List<LogisticsZoneSnapshot> entityZones = getLogisticsZones(staticEntity);
+            if (staticEntity != null && isNamedAreaBuilding(entity, entityZones))
+            {
+                string prototypeName = staticEntity.Prototype.Strings.Name.TranslatedString;
+                areaEntities.Add(new AreaEntitySnapshot(
+                    entity.Id.Value,
+                    entity.Prototype.Id.ToString(),
+                    String.IsNullOrWhiteSpace(prototypeName)
+                        ? entity.Prototype.Id.ToString()
+                        : prototypeName,
+                    staticEntity.ConstructionState.ToString(),
+                    staticEntity.IsConstructed,
+                    staticEntity.IsConstructed && !entity.IsPaused,
+                    staticEntity.CenterTile.X,
+                    staticEntity.CenterTile.Y,
+                    entityZones,
+                    getAreaRecipes(entity, staticEntity)));
+            }
+
+            if (staticEntity != null && !staticEntity.IsConstructed)
             {
                 continue;
             }
@@ -893,7 +976,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 OceanWaterPumpRuntimeTypeName,
                 StringComparison.Ordinal);
             DataCenter dataCenterEntity = entity as DataCenter;
-            List<LogisticsZoneSnapshot> entityZones = getLogisticsZones(staticEntity);
             if (TrackedProductionPrototypeIds.Contains(prototypeId)
                 || TrackedPrototypeIndices.ContainsKey(prototypeId)
                 || isOceanWaterPump
@@ -1038,6 +1120,10 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             return left.EntityId.CompareTo(right.EntityId);
         });
+        areaEntities.Sort(delegate(AreaEntitySnapshot left, AreaEntitySnapshot right)
+        {
+            return left.EntityId.CompareTo(right.EntityId);
+        });
 
         return new ProductionSnapshot(
             dataCenters,
@@ -1049,7 +1135,76 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             cropFarms,
             cropFarmEntities,
             machines,
-            productionEntities);
+            productionEntities,
+            areaEntities);
+    }
+
+    private static List<AreaRecipeSnapshot> getAreaRecipes(
+        IEntity entity,
+        IStaticEntity staticEntity)
+    {
+        List<AreaRecipeSnapshot> recipes = new List<AreaRecipeSnapshot>();
+        MachineProto machine = staticEntity.Prototype as MachineProto;
+        if (machine == null)
+        {
+            return recipes;
+        }
+
+        IEntityWithAssignedRecipes recipeEntity = entity as IEntityWithAssignedRecipes;
+        HashSet<string> assignedRecipeIds = new HashSet<string>(StringComparer.Ordinal);
+        if (recipeEntity != null)
+        {
+            foreach (RecipeProto assignedRecipe in recipeEntity.RecipesAssigned)
+            {
+                assignedRecipeIds.Add(assignedRecipe.Id.ToString());
+            }
+        }
+
+        foreach (RecipeProto recipe in machine.Recipes)
+        {
+            IRecipeForUi recipeForUi = machine.GetRecipeForUi(recipe);
+            List<AreaRecipeProductSnapshot> inputs =
+                new List<AreaRecipeProductSnapshot>();
+            List<AreaRecipeProductSnapshot> outputs =
+                new List<AreaRecipeProductSnapshot>();
+
+            foreach (RecipeInput input in recipeForUi.AllUserVisibleInputs)
+            {
+                inputs.Add(new AreaRecipeProductSnapshot(
+                    input.Product.Id.ToString(),
+                    getProtoName(input.Product),
+                    input.Quantity.Value));
+            }
+            foreach (RecipeOutput output in recipeForUi.AllUserVisibleOutputs)
+            {
+                outputs.Add(new AreaRecipeProductSnapshot(
+                    output.Product.Id.ToString(),
+                    getProtoName(output.Product),
+                    output.Quantity.Value));
+            }
+
+            string recipeName = recipe.Strings.Name.TranslatedString;
+            recipes.Add(new AreaRecipeSnapshot(
+                recipe.Id.ToString(),
+                String.IsNullOrWhiteSpace(recipeName) ? recipe.Id.ToString() : recipeName,
+                Math.Max(0.001, recipeForUi.Duration.Seconds.ToDouble()),
+                assignedRecipeIds.Contains(recipe.Id.ToString())
+                    || (recipeEntity == null && machine.UseAllRecipesAtStartOrAfterUnlock),
+                inputs,
+                outputs));
+        }
+
+        recipes.Sort(delegate(AreaRecipeSnapshot left, AreaRecipeSnapshot right)
+        {
+            return String.CompareOrdinal(left.Id, right.Id);
+        });
+        return recipes;
+    }
+
+    private static string getProtoName(Proto proto)
+    {
+        string name = proto.Strings.Name.TranslatedString;
+        return String.IsNullOrWhiteSpace(name) ? proto.Id.ToString() : name;
     }
 
     private GroundwaterAquiferSnapshot getGroundwaterAquifer(WellPump pump)
@@ -1141,7 +1296,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
 
         string entityNamespace = entity.GetType().Namespace;
-        return entity is IEntityWithAssignedRecipes
+        IStaticEntity staticEntity = entity as IStaticEntity;
+        return (staticEntity != null && staticEntity.Prototype is MachineProto)
+            || entity is IEntityWithAssignedRecipes
             || entity is IEntityWithWorkers
             || (!String.IsNullOrWhiteSpace(entityNamespace)
                 && entityNamespace.StartsWith(
@@ -1739,6 +1896,35 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
+    private static void appendAreaRecipeProducts(
+        StringBuilder json,
+        string key,
+        List<AreaRecipeProductSnapshot> products,
+        bool appendComma)
+    {
+        json.Append('"');
+        json.Append(key);
+        json.Append("\":[");
+        for (int i = 0; i < products.Count; i++)
+        {
+            AreaRecipeProductSnapshot product = products[i];
+            json.Append('{');
+            appendString(json, "productId", product.ProductId, true);
+            appendString(json, "name", product.Name, true);
+            appendNumber(json, "quantity", product.Quantity, false);
+            json.Append('}');
+            if (i < products.Count - 1)
+            {
+                json.Append(',');
+            }
+        }
+        json.Append(']');
+        if (appendComma)
+        {
+            json.Append(',');
+        }
+    }
+
     private static void appendHistoryAverage(
         StringBuilder json,
         string name,
@@ -1993,6 +2179,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly List<CropFarmEntitySnapshot> CropFarmEntities;
         public readonly List<MachineInventorySnapshot> Machines;
         public readonly List<ProductionEntitySnapshot> ProductionEntities;
+        public readonly List<AreaEntitySnapshot> AreaEntities;
 
         public ProductionSnapshot(
             BuildingCountSnapshot dataCenters,
@@ -2004,7 +2191,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             List<CropFarmSnapshot> cropFarms,
             List<CropFarmEntitySnapshot> cropFarmEntities,
             List<MachineInventorySnapshot> machines,
-            List<ProductionEntitySnapshot> productionEntities)
+            List<ProductionEntitySnapshot> productionEntities,
+            List<AreaEntitySnapshot> areaEntities)
         {
             DataCenters = dataCenters;
             Racks = racks;
@@ -2016,6 +2204,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             CropFarmEntities = cropFarmEntities;
             Machines = machines;
             ProductionEntities = productionEntities;
+            AreaEntities = areaEntities;
         }
     }
 
@@ -2103,6 +2292,84 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             Zones = zones;
             NuclearReactor = nuclearReactor;
             DataCenterRacks = dataCenterRacks;
+        }
+    }
+
+    private sealed class AreaEntitySnapshot
+    {
+        public readonly int EntityId;
+        public readonly string PrototypeId;
+        public readonly string PrototypeName;
+        public readonly string ConstructionState;
+        public readonly bool Constructed;
+        public readonly bool Running;
+        public readonly int TileX;
+        public readonly int TileY;
+        public readonly List<LogisticsZoneSnapshot> Zones;
+        public readonly List<AreaRecipeSnapshot> Recipes;
+
+        public AreaEntitySnapshot(
+            int entityId,
+            string prototypeId,
+            string prototypeName,
+            string constructionState,
+            bool constructed,
+            bool running,
+            int tileX,
+            int tileY,
+            List<LogisticsZoneSnapshot> zones,
+            List<AreaRecipeSnapshot> recipes)
+        {
+            EntityId = entityId;
+            PrototypeId = prototypeId;
+            PrototypeName = prototypeName;
+            ConstructionState = constructionState;
+            Constructed = constructed;
+            Running = running;
+            TileX = tileX;
+            TileY = tileY;
+            Zones = zones;
+            Recipes = recipes;
+        }
+    }
+
+    private sealed class AreaRecipeSnapshot
+    {
+        public readonly string Id;
+        public readonly string Name;
+        public readonly double DurationSeconds;
+        public readonly bool Assigned;
+        public readonly List<AreaRecipeProductSnapshot> Inputs;
+        public readonly List<AreaRecipeProductSnapshot> Outputs;
+
+        public AreaRecipeSnapshot(
+            string id,
+            string name,
+            double durationSeconds,
+            bool assigned,
+            List<AreaRecipeProductSnapshot> inputs,
+            List<AreaRecipeProductSnapshot> outputs)
+        {
+            Id = id;
+            Name = name;
+            DurationSeconds = durationSeconds;
+            Assigned = assigned;
+            Inputs = inputs;
+            Outputs = outputs;
+        }
+    }
+
+    private sealed class AreaRecipeProductSnapshot
+    {
+        public readonly string ProductId;
+        public readonly string Name;
+        public readonly int Quantity;
+
+        public AreaRecipeProductSnapshot(string productId, string name, int quantity)
+        {
+            ProductId = productId;
+            Name = name;
+            Quantity = quantity;
         }
     }
 

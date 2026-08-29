@@ -44,10 +44,11 @@ export const calculateBuildingStats = (
 
   const workers = [...standaloneLines, ...pooledLines.values()].reduce((total, line) => {
     const building = buildings[line.recipe.building];
+    const activeBuildings = line.capacityPoolActiveBuildings ?? line.activeBuildings;
 
-    if (!building || line.activeBuildings <= 0) return total;
+    if (!building || activeBuildings <= 0) return total;
 
-    return total + building.workers * Math.ceil(line.activeBuildings);
+    return total + building.workers * Math.ceil(activeBuildings);
   }, 0);
 
   const regularElectricityKw = results.regularResults.reduce((total, result) => {

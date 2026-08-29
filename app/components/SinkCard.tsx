@@ -3,6 +3,7 @@ import { type PassiveResult } from "../helpers/calculate/calculate";
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
+import { GhostBuildingBadge } from "./GhostBuildingBadge";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
@@ -61,11 +62,13 @@ export const SinkCard: React.FC<Props> = ({
               {recipeDisplayName}
             </p>
           )}
+          <GhostBuildingBadge count={result.plannedBuildings} />
         </div>
         <BuildingCount
           load={effectiveCount}
           active={result.activeBuildings}
           built={result.builtBuildings}
+          planned={result.plannedBuildings}
         />
       </div>
 

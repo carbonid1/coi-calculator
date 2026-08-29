@@ -282,8 +282,12 @@ export const calculateBuildingDiagnostics = (
       };
     }
 
-    const active = Math.max(...results.map((result) => result.activeBuildings));
-    const built = Math.max(...results.map((result) => result.builtBuildings));
+    const active = Math.max(...results.map(
+      (result) => result.capacityPoolActiveBuildings ?? result.activeBuildings,
+    ));
+    const built = Math.max(...results.map(
+      (result) => result.capacityPoolBuiltBuildings ?? result.builtBuildings,
+    ));
     const load = results.reduce(
       (total, result) => total + result.activeBuildings * result.supplyRatio,
       0,

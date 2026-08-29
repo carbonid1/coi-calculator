@@ -8,6 +8,7 @@ import { ComputingSettings } from './components/ComputingSettings'
 import { ContractsView } from './components/ContractsView'
 import { GameSyncStatus } from './components/GameSyncStatus'
 import { HousingView } from './components/HousingView'
+import { LiveAreaStatus } from './components/LiveAreaStatus'
 import { MinesView } from './components/MinesView'
 import { ModifiersView } from './components/ModifiersView'
 import { ModuleSwitcher } from './components/ModuleSwitcher'
@@ -110,6 +111,7 @@ import {
 } from './db/static-infrastructure'
 import { calculateUnityBudget } from './db/unity'
 import {
+  AREA_GHOST_SCHEMA_VERSION,
   AREA_INVENTORY_SCHEMA_VERSION,
   COMPUTING_ENTITY_SCHEMA_VERSION,
   MACHINE_INVENTORY_SCHEMA_VERSION,
@@ -134,6 +136,7 @@ import { resolveComputingEntityInventory } from './helpers/computing-entity-sync
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
 import { calculateGroundwaterClaimLimits } from './helpers/groundwater/calculate-groundwater-production'
+import { createLiveAreaModules } from './helpers/live-area-modules/live-area-modules'
 import {
   allocateSharedMachines,
   type MachineZoneAssignments,
@@ -723,7 +726,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     plannedTargets: plannedSolarPanelTargets,
     productionEntities: hasAreaBuildingInventory ? productionEntities : undefined,
   })
-  const configuredModules = configuredModulesWithoutSolar.map(module => {
+  const configuredBaseModules = configuredModulesWithoutSolar.map(module => {
     const solarAssignment = solarAssignments[module.id]
 
     if (!solarAssignment) return module
@@ -736,6 +739,18 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       gameState.snapshot ? 'synced' : 'modeled',
     )
   })
+  const configuredModules = [
+    ...configuredBaseModules,
+    ...(
+      (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
+        ? createLiveAreaModules(
+            gameState.snapshot?.logisticsZones ?? [],
+            gameState.snapshot?.areaEntities ?? [],
+            configuredBaseModules,
+          )
+        : []
+    ),
+  ]
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
   const configuredHousingModule = configuredModules.find(module => module.id === HOUSING_MODULE_ID)
   const configuredHousingPreset = configuredHousingModule?.presets.find(
@@ -1027,6 +1042,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <p className="text-sm text-muted-foreground">{activeModule.description}</p>
       )}
 
+      {activeModule?.liveArea && <LiveAreaStatus state={activeModule.liveArea} />}
+
       {isModifiers && (
         <ModifiersView
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
@@ -1281,6 +1298,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             recipe={line.recipe}
                             activeBuildings={line.activeBuildings}
                             builtBuildings={line.builtBuildings}
+                            plannedBuildings={line.plannedBuildings}
                             diagnostic={factoryBuildingDiagnostics.find(
                               diagnostic => diagnostic.key === key,
                             )}
@@ -1326,6 +1344,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                         recipe={line.recipe}
                         activeBuildings={line.activeBuildings}
                         builtBuildings={line.builtBuildings}
+                        plannedBuildings={line.plannedBuildings}
                         diagnostic={activeBuildingDiagnostics.find(
                           candidate => candidate.key === targetKey,
                         )}

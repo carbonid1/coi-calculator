@@ -16,10 +16,18 @@ export interface ProductionLine {
   dataSource?: ValueSource;
   /** Module-scoped identity for recipes sharing the same installed buildings. */
   capacityPoolId?: string;
+  /** Distinct active physical buildings in the shared pool. */
+  capacityPoolActiveBuildings?: number;
+  /** Distinct built physical buildings in the shared pool. */
+  capacityPoolBuiltBuildings?: number;
+  /** Distinct construction ghosts in the shared pool. */
+  capacityPoolPlannedBuildings?: number;
   /** Unpaused physical buildings available to this recipe or shared pool. */
   activeBuildings: number;
   /** Physical buildings present, including paused buildings. */
   builtBuildings: number;
+  /** Construction ghosts included in activeBuildings as planned capacity. */
+  plannedBuildings?: number;
   speedLevel: number;
   operatingMode: OperatingMode;
   /** Factory-wide dispatch can assign a utilization without changing installed capacity. */
@@ -43,8 +51,12 @@ export interface RegularResult {
   moduleId: string;
   dataSource?: ValueSource;
   capacityPoolId?: string;
+  capacityPoolActiveBuildings?: number;
+  capacityPoolBuiltBuildings?: number;
+  capacityPoolPlannedBuildings?: number;
   activeBuildings: number;
   builtBuildings: number;
+  plannedBuildings?: number;
   operatingMode: OperatingMode;
   supplyRatio: number;
   speedLevel: number;
@@ -59,8 +71,12 @@ export interface PassiveResult {
   moduleId: string;
   dataSource?: ValueSource;
   capacityPoolId?: string;
+  capacityPoolActiveBuildings?: number;
+  capacityPoolBuiltBuildings?: number;
+  capacityPoolPlannedBuildings?: number;
   activeBuildings: number;
   builtBuildings: number;
+  plannedBuildings?: number;
   supplyRatio: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
   actualOutputs: { resourceId: ResourceId; quantity: number }[];
@@ -133,7 +149,10 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
 
     remainingByPool.set(
       line.capacityPoolId,
-      Math.max(remainingByPool.get(line.capacityPoolId) ?? 0, line.activeBuildings),
+      Math.max(
+        remainingByPool.get(line.capacityPoolId) ?? 0,
+        line.capacityPoolActiveBuildings ?? line.activeBuildings,
+      ),
     );
   }
 
@@ -920,8 +939,12 @@ export const calculateNet = (
     moduleId: line.moduleId,
     dataSource: line.dataSource,
     capacityPoolId: line.capacityPoolId,
+    capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
+    capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
+    capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
     activeBuildings: line.activeBuildings,
     builtBuildings: line.builtBuildings,
+    plannedBuildings: line.plannedBuildings,
     operatingMode: line.operatingMode,
     supplyRatio: allocationRatios.get(line) ?? 0,
     speedLevel: line.speedLevel,
@@ -1062,8 +1085,13 @@ export const calculateNet = (
       recipe: line.recipe,
       moduleId: line.moduleId,
       dataSource: line.dataSource,
+      capacityPoolId: line.capacityPoolId,
+      capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
+      capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
+      capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
       activeBuildings: line.activeBuildings,
       builtBuildings: line.builtBuildings,
+      plannedBuildings: line.plannedBuildings,
       supplyRatio: line.activeBuildings > 0
         ? Math.min(1, sourceScale / line.activeBuildings)
         : 0,
@@ -1185,8 +1213,12 @@ export const calculateNet = (
         moduleId: line.moduleId,
         dataSource: line.dataSource,
         capacityPoolId: line.capacityPoolId,
+        capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
+        capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
+        capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
         activeBuildings: 0,
         builtBuildings: line.builtBuildings,
+        plannedBuildings: line.plannedBuildings,
         supplyRatio: 0,
         actualInputs: [],
         actualOutputs: [],
@@ -1243,8 +1275,12 @@ export const calculateNet = (
       moduleId: line.moduleId,
       dataSource: line.dataSource,
       capacityPoolId: line.capacityPoolId,
+      capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
+      capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
+      capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
       activeBuildings: line.activeBuildings,
       builtBuildings: line.builtBuildings,
+      plannedBuildings: line.plannedBuildings,
       supplyRatio: utilizationRatio,
       actualInputs,
       actualOutputs,

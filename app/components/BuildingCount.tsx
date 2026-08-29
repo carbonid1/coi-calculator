@@ -10,6 +10,7 @@ interface Props {
   load: number;
   active: number;
   built: number;
+  planned?: number;
   attention?: BuildingAttention | null;
   attentionCount?: number;
   animalPopulation?: AnimalPopulationDiagnostic;
@@ -39,11 +40,13 @@ export const BuildingCount: React.FC<Props> = ({
   load,
   active,
   built,
+  planned = 0,
   attention,
   attentionCount = 0,
   animalPopulation,
 }) => {
-  const paused = Math.max(0, built - active);
+  const syncedActive = Math.max(0, active - planned);
+  const paused = Math.max(0, built - syncedActive);
 
   return (
     <div className="shrink-0 text-right tabular-nums">
@@ -64,9 +67,12 @@ export const BuildingCount: React.FC<Props> = ({
           </span>
         </span>
       </Tooltip>
-      {!animalPopulation && paused > 0 && (
+      {!animalPopulation && (paused > 0 || planned > 0) && (
         <p className="text-xs text-muted-foreground">
-          {formatCount(active)} active · {formatCount(paused)} paused
+          {planned > 0
+            ? `${formatCount(syncedActive)} synced active · ${formatCount(planned)} planned`
+            : `${formatCount(active)} active`}
+          {paused > 0 ? ` · ${formatCount(paused)} paused` : ''}
         </p>
       )}
       {attention && (

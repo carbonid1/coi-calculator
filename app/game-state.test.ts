@@ -431,6 +431,35 @@ const schema27Snapshot = {
     },
   ],
 }
+const areaEntities = [
+  {
+    entityId: 901,
+    prototypeId: 'AirSeparator',
+    prototypeName: 'Air Separator',
+    constructionState: 'NotStarted',
+    constructed: false,
+    running: false,
+    tile: { x: 500, y: 600 },
+    zones: [{ id: 30, name: 'Test' }],
+    recipes: [{
+      id: 'AirSeparation',
+      name: 'Air Separation',
+      durationSeconds: 7.5,
+      assigned: true,
+      inputs: [],
+      outputs: [
+        { productId: 'Product_Oxygen', name: 'Oxygen', quantity: 2 },
+        { productId: 'Product_Nitrogen', name: 'Nitrogen', quantity: 4 },
+      ],
+    }],
+  },
+]
+const schema28Snapshot = {
+  ...schema27Snapshot,
+  schemaVersion: 28,
+  logisticsZones: [...schema27Snapshot.logisticsZones, { id: 30, name: 'Test' }],
+  areaEntities,
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -571,7 +600,30 @@ describe('game-state snapshot validation', () => {
       productionEntities: expect.arrayContaining([
         expect.objectContaining({ prototypeId: 'MaintenanceDepotT1' }),
       ]),
+      areaEntities: [],
     })
+    expect(normalizeGameStateSnapshot(schema28Snapshot)).toMatchObject({
+      schemaVersion: 28,
+      areaEntities,
+    })
+  })
+
+  it('requires valid construction ghosts and effective recipes in schema 28', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema28Snapshot,
+      areaEntities: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema28Snapshot,
+      areaEntities: [{ ...areaEntities[0], running: true }],
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema28Snapshot,
+      areaEntities: [{
+        ...areaEntities[0],
+        recipes: [{ ...areaEntities[0].recipes[0], durationSeconds: 0 }],
+      }],
+    })).toBeNull()
   })
 
   it('requires consistent aquifer state and depleted behavior in schema 26', () => {
