@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { getReserveDrawPerProductionCycle } from "../../helpers/reserves/reserves";
+import { baseConfig } from "../config";
 import {
   type ActiveContract,
   contracts,
@@ -84,7 +85,10 @@ const getGoldReserveDraw = (
   modules: Module[],
   activeContracts: ActiveContract[],
 ) => {
-  const result = calculateFactoryTotal(modules, activeContracts);
+  const result = calculateFactoryTotal(modules, {
+    contracts: activeContracts,
+    recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+  });
 
   return getReserveDrawPerProductionCycle(
     result.calculation.sourceResults,
@@ -122,10 +126,13 @@ it("runs two fixed Cracking Units and draws their uncovered Fuel Gas from reserv
     }],
     defaultPresetId: "fixed",
   };
-  const result = calculateFactoryTotal([
-    crackingModule,
-    createReservesModule({ gold: 0, fuelGas: 12_000 }),
-  ]);
+  const result = calculateFactoryTotal(
+    [
+      crackingModule,
+      createReservesModule({ gold: 0, fuelGas: 12_000 }),
+    ],
+    { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+  );
   const reserveDraw = getReserveDrawPerProductionCycle(
     result.calculation.sourceResults,
     reserveRecipeId("fuelGas"),

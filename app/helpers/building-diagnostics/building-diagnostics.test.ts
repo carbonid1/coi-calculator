@@ -376,6 +376,25 @@ describe("planned capacity diagnostics", () => {
     });
   });
 
+  it("does not report synced construction ghosts as missing builds", () => {
+    const ghostResult: RegularResult = {
+      ...plannedResult(1),
+      dataSource: "synced",
+      constructionGhosts: 1,
+    };
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [plannedModule],
+      [],
+      [ghostResult],
+    );
+
+    expect(diagnostic).toMatchObject({
+      plannedCapacity: true,
+      attention: null,
+      attentionCount: 0,
+    });
+  });
+
   it("treats planned capacity as acknowledged even when it remains constrained", () => {
     const [diagnostic] = calculateBuildingDiagnostics(
       [plannedModule],

@@ -16,7 +16,6 @@ import { calculateProductionCardLoad } from '../helpers/production-card-groups/p
 import { getRecipeDisplayName } from '../helpers/recipe-display/recipe-display'
 import { type ValueSource } from '../helpers/resolve-layered-value/resolve-layered-value'
 import { BuildingCount } from './BuildingCount'
-import { GhostBuildingBadge } from './GhostBuildingBadge'
 import { ProductionCard } from './ProductionCard'
 
 interface Props {
@@ -45,8 +44,17 @@ export const SharedRecipeCard: React.FC<Props> = ({
     ?? Math.max(...lines.map(line => line.builtBuildings))
   const activeBuildings = firstLine.capacityPoolActiveBuildings
     ?? Math.max(...lines.map(line => line.activeBuildings))
-  const plannedBuildings = firstLine.capacityPoolPlannedBuildings
-    ?? Math.max(...lines.map(line => line.plannedBuildings ?? 0))
+  const currentActiveBuildings = firstLine.capacityPoolCurrentActiveBuildings
+    ?? Math.max(...lines.map(line => line.currentActiveBuildings ?? Math.min(
+      line.builtBuildings,
+      line.activeBuildings
+        - (line.constructionGhosts ?? 0)
+        - (line.unplacedPlannedBuildings ?? 0),
+    )))
+  const constructionGhosts = firstLine.capacityPoolConstructionGhosts
+    ?? Math.max(...lines.map(line => line.constructionGhosts ?? 0))
+  const unplacedPlannedBuildings = firstLine.capacityPoolUnplacedPlannedBuildings
+    ?? Math.max(...lines.map(line => line.unplacedPlannedBuildings ?? 0))
   const operatingMode = results.every(
     result => result && 'operatingMode' in result && result.operatingMode === 'fixed',
   )
@@ -61,19 +69,18 @@ export const SharedRecipeCard: React.FC<Props> = ({
       className="p-3"
     >
       <div className="mb-2 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-foreground">
-            {firstLine.recipe.displayGroup?.label ??
-              firstLine.recipe.sharedCapacity?.label ??
-              firstLine.recipe.building}
-          </h3>
-          <GhostBuildingBadge count={plannedBuildings} />
-        </div>
+        <h3 className="font-semibold text-foreground">
+          {firstLine.recipe.displayGroup?.label ??
+            firstLine.recipe.sharedCapacity?.label ??
+            firstLine.recipe.building}
+        </h3>
         <BuildingCount
           load={effective}
           active={activeBuildings}
+          currentActive={currentActiveBuildings}
           built={totalBuildings}
-          planned={plannedBuildings}
+          ghosts={constructionGhosts}
+          planned={unplacedPlannedBuildings}
           attention={diagnostic?.attention}
           attentionCount={diagnostic?.attentionCount}
         />

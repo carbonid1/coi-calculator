@@ -12,6 +12,7 @@ import { defaultInfiniteResearchLevels } from "../research";
 import {
   defaultArea as general,
   modeledDefaultRecipeIds,
+  unplacedPlannedDefaultBuildings,
   plannedNewDefaultBuildings,
 } from "./default";
 import {
@@ -57,8 +58,11 @@ it("keeps one of two Cracking Units active and balances it against surplus Fuel 
 
   const result = calculateFactoryTotal(
     modules,
-    activeContracts,
-    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    {
+      contracts: activeContracts,
+      recyclingEfficiencyPercent:
+        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    },
   );
   const activeCrackingUnit = result.calculation.regularResults.find((line) => (
     line.moduleId === "general"
@@ -278,11 +282,64 @@ it("models the completed silicon expansion as active", () => {
     .toMatchObject({ activeBuildings: 2, builtBuildings: 2, dataSource: "modeled" });
 });
 
+it("plans five Default-area buildings to expand the complete Copper chain", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines;
+  const line = (recipeId: string) => lines.find((candidate) => candidate.recipe.id === recipeId);
+
+  for (const recipeId of [
+    "arc-furnace-ii-copper-scrap",
+    "arc-furnace-ii-copper-ore",
+  ]) {
+    expect(line(recipeId)).toMatchObject({
+      activeBuildings: 5,
+      currentActiveBuildings: 4,
+      builtBuildings: 4,
+      constructionGhosts: 0,
+      unplacedPlannedBuildings: 1,
+      capacityPoolActiveBuildings: 5,
+      capacityPoolBuiltBuildings: 4,
+      capacityPoolCurrentActiveBuildings: 4,
+      capacityPoolConstructionGhosts: 0,
+      capacityPoolUnplacedPlannedBuildings: 1,
+      dataSource: "planned",
+    });
+  }
+
+  expect(line("metal-caster-ii-copper")).toMatchObject({
+    activeBuildings: 10,
+    currentActiveBuildings: 8,
+    builtBuildings: 8,
+    constructionGhosts: 0,
+    unplacedPlannedBuildings: 2,
+    dataSource: "planned",
+  });
+  expect(line("copper-electrolysis-acid")).toMatchObject({
+    activeBuildings: 10,
+    currentActiveBuildings: 8,
+    builtBuildings: 8,
+    constructionGhosts: 0,
+    unplacedPlannedBuildings: 2,
+    dataSource: "planned",
+  });
+  expect(unplacedPlannedDefaultBuildings).toEqual({
+    "arc-furnace-ii-copper-scrap": 1,
+    "arc-furnace-ii-copper-ore": 1,
+    "metal-caster-ii-copper": 2,
+    "copper-electrolysis-acid": 2,
+  });
+});
+
 it("covers the silicon and Electronics II/III factory demand", () => {
   const result = calculateFactoryTotal(
     modules,
-    activeContracts,
-    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    {
+      contracts: activeContracts,
+      recyclingEfficiencyPercent:
+        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    },
   );
 
   for (const resourceId of [
@@ -528,15 +585,18 @@ it("shreds only the Tree Sapling surplus left by the settlement", () => {
   );
   const result = calculateFactoryTotal(
     modules,
-    activeContracts,
-    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
     {
-      cropYield: cropFarming.yieldMultiplier,
-      cropWater: cropFarming.waterDemandMultiplier,
-      foodConsumption: calculateFoodConsumption(0, 2).multiplier,
-      treeGrowthSpeed: calculateTreeGrowthSpeed(
-        defaultInfiniteResearchLevels.treeGrowthSpeed,
-      ).multiplier,
+      contracts: activeContracts,
+      recyclingEfficiencyPercent:
+        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+      outputModifiers: {
+        cropYield: cropFarming.yieldMultiplier,
+        cropWater: cropFarming.waterDemandMultiplier,
+        foodConsumption: calculateFoodConsumption(0, 2).multiplier,
+        treeGrowthSpeed: calculateTreeGrowthSpeed(
+          defaultInfiniteResearchLevels.treeGrowthSpeed,
+        ).multiplier,
+      },
     },
   );
   const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
@@ -609,8 +669,11 @@ it("keeps the completed advanced recipes current in their operating modules", ()
 it("demand-balances enough Yellowcake for the two-FBR target", () => {
   const result = calculateFactoryTotal(
     modules,
-    activeContracts,
-    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    {
+      contracts: activeContracts,
+      recyclingEfficiencyPercent:
+        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    },
   );
   const yellowcake = result.flows.find((flow) => flow.resourceId === "yellowcake");
   const settlingTank = result.calculation.regularResults.find((candidate) => (
@@ -643,7 +706,11 @@ it("keeps Greenhouse Groundwater Pumps local while Default supplies factory rese
         averageGeneratorOutputMw: 30.2,
         hydrogenFuelDemandPerCycle: 50,
       })),
-    activeContracts,
+    {
+      contracts: activeContracts,
+      recyclingEfficiencyPercent:
+        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+    },
   );
   const groundwater = result.calculation.sourceResults.find(
     (candidate) => (

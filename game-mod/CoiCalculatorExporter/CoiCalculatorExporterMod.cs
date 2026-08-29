@@ -406,7 +406,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":28,");
+            json.Append("\"schemaVersion\":29,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -730,6 +730,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 {
                     json.Append("null");
                 }
+                json.Append(",\"trainStation\":");
+                appendTrainStationConfiguration(json, entity.TrainStation);
                 json.Append('}');
                 if (i < production.ProductionEntities.Count - 1)
                 {
@@ -787,7 +789,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                         json.Append(',');
                     }
                 }
-                json.Append("]}");
+                json.Append("],\"trainStation\":");
+                appendTrainStationConfiguration(json, entity.TrainStation);
+                json.Append('}');
                 if (i < production.AreaEntities.Count - 1)
                 {
                     json.Append(',');
@@ -961,7 +965,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     staticEntity.CenterTile.X,
                     staticEntity.CenterTile.Y,
                     entityZones,
-                    getAreaRecipes(entity, staticEntity)));
+                    getAreaRecipes(entity, staticEntity),
+                    getTrainStationConfiguration(entity)));
             }
 
             if (staticEntity != null && !staticEntity.IsConstructed)
@@ -995,7 +1000,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                             reactor.TargetPowerLevel.ToIntPercentRounded()),
                     dataCenterEntity == null
                         ? (int?)null
-                        : dataCenterEntity.RacksCount));
+                        : dataCenterEntity.RacksCount,
+                    getTrainStationConfiguration(entity)));
             }
 
             WellPump groundwaterPump = entity as WellPump;
@@ -1199,6 +1205,29 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             return String.CompareOrdinal(left.Id, right.Id);
         });
         return recipes;
+    }
+
+    private static TrainStationConfigurationSnapshot getTrainStationConfiguration(
+        IEntity entity)
+    {
+        ITrainStationModule stationModule = entity as ITrainStationModule;
+        if (stationModule == null)
+        {
+            return null;
+        }
+
+        TrainStationProductSnapshot selectedProduct = null;
+        if (stationModule.StoredProduct.HasValue)
+        {
+            var product = stationModule.StoredProduct.Value;
+            selectedProduct = new TrainStationProductSnapshot(
+                product.Id.ToString(),
+                getProtoName(product));
+        }
+
+        return new TrainStationConfigurationSnapshot(
+            stationModule.IsForLoading,
+            selectedProduct);
     }
 
     private static string getProtoName(Proto proto)
@@ -1925,6 +1954,34 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
+    private static void appendTrainStationConfiguration(
+        StringBuilder json,
+        TrainStationConfigurationSnapshot station)
+    {
+        if (station == null)
+        {
+            json.Append("null");
+            return;
+        }
+
+        json.Append('{');
+        json.Append("\"isForLoading\":");
+        json.Append(station.IsForLoading ? "true" : "false");
+        json.Append(",\"selectedProduct\":");
+        if (station.SelectedProduct == null)
+        {
+            json.Append("null");
+        }
+        else
+        {
+            json.Append('{');
+            appendString(json, "productId", station.SelectedProduct.ProductId, true);
+            appendString(json, "name", station.SelectedProduct.Name, false);
+            json.Append('}');
+        }
+        json.Append('}');
+    }
+
     private static void appendHistoryAverage(
         StringBuilder json,
         string name,
@@ -2275,6 +2332,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly List<LogisticsZoneSnapshot> Zones;
         public readonly NuclearReactorConfigurationSnapshot NuclearReactor;
         public readonly int? DataCenterRacks;
+        public readonly TrainStationConfigurationSnapshot TrainStation;
 
         public ProductionEntitySnapshot(
             int entityId,
@@ -2283,7 +2341,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             List<string> recipeIds,
             List<LogisticsZoneSnapshot> zones,
             NuclearReactorConfigurationSnapshot nuclearReactor,
-            int? dataCenterRacks)
+            int? dataCenterRacks,
+            TrainStationConfigurationSnapshot trainStation)
         {
             EntityId = entityId;
             PrototypeId = prototypeId;
@@ -2292,6 +2351,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             Zones = zones;
             NuclearReactor = nuclearReactor;
             DataCenterRacks = dataCenterRacks;
+            TrainStation = trainStation;
         }
     }
 
@@ -2307,6 +2367,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly int TileY;
         public readonly List<LogisticsZoneSnapshot> Zones;
         public readonly List<AreaRecipeSnapshot> Recipes;
+        public readonly TrainStationConfigurationSnapshot TrainStation;
 
         public AreaEntitySnapshot(
             int entityId,
@@ -2318,7 +2379,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             int tileX,
             int tileY,
             List<LogisticsZoneSnapshot> zones,
-            List<AreaRecipeSnapshot> recipes)
+            List<AreaRecipeSnapshot> recipes,
+            TrainStationConfigurationSnapshot trainStation)
         {
             EntityId = entityId;
             PrototypeId = prototypeId;
@@ -2330,6 +2392,33 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             TileY = tileY;
             Zones = zones;
             Recipes = recipes;
+            TrainStation = trainStation;
+        }
+    }
+
+    private sealed class TrainStationConfigurationSnapshot
+    {
+        public readonly bool IsForLoading;
+        public readonly TrainStationProductSnapshot SelectedProduct;
+
+        public TrainStationConfigurationSnapshot(
+            bool isForLoading,
+            TrainStationProductSnapshot selectedProduct)
+        {
+            IsForLoading = isForLoading;
+            SelectedProduct = selectedProduct;
+        }
+    }
+
+    private sealed class TrainStationProductSnapshot
+    {
+        public readonly string ProductId;
+        public readonly string Name;
+
+        public TrainStationProductSnapshot(string productId, string name)
+        {
+            ProductId = productId;
+            Name = name;
         }
     }
 

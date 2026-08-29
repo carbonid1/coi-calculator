@@ -460,6 +460,31 @@ const schema28Snapshot = {
   logisticsZones: [...schema27Snapshot.logisticsZones, { id: 30, name: 'Test' }],
   areaEntities,
 }
+const trainStation = {
+  isForLoading: false,
+  selectedProduct: {
+    productId: 'Product_CopperOreCrushed',
+    name: 'Copper Ore Crushed',
+  },
+}
+const schema29Snapshot = {
+  ...schema28Snapshot,
+  schemaVersion: 29,
+  productionEntities: [
+    ...schema28Snapshot.productionEntities.map(entity => ({ ...entity, trainStation: null })),
+    {
+      entityId: 808,
+      prototypeId: 'TrainStationLoose_ELEC',
+      running: true,
+      recipeIds: [],
+      zones: [{ id: 30, name: 'Test' }],
+      nuclearReactor: null,
+      dataCenterRacks: null,
+      trainStation,
+    },
+  ],
+  areaEntities: schema28Snapshot.areaEntities.map(entity => ({ ...entity, trainStation: null })),
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -606,6 +631,15 @@ describe('game-state snapshot validation', () => {
       schemaVersion: 28,
       areaEntities,
     })
+    expect(normalizeGameStateSnapshot(schema29Snapshot)).toMatchObject({
+      schemaVersion: 29,
+      productionEntities: expect.arrayContaining([
+        expect.objectContaining({
+          prototypeId: 'TrainStationLoose_ELEC',
+          trainStation,
+        }),
+      ]),
+    })
   })
 
   it('requires valid construction ghosts and effective recipes in schema 28', () => {
@@ -623,6 +657,29 @@ describe('game-state snapshot validation', () => {
         ...areaEntities[0],
         recipes: [{ ...areaEntities[0].recipes[0], durationSeconds: 0 }],
       }],
+    })).toBeNull()
+  })
+
+  it('requires explicit station configuration fields in schema 29', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema29Snapshot,
+      productionEntities: schema29Snapshot.productionEntities.map((entity, index) => (
+        index === 0 ? { ...entity, trainStation: undefined } : entity
+      )),
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema29Snapshot,
+      productionEntities: schema29Snapshot.productionEntities.map((entity, index) => (
+        index === 0 ? { ...entity, trainStation } : entity
+      )),
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema29Snapshot,
+      productionEntities: schema29Snapshot.productionEntities.map(entity => (
+        entity.prototypeId === 'TrainStationLoose_ELEC'
+          ? { ...entity, trainStation: { ...trainStation, selectedProduct: { name: '' } } }
+          : entity
+      )),
     })).toBeNull()
   })
 

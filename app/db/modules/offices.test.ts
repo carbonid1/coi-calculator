@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { baseConfig } from "../config";
 import { defaultOfficePlan } from "../offices";
 import { createOfficesModule } from "./offices";
 
@@ -14,9 +15,10 @@ describe("Offices module", () => {
         officeIII: { count: 1, computingBoostStep: 2 as const },
       },
     };
-    const result = calculateFactoryTotal([
-      createOfficesModule(plan),
-    ]);
+    const result = calculateFactoryTotal(
+      [createOfficesModule(plan)],
+      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+    );
     const office = result.calculation.regularResults.find(
       (candidate) => candidate.recipe.id === "officeIII-boost-2",
     );

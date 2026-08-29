@@ -81,6 +81,10 @@ export interface DecayStorage {
 
 export interface Recipe {
   id: string
+  /** Exact stable ID exported by the game for an in-game selectable recipe. */
+  gameRecipeId?: string
+  /** Placement section for a synced train-station module card. */
+  stationRole?: 'input' | 'export'
   /** Optional concise label used when the building name is already visible. */
   displayName?: string
   name: string
@@ -107,6 +111,12 @@ export interface Recipe {
   allocation?: RecipeAllocation
   /** Lower values run first within the same non-primary allocation pass. */
   allocationPriority?: number
+  /** Inputs whose remaining surplus may drive additional utilization after ordinary demand. */
+  consumeSurplusInputIds?: ResourceId[]
+  /** Limits additional surplus consumption to production inside the same physical module. */
+  consumeSurplusInputScope?: 'module'
+  /** Lower values receive a shared surplus resource first. */
+  surplusConsumptionPriority?: number
   /** Input-balanced recipes can consume only net production from their own physical module. */
   balanceInputScope?: 'module'
   sharedCapacity?: SharedCapacity

@@ -43,6 +43,17 @@ export const buildModuleLines = (
     const capacityPool = recipe.sharedCapacity
       ? preset?.capacityPools?.[recipe.sharedCapacity.id]
       : undefined;
+    const constructionGhosts = preset?.constructionGhosts?.[recipe.id] ?? 0;
+    const unplacedPlannedBuildings = preset?.unplacedPlannedBuildings?.[recipe.id] ?? 0;
+    const plannedCurrent = preset?.planMismatches?.find(mismatch => (
+      mismatch.recipeId === recipe.id && mismatch.format === "count"
+    ))?.current;
+    const currentActive = Math.max(0, Math.min(
+      built,
+      preset?.currentActiveBuildings?.[recipe.id]
+        ?? plannedCurrent
+        ?? active - constructionGhosts - unplacedPlannedBuildings,
+    ));
 
     return {
       recipe,
@@ -53,10 +64,14 @@ export const buildModuleLines = (
         : undefined,
       capacityPoolActiveBuildings: capacityPool?.active,
       capacityPoolBuiltBuildings: capacityPool?.built,
-      capacityPoolPlannedBuildings: capacityPool?.planned,
+      capacityPoolCurrentActiveBuildings: capacityPool?.currentActive,
+      capacityPoolConstructionGhosts: capacityPool?.constructionGhosts,
+      capacityPoolUnplacedPlannedBuildings: capacityPool?.unplacedPlanned,
       activeBuildings: active,
+      currentActiveBuildings: currentActive,
       builtBuildings: built,
-      plannedBuildings: preset?.plannedBuildings?.[recipe.id] ?? 0,
+      constructionGhosts,
+      unplacedPlannedBuildings,
       speedLevel,
       operatingMode: fixedIds.has(recipe.id) ? "fixed" : "balanced",
       allocationRatio,

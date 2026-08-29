@@ -1,8 +1,9 @@
+import { Tooltip } from "@carbonid1/design-system";
 import { Cpu, Sparkles } from "lucide-react";
 
 import { cropProductResourceIds } from "../db/crop-farming";
 import { type Module } from "../db/modules/modules";
-import { type ResourceId } from "../db/resources";
+import { resources, type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
@@ -16,6 +17,7 @@ import {
   type MachineZoneSummary,
   type SharedMachineClaim,
 } from "../helpers/machine-allocation/machine-allocation";
+import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
 import { MachineZoneMappingsView } from "./MachineZoneMappingsView";
 import { PlannedBuildsView } from "./PlannedBuildsView";
@@ -38,6 +40,7 @@ interface Props {
   machineZoneClaims?: readonly SharedMachineClaim[];
   machineZones?: MachineZoneSummary[];
   plannedModules?: Module[];
+  requestedExports?: Partial<Record<ResourceId, number>>;
   onAssignMachineZone?: (zoneId: number, claimId: string | null) => void;
   onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
 }
@@ -146,9 +149,18 @@ export const NetSummary: React.FC<Props> = ({
   machineZoneClaims = [],
   machineZones = [],
   plannedModules = [],
+  requestedExports = {},
   onAssignMachineZone,
   onOpenBuilding,
 }) => {
+  const requestedExportRows = typedEntries(requestedExports)
+    .filter(([, quantity]) => quantity > 0)
+    .toSorted(([left], [right]) => (
+      resources[left].name.localeCompare(resources[right].name)
+    ));
+  const requestedExportIds = new Set(
+    requestedExportRows.map(([resourceId]) => resourceId),
+  );
   const electricityFlow = flows.find((flow) => flow.resourceId === "electricity");
   const computingFlow = flows.find((flow) => flow.resourceId === "computing");
   const materialFlows = flows.filter((flow) => (
@@ -157,7 +169,10 @@ export const NetSummary: React.FC<Props> = ({
   const moduleInputFlows = groupByBalance
     ? []
     : materialFlows
-        .filter((flow) => flow.net < -BALANCE_THRESHOLD)
+        .filter((flow) => (
+          flow.net < -BALANCE_THRESHOLD
+          && !requestedExportIds.has(flow.resourceId)
+        ))
         .toSorted((a, b) => a.name.localeCompare(b.name));
   const regularFlows = groupByBalance
     ? materialFlows
@@ -206,6 +221,15 @@ export const NetSummary: React.FC<Props> = ({
     }) ?? [];
   const capacityLimitedSurplusIds = new Set(
     capacityLimitedSurpluses.map(({ flow }) => flow.resourceId),
+  );
+  const hasOperationalSummary = (
+    electricityFlow != null
+    || electricityGenerationCapacityMw != null
+    || (electricityConsumptionKw ?? 0) > 0
+    || computingFlow != null
+    || computingGenerationCapacityTflops != null
+    || (computingConsumptionTflops ?? 0) > 0
+    || (workers ?? 0) > 0
   );
   const renderBalanceGroup = (group: (typeof displayedBalanceGroups)[number]) => {
     if (group.label === "Deficit" && capacityLimitedDeficits.length > 0) {
@@ -359,6 +383,7 @@ export const NetSummary: React.FC<Props> = ({
     && !computingConsumptionTflops
     && computingGenerationCapacityTflops == null
     && !workers
+    && requestedExportRows.length === 0
   ) return null;
 
   return (
@@ -368,13 +393,7 @@ export const NetSummary: React.FC<Props> = ({
         <span className="text-sm font-normal text-gray-500">(per 60s)</span>
       </h3>
 
-      {(electricityFlow
-        || electricityGenerationCapacityMw != null
-        || (electricityConsumptionKw && electricityConsumptionKw > 0)
-        || computingFlow
-        || computingGenerationCapacityTflops != null
-        || (computingConsumptionTflops && computingConsumptionTflops > 0)
-        || (workers && workers > 0)) && (() => {
+      {hasOperationalSummary && (() => {
         const generationMw = electricityFlow?.net ?? 0;
         const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
         const netMw = generationMw - consumptionMw;
@@ -456,21 +475,47 @@ export const NetSummary: React.FC<Props> = ({
         );
       })()}
 
-      {moduleInputFlows.length > 0 && (
+      {(requestedExportRows.length > 0 || moduleInputFlows.length > 0) && (
         <div className="space-y-1 border-b border-border pb-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Module inputs
-          </p>
           {moduleInputFlows.map((flow) => (
             <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
               <span className="text-muted-foreground">
                 {flow.name}
               </span>
-              <span className="font-mono font-semibold text-foreground">
+              <span className="font-mono font-semibold text-destructive">
                 {parseFloat(Math.abs(flow.net).toFixed(2))}
               </span>
             </div>
           ))}
+          {requestedExportRows.length > 0 && moduleInputFlows.length > 0 && (
+            <div aria-hidden="true" className="my-2 border-t border-border" />
+          )}
+          {requestedExportRows.map(([resourceId, requested]) => {
+            const resourceName = resources[resourceId].name;
+            const deficit = Math.max(
+              0,
+              -(flows.find((flow) => flow.resourceId === resourceId)?.net ?? 0),
+            );
+            const projected = Math.max(0, requested - deficit);
+            const hasShortfall = deficit > BALANCE_THRESHOLD;
+            const tooltip = hasShortfall
+              ? `Planned export target: ${formatCapacity(requested)} ${resourceName} per production cycle. Projected delivery: ${formatCapacity(projected)}.`
+              : `Planned export target: ${formatCapacity(requested)} ${resourceName} per production cycle.`;
+
+            return (
+              <Tooltip key={resourceId} label={tooltip} maxWidth={320} className="flex w-full">
+                <div
+                  className="-mx-2 flex w-[calc(100%+1rem)] items-baseline justify-between rounded bg-highlight-muted px-2 py-0.5 text-sm text-highlight-foreground hover:bg-accent"
+                  data-data-source="planned"
+                >
+                  <span>{resourceName}</span>
+                  <span className="font-mono font-semibold tabular-nums">
+                    {formatCapacity(requested)}
+                  </span>
+                </div>
+              </Tooltip>
+            );
+          })}
         </div>
       )}
 
@@ -519,14 +564,14 @@ export const NetSummary: React.FC<Props> = ({
               key={flow.resourceId}
               className="flex justify-between text-sm rounded px-2 -mx-2 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-700/50"
             >
-              <span className="text-gray-600 dark:text-gray-300">
+              <span className="text-foreground">
                 {flow.name}
               </span>
               <span
                 className={`font-mono font-semibold ${
                   flow.net > 0
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-red-600 dark:text-red-400"
+                    ? "text-success"
+                    : "text-destructive"
                 }`}
               >
                 {flow.net > 0 ? `+${parseFloat(flow.net.toFixed(2))}` : parseFloat(flow.net.toFixed(2))}

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 
 vi.mock("@carbonid1/design-system", () => ({
+  cn: (...values: (string | undefined)[]) => values.filter(Boolean).join(" "),
   Tooltip: ({ children }: { children: ReactNode }) => children,
 }));
 
@@ -19,4 +20,25 @@ it("always shows operational load", () => {
 
   expect(html).toContain("Load");
   expect(html).toContain("5 / 5");
+});
+
+it("distinguishes active, paused, construction ghost, and unplaced plan states", () => {
+  const html = renderToStaticMarkup(
+    <BuildingCount
+      load={8}
+      active={8}
+      currentActive={4}
+      built={5}
+      ghosts={2}
+      planned={2}
+    />,
+  );
+
+  expect(html).toContain(
+    'aria-label="4 active buildings · 1 paused building · 2 construction ghost buildings · 2 planned, not placed buildings"',
+  );
+  expect(html).toContain("text-success");
+  expect(html).toContain("text-attention-foreground");
+  expect(html).toContain("text-foreground");
+  expect(html).toContain("text-highlight-foreground");
 });

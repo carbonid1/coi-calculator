@@ -12,6 +12,37 @@ export const DEFAULT_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
 export const plannedNewDefaultBuildings = {} as const;
 
+const plannedCopperBuildingTargets = {
+  "arc-furnace-ii-copper-scrap": 5,
+  "arc-furnace-ii-copper-ore": 5,
+  "metal-caster-ii-copper": 10,
+  "copper-electrolysis-acid": 10,
+} as const;
+
+export const unplacedPlannedDefaultBuildings = {
+  "arc-furnace-ii-copper-scrap": 1,
+  "arc-furnace-ii-copper-ore": 1,
+  "metal-caster-ii-copper": 2,
+  "copper-electrolysis-acid": 2,
+} as const;
+
+const plannedDefaultCapacityPools = {
+  "arc-furnace-ii-copper": {
+    active: 5,
+    built: 4,
+    currentActive: 4,
+    constructionGhosts: 0,
+    unplacedPlanned: 1,
+  },
+} as const;
+
+const currentActiveDefaultBuildings = {
+  "arc-furnace-ii-copper-scrap": 4,
+  "arc-furnace-ii-copper-ore": 4,
+  "metal-caster-ii-copper": 8,
+  "copper-electrolysis-acid": 8,
+} as const;
+
 /** Current Default-area values manually confirmed from the game but not snapshot-synced yet. */
 export const modeledDefaultRecipeIds = [
   "assembly-v-composite-core",
@@ -66,6 +97,7 @@ export const modeledDefaultRecipeIds = [
 
 export const plannedDefaultBuildings = {
   ...plannedNewDefaultBuildings,
+  ...plannedCopperBuildingTargets,
 } as const;
 
 export const plannedDefaultBuiltBuildings = Object.fromEntries(
@@ -398,6 +430,9 @@ const defaultBase: Module = {
           Object.keys(plannedDefaultBuildings).map((recipeId) => [recipeId, "planned"]),
         ),
       },
+      currentActiveBuildings: currentActiveDefaultBuildings,
+      unplacedPlannedBuildings: unplacedPlannedDefaultBuildings,
+      capacityPools: plannedDefaultCapacityPools,
       fixed: [
         "general-evaporation-pond-heated-brine-surplus",
       ],

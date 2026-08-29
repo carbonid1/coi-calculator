@@ -1,13 +1,19 @@
 import { type Recipe } from "../../db/recipes";
 
-type DisplayableRecipe = Pick<Recipe, "building" | "displayName" | "name">;
+type DisplayableRecipe = Pick<
+  Recipe,
+  "building" | "displayName" | "gameRecipeId" | "name"
+>;
 
 /**
  * Returns the concise, user-facing recipe label used next to a building name.
- * Explicit labels win; legacy names retain their parenthesized configuration.
+ * Exact exported game IDs win. Calculator labels remain a fallback for
+ * modeled recipes that do not have a game recipe identity yet.
  */
 export const getRecipeDisplayName = (recipe: DisplayableRecipe) => {
+  if (recipe.gameRecipeId) return recipe.gameRecipeId;
   if (recipe.displayName) return recipe.displayName;
+  if (recipe.name === recipe.building) return recipe.building;
 
   const configuration = recipe.name.match(/\(([^()]*)\)$/)?.[1];
 

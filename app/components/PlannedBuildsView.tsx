@@ -2,10 +2,10 @@ import { Button, Tooltip } from "@carbonid1/design-system";
 import {
   Boxes,
   CircleMinus,
+  CirclePause,
   CirclePlus,
   Hammer,
   MapPin,
-  Pause,
   Play,
   Settings2,
   Tags,
@@ -25,6 +25,7 @@ import {
   getPlannedFollowUpSummaries,
   getPlanMismatchSummaries,
 } from "../helpers/planned-builds/planned-builds";
+import { BuildingStateCounts } from "./BuildingStateCounts";
 import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {
@@ -57,7 +58,7 @@ const getChecklistLocation = (planned: {
 const mismatchIcons = {
   assign: Tags,
   build: Hammer,
-  pause: Pause,
+  pause: CirclePause,
   unpause: Play,
   upgrade: Hammer,
   configure: Settings2,
@@ -163,9 +164,10 @@ export const PlannedBuildsView: React.FC<Props> = ({
                   <span className="block font-medium text-foreground">
                     {machine.built} built
                   </span>
-                  <span className="block">
-                    {machine.running} running · {machine.paused} paused
-                  </span>
+                  <BuildingStateCounts
+                    active={machine.running}
+                    paused={machine.paused}
+                  />
                 </span>
               </div>
             ))}
@@ -204,8 +206,11 @@ export const PlannedBuildsView: React.FC<Props> = ({
                       </span>
                       <span className="block text-xs text-muted-foreground">
                         {zoneIdentifier} · {zone.built} {zone.machineName}{zone.built === 1 ? "" : "s"}
-                        {` · ${zone.running} running · ${zone.paused} paused`}
                       </span>
+                      <BuildingStateCounts
+                        active={zone.running}
+                        paused={zone.paused}
+                      />
                     </span>
                   </span>
                   {zone.needsAssignment && (
@@ -437,9 +442,9 @@ export const PlannedBuildsView: React.FC<Props> = ({
                   onClick={() => onOpenBuilding(planned.diagnostic)}
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <Pause
+                    <CirclePause
                       aria-hidden="true"
-                      className="size-4 shrink-0 text-highlight-foreground"
+                      className="size-4 shrink-0 text-attention-foreground"
                     />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-foreground">

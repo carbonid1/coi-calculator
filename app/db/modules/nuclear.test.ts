@@ -4,6 +4,7 @@ import { type SyncedProductionEntity } from "../../game-state";
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateSolarPower } from "../../helpers/modifiers/calculate-solar-power";
+import { baseConfig } from "../config";
 import { emptyPlanningBaselines } from "../planning-baselines";
 import { defaultInfiniteResearchLevels } from "../research";
 import { attachSolarPanelsToModule } from "./area-solar";
@@ -343,7 +344,10 @@ it("keeps standard and tall seawater pumps distinct while sharing the plan targe
 });
 
 it("models the two-FBR checkpoint and its external requirements", () => {
-  const result = calculateFactoryTotal([nuclear]);
+  const result = calculateFactoryTotal(
+    [nuclear],
+    { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+  );
   const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
     (candidate) => candidate.resourceId === resourceId,
   );
@@ -453,9 +457,10 @@ it("treats the baseline as nuclear generation in addition to solar", () => {
   );
   const result = calculateFactoryTotal(
     [nuclear, defaultWithSolar],
-    [],
-    50,
-    { solarPower: solarPowerOutput.multiplier },
+    {
+      recyclingEfficiencyPercent: 50,
+      outputModifiers: { solarPower: solarPowerOutput.multiplier },
+    },
   );
   const electricity = result.calculation.allResourceFlows.find(
     (flow) => flow.resourceId === "electricity",

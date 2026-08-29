@@ -1,4 +1,3 @@
-import { baseConfig } from "../../db/config";
 import { type ActiveContract } from "../../db/contracts";
 import { type Module } from "../../db/modules/modules";
 import { type ResourceId } from "../../db/resources";
@@ -11,6 +10,7 @@ import {
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../modifiers/recipe-output";
+import { getPresetResourceDemands } from "../preset-resource-demands/preset-resource-demands";
 import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface FactoryTotalResult {
@@ -20,6 +20,16 @@ export interface FactoryTotalResult {
   calculation: ReturnType<typeof calculateNet>;
   electricityDemandMw: number;
   computingDemandTflops: number;
+}
+
+export interface FactoryTotalOptions {
+  /** Contracts enabled for this specific calculation scenario. */
+  contracts?: ActiveContract[];
+  /** Effective recycling efficiency after synced, modeled, and planned modifiers. */
+  recyclingEfficiencyPercent: number;
+  outputModifiers?: RecipeModifierMultipliers;
+  shipsFuelUseMultiplier?: number;
+  contractsProfitMultiplier?: number;
 }
 
 interface ElectricityDispatchGroup {
@@ -420,11 +430,13 @@ const calculateWithDispatch = (
 
 export const calculateFactoryTotal = (
   modules: Module[],
-  contracts: ActiveContract[] = [],
-  recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
-  outputModifiers: RecipeModifierMultipliers = {},
-  shipsFuelUseMultiplier = 1,
-  contractsProfitMultiplier = 1,
+  {
+    contracts = [],
+    recyclingEfficiencyPercent,
+    outputModifiers = {},
+    shipsFuelUseMultiplier = 1,
+    contractsProfitMultiplier = 1,
+  }: FactoryTotalOptions,
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
@@ -442,7 +454,7 @@ export const calculateFactoryTotal = (
     allLines.push(...lines);
 
     for (const resourceId of mod.localResources ?? []) localResourceIds.add(resourceId);
-    for (const [resourceId, quantity] of typedEntries(preset?.fixedDemands ?? {})) {
+    for (const [resourceId, quantity] of typedEntries(getPresetResourceDemands(preset))) {
       fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
     }
     for (const [groupId, quantity] of Object.entries(preset?.electricityDispatchTargets ?? {})) {

@@ -143,6 +143,16 @@ export interface SyncedNuclearReactorConfiguration {
   targetPowerPercent: number
 }
 
+export interface SyncedProductRef {
+  productId: string
+  name: string
+}
+
+export interface SyncedTrainStationConfiguration {
+  isForLoading: boolean
+  selectedProduct: SyncedProductRef | null
+}
+
 /**
  * Stable, recipe-aware physical building identity exported for module binding.
  * The payload is intentionally module-neutral; vehicle-zone ownership decides
@@ -156,6 +166,8 @@ export interface SyncedProductionEntity {
   zones: SyncedLogisticsZoneRef[]
   nuclearReactor: SyncedNuclearReactorConfiguration | null
   dataCenterRacks?: number | null
+  /** Present in schema 29 and newer. */
+  trainStation?: SyncedTrainStationConfiguration | null
 }
 
 export interface SyncedAreaRecipeProduct {
@@ -199,6 +211,8 @@ export interface SyncedAreaEntity {
   }
   zones: SyncedLogisticsZoneRef[]
   recipes: SyncedAreaRecipe[]
+  /** Present in schema 29 and newer. */
+  trainStation?: SyncedTrainStationConfiguration | null
 }
 
 export interface SyncedLogisticsZoneRef {
@@ -276,7 +290,8 @@ export const NAMED_AREA_ENTITY_SCHEMA_VERSION = 25 as const
 export const GROUNDWATER_RESERVE_SCHEMA_VERSION = 26 as const
 export const MAINTENANCE_ENTITY_SCHEMA_VERSION = 27 as const
 export const AREA_GHOST_SCHEMA_VERSION = 28 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 28 as const
+export const TRAIN_STATION_PRODUCT_SCHEMA_VERSION = 29 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 29 as const
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -300,6 +315,7 @@ export type SupportedGameStateSchemaVersion =
   | 25
   | 26
   | 27
+  | 28
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -681,6 +697,38 @@ const isNuclearReactorConfiguration = (
   isNonNegativeInteger(value.targetPowerPercent) &&
   value.targetPowerPercent <= 400
 
+const trainStationPrototypeIds = new Set([
+  'TrainStationFluid_ELEC',
+  'TrainStationLoose_ELEC',
+  'TrainStationMolten_ELEC',
+  'TrainStationUnit_ELEC',
+])
+
+const isProductRef = (value: unknown): value is SyncedProductRef =>
+  isUnknownRecord(value) &&
+  typeof value.productId === 'string' &&
+  value.productId.length > 0 &&
+  typeof value.name === 'string' &&
+  value.name.length > 0
+
+const isTrainStationConfiguration = (
+  value: unknown,
+): value is SyncedTrainStationConfiguration =>
+  isUnknownRecord(value) &&
+  typeof value.isForLoading === 'boolean' &&
+  (value.selectedProduct === null || isProductRef(value.selectedProduct))
+
+const hasValidTrainStationConfiguration = (
+  value: Record<string, unknown>,
+  schemaVersion: SupportedGameStateSchemaVersion,
+) => {
+  if (schemaVersion < TRAIN_STATION_PRODUCT_SCHEMA_VERSION) return true
+
+  return trainStationPrototypeIds.has(String(value.prototypeId))
+    ? value.trainStation === null || isTrainStationConfiguration(value.trainStation)
+    : value.trainStation === null
+}
+
 const isProductionEntity = (
   value: unknown,
   schemaVersion: SupportedGameStateSchemaVersion,
@@ -703,7 +751,8 @@ const isProductionEntity = (
     schemaVersion < COMPUTING_ENTITY_SCHEMA_VERSION ||
     (value.prototypeId === 'DataCenter' && isNonNegativeInteger(value.dataCenterRacks)) ||
     (value.prototypeId !== 'DataCenter' && value.dataCenterRacks === null)
-  )
+  ) &&
+  hasValidTrainStationConfiguration(value, schemaVersion)
 
 const normalizeProductionEntities = (
   value: unknown,
@@ -764,7 +813,10 @@ const isAreaRecipe = (value: unknown): value is SyncedAreaRecipe => {
     new Set(outputs.map(output => output.productId)).size === outputs.length
 }
 
-const isAreaEntity = (value: unknown): value is SyncedAreaEntity => {
+const isAreaEntity = (
+  value: unknown,
+  schemaVersion: SupportedGameStateSchemaVersion,
+): value is SyncedAreaEntity => {
   if (
     !isUnknownRecord(value) ||
     !isNonNegativeInteger(value.entityId) ||
@@ -792,7 +844,8 @@ const isAreaEntity = (value: unknown): value is SyncedAreaEntity => {
   return zones.length === value.zones.length &&
     recipes.length === value.recipes.length &&
     new Set(zones.map(zone => zone.id)).size === zones.length &&
-    new Set(recipes.map(recipe => recipe.id)).size === recipes.length
+    new Set(recipes.map(recipe => recipe.id)).size === recipes.length &&
+    hasValidTrainStationConfiguration(value, schemaVersion)
 }
 
 const normalizeAreaEntities = (
@@ -802,7 +855,7 @@ const normalizeAreaEntities = (
   if (schemaVersion < AREA_GHOST_SCHEMA_VERSION) return []
   if (!Array.isArray(value)) return null
 
-  const entities = value.filter(isAreaEntity)
+  const entities = value.filter(entity => isAreaEntity(entity, schemaVersion))
 
   return entities.length === value.length &&
     new Set(entities.map(entity => entity.entityId)).size === entities.length
@@ -1047,6 +1100,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 25 &&
     schemaVersion !== 26 &&
     schemaVersion !== 27 &&
+    schemaVersion !== 28 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null

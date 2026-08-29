@@ -20,14 +20,22 @@ export interface ProductionLine {
   capacityPoolActiveBuildings?: number;
   /** Distinct built physical buildings in the shared pool. */
   capacityPoolBuiltBuildings?: number;
+  /** Current active physical buildings in the shared pool. */
+  capacityPoolCurrentActiveBuildings?: number;
   /** Distinct construction ghosts in the shared pool. */
-  capacityPoolPlannedBuildings?: number;
+  capacityPoolConstructionGhosts?: number;
+  /** Distinct planned buildings in the shared pool that have not been placed. */
+  capacityPoolUnplacedPlannedBuildings?: number;
   /** Unpaused physical buildings available to this recipe or shared pool. */
   activeBuildings: number;
+  /** Current active buildings, excluding projected construction and plans. */
+  currentActiveBuildings?: number;
   /** Physical buildings present, including paused buildings. */
   builtBuildings: number;
-  /** Construction ghosts included in activeBuildings as planned capacity. */
-  plannedBuildings?: number;
+  /** Observable construction ghosts included in activeBuildings. */
+  constructionGhosts?: number;
+  /** Planned buildings not yet represented by a construction ghost. */
+  unplacedPlannedBuildings?: number;
   speedLevel: number;
   operatingMode: OperatingMode;
   /** Factory-wide dispatch can assign a utilization without changing installed capacity. */
@@ -53,10 +61,14 @@ export interface RegularResult {
   capacityPoolId?: string;
   capacityPoolActiveBuildings?: number;
   capacityPoolBuiltBuildings?: number;
-  capacityPoolPlannedBuildings?: number;
+  capacityPoolCurrentActiveBuildings?: number;
+  capacityPoolConstructionGhosts?: number;
+  capacityPoolUnplacedPlannedBuildings?: number;
   activeBuildings: number;
+  currentActiveBuildings?: number;
   builtBuildings: number;
-  plannedBuildings?: number;
+  constructionGhosts?: number;
+  unplacedPlannedBuildings?: number;
   operatingMode: OperatingMode;
   supplyRatio: number;
   speedLevel: number;
@@ -73,10 +85,14 @@ export interface PassiveResult {
   capacityPoolId?: string;
   capacityPoolActiveBuildings?: number;
   capacityPoolBuiltBuildings?: number;
-  capacityPoolPlannedBuildings?: number;
+  capacityPoolCurrentActiveBuildings?: number;
+  capacityPoolConstructionGhosts?: number;
+  capacityPoolUnplacedPlannedBuildings?: number;
   activeBuildings: number;
+  currentActiveBuildings?: number;
   builtBuildings: number;
-  plannedBuildings?: number;
+  constructionGhosts?: number;
+  unplacedPlannedBuildings?: number;
   supplyRatio: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
   actualOutputs: { resourceId: ResourceId; quantity: number }[];
@@ -118,6 +134,12 @@ const orderSharedCapacity = (lines: ProductionLine[]) => {
 const orderAllocatedLines = (lines: ProductionLine[]) => orderSharedCapacity(lines)
   .toSorted((a, b) => (
     (a.recipe.allocationPriority ?? 0) - (b.recipe.allocationPriority ?? 0)
+  ));
+
+const orderSurplusConsumers = (lines: ProductionLine[]) => orderSharedCapacity(lines)
+  .toSorted((a, b) => (
+    (a.recipe.surplusConsumptionPriority ?? 0)
+    - (b.recipe.surplusConsumptionPriority ?? 0)
   ));
 
 const orderInputPriorities = (lines: ProductionLine[]) => orderSharedCapacity(lines)
@@ -176,7 +198,16 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
     );
   };
 
-  return { availableRatio, use };
+  const snapshot = () => new Map(remainingByPool);
+  const restore = (state: ReadonlyMap<string, number>) => {
+    remainingByPool.clear();
+
+    for (const [poolId, remaining] of state) {
+      remainingByPool.set(poolId, remaining);
+    }
+  };
+
+  return { availableRatio, restore, snapshot, use };
 };
 
 const orderDemandBalancedLines = (lines: ProductionLine[]) => {
@@ -312,6 +343,9 @@ export const calculateNet = (
   );
   const demandBalancedLines = orderDemandBalancedLines(
     primaryBalancedLines.filter((line) => line.recipe.balanceBy === "output"),
+  );
+  const surplusConsumerLines = orderSurplusConsumers(
+    balancedLines.filter((line) => (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0),
   );
   const demandProducedIds = new Set(
     demandBalancedLines.flatMap((line) => (
@@ -769,6 +803,163 @@ export const calculateNet = (
       applyRegularLine(line, ratio);
     }
   };
+  const cloneFlows = (source: FlowMap): FlowMap => new Map(
+    [...source].map(([resourceId, flow]) => [resourceId, {
+      consumed: flow.consumed,
+      produced: flow.produced,
+      recyclableSourcesConsumed: new Map(flow.recyclableSourcesConsumed),
+      recyclableSourcesProduced: new Map(flow.recyclableSourcesProduced),
+    }]),
+  );
+  const cloneModuleFlows = (
+    source: ReadonlyMap<string, { consumed: number; produced: number }>,
+  ) => new Map(
+    [...source].map(([key, flow]) => [key, { ...flow }]),
+  );
+  const cloneLineResourceMaps = (
+    source: ReadonlyMap<ProductionLine, Map<ResourceId, number>>,
+  ) => new Map(
+    [...source].map(([line, quantities]) => [line, new Map(quantities)]),
+  );
+  const restoreMap = <Key, Value>(
+    target: Map<Key, Value>,
+    source: ReadonlyMap<Key, Value>,
+    cloneValue: (value: Value) => Value,
+  ) => {
+    target.clear();
+
+    for (const [key, value] of source) {
+      target.set(key, cloneValue(value));
+    }
+  };
+  const snapshotAllocationState = () => ({
+    flows: cloneFlows(flows),
+    actualModuleFlows: cloneModuleFlows(actualModuleFlows),
+    allocationRatios: new Map(allocationRatios),
+    capacity: capacityTracker.snapshot(),
+    createdRecyclableSources: cloneLineResourceMaps(createdRecyclableSources),
+    sortedRecyclableSources: cloneLineResourceMaps(sortedRecyclableSources),
+  });
+  const restoreAllocationState = (
+    state: ReturnType<typeof snapshotAllocationState>,
+  ) => {
+    restoreMap(flows, state.flows, (flow) => ({
+      consumed: flow.consumed,
+      produced: flow.produced,
+      recyclableSourcesConsumed: new Map(flow.recyclableSourcesConsumed),
+      recyclableSourcesProduced: new Map(flow.recyclableSourcesProduced),
+    }));
+    restoreMap(actualModuleFlows, state.actualModuleFlows, (flow) => ({ ...flow }));
+    restoreMap(allocationRatios, state.allocationRatios, (ratio) => ratio);
+    restoreMap(
+      createdRecyclableSources,
+      state.createdRecyclableSources,
+      (quantities) => new Map(quantities),
+    );
+    restoreMap(
+      sortedRecyclableSources,
+      state.sortedRecyclableSources,
+      (quantities) => new Map(quantities),
+    );
+    capacityTracker.restore(state.capacity);
+  };
+  const hasNewDeficit = (
+    before: ReadonlyMap<string, { consumed: number; produced: number }>,
+    after: ReadonlyMap<string, { consumed: number; produced: number }>,
+  ) => {
+    const keys = new Set([...before.keys(), ...after.keys()]);
+
+    for (const key of keys) {
+      const beforeFlow = before.get(key);
+      const afterFlow = after.get(key);
+      const beforeAvailable = (beforeFlow?.produced ?? 0) - (beforeFlow?.consumed ?? 0);
+      const afterAvailable = (afterFlow?.produced ?? 0) - (afterFlow?.consumed ?? 0);
+
+      if (afterAvailable < Math.min(0, beforeAvailable) - 1e-7) return true;
+    }
+
+    return false;
+  };
+  const allocationIntroducedDeficit = (
+    baseline: ReturnType<typeof snapshotAllocationState>,
+  ) => (
+    hasNewDeficit(baseline.flows, flows)
+    || hasNewDeficit(baseline.actualModuleFlows, actualModuleFlows)
+  );
+  const applyAdditionalSurplusConsumption = () => {
+    for (const line of surplusConsumerLines) {
+      const currentRatio = allocationRatios.get(line) ?? 0;
+      const remainingLineRatio = Math.max(0, 1 - currentRatio);
+
+      if (remainingLineRatio <= 1e-9) continue;
+
+      const surplusInputIds = new Set(line.recipe.consumeSurplusInputIds);
+      const factor = lineFactor(line);
+      let ratio = Math.min(
+        remainingLineRatio,
+        capacityTracker.availableRatio(line),
+      );
+
+      for (const input of line.recipe.inputs) {
+        const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+        if (needed <= 0) continue;
+
+        if (surplusInputIds.has(input.resourceId)) {
+          const flow = line.recipe.consumeSurplusInputScope === "module"
+            ? getActualModuleFlow(line.moduleId, input.resourceId)
+            : getFlow(input.resourceId);
+          const available = flow.produced - flow.consumed;
+
+          ratio = Math.min(ratio, Math.max(0, available / needed));
+          continue;
+        }
+
+        // Supporting internal production is demand-propagated after this pass.
+        // External materials must already be available; do not invent imports
+        // merely to eliminate a preferred surplus resource.
+        if (internallyProducedIds.has(input.resourceId)) continue;
+
+        const flow = getFlow(input.resourceId);
+        const available = flow.produced - flow.consumed;
+
+        ratio = Math.min(ratio, Math.max(0, available / needed));
+      }
+
+      if (ratio <= 1e-9) continue;
+
+      const baseline = snapshotAllocationState();
+
+      applyRegularLine(line, ratio, true);
+      propagateAdditionalDemand();
+
+      if (!allocationIntroducedDeficit(baseline)) continue;
+
+      let feasibleRatio = 0;
+      let infeasibleRatio = ratio;
+
+      for (let iteration = 0; iteration < 24; iteration += 1) {
+        const candidateRatio = (feasibleRatio + infeasibleRatio) / 2;
+
+        restoreAllocationState(baseline);
+        applyRegularLine(line, candidateRatio, true);
+        propagateAdditionalDemand();
+
+        if (allocationIntroducedDeficit(baseline)) {
+          infeasibleRatio = candidateRatio;
+        } else {
+          feasibleRatio = candidateRatio;
+        }
+      }
+
+      restoreAllocationState(baseline);
+
+      if (feasibleRatio > 1e-9) {
+        applyRegularLine(line, feasibleRatio, true);
+        propagateAdditionalDemand();
+      }
+    }
+  };
   const propagateAdditionalDemand = () => {
     for (let iteration = 0; iteration < demandBalancedLines.length; iteration += 1) {
       let changed = false;
@@ -932,6 +1123,8 @@ export const calculateNet = (
   reservePlannedSourceInputs();
   applyLowerPriorityLines(surplusLines);
   propagateAdditionalDemand();
+  applyAdditionalSurplusConsumption();
+  propagateAdditionalDemand();
 
   // Regular results
   const regularResults: RegularResult[] = regularLines.map((line) => ({
@@ -941,10 +1134,14 @@ export const calculateNet = (
     capacityPoolId: line.capacityPoolId,
     capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
     capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
-    capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
+    capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
+    capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
+    capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
     activeBuildings: line.activeBuildings,
+    currentActiveBuildings: line.currentActiveBuildings,
     builtBuildings: line.builtBuildings,
-    plannedBuildings: line.plannedBuildings,
+    constructionGhosts: line.constructionGhosts,
+    unplacedPlannedBuildings: line.unplacedPlannedBuildings,
     operatingMode: line.operatingMode,
     supplyRatio: allocationRatios.get(line) ?? 0,
     speedLevel: line.speedLevel,
@@ -1088,10 +1285,14 @@ export const calculateNet = (
       capacityPoolId: line.capacityPoolId,
       capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
       capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
-      capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
+      capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
+      capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
+      capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
       activeBuildings: line.activeBuildings,
+      currentActiveBuildings: line.currentActiveBuildings,
       builtBuildings: line.builtBuildings,
-      plannedBuildings: line.plannedBuildings,
+      constructionGhosts: line.constructionGhosts,
+      unplacedPlannedBuildings: line.unplacedPlannedBuildings,
       supplyRatio: line.activeBuildings > 0
         ? Math.min(1, sourceScale / line.activeBuildings)
         : 0,
@@ -1215,10 +1416,14 @@ export const calculateNet = (
         capacityPoolId: line.capacityPoolId,
         capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
         capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
-        capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
+        capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
+        capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
+        capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
         activeBuildings: 0,
+        currentActiveBuildings: line.currentActiveBuildings,
         builtBuildings: line.builtBuildings,
-        plannedBuildings: line.plannedBuildings,
+        constructionGhosts: line.constructionGhosts,
+        unplacedPlannedBuildings: line.unplacedPlannedBuildings,
         supplyRatio: 0,
         actualInputs: [],
         actualOutputs: [],
@@ -1277,10 +1482,14 @@ export const calculateNet = (
       capacityPoolId: line.capacityPoolId,
       capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
       capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
-      capacityPoolPlannedBuildings: line.capacityPoolPlannedBuildings,
+      capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
+      capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
+      capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
       activeBuildings: line.activeBuildings,
+      currentActiveBuildings: line.currentActiveBuildings,
       builtBuildings: line.builtBuildings,
-      plannedBuildings: line.plannedBuildings,
+      constructionGhosts: line.constructionGhosts,
+      unplacedPlannedBuildings: line.unplacedPlannedBuildings,
       supplyRatio: utilizationRatio,
       actualInputs,
       actualOutputs,

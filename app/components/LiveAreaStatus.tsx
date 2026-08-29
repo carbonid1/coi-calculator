@@ -1,7 +1,7 @@
-import { Badge } from '@carbonid1/design-system'
-import { CircleAlert, Ghost, MapPinned } from 'lucide-react'
+import { CircleAlert, MapPinned } from 'lucide-react'
 
 import { type LiveAreaModuleState } from '../db/modules/modules'
+import { BuildingStateCounts } from './BuildingStateCounts'
 
 interface Props {
   state: LiveAreaModuleState
@@ -24,14 +24,15 @@ export const LiveAreaStatus: React.FC<Props> = ({ state }) => {
 
   return (
     <section className="space-y-2" aria-label="Live area inventory">
-      <div className="flex flex-wrap gap-2">
-        <Badge variant="success">{state.constructedBuildings} synced</Badge>
-        {state.plannedBuildings > 0 && (
-          <Badge variant="highlight" className="gap-1">
-            <Ghost aria-hidden="true" className="size-3" />
-            {state.plannedBuildings} planned
-          </Badge>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
+        <BuildingStateCounts
+          active={state.activeBuildings}
+          paused={state.pausedBuildings}
+          ghosts={state.constructionGhosts}
+        />
+        <span className="text-xs text-muted-foreground">
+          {state.constructedBuildings} constructed · snapshot synced
+        </span>
       </div>
 
       {state.issues.length > 0 && (
@@ -52,4 +53,3 @@ export const LiveAreaStatus: React.FC<Props> = ({ state }) => {
     </section>
   )
 }
-

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { baseConfig } from "../../db/config";
 import { activeContracts } from "../../db/contracts";
 import {
   attachMaintenanceDepotsToModule,
@@ -16,6 +17,10 @@ import { defaultInfiniteResearchLevels } from "../../db/research";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { calculateFactoryTotal } from "./factory-total";
+
+const baselineFactoryOptions = {
+  recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+};
 
 const maintenanceDemand = {
   maintenanceI: 547.8,
@@ -46,7 +51,10 @@ const modulesWithSyncedHistory = modules.map(module => {
 
 describe("Factory Total contracts", () => {
   it("uses the fixed active Uranium import plan", () => {
-    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, {
+      ...baselineFactoryOptions,
+      contracts: activeContracts,
+    });
     const contractResult = result.contractResults.at(0);
 
     expect(contractResult).toMatchObject({
@@ -62,7 +70,10 @@ describe("Factory Total contracts", () => {
   });
 
   it("uses all eight current Hydrogen Reformers to cover the expanded demand", () => {
-    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, {
+      ...baselineFactoryOptions,
+      contracts: activeContracts,
+    });
     const reformer = result.calculation.regularResults.find(
       ({ recipe }) => recipe.id === "hydrogen-reformer-super",
     );
@@ -79,7 +90,10 @@ describe("Factory Total contracts", () => {
   });
 
   it("balances the Iron Ore contract against live factory demand", () => {
-    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, {
+      ...baselineFactoryOptions,
+      contracts: activeContracts,
+    });
     const contractResult = result.contractResults.find(
       ({ contract }) => contract.id === "iron-ore-for-vehicle-parts-ii",
     );
@@ -127,7 +141,10 @@ describe("Factory Total contracts", () => {
   });
 
   it("balances the Copper Ore contract against live factory demand", () => {
-    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, {
+      ...baselineFactoryOptions,
+      contracts: activeContracts,
+    });
     const contractResult = result.contractResults.find(
       ({ contract }) => contract.id === "copper-ore-for-medical-supplies-iii",
     );
@@ -140,13 +157,13 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.exported).toBeCloseTo(23.748484615384623, 8);
-    expect(contractResult?.imported).toBeCloseTo(154.36515, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(154.36515, 5);
+    expect(contractResult?.exported).toBeCloseTo(29.421814325929798, 8);
+    expect(contractResult?.imported).toBeCloseTo(191.24179311854368, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(191.24179311854368, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(27.88220521875, 8);
-    expect(copperOre?.consumed).toBeCloseTo(154.36515, 5);
-    expect(copperOre?.produced).toBeCloseTo(154.36515, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(34.54304888203695, 8);
+    expect(copperOre?.consumed).toBeCloseTo(191.24179311854368, 5);
+    expect(copperOre?.produced).toBeCloseTo(191.24179311854368, 5);
     expect(copperOre?.net).toBeCloseTo(0, 5);
     const copperMineOutput = copperMine?.actualOutputs.find(
       (output) => output.resourceId === "copperOre",
@@ -156,7 +173,10 @@ describe("Factory Total contracts", () => {
   });
 
   it("replaces local Ammonia production with the demand-balanced contract", () => {
-    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, {
+      ...baselineFactoryOptions,
+      contracts: activeContracts,
+    });
     const ammoniaContract = result.contractResults.find(
       ({ contract }) => contract.id === "ammonia-for-food-pack",
     );
@@ -168,13 +188,16 @@ describe("Factory Total contracts", () => {
     );
 
     expect(ammoniaContract?.imported).toBeGreaterThan(0);
-    expect(ammoniaContract?.uncoveredImported).toBe(0);
+    expect(ammoniaContract?.uncoveredImported).toBeCloseTo(0, 10);
     expect(localAmmonia).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
     expect(localNitrogen).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
   });
 
   it("mines Coal on demand while every local Coal Maker is paused", () => {
-    const result = calculateFactoryTotal(modulesWithSyncedHistory, activeContracts);
+    const result = calculateFactoryTotal(modulesWithSyncedHistory, {
+      ...baselineFactoryOptions,
+      contracts: activeContracts,
+    });
     const coalMaker = result.calculation.regularResults.find(
       ({ recipe }) => recipe.id === "coal-maker-wood",
     );
@@ -199,15 +222,18 @@ describe("Factory Total contracts", () => {
 
     const result = calculateFactoryTotal(
       modulesWithSyncedHistory,
-      contract
-        ? [{
-            ...contract,
-            plan: {
-              ...contract.plan,
-              importedPerProductionCycle: 36,
-            },
-          }]
-        : [],
+      {
+        ...baselineFactoryOptions,
+        contracts: contract
+          ? [{
+              ...contract,
+              plan: {
+                ...contract.plan,
+                importedPerProductionCycle: 36,
+              },
+            }]
+          : [],
+      },
     );
     const uranium = result.flows.find((flow) => flow.resourceId === "uraniumOre");
 
@@ -226,19 +252,22 @@ describe("Factory Total contracts", () => {
 
     const result = calculateFactoryTotal(
       modulesWithSyncedHistory,
-      contract
-        ? [{
-            ...contract,
-            plan: {
-              ...contract.plan,
-              importedPerProductionCycle: null,
-              shipping: {
-                ...contract.plan.shipping,
-                roundTripDurationProductionCycles: 40,
+      {
+        ...baselineFactoryOptions,
+        contracts: contract
+          ? [{
+              ...contract,
+              plan: {
+                ...contract.plan,
+                importedPerProductionCycle: null,
+                shipping: {
+                  ...contract.plan.shipping,
+                  roundTripDurationProductionCycles: 40,
+                },
               },
-            },
-          }]
-        : [],
+            }]
+          : [],
+      },
     );
     const uranium = result.flows.find((flow) => flow.resourceId === "uraniumOre");
 
@@ -257,10 +286,11 @@ describe("Factory Total contracts", () => {
     const shipsFuelUse = calculateShipsFuelUse(5);
     const result = calculateFactoryTotal(
       modulesWithSyncedHistory,
-      activeContracts,
-      undefined,
-      {},
-      shipsFuelUse.multiplier,
+      {
+        ...baselineFactoryOptions,
+        contracts: activeContracts,
+        shipsFuelUseMultiplier: shipsFuelUse.multiplier,
+      },
     );
 
     expect(result.contractResults.at(0)).toMatchObject({
@@ -275,9 +305,11 @@ describe("Factory Total contracts", () => {
     );
     const result = calculateFactoryTotal(
       modulesWithSyncedHistory,
-      activeContracts,
-      undefined,
-      { maintenanceOutput: maintenanceOutput.multiplier },
+      {
+        ...baselineFactoryOptions,
+        contracts: activeContracts,
+        outputModifiers: { maintenanceOutput: maintenanceOutput.multiplier },
+      },
     );
     const getLine = (recipeId: string) => result.calculation.regularResults.find(
       (line) => line.recipe.id === recipeId,

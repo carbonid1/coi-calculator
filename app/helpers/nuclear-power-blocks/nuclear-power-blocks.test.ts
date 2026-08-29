@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 
+import { baseConfig } from "../../db/config";
 import { activeContracts } from "../../db/contracts";
 import { modules } from "../../db/modules/modules";
 import {
@@ -19,7 +20,10 @@ it("presents the breeder without turbines and the power reactor with its turbine
         })
       : module,
   );
-  const factory = calculateFactoryTotal(configuredModules, activeContracts);
+  const factory = calculateFactoryTotal(configuredModules, {
+    contracts: activeContracts,
+    recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+  });
   const electricityLines = factory.allLines.filter((line) => (
     line.moduleId === NUCLEAR_MODULE_ID && line.recipe.group === "electricity"
   ));

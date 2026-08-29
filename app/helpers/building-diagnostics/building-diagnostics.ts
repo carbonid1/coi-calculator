@@ -252,9 +252,11 @@ export const calculateBuildingDiagnostics = (
     // A shared physical-capacity pool can contain both current recipes and a
     // planned expansion. The planned member acknowledges the pool-level build,
     // so do not restate that same work as an attention warning.
-    const plannedCapacity = physicalCapacityResults.some(
-      (result) => result.dataSource === "planned",
-    );
+    const plannedCapacity = physicalCapacityResults.some((result) => (
+      result.dataSource === "planned"
+      || (result.constructionGhosts ?? 0) > 0
+      || (result.unplacedPlannedBuildings ?? 0) > 0
+    ));
     const animalDiagnostic = plannedCapacity
       ? null
       : getAnimalPopulationDiagnostic(results, flowsById);

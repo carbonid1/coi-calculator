@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { buildModuleLines } from '../../helpers/build-module-lines/build-module-lines'
 import { calculateBuildingStats } from '../../helpers/building-stats/building-stats'
 import { calculateFactoryTotal } from '../../helpers/factory-total/factory-total'
+import { baseConfig } from '../config'
 import { createStaticInfrastructureModule } from './static-infrastructure'
 
 it('uses running counts for loads while retaining completed building capacity', () => {
@@ -34,7 +35,9 @@ it('uses running counts for loads while retaining completed building capacity', 
     vehiclesDepotIII: 0,
     maintenanceStatue: 2,
   })
-  const result = calculateFactoryTotal([infrastructureModule])
+  const result = calculateFactoryTotal([infrastructureModule], {
+    recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+  })
   const stats = calculateBuildingStats(result.allLines, result.calculation)
   const fuelGas = result.calculation.allResourceFlows.find(flow => flow.resourceId === 'fuelGas')
 

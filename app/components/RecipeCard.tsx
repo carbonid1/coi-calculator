@@ -12,15 +12,16 @@ import {
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
-import { GhostBuildingBadge } from "./GhostBuildingBadge";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   recipe: Recipe;
   dataSource?: ValueSource;
   activeBuildings: number;
+  currentActiveBuildings?: number;
   builtBuildings: number;
-  plannedBuildings?: number;
+  constructionGhosts?: number;
+  unplacedPlannedBuildings?: number;
   supplyRatio: number;
   operatingMode: OperatingMode;
   speedLevel: number;
@@ -41,7 +42,7 @@ export const isCompactSyncedElectricitySource = (
   && recipe.outputs[0]?.resourceId === "electricity"
 );
 
-export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, builtBuildings, plannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -80,7 +81,6 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
               {recipeDisplayName}
             </p>
           )}
-          <GhostBuildingBadge count={plannedBuildings} />
           {recipe.farmFertilizer && (
             <p className="text-xs text-muted-foreground">
               Fertility target{" "}
@@ -111,8 +111,10 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
         <BuildingCount
           load={buildingMultiplier}
           active={activeBuildings}
+          currentActive={currentActiveBuildings}
           built={builtBuildings}
-          planned={plannedBuildings}
+          ghosts={constructionGhosts}
+          planned={unplacedPlannedBuildings}
           attention={diagnostic?.attention}
           attentionCount={diagnostic?.attentionCount}
           animalPopulation={diagnostic?.animalPopulation ?? (

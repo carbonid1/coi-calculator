@@ -14,7 +14,6 @@ import { processSteam } from "./process-steam";
 import { research } from "./research";
 import { reserves } from "./reserves";
 import { spaceStation } from "./space-station";
-import { staticInfrastructure } from "./static-infrastructure";
 
 export interface Preset {
   id: string;
@@ -22,6 +21,8 @@ export interface Preset {
   description: string;
   /** Buildings that are switched on. Omitted recipes use every built building. */
   activeBuildings: Record<string, number>;
+  /** Current active inventory, before projected ghosts or unplaced plans. */
+  currentActiveBuildings?: Record<string, number>;
   /** Provenance for actionable recipe values that should receive state treatment. */
   dataSources?: Partial<Record<string, ValueSource>>;
   /** Recipes forced to run at active capacity. Every other recipe is automatically balanced. */
@@ -30,13 +31,17 @@ export interface Preset {
   /** Per-recipe observed targets used when several recipes produce the same resource. */
   recipeOutputTargets?: Record<string, Partial<Record<ResourceId, number>>>;
   builtBuildings?: Record<string, number>;
-  /** Construction ghosts included as future capacity in a live area. */
-  plannedBuildings?: Record<string, number>;
+  /** Observable game construction ghosts included as projected capacity. */
+  constructionGhosts?: Record<string, number>;
+  /** Planned buildings that have not yet become game construction ghosts. */
+  unplacedPlannedBuildings?: Record<string, number>;
   /** Physical inventory shared by runtime recipes using the same machine prototype. */
   capacityPools?: Record<string, CapacityPoolInventory>;
   speedLevels?: Record<string, number>;
   /** Manually measured resource use outside the currently modeled recipes. */
   fixedDemands?: Partial<Record<ResourceId, number>>;
+  /** Planned product quantities exported from this module each production cycle. */
+  requestedExports?: Partial<Record<ResourceId, number>>;
   /** Minimum average output for a named electricity dispatch group. */
   electricityDispatchTargets?: Record<string, number>;
   /** Sequenced reminders that remain after the projected operating plan is applied. */
@@ -48,7 +53,9 @@ export interface Preset {
 export interface CapacityPoolInventory {
   active: number;
   built: number;
-  planned: number;
+  currentActive?: number;
+  constructionGhosts: number;
+  unplacedPlanned?: number;
 }
 
 export interface LiveAreaIssue {
@@ -62,7 +69,9 @@ export interface LiveAreaModuleState {
   zoneId: number;
   trackedBuildings: number;
   constructedBuildings: number;
-  plannedBuildings: number;
+  activeBuildings: number;
+  pausedBuildings: number;
+  constructionGhosts: number;
   issues: LiveAreaIssue[];
 }
 
@@ -127,7 +136,6 @@ export const modules: [Module, ...Module[]] = [
   greenhouses,
   chickenFarms,
   housing,
-  staticInfrastructure,
   mines,
   reserves,
   nuclear,

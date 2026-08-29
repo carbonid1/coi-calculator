@@ -7,6 +7,7 @@ import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-co
 import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maintenance-output";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
+import { baseConfig } from "./config";
 import { defaultActiveEdicts } from "./edicts";
 import {
   DEFAULT_MODULE_ID,
@@ -181,7 +182,10 @@ describe("planned advanced production", () => {
   });
 
   it("runs the completed advanced chain through Default", () => {
-    const factory = calculateFactoryTotal(modules, [], undefined, outputModifiers);
+    const factory = calculateFactoryTotal(modules, {
+      recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+      outputModifiers,
+    });
     const plannedIds = new Set(Object.keys(plannedBuildings));
     const lines = factory.allLines.filter(({ recipe }) => plannedIds.has(recipe.id));
     const results = factory.calculation.regularResults.filter(

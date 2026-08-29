@@ -54,22 +54,25 @@ it("keeps process waste and graphite balanced with the current coal-route capaci
   });
   const result = calculateFactoryTotal(
     configuredModules,
-    activeContracts,
-    calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
     {
-      foodConsumption: calculateFoodConsumption(0, 2).multiplier,
-      maintenanceOutput: calculateMaintenanceOutput(
-        defaultInfiniteResearchLevels.maintenanceOutput,
-      ).multiplier,
-      solarPower: calculateSolarPower(
-        defaultInfiniteResearchLevels.solarPower,
-        defaultActiveEdicts.cleanPanels,
-      ).multiplier,
-      cropYield: cropFarming.yieldMultiplier,
-      cropWater: cropFarming.waterDemandMultiplier,
-      treeGrowthSpeed: calculateTreeGrowthSpeed(
-        defaultInfiniteResearchLevels.treeGrowthSpeed,
-      ).multiplier,
+      contracts: activeContracts,
+      recyclingEfficiencyPercent:
+        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
+      outputModifiers: {
+        foodConsumption: calculateFoodConsumption(0, 2).multiplier,
+        maintenanceOutput: calculateMaintenanceOutput(
+          defaultInfiniteResearchLevels.maintenanceOutput,
+        ).multiplier,
+        solarPower: calculateSolarPower(
+          defaultInfiniteResearchLevels.solarPower,
+          defaultActiveEdicts.cleanPanels,
+        ).multiplier,
+        cropYield: cropFarming.yieldMultiplier,
+        cropWater: cropFarming.waterDemandMultiplier,
+        treeGrowthSpeed: calculateTreeGrowthSpeed(
+          defaultInfiniteResearchLevels.treeGrowthSpeed,
+        ).multiplier,
+      },
     },
   );
   const graphite = result.calculation.allResourceFlows.find(
@@ -103,8 +106,8 @@ it("keeps process waste and graphite balanced with the current coal-route capaci
   expect(carbonDioxideResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(coalResult.supplyRatio).toBeGreaterThan(0.6);
-  expect(coalResult.supplyRatio).toBeLessThan(0.7);
+  expect(coalResult.supplyRatio).toBeGreaterThan(0.7);
+  expect(coalResult.supplyRatio).toBeLessThan(0.75);
   expect(carbonDioxide.net).toBeCloseTo(0, 6);
   expect(graphite.produced).toBeCloseTo(graphite.consumed, 6);
   expect(graphite.net).toBeCloseTo(0, 6);

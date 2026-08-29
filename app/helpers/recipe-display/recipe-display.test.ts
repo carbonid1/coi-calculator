@@ -18,6 +18,13 @@ describe("recipe display names", () => {
     })).toBe("Oxygen");
   });
 
+  it("does not treat parentheses in a repeated building name as configuration", () => {
+    expect(getRecipeDisplayName({
+      building: "Loose station module (electrified)",
+      name: "Loose station module (electrified)",
+    })).toBe("Loose station module (electrified)");
+  });
+
   it("keeps descriptive names that do not use a parenthesized configuration", () => {
     expect(getRecipeDisplayName({
       building: "Space Station Orbital Research",
@@ -42,6 +49,15 @@ describe("recipe display names", () => {
       displayName: "CO₂ → Graphite",
       name: "Internal recipe name",
     })).toBe("CO₂ → Graphite");
+  });
+
+  it("shows an exported game recipe ID instead of calculator-authored labels", () => {
+    expect(getRecipeDisplayName({
+      building: "Arc furnace II",
+      gameRecipeId: "CopperSmeltingArc",
+      displayName: "Copper smelting",
+      name: "Localized recipe name",
+    })).toBe("CopperSmeltingArc");
   });
 
   it("describes Copper Electrolysis by its full material transformation", () => {

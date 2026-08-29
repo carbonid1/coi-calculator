@@ -7,6 +7,7 @@ import {
   getPlanMismatchSummaries,
   getPlannedBuildSummaries,
 } from "../helpers/planned-builds/planned-builds";
+import { baseConfig } from "./config";
 import { defaultArea as general } from "./modules/default";
 import { processSteam } from "./modules/process-steam";
 import { createResearchModule } from "./modules/research";
@@ -117,7 +118,10 @@ describe("Space Station", () => {
 
   it("adds the complete planned station to Factory Total over an empty baseline", () => {
     const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
-    const result = calculateFactoryTotal([stationModule]);
+    const result = calculateFactoryTotal(
+      [stationModule],
+      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+    );
     const stats = calculateBuildingStats(result.allLines, result.calculation);
     const preset = stationModule.presets[0];
 
@@ -197,7 +201,10 @@ describe("Space Station", () => {
         stationSource: "synced",
       },
     );
-    const result = calculateFactoryTotal([stationModule]);
+    const result = calculateFactoryTotal(
+      [stationModule],
+      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+    );
     const diagnostics = calculateBuildingDiagnostics(
       [stationModule],
       result.flows,
@@ -229,7 +236,10 @@ describe("Space Station", () => {
 
   it("exposes the station plan through standard module flows and building pressure", () => {
     const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
-    const result = calculateFactoryTotal([stationModule]);
+    const result = calculateFactoryTotal(
+      [stationModule],
+      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+    );
     const planLines = result.allLines;
     const regularResults = result.calculation.regularResults;
     const stats = calculateBuildingStats(planLines, {
@@ -270,7 +280,10 @@ describe("Space Station", () => {
 
   it("does not expose orbital research mode as a physical planned build", () => {
     const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
-    const result = calculateFactoryTotal([stationModule]);
+    const result = calculateFactoryTotal(
+      [stationModule],
+      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+    );
     const diagnostics = calculateBuildingDiagnostics(
       [stationModule],
       result.flows,
@@ -306,11 +319,12 @@ describe("Space Station", () => {
     );
     const result = calculateFactoryTotal(
       [spaceStation],
-      [],
-      undefined,
       {
-        rocketLaunches: levelTen.launchesPerCycle
-          / defaultRocketIiRecurringLogistics.launchesPerCycle,
+        recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+        outputModifiers: {
+          rocketLaunches: levelTen.launchesPerCycle
+            / defaultRocketIiRecurringLogistics.launchesPerCycle,
+        },
       },
     );
     const launch = result.calculation.regularResults.find(
@@ -327,12 +341,15 @@ describe("Space Station", () => {
   });
 
   it("retains a balanced space plan when the planning modules are inspected in isolation", () => {
-    const result = calculateFactoryTotal([
-      createResearchModule({ activeResearchLabIvCount: 2, mode: "space" }),
-      spaceStation,
-      general,
-      processSteam,
-    ]);
+    const result = calculateFactoryTotal(
+      [
+        createResearchModule({ activeResearchLabIvCount: 2, mode: "space" }),
+        spaceStation,
+        general,
+        processSteam,
+      ],
+      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+    );
     const orbitalResearch = result.calculation.regularResults.find(
       (line) => line.recipe.id === "space-station-orbital-research",
     );

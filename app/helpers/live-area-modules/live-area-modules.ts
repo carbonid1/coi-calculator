@@ -1,5 +1,8 @@
+import { liveAreaPlans, type LiveAreaPlans } from '../../db/live-area-plans'
+import { isAreaAssignableStaticInfrastructurePrototype } from '../../db/modules/area-static-infrastructure'
 import { type Module, type LiveAreaIssue } from '../../db/modules/modules'
 import { type Ingredient, type Recipe } from '../../db/recipes'
+import { getSurplusConsumptionSettings } from '../../db/resource-disposition'
 import { resources, type ResourceId } from '../../db/resources'
 import {
   type SyncedAreaEntity,
@@ -72,6 +75,8 @@ interface RecipeGroup {
   planned: number
 }
 
+type GameSelectableRecipe = Recipe & { gameRecipeId: string }
+
 const addIssue = (
   issues: Map<string, LiveAreaIssue>,
   id: string,
@@ -96,6 +101,7 @@ export const createLiveAreaModules = (
   zones: readonly SyncedLogisticsZoneRef[],
   entities: readonly SyncedAreaEntity[],
   configuredModules: readonly Module[],
+  plans: LiveAreaPlans = liveAreaPlans,
 ): Module[] => {
   const existingNames = new Set(configuredModules.map(module => module.name))
 
@@ -106,6 +112,9 @@ export const createLiveAreaModules = (
       entity.zones.some(entityZone => entityZone.id === zone.id)
       && (entity.constructed || isPlannedEntity(entity))
     ))
+    const productionEntities = zoneEntities.filter(entity => (
+      !isAreaAssignableStaticInfrastructurePrototype(entity.prototypeId)
+    ))
     const issues = new Map<string, LiveAreaIssue>()
     const groups = new Map<string, RecipeGroup>()
     const capacityPools = new Map<
@@ -113,7 +122,7 @@ export const createLiveAreaModules = (
       { built: number; running: number; planned: number }
     >()
 
-    for (const entity of zoneEntities) {
+    for (const entity of productionEntities) {
       const recipesForEntity = selectedRecipes(entity)
 
       if (recipesForEntity.length === 0) {
@@ -172,10 +181,11 @@ export const createLiveAreaModules = (
       )
     }
 
-    const liveRecipes: Recipe[] = []
+    const liveRecipes: GameSelectableRecipe[] = []
     const builtBuildings: Record<string, number> = {}
     const activeBuildings: Record<string, number> = {}
-    const plannedBuildings: Record<string, number> = {}
+    const constructionGhosts: Record<string, number> = {}
+    const currentActiveBuildings: Record<string, number> = {}
     const dataSources: NonNullable<Module['presets'][number]['dataSources']> = {}
     const presetCapacityPools: NonNullable<Module['presets'][number]['capacityPools']> = {}
 
@@ -183,7 +193,8 @@ export const createLiveAreaModules = (
       presetCapacityPools[prototypeId] = {
         active: pool.running + pool.planned,
         built: pool.built,
-        planned: pool.planned,
+        currentActive: pool.running,
+        constructionGhosts: pool.planned,
       }
     }
 
@@ -220,7 +231,7 @@ export const createLiveAreaModules = (
 
       liveRecipes.push({
         id: recipeId,
-        displayName: group.recipe.name,
+        gameRecipeId: group.recipe.id,
         name: group.recipe.name,
         building: group.prototypeName,
         group: 'production',
@@ -238,34 +249,74 @@ export const createLiveAreaModules = (
       })
       builtBuildings[recipeId] = group.built
       activeBuildings[recipeId] = group.running + group.planned
-      plannedBuildings[recipeId] = group.planned
-      dataSources[recipeId] = group.planned > 0 ? 'planned' : 'synced'
+      currentActiveBuildings[recipeId] = group.running
+      constructionGhosts[recipeId] = group.planned
+      dataSources[recipeId] = 'synced'
     }
+
+    const balancedLiveRecipes = liveRecipes.map(recipe => {
+      const surplusConsumption = getSurplusConsumptionSettings(
+        recipe.inputs.map(input => input.resourceId),
+        recipe.gameRecipeId,
+      )
+      const surplusConsumptionFields = surplusConsumption
+        ? {
+            consumeSurplusInputIds: surplusConsumption.inputIds,
+            consumeSurplusInputScope: surplusConsumption.scope,
+            surplusConsumptionPriority: surplusConsumption.priority,
+          }
+        : {}
+
+      if (recipe.outputs.length > 0) {
+        return {
+          ...recipe,
+          ...surplusConsumptionFields,
+          balanceBy: 'output' as const,
+          balanceOutputIds: recipe.outputs.map(output => output.resourceId),
+        }
+      }
+
+      if (recipe.inputs.length > 0) {
+        return {
+          ...recipe,
+          ...surplusConsumptionFields,
+          balanceBy: 'input' as const,
+          balanceInputIds: recipe.inputs.map(input => input.resourceId),
+        }
+      }
+
+      return recipe
+    })
+    const requestedExports = plans[zone.name]?.requestedExports
 
     const liveModule: Module = {
       id: moduleIdForZone(zone.id),
       name: zone.name,
-      description: 'Live game area. Construction ghosts are projected as planned capacity; this tab is excluded from the current Factory Total.',
+      description: '',
       includedInFactoryTotals: false,
       builtBuildings,
-      recipes: liveRecipes,
+      recipes: balancedLiveRecipes,
       presets: [{
         id: 'live',
         name: 'Live area',
-        description: 'Synced completed buildings plus planned construction ghosts.',
+        description: 'Synced completed buildings plus synced construction ghosts.',
         activeBuildings,
+        currentActiveBuildings,
         builtBuildings,
-        plannedBuildings,
+        constructionGhosts,
         capacityPools: presetCapacityPools,
         dataSources,
-        fixed: liveRecipes.map(recipe => recipe.id),
+        fixed: [],
+        requestedExports,
       }],
       defaultPresetId: 'live',
       liveArea: {
         zoneId: zone.id,
         trackedBuildings: zoneEntities.length,
         constructedBuildings: zoneEntities.filter(entity => entity.constructed).length,
-        plannedBuildings: zoneEntities.filter(isPlannedEntity).length,
+        activeBuildings: zoneEntities.filter(entity => entity.constructed && entity.running).length,
+        pausedBuildings: zoneEntities.filter(entity => entity.constructed && !entity.running).length,
+        constructionGhosts: zoneEntities.filter(isPlannedEntity).length,
         issues: [...issues.values()],
       },
     }

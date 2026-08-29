@@ -12,13 +12,16 @@ interface Props {
   dataSource?: ValueSource;
   storage: DecayStorage;
   activeBuildings: number;
+  currentActiveBuildings?: number;
   builtBuildings: number;
+  constructionGhosts?: number;
+  unplacedPlannedBuildings?: number;
   operatingMode: OperatingMode;
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2)).toLocaleString();
 
-export const StorageCard: React.FC<Props> = ({ recipe, dataSource, storage, activeBuildings, builtBuildings, operatingMode }) => {
+export const StorageCard: React.FC<Props> = ({ recipe, dataSource, storage, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, operatingMode }) => {
   const input = recipe.inputs[0];
 
   if (!input) return null;
@@ -34,7 +37,14 @@ export const StorageCard: React.FC<Props> = ({ recipe, dataSource, storage, acti
             {resources[input.resourceId].name}
           </Card.Description>
           <Card.Action>
-            <BuildingCount load={activeBuildings} active={activeBuildings} built={builtBuildings} />
+            <BuildingCount
+              load={activeBuildings}
+              active={activeBuildings}
+              currentActive={currentActiveBuildings}
+              built={builtBuildings}
+              ghosts={constructionGhosts}
+              planned={unplacedPlannedBuildings}
+            />
           </Card.Action>
         </Card.Header>
 

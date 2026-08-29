@@ -22,6 +22,7 @@ import { ReservesView } from './components/ReservesView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
 import { SpaceStationView } from './components/SpaceStationView'
+import { StationCardGroup } from './components/StationCardGroup'
 import { StorageCard } from './components/StorageCard'
 import { buildings } from './db/buildings'
 import {
@@ -57,6 +58,12 @@ import {
   attachSolarPanelsToModule,
   resolveSolarPanelModuleAssignments,
 } from './db/modules/area-solar'
+import {
+  attachStaticInfrastructureToModule,
+  partitionStationLines,
+  resolveStaticInfrastructureModuleAssignments,
+  selectStaticInfrastructureLines,
+} from './db/modules/area-static-infrastructure'
 import { createComputingModule, COMPUTING_MODULE_ID } from './db/modules/computing'
 import { createDefaultModule, DEFAULT_MODULE_ID } from './db/modules/default'
 import {
@@ -78,10 +85,6 @@ import { createOfficesModule, OFFICES_MODULE_ID } from './db/modules/offices'
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from './db/modules/research'
 import { createReservesModule, RESERVES_MODULE_ID } from './db/modules/reserves'
 import { createSpaceStationModule, SPACE_STATION_MODULE_ID } from './db/modules/space-station'
-import {
-  createStaticInfrastructureModule,
-  STATIC_INFRASTRUCTURE_MODULE_ID,
-} from './db/modules/static-infrastructure'
 import { calculateOfficePlan, resolvedCurrentOfficePlan, resolvedOfficePlan } from './db/offices'
 import { resolvePlanningBaselines } from './db/planning-baselines'
 import { type RecipeGroup } from './db/recipes'
@@ -156,6 +159,7 @@ import { calculateUnityCapacity } from './helpers/modifiers/calculate-unity-capa
 import { getRecipeOutputQuantity } from './helpers/modifiers/recipe-output'
 import { extractModuleResult } from './helpers/module-result/module-result'
 import { resolvePopulationEntityInventory } from './helpers/population-entity-sync/population-entity-sync'
+import { getPresetResourceDemands } from './helpers/preset-resource-demands/preset-resource-demands'
 import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import {
@@ -383,7 +387,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION &&
       gameState.snapshot.logisticsZones.some(zone => zone.name === name),
     )
-  const usesInfrastructureArea = hasExactArea('Infrastructure')
   const usesSpaceStationArea = hasExactArea('Space Station')
   const hasAreaBuildingInventory = Boolean(
     gameState.snapshot &&
@@ -395,9 +398,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     gameState.snapshot.schemaVersion >= MAINTENANCE_ENTITY_SCHEMA_VERSION &&
     gameState.snapshot.productionEntities,
   )
-  const infrastructureAreaCounts = usesInfrastructureArea
-    ? resolveAreaBuildingCounts(productionEntities, 'Infrastructure')
-    : {}
   const spaceStationAreaCounts = usesSpaceStationArea
     ? resolveAreaBuildingCounts(productionEntities, 'Space Station')
     : {}
@@ -414,12 +414,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
   if (gameState.snapshot) {
     for (const id of syncedInfrastructureBuildingIds) {
-      // Moving locomotives are global; their transient position must not assign
-      // them to a module area.
-      const count =
-        usesInfrastructureArea && id !== 'electricLocomotiveII'
-          ? (infrastructureAreaCounts[id] ?? { built: 0, running: 0 })
-          : gameState.snapshot.buildings[id]
+      const count = gameState.snapshot.buildings[id]
 
       staticInfrastructureBuiltConfig[id] = count.built
       staticInfrastructureRunningConfig[id] = count.running
@@ -593,16 +588,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         return createDefaultModule(defaultGroundwaterResolution, defaultGroundwaterConstraint)
       }
 
-      if (module.id === STATIC_INFRASTRUCTURE_MODULE_ID) {
-        return createStaticInfrastructureModule(
-          staticInfrastructureBuiltConfig,
-          staticInfrastructureRunningConfig,
-          {
-            syncedCounts: Boolean(gameState.snapshot),
-          },
-        )
-      }
-
       if (module.id === SPACE_STATION_MODULE_ID) {
         return createSpaceStationModule(
           spaceStationConfig,
@@ -739,7 +724,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       gameState.snapshot ? 'synced' : 'modeled',
     )
   })
-  const configuredModules = [
+  const modulesWithLiveAreas = [
     ...configuredBaseModules,
     ...(
       (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
@@ -751,6 +736,28 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         : []
     ),
   ]
+  const staticInfrastructureAssignments = resolveStaticInfrastructureModuleAssignments({
+    areaEntities:
+      (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
+        ? gameState.snapshot?.areaEntities
+        : undefined,
+    builtConfig: staticInfrastructureBuiltConfig,
+    defaultModuleId: DEFAULT_MODULE_ID,
+    modules: modulesWithLiveAreas,
+    productionEntities: hasAreaBuildingInventory ? productionEntities : undefined,
+    runningConfig: staticInfrastructureRunningConfig,
+  })
+  const configuredModules = modulesWithLiveAreas.map(module => {
+    const assignment = staticInfrastructureAssignments[module.id]
+
+    return assignment
+      ? attachStaticInfrastructureToModule(
+          module,
+          assignment,
+          gameState.snapshot ? 'synced' : 'modeled',
+        )
+      : module
+  })
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
   const configuredHousingModule = configuredModules.find(module => module.id === HOUSING_MODULE_ID)
   const configuredHousingPreset = configuredHousingModule?.presets.find(
@@ -833,11 +840,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const enabledContracts = activeContracts
   const factoryResult = calculateFactoryTotal(
     configuredModules,
-    enabledContracts,
-    recyclingEfficiencyPercent,
-    outputModifiers,
-    shipsFuelUse.multiplier,
-    1 + focusBonuses.contractsProfitability / 100,
+    {
+      contracts: enabledContracts,
+      recyclingEfficiencyPercent,
+      outputModifiers,
+      shipsFuelUseMultiplier: shipsFuelUse.multiplier,
+      contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
+    },
   )
   const isModifiers = activeModuleId === MODIFIERS_ID
   const isContracts = activeModuleId === CONTRACTS_ID
@@ -898,11 +907,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     activeModule?.includedInFactoryTotals === false
       ? calculateFactoryTotal(
           [{ ...activeModule, includedInFactoryTotals: true }],
-          [],
-          recyclingEfficiencyPercent,
-          outputModifiers,
-          shipsFuelUse.multiplier,
-          1 + focusBonuses.contractsProfitability / 100,
+          {
+            recyclingEfficiencyPercent,
+            outputModifiers,
+            shipsFuelUseMultiplier: shipsFuelUse.multiplier,
+            contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
+          },
         )
       : factoryResult
   const moduleResult = activeModule
@@ -913,7 +923,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         const calc = extractModuleResult(
           activeModule.id,
           activeModuleFactoryResult.calculation,
-          preset?.fixedDemands,
+          getPresetResourceDemands(preset),
         )
 
         return { lines, ...calc }
@@ -999,12 +1009,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     activeModule?.id === NUCLEAR_MODULE_ID && moduleResult
       ? calculateGenerationCapacityMw(moduleResult.lines)
       : undefined
+  const stationSections = moduleResult
+    ? partitionStationLines(displayedModuleLines)
+    : { input: [], unconfigured: [], content: [], export: [] }
   const grouped = moduleResult
     ? groupOrder
         .map(group => ({
           group,
           label: groupLabels[group],
-          items: displayedModuleLines.filter(l => l.recipe.group === group),
+          items: stationSections.content.filter(l => l.recipe.group === group),
         }))
         .filter(g => g.items.length > 0)
     : []
@@ -1012,7 +1025,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     ? [MINES_MODULE_ID, NUCLEAR_MODULE_ID, RESERVES_MODULE_ID].includes(activeModule.id)
     : false
   const supplementalAreaLines =
-    usesSpecializedAreaLayout && moduleResult ? selectMaintenanceDepotLines(moduleResult.lines) : []
+    usesSpecializedAreaLayout && moduleResult
+      ? [
+          ...selectMaintenanceDepotLines(moduleResult.lines),
+          ...selectStaticInfrastructureLines(stationSections.content),
+        ]
+      : []
+  const focusedModuleTargetKey = buildingTarget && buildingTarget.moduleId === activeModule?.id
+    ? buildingTarget.key
+    : undefined
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
@@ -1161,6 +1182,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           {activeModule.id !== MINES_MODULE_ID && activeModule.id !== RESERVES_MODULE_ID && (
             <NetSummary
               flows={displayedResourceFlows}
+              requestedExports={preset?.requestedExports}
               workers={buildingStats.workers}
               electricityConsumptionKw={buildingStats.electricityKw}
               electricityGenerationCapacityMw={nuclearGenerationCapacityMw}
@@ -1170,6 +1192,24 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
               }
             />
           )}
+
+          <StationCardGroup
+            role="input"
+            lines={stationSections.input}
+            results={moduleResult.regularResults}
+            diagnostics={activeBuildingDiagnostics}
+            focusedTargetKey={focusedModuleTargetKey}
+            outputModifiers={outputModifiers}
+          />
+
+          <StationCardGroup
+            role="unconfigured"
+            lines={stationSections.unconfigured}
+            results={moduleResult.regularResults}
+            diagnostics={activeBuildingDiagnostics}
+            focusedTargetKey={focusedModuleTargetKey}
+            outputModifiers={outputModifiers}
+          />
 
           {activeModule.id === NUCLEAR_MODULE_ID ? (
             <NuclearModuleSections
@@ -1280,7 +1320,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                               recipe={line.recipe}
                               storage={line.recipe.decayStorage}
                               activeBuildings={line.activeBuildings}
+                              currentActiveBuildings={line.currentActiveBuildings}
                               builtBuildings={line.builtBuildings}
+                              constructionGhosts={line.constructionGhosts}
+                              unplacedPlannedBuildings={line.unplacedPlannedBuildings}
                               operatingMode={result?.operatingMode ?? 'balanced'}
                             />
                           </BuildingCardTarget>
@@ -1297,8 +1340,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             dataSource={line.dataSource}
                             recipe={line.recipe}
                             activeBuildings={line.activeBuildings}
+                            currentActiveBuildings={line.currentActiveBuildings}
                             builtBuildings={line.builtBuildings}
-                            plannedBuildings={line.plannedBuildings}
+                            constructionGhosts={line.constructionGhosts}
+                            unplacedPlannedBuildings={line.unplacedPlannedBuildings}
                             diagnostic={factoryBuildingDiagnostics.find(
                               diagnostic => diagnostic.key === key,
                             )}
@@ -1343,8 +1388,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                         dataSource={line.dataSource}
                         recipe={line.recipe}
                         activeBuildings={line.activeBuildings}
+                        currentActiveBuildings={line.currentActiveBuildings}
                         builtBuildings={line.builtBuildings}
-                        plannedBuildings={line.plannedBuildings}
+                        constructionGhosts={line.constructionGhosts}
+                        unplacedPlannedBuildings={line.unplacedPlannedBuildings}
                         diagnostic={activeBuildingDiagnostics.find(
                           candidate => candidate.key === targetKey,
                         )}
@@ -1361,6 +1408,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
               </div>
             </section>
           )}
+
+          <StationCardGroup
+            role="export"
+            lines={stationSections.export}
+            results={moduleResult.regularResults}
+            diagnostics={activeBuildingDiagnostics}
+            focusedTargetKey={focusedModuleTargetKey}
+            outputModifiers={outputModifiers}
+          />
         </>
       )}
 

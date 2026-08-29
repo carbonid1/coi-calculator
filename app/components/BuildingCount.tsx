@@ -5,11 +5,14 @@ import {
   type BuildingAttention,
 } from "../helpers/building-diagnostics/building-diagnostics";
 import { formatBuildingLoad } from "../helpers/format-building-load";
+import { BuildingStateCounts } from "./BuildingStateCounts";
 
 interface Props {
   load: number;
   active: number;
+  currentActive?: number;
   built: number;
+  ghosts?: number;
   planned?: number;
   attention?: BuildingAttention | null;
   attentionCount?: number;
@@ -39,14 +42,19 @@ const attentionLabel = (
 export const BuildingCount: React.FC<Props> = ({
   load,
   active,
+  currentActive,
   built,
+  ghosts = 0,
   planned = 0,
   attention,
   attentionCount = 0,
   animalPopulation,
 }) => {
-  const syncedActive = Math.max(0, active - planned);
-  const paused = Math.max(0, built - syncedActive);
+  const displayedActive = currentActive ?? Math.max(
+    0,
+    Math.min(built, active - ghosts - planned),
+  );
+  const paused = Math.max(0, built - displayedActive);
 
   return (
     <div className="shrink-0 text-right tabular-nums">
@@ -67,14 +75,14 @@ export const BuildingCount: React.FC<Props> = ({
           </span>
         </span>
       </Tooltip>
-      {!animalPopulation && (paused > 0 || planned > 0) && (
-        <p className="text-xs text-muted-foreground">
-          {planned > 0
-            ? `${formatCount(syncedActive)} synced active · ${formatCount(planned)} planned`
-            : `${formatCount(active)} active`}
-          {paused > 0 ? ` · ${formatCount(paused)} paused` : ''}
-        </p>
-      )}
+      <div className="flex justify-end">
+        <BuildingStateCounts
+          active={displayedActive}
+          paused={paused}
+          ghosts={ghosts}
+          planned={planned}
+        />
+      </div>
       {attention && (
         <p className={attention === "can-pause" || attention === "remove-animals"
           ? "text-xs font-medium text-attention-foreground"

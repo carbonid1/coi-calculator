@@ -240,15 +240,15 @@ Verified in `CargoShipsData`, `TrucksData`, `CargoShipV1`, `CargoShipV2`,
 
 ## Ore sorting plants
 
-The static Infrastructure module tracks the island's ore sorting plants, not
-world-map mines. Installed v0.8.7 worker values are:
+Area modules track the island's ore sorting plants, not world-map mines.
+Unzoned plants belong to Default. Installed v0.8.7 worker values are:
 
 | Building                  | Workers |
 | ------------------------- | ------: |
 | Ore sorting plant         |       6 |
 | Ore sorting plant (large) |      30 |
 
-Verified in `OreSortingPlantData` and `Costs.Buildings`. The module represents
+Verified in `OreSortingPlantData` and `Costs.Buildings`. The calculator represents
 these as no-flow static loads because their material sorting is not a production
 recipe. Exporter schema v7 supplies completed and non-paused entity counts from
 the loaded save; without synced data the counts are zero. Their power use is
@@ -256,8 +256,8 @@ activity-dependent and is excluded from calculator totals.
 
 ## Electrified trains
 
-The Infrastructure module uses synced counts and the installed worker cost for
-each type:
+The owning area module uses synced counts and the installed worker cost for each
+type. Unzoned station modules and moving locomotives belong to Default:
 
 | Building                            | Workers each |
 | ----------------------------------- | -----------: |
@@ -280,13 +280,18 @@ drive workers; completed counts remain visible as installed capacity. The
 Molten module costs 2 workers and has a 150 kW activity-dependent draw, which
 remains excluded from calculator totals.
 
+Exporter schema v29 reads `ITrainStationModule.StoredProduct` and
+`ITrainStationModule.IsForLoading` directly from each station module. The
+calculator groups and labels station cards by that synced product and direction,
+but does not infer a material flow from the station configuration.
+
 Verified against installed v0.8.7 `TrainStationsData`, `IdsTrainsDlc`,
 `MoltenTrainsData`, `Costs.Buildings`, `LocomotivesDataDlc`,
-`ElectricLocomotive`, and `TrainDlcCosts`.
+`ElectricLocomotive`, `ITrainStationModule`, and `TrainDlcCosts`.
 
 ## Stacker towers
 
-The Infrastructure module tracks Stacker towers as a worker-only load. Each
+The owning area module tracks Stacker towers as a worker-only load. Each
 running tower contributes 4 workers; activity-dependent power is excluded. The
 count is zero until a compatible snapshot is available. Exporter schema v7
 counts completed and non-paused entities using the installed prototype ID
@@ -297,8 +302,8 @@ Verified against installed v0.8.7 `Ids.Transports.StackerTower` and
 
 ## Vehicle depots
 
-The Infrastructure module tracks all three vehicle-depot tiers as population-only
-loads:
+The owning area module tracks all three vehicle-depot tiers as population-only
+loads; unzoned depots belong to Default:
 
 | Building           | Workers each | Prototype ID      |
 | ------------------ | -----------: | ----------------- |
@@ -361,8 +366,8 @@ Verified against installed v0.8.7 `ItemStats.GetLatestData`,
 
 ## Mining and logistics vehicles
 
-The Infrastructure module uses the exporter's aggregate `workersAssigned`
-vehicle count, with one worker per active vehicle. Without synced data the count
+Default uses the exporter's aggregate `workersAssigned` vehicle count, with one
+worker per active vehicle. Without synced data the count
 is zero. This is the sum of the game's own
 `EntityWithWorkersExtensions.WorkersAssigned(vehicle)` calculation, so paused
 vehicles remain in the physical/quota total without draining population. The

@@ -145,6 +145,215 @@ it("reserves Forestry saplings and keeps Biomass conversion inside each physical
   expect(result.allResourceFlows.find((flow) => flow.resourceId === "biomass")?.net).toBe(0);
 });
 
+it("uses remaining capacity to consume preferred module surplus and propagates support demand", () => {
+  const steamProducer: Recipe = {
+    id: "test-low-steam-producer",
+    name: "Test Low Steam Producer",
+    building: "Test Producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "steamLow", quantity: 20 }],
+  };
+  const waterDemand: Recipe = {
+    id: "test-water-demand",
+    name: "Test Water Demand",
+    building: "Test Consumer",
+    group: "production",
+    inputs: [{ resourceId: "water", quantity: 5 }],
+    outputs: [],
+  };
+  const seawaterPump: Recipe = {
+    id: "test-seawater-pump",
+    name: "Test Seawater Pump",
+    building: "Test Pump",
+    group: "production",
+    balanceBy: "output",
+    inputs: [],
+    outputs: [{ resourceId: "seaWater", quantity: 30 }],
+  };
+  const desalinator: Recipe = {
+    id: "test-surplus-desalinator",
+    name: "Test Surplus Desalinator",
+    building: "Test Desalinator",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["water", "brine"],
+    consumeSurplusInputIds: ["steamLow"],
+    consumeSurplusInputScope: "module",
+    surplusConsumptionPriority: 10,
+    inputs: [
+      { resourceId: "seaWater", quantity: 30 },
+      { resourceId: "steamLow", quantity: 10 },
+    ],
+    outputs: [
+      { resourceId: "water", quantity: 30 },
+      { resourceId: "brine", quantity: 10 },
+    ],
+  };
+  const result = calculateNet([
+    fixedLine(steamProducer, "copper"),
+    fixedLine(waterDemand, "copper"),
+    balancedLine(seawaterPump, "copper", 2),
+    balancedLine(desalinator, "copper", 2),
+  ]);
+  const recipeResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+  const net = (resourceId: string) => result.allResourceFlows.find(
+    flow => flow.resourceId === resourceId,
+  )?.net ?? 0;
+
+  expect(recipeResult(desalinator.id)?.supplyRatio).toBeCloseTo(1);
+  expect(recipeResult(seawaterPump.id)?.actualOutputs[0]?.quantity).toBeCloseTo(60);
+  expect(net("steamLow")).toBeCloseTo(0);
+  expect(net("seaWater")).toBeCloseTo(0);
+  expect(net("water")).toBeCloseTo(55);
+  expect(net("brine")).toBeCloseTo(20);
+});
+
+it("leaves preferred surplus when supporting production capacity is exhausted", () => {
+  const steamProducer: Recipe = {
+    id: "test-limited-low-steam-producer",
+    name: "Test Limited Low Steam Producer",
+    building: "Test Producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "steamLow", quantity: 20 }],
+  };
+  const waterDemand: Recipe = {
+    id: "test-limited-water-demand",
+    name: "Test Limited Water Demand",
+    building: "Test Consumer",
+    group: "production",
+    inputs: [{ resourceId: "water", quantity: 5 }],
+    outputs: [],
+  };
+  const seawaterPump: Recipe = {
+    id: "test-limited-seawater-pump",
+    name: "Test Limited Seawater Pump",
+    building: "Test Pump",
+    group: "production",
+    balanceBy: "output",
+    inputs: [],
+    outputs: [{ resourceId: "seaWater", quantity: 30 }],
+  };
+  const desalinator: Recipe = {
+    id: "test-limited-surplus-desalinator",
+    name: "Test Limited Surplus Desalinator",
+    building: "Test Desalinator",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["water", "brine"],
+    consumeSurplusInputIds: ["steamLow"],
+    consumeSurplusInputScope: "module",
+    inputs: [
+      { resourceId: "seaWater", quantity: 30 },
+      { resourceId: "steamLow", quantity: 10 },
+    ],
+    outputs: [
+      { resourceId: "water", quantity: 30 },
+      { resourceId: "brine", quantity: 10 },
+    ],
+  };
+  const result = calculateNet([
+    fixedLine(steamProducer, "copper"),
+    fixedLine(waterDemand, "copper"),
+    balancedLine(seawaterPump, "copper", 1),
+    balancedLine(desalinator, "copper", 2),
+  ]);
+  const recipeResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+  const net = (resourceId: string) => result.allResourceFlows.find(
+    flow => flow.resourceId === resourceId,
+  )?.net ?? 0;
+
+  expect(recipeResult(desalinator.id)?.supplyRatio).toBeCloseTo(0.5);
+  expect(recipeResult(seawaterPump.id)?.supplyRatio).toBeCloseTo(1);
+  expect(net("seaWater")).toBeCloseTo(0);
+  expect(net("steamLow")).toBeCloseTo(10);
+});
+
+it("does not use another module's surplus for additional consumption", () => {
+  const steamProducer: Recipe = {
+    id: "test-remote-low-steam-producer",
+    name: "Test Remote Low Steam Producer",
+    building: "Test Producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "steamLow", quantity: 20 }],
+  };
+  const waterDemand: Recipe = {
+    id: "test-remote-water-demand",
+    name: "Test Remote Water Demand",
+    building: "Test Consumer",
+    group: "production",
+    inputs: [{ resourceId: "water", quantity: 5 }],
+    outputs: [],
+  };
+  const desalinator: Recipe = {
+    id: "test-remote-surplus-desalinator",
+    name: "Test Remote Surplus Desalinator",
+    building: "Test Desalinator",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["water"],
+    consumeSurplusInputIds: ["steamLow"],
+    consumeSurplusInputScope: "module",
+    inputs: [{ resourceId: "steamLow", quantity: 10 }],
+    outputs: [{ resourceId: "water", quantity: 30 }],
+  };
+  const result = calculateNet([
+    fixedLine(steamProducer, "remote"),
+    fixedLine(waterDemand, "copper"),
+    balancedLine(desalinator, "copper", 2),
+  ]);
+  const desalinatorResult = result.regularResults.find(
+    candidate => candidate.recipe.id === desalinator.id,
+  );
+
+  expect(desalinatorResult?.supplyRatio).toBeCloseTo(5 / 60);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "steamLow")?.net)
+    .toBeCloseTo(20 - 5 / 3);
+});
+
+it("does not invent external inputs merely to consume surplus", () => {
+  const steamProducer: Recipe = {
+    id: "test-guarded-low-steam-producer",
+    name: "Test Guarded Low Steam Producer",
+    building: "Test Producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "steamLow", quantity: 20 }],
+  };
+  const guardedConsumer: Recipe = {
+    id: "test-guarded-surplus-consumer",
+    name: "Test Guarded Surplus Consumer",
+    building: "Test Consumer",
+    group: "production",
+    balanceBy: "output",
+    consumeSurplusInputIds: ["steamLow"],
+    consumeSurplusInputScope: "module",
+    inputs: [
+      { resourceId: "steamLow", quantity: 10 },
+      { resourceId: "acid", quantity: 5 },
+    ],
+    outputs: [{ resourceId: "water", quantity: 30 }],
+  };
+  const result = calculateNet([
+    fixedLine(steamProducer, "copper"),
+    balancedLine(guardedConsumer, "copper", 2),
+  ]);
+  const consumerResult = result.regularResults.find(
+    candidate => candidate.recipe.id === guardedConsumer.id,
+  );
+
+  expect(consumerResult?.supplyRatio).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "steamLow")?.net).toBe(20);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "acid"))
+    .toMatchObject({ consumed: 0, produced: 0, net: 0 });
+});
+
 it("installs two demand-balanced tanks with the verified per-building Yellowcake capacity", () => {
   const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId)!;
   const { lines } = buildModuleLines(general, preset);

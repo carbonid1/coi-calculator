@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.28 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.29 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -61,10 +61,11 @@ calculator binds these entities only through an exact `Computing` area-name
 match; schema 22 and older continue to use the global computing totals.
 Schema 24 adds the named vehicle-zone catalog, zone membership to Greenhouse
 identities, and stable identities for the already tracked rocket, solar, and
-stationary infrastructure buildings. Exact module-name areas can therefore
-replace aggregate counts for their physical inventory; unzoned and unmatched
-solar panels belong to Default. Moving vehicles and locomotives remain global
-rather than being assigned by their transient position.
+stationary infrastructure buildings. The calculator assigns stationary
+infrastructure to its exact module-name area and leaves unzoned or ambiguous
+buildings in Default. Unzoned and unmatched solar panels also belong to Default.
+Moving vehicles and locomotives remain global rather than being assigned by
+their transient position.
 Schema 25 exports completed production, worker, and settlement entities that
 overlap any named vehicle area. Tracks, transports, and storage remain out of
 the generic payload. The calculator still decides which prototypes belong to
@@ -84,11 +85,15 @@ Schema 28 adds every completed building and construction ghost inside a named
 vehicle area, including its construction state, game-localized prototype name,
 tile, zone membership, and machine-effective recipe duration and quantities.
 The calculator creates a planning-only tab for each unmatched named area as soon
-as the area exists. Completed buildings remain Synced; construction ghosts are
-Planned capacity. A ghost with one available recipe is projected automatically,
+as the area exists. Completed buildings and construction ghosts remain Synced;
+ghosts are projected as future capacity. A ghost with one available recipe is projected automatically,
 while a multi-recipe machine stays visible as needing configuration until the
 game exposes an assigned recipe. Removing the ghost removes that planned
 capacity on the next snapshot.
+Schema 29 adds each electrified train-station module's selected product and
+loading direction. The calculator uses those values to label and group station
+cards inside their assigned area; it does not yet treat stations as material
+producers or consumers.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as
