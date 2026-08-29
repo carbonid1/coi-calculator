@@ -1,4 +1,4 @@
-import { buildings } from "../db/buildings";
+import { getBuildingData } from "../db/buildings";
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
@@ -52,7 +52,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
     dataSource,
   );
   const displaysFlows = !inactive && hasFlows && !compactSyncedElectricitySource;
-  const tflopsPerMachine = buildings[recipe.building]?.computingTflops ?? 0;
+  const tflopsPerMachine = getBuildingData(recipe.building)?.computingTflops ?? 0;
   const computingTflops = recipe.computingScalesWithSpeed
     ? tflopsPerMachine * buildingMultiplier * speedLevel
     : tflopsPerMachine;

@@ -1,4 +1,4 @@
-import { buildings } from "../../db/buildings";
+import { getBuildingData } from "../../db/buildings";
 import {
   type PassiveResult,
   type ProductionLine,
@@ -43,7 +43,7 @@ export const calculateBuildingStats = (
   }
 
   const workers = [...standaloneLines, ...pooledLines.values()].reduce((total, line) => {
-    const building = buildings[line.recipe.building];
+    const building = getBuildingData(line.recipe.building);
     const activeBuildings = line.capacityPoolActiveBuildings ?? line.activeBuildings;
 
     if (!building || activeBuildings <= 0) return total;
@@ -52,7 +52,7 @@ export const calculateBuildingStats = (
   }, 0);
 
   const regularElectricityKw = results.regularResults.reduce((total, result) => {
-    const building = buildings[result.recipe.building];
+    const building = getBuildingData(result.recipe.building);
 
     if (!building) return total;
 
@@ -69,7 +69,7 @@ export const calculateBuildingStats = (
 
   const passiveElectricityKw = [...results.sourceResults, ...results.sinkResults]
     .reduce((total, result) => {
-      const building = buildings[result.recipe.building];
+      const building = getBuildingData(result.recipe.building);
       const line = lines.find((candidate) => (
         candidate.moduleId === result.moduleId
         && candidate.recipe.id === result.recipe.id
@@ -109,7 +109,7 @@ export const calculateBuildingStats = (
   const machineComputing = new Map<string, { effectiveMachines: number; tflopsPerMachine: number }>();
 
   for (const result of results.regularResults) {
-    const building = buildings[result.recipe.building];
+    const building = getBuildingData(result.recipe.building);
     const tflopsPerMachine = (building?.computingTflops ?? 0)
       * (result.recipe.computingMultiplier ?? 1)
       * (result.recipe.computingInputModifierId

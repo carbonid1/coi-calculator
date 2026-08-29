@@ -20,6 +20,7 @@ export const extractModuleResult = (
   moduleId: string,
   calculation: CalculationResult,
   fixedDemands: Partial<Record<ResourceId, number>> = {},
+  suppliedResources: Partial<Record<ResourceId, number>> = {},
 ): ModuleResult => {
   const regularResults = calculation.regularResults.filter((result) => result.moduleId === moduleId);
   const sourceResults = calculation.sourceResults.filter((result) => result.moduleId === moduleId);
@@ -42,6 +43,9 @@ export const extractModuleResult = (
   }
   for (const [resourceId, quantity] of typedEntries(fixedDemands)) {
     getFlow(resourceId).consumed += quantity;
+  }
+  for (const [resourceId, quantity] of typedEntries(suppliedResources)) {
+    getFlow(resourceId).produced += quantity;
   }
 
   const recyclableSourceValueProduced = regularResults.reduce((total, result) => {

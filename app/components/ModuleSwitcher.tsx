@@ -51,7 +51,7 @@ export const ModuleSwitcher: React.FC<Props> = ({ modules, active, contractsId, 
     </SwitchButton>
     {modules.map((mod) => {
       const Icon = mod.liveArea ? MapPinned : (moduleIcons[mod.id] ?? CircleHelp);
-      const inclusionLabel = mod.includedInFactoryTotals === false
+      const inclusionLabel = mod.includedInFactoryTotals === false && !mod.liveArea
         ? `${mod.name}, planning-only and excluded from current Factory Total`
         : undefined;
 

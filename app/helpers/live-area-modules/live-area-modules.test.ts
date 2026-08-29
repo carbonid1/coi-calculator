@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { type SyncedAreaEntity } from '../../game-state'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
+import { calculateBuildingStats } from '../building-stats/building-stats'
 import { calculateNet } from '../calculate/calculate'
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
 import { createLiveAreaModules } from './live-area-modules'
@@ -409,7 +410,7 @@ describe('createLiveAreaModules', () => {
     expect(net('brine')).toBe(2)
   })
 
-  it('propagates the Copper #1 export request through the full chain', () => {
+  it('propagates the Copper #1 export request and costs through a synced ghost chain', () => {
     const arcRecipe = {
       id: 'CopperSmeltingArc',
       name: 'Copper Smelting Arc',
@@ -443,7 +444,7 @@ describe('createLiveAreaModules', () => {
       prototypeName: string,
       entityRecipe: typeof arcRecipe,
     ) => ({
-      ...entity(entityId, true, true, [entityRecipe]),
+      ...entity(entityId, false, false, [entityRecipe]),
       prototypeId,
       prototypeName,
       zones: [{ id: 16, name: 'Copper #1' }],
@@ -499,6 +500,10 @@ describe('createLiveAreaModules', () => {
       produced: 384,
       net: 0,
     })
+    expect(calculateBuildingStats(lines, result)).toMatchObject({
+      workers: 224,
+      electricityKw: 54_400,
+    })
   })
 
   it('preserves the Shredder recycling exception', () => {
@@ -518,6 +523,161 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [shredder], [])
 
     expect(module?.recipes?.[0]?.appliesRecyclingEfficiency).toBe(false)
+  })
+
+  it('uses the CO2 graphite recipe as a local surplus catcher', () => {
+    const scrubber = {
+      id: 'TestScrubber',
+      name: 'Test scrubber',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [],
+      outputs: [
+        { productId: 'Product_Sulfur', name: 'Sulfur', quantity: 1 },
+        { productId: 'Product_CarbonDioxide', name: 'Carbon Dioxide', quantity: 38.4 },
+      ],
+    }
+    const graphiteFromCo2 = {
+      id: 'GraphiteProductionCo2',
+      name: 'Graphite production from CO2',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [
+        { productId: 'Product_CarbonDioxide', name: 'Carbon Dioxide', quantity: 144 },
+      ],
+      outputs: [{ productId: 'Product_Graphite', name: 'Graphite', quantity: 6 }],
+    }
+    const configuredEntity = (
+      entityId: number,
+      prototypeId: string,
+      prototypeName: string,
+      configuredRecipe: typeof scrubber,
+    ) => ({
+      ...entity(entityId, true, true, [configuredRecipe]),
+      prototypeId,
+      prototypeName,
+    })
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [
+        configuredEntity(1, 'TestProducer', 'Test producer', scrubber),
+        configuredEntity(2, 'ChemicalPlant2', 'Chemical plant II', graphiteFromCo2),
+      ],
+      [],
+      { Test: { requestedExports: { sulfur: 1 } } },
+    )
+
+    if (!module) throw new Error('Live area module was not created')
+
+    const preset = module.presets[0]
+    const { lines } = buildModuleLines(module, preset ?? null)
+    const result = calculateNet(
+      lines,
+      {},
+      undefined,
+      {},
+      getPresetResourceDemands(preset),
+    )
+    const graphiteRecipe = module.recipes?.find(candidate => (
+      candidate.gameRecipeId === 'GraphiteProductionCo2'
+    ))
+    const graphiteResult = result.regularResults.find(candidate => (
+      candidate.recipe.gameRecipeId === 'GraphiteProductionCo2'
+    ))
+
+    expect(graphiteRecipe).toMatchObject({
+      balanceBy: 'output',
+      consumeSurplusInputIds: ['carbonDioxide'],
+      consumeSurplusInputScope: 'module',
+      surplusConsumptionPriority: 10,
+    })
+    expect(graphiteResult?.supplyRatio).toBeCloseTo(38.4 / 144)
+    expect(result.allResourceFlows.find(
+      flow => flow.resourceId === 'carbonDioxide',
+    )?.net).toBeCloseTo(0)
+    expect(result.allResourceFlows.find(
+      flow => flow.resourceId === 'graphite',
+    )?.net).toBeCloseTo(1.6)
+  })
+
+  it('ignores virtual environmental emissions without dropping material flows', () => {
+    const exhaustProducer = {
+      id: 'TestExhaustProducer',
+      name: 'Test exhaust producer',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [],
+      outputs: [
+        { productId: 'Product_Sulfur', name: 'Sulfur', quantity: 1 },
+        { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 60 },
+      ],
+    }
+    const smokeStackRecipe = {
+      id: 'SmokeStackExhaust',
+      name: 'SmokeStackExhaust',
+      durationSeconds: 20,
+      assigned: true,
+      inputs: [{ productId: 'Product_Exhaust', name: 'Exhaust', quantity: 20 }],
+      outputs: [
+        {
+          productId: 'Product_Virtual_PollutedAir',
+          name: 'Air pollution',
+          quantity: 10,
+        },
+        {
+          productId: 'Product_Virtual_PollutedWater',
+          name: 'Water pollution',
+          quantity: 5,
+        },
+      ],
+    }
+    const smokeStack = {
+      ...entity(4, true, true, [smokeStackRecipe]),
+      prototypeId: 'SmokeStack',
+      prototypeName: 'Smoke stack',
+    }
+    const producer = {
+      ...entity(3, true, true, [exhaustProducer]),
+      prototypeId: 'TestProducer',
+      prototypeName: 'Test producer',
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [producer, smokeStack],
+      [],
+      { Test: { requestedExports: { sulfur: 1 } } },
+    )
+
+    if (!module) throw new Error('Live area module was not created')
+
+    expect(module?.liveArea?.issues).toEqual([])
+    expect(module?.recipes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        gameRecipeId: 'SmokeStackExhaust',
+        inputs: [{ resourceId: 'exhaust', quantity: 60 }],
+        outputs: [],
+        consumeSurplusInputIds: ['exhaust'],
+        consumeSurplusInputScope: 'module',
+      }),
+    ]))
+
+    const preset = module.presets[0]
+    const { lines } = buildModuleLines(module, preset ?? null)
+    const result = calculateNet(
+      lines,
+      {},
+      undefined,
+      {},
+      getPresetResourceDemands(preset),
+    )
+    const smokeStackResult = result.regularResults.find(candidate => (
+      candidate.recipe.gameRecipeId === 'SmokeStackExhaust'
+    ))
+
+    expect(smokeStackResult?.supplyRatio).toBe(1)
+    expect(result.allResourceFlows.find(
+      flow => flow.resourceId === 'exhaust',
+    )?.net).toBeCloseTo(0)
   })
 
   it('counts every building affected by an unsupported product', () => {

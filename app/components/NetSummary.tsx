@@ -1,7 +1,8 @@
 import { Tooltip } from "@carbonid1/design-system";
-import { Cpu, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Cpu, Sparkles } from "lucide-react";
 
 import { cropProductResourceIds } from "../db/crop-farming";
+import { type ModuleResourceTransfer } from "../db/module-resource-links";
 import { type Module } from "../db/modules/modules";
 import { resources, type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
@@ -41,6 +42,8 @@ interface Props {
   machineZones?: MachineZoneSummary[];
   plannedModules?: Module[];
   requestedExports?: Partial<Record<ResourceId, number>>;
+  moduleId?: string;
+  resourceTransfers?: readonly ModuleResourceTransfer[];
   onAssignMachineZone?: (zoneId: number, claimId: string | null) => void;
   onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
 }
@@ -150,6 +153,8 @@ export const NetSummary: React.FC<Props> = ({
   machineZones = [],
   plannedModules = [],
   requestedExports = {},
+  moduleId,
+  resourceTransfers = [],
   onAssignMachineZone,
   onOpenBuilding,
 }) => {
@@ -161,6 +166,16 @@ export const NetSummary: React.FC<Props> = ({
   const requestedExportIds = new Set(
     requestedExportRows.map(([resourceId]) => resourceId),
   );
+  const inboundTransfers = resourceTransfers
+    .filter(transfer => transfer.targetModuleId === moduleId)
+    .toSorted((left, right) => (
+      resources[left.resourceId].name.localeCompare(resources[right.resourceId].name)
+    ));
+  const outboundTransfers = resourceTransfers
+    .filter(transfer => transfer.sourceModuleId === moduleId)
+    .toSorted((left, right) => (
+      resources[left.resourceId].name.localeCompare(resources[right.resourceId].name)
+    ));
   const electricityFlow = flows.find((flow) => flow.resourceId === "electricity");
   const computingFlow = flows.find((flow) => flow.resourceId === "computing");
   const materialFlows = flows.filter((flow) => (
@@ -384,7 +399,60 @@ export const NetSummary: React.FC<Props> = ({
     && computingGenerationCapacityTflops == null
     && !workers
     && requestedExportRows.length === 0
+    && inboundTransfers.length === 0
+    && outboundTransfers.length === 0
   ) return null;
+
+  const renderTransfer = (
+    transfer: ModuleResourceTransfer,
+    direction: "inbound" | "outbound",
+  ) => {
+    const inbound = direction === "inbound";
+    const counterparty = inbound
+      ? transfer.sourceModuleName
+      : transfer.targetModuleName;
+    const requested = transfer.requestedQuantity;
+    const hasShortfall = requested - transfer.quantity > BALANCE_THRESHOLD;
+    let policy: string;
+
+    if (transfer.mode === "surplus-only") {
+      policy = inbound
+        ? `Uses only ${transfer.sourceModuleName} surplus and does not start production there.`
+        : "Transfers only surplus remaining after this module's own consumption.";
+    } else {
+      policy = inbound
+        ? `Demand here can start production in ${transfer.sourceModuleName}.`
+        : `${transfer.targetModuleName} demand can start production here.`;
+    }
+    const quantity = hasShortfall
+      ? `${formatCapacity(transfer.quantity)} of ${formatCapacity(requested)} requested`
+      : `${formatCapacity(transfer.quantity)} per production cycle`;
+    const Icon = inbound ? ArrowLeft : ArrowRight;
+
+    return (
+      <Tooltip
+        key={transfer.id}
+        label={`Dedicated ${inbound ? "from" : "to"} ${counterparty}. ${policy} ${quantity}.`}
+        maxWidth={340}
+        className="flex w-full"
+      >
+        <div className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded px-2 py-0.5 text-sm hover:bg-accent">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="text-foreground">{resources[transfer.resourceId].name}</span>
+            <span className="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+              <span className="truncate">{counterparty}</span>
+            </span>
+          </span>
+          <span className={`shrink-0 font-mono font-semibold tabular-nums ${
+            hasShortfall ? "text-destructive" : "text-primary"
+          }`}>
+            {formatCapacity(transfer.quantity)}
+          </span>
+        </div>
+      </Tooltip>
+    );
+  };
 
   return (
     <div className="space-y-3 rounded-lg bg-card p-3 shadow-card">
@@ -475,7 +543,12 @@ export const NetSummary: React.FC<Props> = ({
         );
       })()}
 
-      {(requestedExportRows.length > 0 || moduleInputFlows.length > 0) && (
+      {(
+        requestedExportRows.length > 0
+        || moduleInputFlows.length > 0
+        || inboundTransfers.length > 0
+        || outboundTransfers.length > 0
+      ) && (
         <div className="space-y-1 border-b border-border pb-3">
           {moduleInputFlows.map((flow) => (
             <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
@@ -487,7 +560,11 @@ export const NetSummary: React.FC<Props> = ({
               </span>
             </div>
           ))}
-          {requestedExportRows.length > 0 && moduleInputFlows.length > 0 && (
+          {inboundTransfers.map(transfer => renderTransfer(transfer, "inbound"))}
+          {(
+            (requestedExportRows.length > 0 || outboundTransfers.length > 0)
+            && (moduleInputFlows.length > 0 || inboundTransfers.length > 0)
+          ) && (
             <div aria-hidden="true" className="my-2 border-t border-border" />
           )}
           {requestedExportRows.map(([resourceId, requested]) => {
@@ -516,6 +593,7 @@ export const NetSummary: React.FC<Props> = ({
               </Tooltip>
             );
           })}
+          {outboundTransfers.map(transfer => renderTransfer(transfer, "outbound"))}
         </div>
       )}
 

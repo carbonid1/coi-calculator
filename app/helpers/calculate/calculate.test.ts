@@ -211,6 +211,133 @@ it("uses remaining capacity to consume preferred module surplus and propagates s
   expect(net("brine")).toBeCloseTo(20);
 });
 
+it("lets an explicit private input start a consumer and exposes ordinary support demand", () => {
+  const waterProducer: Recipe = {
+    id: "test-linked-water-producer",
+    name: "Linked water producer",
+    building: "Test desalinator",
+    group: "production",
+    balanceBy: "output",
+    inputs: [{ resourceId: "seaWater", quantity: 5 }],
+    outputs: [{ resourceId: "water", quantity: 5 }],
+  };
+  const exhaustConsumer: Recipe = {
+    id: "test-linked-exhaust-consumer",
+    name: "Linked exhaust consumer",
+    building: "Test scrubber",
+    group: "production",
+    balanceBy: "output",
+    inputs: [
+      { resourceId: "exhaust", quantity: 10 },
+      { resourceId: "water", quantity: 5 },
+      { resourceId: "limestone", quantity: 2 },
+    ],
+    outputs: [{ resourceId: "sulfur", quantity: 1 }],
+  };
+  const result = calculateNet([
+    balancedLine(waterProducer, "target"),
+    {
+      ...balancedLine(exhaustConsumer, "target"),
+      drivingInputIds: ["exhaust"],
+    },
+  ], { exhaust: 10 });
+  const scrubber = result.regularResults.find(
+    candidate => candidate.recipe.id === exhaustConsumer.id,
+  );
+  const desalinator = result.regularResults.find(
+    candidate => candidate.recipe.id === waterProducer.id,
+  );
+
+  expect(scrubber?.supplyRatio).toBe(1);
+  expect(desalinator?.supplyRatio).toBe(1);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "exhaust")?.net).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "water")?.net).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "limestone")?.net).toBe(-2);
+});
+
+it("lets a planned private producer expose support demand for surplus consumption", () => {
+  const steamProducer: Recipe = {
+    id: "test-planned-support-steam",
+    name: "Steam producer",
+    building: "Test producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "steamLow", quantity: 20 }],
+  };
+  const desalinator: Recipe = {
+    id: "test-planned-support-desalinator",
+    name: "Desalinator",
+    building: "Test desalinator",
+    group: "production",
+    balanceBy: "output",
+    consumeSurplusInputIds: ["steamLow"],
+    inputs: [
+      { resourceId: "steamLow", quantity: 10 },
+      { resourceId: "seaWater", quantity: 10 },
+    ],
+    outputs: [{ resourceId: "water", quantity: 10 }],
+  };
+  const result = calculateNet(
+    [
+      fixedLine(steamProducer, "target"),
+      balancedLine(desalinator, "target", 2),
+    ],
+    { seaWater: 0 },
+    undefined,
+    {},
+    { water: 5 },
+    new Set(["seaWater"]),
+    new Set(["seaWater"]),
+  );
+
+  expect(result.regularResults.find(
+    candidate => candidate.recipe.id === desalinator.id,
+  )?.supplyRatio).toBe(1);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "steamLow")?.net).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "seaWater")?.net).toBe(-20);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "water")?.net).toBe(15);
+});
+
+it("uses supplied support stock without treating its module ledger as a new deficit", () => {
+  const steamProducer: Recipe = {
+    id: "test-supplied-support-steam",
+    name: "Steam producer",
+    building: "Test producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "steamLow", quantity: 20 }],
+  };
+  const desalinator: Recipe = {
+    id: "test-supplied-support-desalinator",
+    name: "Desalinator",
+    building: "Test desalinator",
+    group: "production",
+    balanceBy: "output",
+    consumeSurplusInputIds: ["steamLow"],
+    inputs: [
+      { resourceId: "steamLow", quantity: 10 },
+      { resourceId: "seaWater", quantity: 10 },
+    ],
+    outputs: [{ resourceId: "water", quantity: 10 }],
+  };
+  const result = calculateNet(
+    [
+      fixedLine(steamProducer, "target"),
+      balancedLine(desalinator, "target", 2),
+    ],
+    { seaWater: 20 },
+    undefined,
+    {},
+    { water: 5 },
+  );
+
+  expect(result.regularResults.find(
+    candidate => candidate.recipe.id === desalinator.id,
+  )?.supplyRatio).toBe(1);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "steamLow")?.net).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "seaWater")?.net).toBe(0);
+});
+
 it("leaves preferred surplus when supporting production capacity is exhausted", () => {
   const steamProducer: Recipe = {
     id: "test-limited-low-steam-producer",

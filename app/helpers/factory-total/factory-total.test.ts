@@ -350,3 +350,16 @@ describe("Factory Total contracts", () => {
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });
+
+describe("Factory Total module boundaries", () => {
+  it("includes unlinked live-module supplies and demands in the global pool", () => {
+    const result = calculateFactoryTotal([], {
+      ...baselineFactoryOptions,
+      boundaryDemands: { limestone: 2 },
+      boundarySupplies: { sulfur: 1 },
+    });
+
+    expect(result.flows.find(flow => flow.resourceId === "limestone")?.net).toBe(-2);
+    expect(result.flows.find(flow => flow.resourceId === "sulfur")?.net).toBe(1);
+  });
+});

@@ -30,6 +30,10 @@ export interface FactoryTotalOptions {
   outputModifiers?: RecipeModifierMultipliers;
   shipsFuelUseMultiplier?: number;
   contractsProfitMultiplier?: number;
+  /** Unlinked output crossing into the factory from isolated live modules. */
+  boundarySupplies?: Partial<Record<ResourceId, number>>;
+  /** Unlinked input drawn by isolated live modules from the global factory. */
+  boundaryDemands?: Partial<Record<ResourceId, number>>;
 }
 
 interface ElectricityDispatchGroup {
@@ -436,6 +440,8 @@ export const calculateFactoryTotal = (
     outputModifiers = {},
     shipsFuelUseMultiplier = 1,
     contractsProfitMultiplier = 1,
+    boundarySupplies = {},
+    boundaryDemands = {},
   }: FactoryTotalOptions,
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
@@ -465,9 +471,13 @@ export const calculateFactoryTotal = (
     }
   }
 
+  for (const [resourceId, quantity] of typedEntries(boundaryDemands)) {
+    fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
+  }
+
   const withoutContracts = calculateWithDispatch(
     allLines,
-    {},
+    boundarySupplies,
     recyclingEfficiencyPercent,
     outputModifiers,
     fixedDemands,
@@ -499,7 +509,9 @@ export const calculateFactoryTotal = (
   const calculateWithContractPlan = (
     contractPlan: ReturnType<typeof applyContracts>,
   ) => {
-    const suppliedResources: Partial<Record<ResourceId, number>> = {};
+    const suppliedResources: Partial<Record<ResourceId, number>> = {
+      ...boundarySupplies,
+    };
     const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
     const contractInputIds = new Set<ResourceId>();
 

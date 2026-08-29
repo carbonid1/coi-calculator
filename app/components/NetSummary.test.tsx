@@ -108,3 +108,38 @@ it("uses the success colour for surplus quantities", () => {
 
   expect(html).toContain("text-success");
 });
+
+it("shows a dedicated resource beside its counterparty in both linked modules", () => {
+  const transfer = {
+    id: "test-exhaust-link",
+    sourceModuleId: "copper",
+    sourceModuleName: "Copper #1",
+    targetModuleId: "exhaust",
+    targetModuleName: "Exaust #1",
+    resourceId: "exhaust" as const,
+    mode: "surplus-only" as const,
+    quantity: 96,
+    requestedQuantity: 96,
+  };
+  const sourceHtml = renderToStaticMarkup(
+    <NetSummary
+      flows={[]}
+      moduleId="copper"
+      resourceTransfers={[transfer]}
+    />,
+  );
+  const targetHtml = renderToStaticMarkup(
+    <NetSummary
+      flows={[]}
+      moduleId="exhaust"
+      resourceTransfers={[transfer]}
+    />,
+  );
+
+  expect(sourceHtml).toContain("Exhaust");
+  expect(sourceHtml).toContain("Exaust #1");
+  expect(sourceHtml).toContain("Dedicated to Exaust #1");
+  expect(targetHtml).toContain("Exhaust");
+  expect(targetHtml).toContain("Copper #1");
+  expect(targetHtml).toContain("Dedicated from Copper #1");
+});

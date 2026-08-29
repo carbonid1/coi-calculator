@@ -2,7 +2,7 @@ import { activeHousingType, housingTypes } from "./housing";
 import { settlementConfig } from "./settlement";
 import { defaultSpaceStationLevel } from "./space-station";
 
-interface BuildingData {
+export interface BuildingData {
   workers: number;
   electricityKw: number;
   /** Pausing this building has no recurring-cost benefit worth recommending. */
@@ -151,3 +151,17 @@ export const buildings: Record<string, BuildingData> = {
   "Basic Rack": { workers: 0, electricityKw: 85 },
   "Water Chiller": { workers: 3, electricityKw: 1000 },
 };
+
+const normalizeBuildingName = (name: string) => name.trim().toLocaleLowerCase("en-US");
+
+const buildingsByNormalizedName = new Map(
+  Object.entries(buildings).map(([name, building]) => [
+    normalizeBuildingName(name),
+    building,
+  ]),
+);
+
+/** Resolves game-localized English display casing to calculator building data. */
+export const getBuildingData = (name: string): BuildingData | undefined => (
+  buildings[name] ?? buildingsByNormalizedName.get(normalizeBuildingName(name))
+);

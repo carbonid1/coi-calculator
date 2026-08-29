@@ -50,6 +50,10 @@ import {
   resolvedHousingCount,
 } from './db/housing'
 import {
+  moduleResourceLinkDefinitions,
+  resolveModuleResourceLinks,
+} from './db/module-resource-links'
+import {
   attachMaintenanceDepotsToModule,
   resolveMaintenanceDepotModuleAssignments,
   selectMaintenanceDepotLines,
@@ -135,6 +139,7 @@ import {
 } from './helpers/building-diagnostics/building-diagnostics'
 import { calculateBuildingStats } from './helpers/building-stats/building-stats'
 import { type ProductionLine } from './helpers/calculate/calculate'
+import { calculateLinkedModules } from './helpers/calculate-linked-modules/calculate-linked-modules'
 import { resolveComputingEntityInventory } from './helpers/computing-entity-sync/computing-entity-sync'
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
@@ -838,9 +843,21 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         : 1,
   }
   const enabledContracts = activeContracts
+  const resolvedModuleResourceLinks = resolveModuleResourceLinks(
+    configuredModules,
+    moduleResourceLinkDefinitions,
+  )
+  const linkedModulesResult = calculateLinkedModules({
+    links: resolvedModuleResourceLinks,
+    modules: configuredModules,
+    outputModifiers,
+    recyclingEfficiencyPercent,
+  })
   const factoryResult = calculateFactoryTotal(
     configuredModules,
     {
+      boundaryDemands: linkedModulesResult.boundaryDemands,
+      boundarySupplies: linkedModulesResult.boundarySupplies,
       contracts: enabledContracts,
       recyclingEfficiencyPercent,
       outputModifiers,
@@ -861,6 +878,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         activeModule.presets[0] ??
         null)
       : null
+  const activeLinkedModuleResult = activeModule
+    ? linkedModulesResult.moduleResults.get(activeModule.id)
+    : undefined
   const reserveDrawsPerProductionCycle = mapReserveResources(({ recipeId, resourceId }) =>
     getReserveDrawPerProductionCycle(factoryResult.calculation.sourceResults, recipeId, resourceId),
   )
@@ -904,7 +924,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     settlementUnityBonusPercent: focusBonuses.unityProduction,
   })
   const activeModuleFactoryResult =
-    activeModule?.includedInFactoryTotals === false
+    activeModule?.includedInFactoryTotals === false && !activeLinkedModuleResult
       ? calculateFactoryTotal(
           [{ ...activeModule, includedInFactoryTotals: true }],
           {
@@ -916,7 +936,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         )
       : factoryResult
   const moduleResult = activeModule
-    ? (() => {
+    ? activeLinkedModuleResult ?? (() => {
         const lines = activeModuleFactoryResult.allLines.filter(
           line => line.moduleId === activeModule.id,
         )
@@ -953,22 +973,50 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     factoryResult.calculation,
     outputModifiers,
   )
-  const factoryWorkers = factoryStats.workers + calculateContractWorkers(enabledContracts)
+  const linkedFactoryStats = [...linkedModulesResult.moduleResults.values()].reduce(
+    (total, result) => {
+      const stats = calculateBuildingStats(
+        result.lines,
+        {
+          regularResults: result.regularResults,
+          sourceResults: result.sourceResults,
+          sinkResults: result.sinkResults,
+        },
+        outputModifiers,
+      )
+
+      return {
+        computingTflops: total.computingTflops + stats.computingTflops,
+        electricityKw: total.electricityKw + stats.electricityKw,
+        workers: total.workers + stats.workers,
+      }
+    },
+    { computingTflops: 0, electricityKw: 0, workers: 0 },
+  )
+  const linkedRegularResults = [...linkedModulesResult.moduleResults.values()]
+    .flatMap(result => result.regularResults)
+  const linkedSourceResults = [...linkedModulesResult.moduleResults.values()]
+    .flatMap(result => result.sourceResults)
+  const linkedSinkResults = [...linkedModulesResult.moduleResults.values()]
+    .flatMap(result => result.sinkResults)
+  const factoryWorkers = factoryStats.workers
+    + linkedFactoryStats.workers
+    + calculateContractWorkers(enabledContracts)
   const factoryBuildingDiagnostics = calculateBuildingDiagnostics(
     configuredModules,
     factoryResult.flows,
-    factoryResult.calculation.regularResults,
-    factoryResult.calculation.sourceResults,
-    factoryResult.calculation.sinkResults,
+    [...factoryResult.calculation.regularResults, ...linkedRegularResults],
+    [...factoryResult.calculation.sourceResults, ...linkedSourceResults],
+    [...factoryResult.calculation.sinkResults, ...linkedSinkResults],
   )
   const activeBuildingDiagnostics =
-    activeModule?.includedInFactoryTotals === false
+    activeModule?.includedInFactoryTotals === false && moduleResult
       ? calculateBuildingDiagnostics(
           [activeModule],
-          activeModuleFactoryResult.flows,
-          activeModuleFactoryResult.calculation.regularResults,
-          activeModuleFactoryResult.calculation.sourceResults,
-          activeModuleFactoryResult.calculation.sinkResults,
+          moduleResult.resourceFlows,
+          moduleResult.regularResults,
+          moduleResult.sourceResults,
+          moduleResult.sinkResults,
         )
       : factoryBuildingDiagnostics
   const calculateGenerationCapacityMw = (lines: ProductionLine[]) =>
@@ -987,7 +1035,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         ),
       0,
     )
-  const factoryGenerationCapacityMw = calculateGenerationCapacityMw(factoryResult.allLines)
+  const linkedModuleLines = [...linkedModulesResult.moduleResults.values()]
+    .flatMap(result => result.lines)
+  const factoryGenerationCapacityMw = calculateGenerationCapacityMw([
+    ...factoryResult.allLines,
+    ...linkedModuleLines,
+  ])
   const calculateComputingCapacityTflops = (lines: ProductionLine[]) =>
     lines.reduce(
       (total, line) =>
@@ -1001,7 +1054,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         ),
       0,
     )
-  const factoryComputingCapacityTflops = calculateComputingCapacityTflops(factoryResult.allLines)
+  const factoryComputingCapacityTflops = calculateComputingCapacityTflops([
+    ...factoryResult.allLines,
+    ...linkedModuleLines,
+  ])
   const computingCapacityTflops = calculateComputingCapacityTflops(
     factoryResult.allLines.filter(line => line.moduleId === COMPUTING_MODULE_ID),
   )
@@ -1096,14 +1152,21 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <NetSummary
           flows={factoryResult.flows}
           workers={factoryWorkers}
-          electricityConsumptionKw={factoryResult.electricityDemandMw * 1000}
+          electricityConsumptionKw={
+            factoryResult.electricityDemandMw * 1000 + linkedFactoryStats.electricityKw
+          }
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
-          computingConsumptionTflops={factoryResult.computingDemandTflops}
+          computingConsumptionTflops={
+            factoryResult.computingDemandTflops + linkedFactoryStats.computingTflops
+          }
           computingGenerationCapacityTflops={factoryComputingCapacityTflops}
           populationCapacity={populationCapacity}
           unityBudget={unityBudget}
           groupByBalance
-          regularResults={factoryResult.calculation.regularResults}
+          regularResults={[
+            ...factoryResult.calculation.regularResults,
+            ...linkedRegularResults,
+          ]}
           buildingDiagnostics={factoryBuildingDiagnostics}
           machineAllocationIssues={sharedMachineAllocation?.issues}
           machineInventory={sharedMachineAllocation?.inventory}
@@ -1182,7 +1245,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           {activeModule.id !== MINES_MODULE_ID && activeModule.id !== RESERVES_MODULE_ID && (
             <NetSummary
               flows={displayedResourceFlows}
+              moduleId={activeModule.id}
               requestedExports={preset?.requestedExports}
+              resourceTransfers={linkedModulesResult.transfers}
               workers={buildingStats.workers}
               electricityConsumptionKw={buildingStats.electricityKw}
               electricityGenerationCapacityMw={nuclearGenerationCapacityMw}

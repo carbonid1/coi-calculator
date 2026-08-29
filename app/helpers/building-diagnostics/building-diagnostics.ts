@@ -1,4 +1,4 @@
-import { buildings } from "../../db/buildings";
+import { getBuildingData } from "../../db/buildings";
 import { type Module } from "../../db/modules/modules";
 import { type ResourceId } from "../../db/resources";
 import {
@@ -330,7 +330,7 @@ export const calculateBuildingDiagnostics = (
     const atCapacity = active > 0 && load >= active - EPSILON;
     const paused = Math.max(0, built - active);
     const suppressPauseAttention = results.every((result) => (
-      buildings[result.recipe.building]?.suppressPauseAttention === true
+      getBuildingData(result.recipe.building)?.suppressPauseAttention === true
     ));
     const canPause = suppressPauseAttention
       ? 0

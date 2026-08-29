@@ -17,6 +17,11 @@ const plannedConstructionStates = new Set([
   'BeingUpgraded',
 ])
 
+const environmentalEmissionProductIds = new Set([
+  'Product_Virtual_PollutedAir',
+  'Product_Virtual_PollutedWater',
+])
+
 const normalizeResourceKey = (value: string) => value
   .normalize('NFKD')
   .replace(/[^a-zA-Z0-9]/g, '')
@@ -27,8 +32,39 @@ const resourceIdByKey = new Map<string, ResourceId>()
 
 const runtimeRecipeBehaviors: Record<
   string,
-  Pick<Recipe, 'appliesRecyclingEfficiency'>
+  Pick<
+    Recipe,
+    | 'appliesRecyclingEfficiency'
+    | 'consumeSurplusInputIds'
+    | 'consumeSurplusInputScope'
+    | 'surplusConsumptionPriority'
+  >
 > = {
+  'ChemicalPlant2:GraphiteProductionCo2': {
+    consumeSurplusInputIds: ['carbonDioxide'],
+    consumeSurplusInputScope: 'module',
+    surplusConsumptionPriority: 10,
+  },
+  'SmokeStack:SmokeStackCarbonDioxide': {
+    consumeSurplusInputIds: ['carbonDioxide'],
+    consumeSurplusInputScope: 'module',
+    surplusConsumptionPriority: 100,
+  },
+  'SmokeStack:SmokeStackExhaust': {
+    consumeSurplusInputIds: ['exhaust'],
+    consumeSurplusInputScope: 'module',
+    surplusConsumptionPriority: 100,
+  },
+  'SmokeStackLarge:SmokeStackCarbonDioxide': {
+    consumeSurplusInputIds: ['carbonDioxide'],
+    consumeSurplusInputScope: 'module',
+    surplusConsumptionPriority: 100,
+  },
+  'SmokeStackLarge:SmokeStackExhaust': {
+    consumeSurplusInputIds: ['exhaust'],
+    consumeSurplusInputScope: 'module',
+    surplusConsumptionPriority: 100,
+  },
   'Shredder:ShreddingRetiredWaste': { appliesRecyclingEfficiency: false },
 }
 
@@ -96,7 +132,7 @@ const addIssue = (
 
 const moduleIdForZone = (zoneId: number) => `live-area-${zoneId}`
 
-/** Builds planning-only calculator modules from unmatched named vehicle areas. */
+/** Builds isolated calculator modules from unmatched named vehicle areas. */
 export const createLiveAreaModules = (
   zones: readonly SyncedLogisticsZoneRef[],
   entities: readonly SyncedAreaEntity[],
@@ -199,15 +235,18 @@ export const createLiveAreaModules = (
     }
 
     for (const [priority, group] of orderedGroups.entries()) {
+      const materialOutputs = group.recipe.outputs.filter(product => (
+        !environmentalEmissionProductIds.has(product.productId)
+      ))
       const inputs = group.recipe.inputs.map(product => (
         toIngredient(product, group.recipe.durationSeconds)
       ))
-      const outputs = group.recipe.outputs.map(product => (
+      const outputs = materialOutputs.map(product => (
         toIngredient(product, group.recipe.durationSeconds)
       ))
       const missingProducts = [
         ...group.recipe.inputs.filter((_, index) => !inputs[index]),
-        ...group.recipe.outputs.filter((_, index) => !outputs[index]),
+        ...materialOutputs.filter((_, index) => !outputs[index]),
       ]
 
       if (missingProducts.length > 0) {

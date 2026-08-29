@@ -40,6 +40,8 @@ export interface ProductionLine {
   operatingMode: OperatingMode;
   /** Factory-wide dispatch can assign a utilization without changing installed capacity. */
   allocationRatio?: number;
+  /** Explicit private supplies that can start this consumer without output demand. */
+  drivingInputIds?: ResourceId[];
 }
 
 export interface ResourceFlow {
@@ -317,6 +319,7 @@ export const calculateNet = (
   outputModifiers: RecipeModifierMultipliers = {},
   fixedDemands: Partial<Record<ResourceId, number>> = {},
   nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
+  plannedSupportingResourceIds: ReadonlySet<ResourceId> = new Set(),
 ) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
@@ -346,6 +349,9 @@ export const calculateNet = (
   );
   const surplusConsumerLines = orderSurplusConsumers(
     balancedLines.filter((line) => (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0),
+  );
+  const drivenInputLines = orderAllocatedLines(
+    balancedLines.filter((line) => (line.drivingInputIds?.length ?? 0) > 0),
   );
   const demandProducedIds = new Set(
     demandBalancedLines.flatMap((line) => (
@@ -863,13 +869,16 @@ export const calculateNet = (
     );
     capacityTracker.restore(state.capacity);
   };
-  const hasNewDeficit = (
-    before: ReadonlyMap<string, { consumed: number; produced: number }>,
-    after: ReadonlyMap<string, { consumed: number; produced: number }>,
+  const hasNewDeficit = <Key extends string>(
+    before: ReadonlyMap<Key, { consumed: number; produced: number }>,
+    after: ReadonlyMap<Key, { consumed: number; produced: number }>,
+    isIgnored: (key: Key) => boolean = () => false,
   ) => {
     const keys = new Set([...before.keys(), ...after.keys()]);
 
     for (const key of keys) {
+      if (isIgnored(key)) continue;
+
       const beforeFlow = before.get(key);
       const afterFlow = after.get(key);
       const beforeAvailable = (beforeFlow?.produced ?? 0) - (beforeFlow?.consumed ?? 0);
@@ -883,8 +892,18 @@ export const calculateNet = (
   const allocationIntroducedDeficit = (
     baseline: ReturnType<typeof snapshotAllocationState>,
   ) => (
-    hasNewDeficit(baseline.flows, flows)
-    || hasNewDeficit(baseline.actualModuleFlows, actualModuleFlows)
+    hasNewDeficit(
+      baseline.flows,
+      flows,
+      key => plannedSupportingResourceIds.has(key),
+    )
+    || hasNewDeficit(
+      baseline.actualModuleFlows,
+      actualModuleFlows,
+      key => [...new Set([...suppliedIds, ...plannedSupportingResourceIds])].some(
+        resourceId => key.endsWith(`:${resourceId}`),
+      ),
+    )
   );
   const applyAdditionalSurplusConsumption = () => {
     for (const line of surplusConsumerLines) {
@@ -918,7 +937,12 @@ export const calculateNet = (
         // Supporting internal production is demand-propagated after this pass.
         // External materials must already be available; do not invent imports
         // merely to eliminate a preferred surplus resource.
-        if (internallyProducedIds.has(input.resourceId)) continue;
+        if (
+          internallyProducedIds.has(input.resourceId)
+          || plannedSupportingResourceIds.has(input.resourceId)
+        ) {
+          continue;
+        }
 
         const flow = getFlow(input.resourceId);
         const available = flow.produced - flow.consumed;
@@ -958,6 +982,40 @@ export const calculateNet = (
         applyRegularLine(line, feasibleRatio, true);
         propagateAdditionalDemand();
       }
+    }
+  };
+  const applyDrivenInputConsumption = () => {
+    for (const line of drivenInputLines) {
+      const currentRatio = allocationRatios.get(line) ?? 0;
+      const remainingLineRatio = Math.max(0, 1 - currentRatio);
+
+      if (remainingLineRatio <= 1e-9) continue;
+
+      const drivingInputIds = new Set(line.drivingInputIds);
+      const factor = lineFactor(line);
+      let ratio = Math.min(
+        remainingLineRatio,
+        capacityTracker.availableRatio(line),
+      );
+
+      for (const input of line.recipe.inputs) {
+        if (
+          !drivingInputIds.has(input.resourceId)
+          && !hardSuppliedIds.has(input.resourceId)
+        ) {
+          continue;
+        }
+
+        const available = getAvailableInput(line, input.resourceId);
+        const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+        if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+      }
+
+      if (ratio <= 1e-9) continue;
+
+      applyRegularLine(line, ratio, true);
+      propagateAdditionalDemand();
     }
   };
   const propagateAdditionalDemand = () => {
@@ -1122,6 +1180,8 @@ export const calculateNet = (
   propagateAdditionalDemand();
   reservePlannedSourceInputs();
   applyLowerPriorityLines(surplusLines);
+  propagateAdditionalDemand();
+  applyDrivenInputConsumption();
   propagateAdditionalDemand();
   applyAdditionalSurplusConsumption();
   propagateAdditionalDemand();
