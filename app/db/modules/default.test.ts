@@ -597,7 +597,7 @@ it("combines Tree Sapling and food-process Biomass in the local Default recovery
   expect(biomassMixer?.recipe.balanceInputScope).toBe("module");
 });
 
-it("shreds only the Tree Sapling surplus left by the settlement", () => {
+it("shreds the Tree Sapling surplus and exposes planned settlement Biomass surplus", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -637,11 +637,11 @@ it("shreds only the Tree Sapling surplus left by the settlement", () => {
   ), 0);
 
   expect(flow("treeSapling")?.net).toBeCloseTo(0);
-  expect(flow("biomass")?.net).toBeCloseTo(0);
+  expect(flow("biomass")?.net).toBeCloseTo(0.15858327272725603);
   expect(shredder?.actualInputs[0]?.quantity).toBeGreaterThan(0);
   expect(generalMixer?.actualInputs[0]?.quantity).toBeCloseTo(generalBiomassProduced);
   expect(housingMixer).toMatchObject({ activeBuildings: 2, builtBuildings: 2 });
-  expect(housingMixer?.actualInputs[0]?.quantity)
+  expect((housingMixer?.actualInputs[0]?.quantity ?? 0) + (flow("biomass")?.net ?? 0))
     .toBeCloseTo(residents?.actualOutputs.find(
       (output) => output.resourceId === "biomass",
     )?.quantity ?? 0);

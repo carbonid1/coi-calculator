@@ -83,6 +83,7 @@ import { createOfficesModule, OFFICES_MODULE_ID } from './db/modules/offices'
 import {
   createLegacyPopulationArea,
   createPopulationModule,
+  resolvePopulationHousingPlanTargets,
 } from './db/modules/population'
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from './db/modules/research'
 import { createReservesModule, RESERVES_MODULE_ID } from './db/modules/reserves'
@@ -741,12 +742,31 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
           .map(zone => createLegacySpaceStationArea(zone, productionEntities))
       : []
-  const configuredLiveAreaModules = [
+  const unconfiguredLiveAreaModules = [
     ...generatedLiveAreaModules,
     ...legacyComputingAreas,
     ...legacyPopulationAreas,
     ...legacySpaceStationAreas,
-  ].map(module => {
+  ]
+  const populationInventoriesByZone = new Map(
+    unconfiguredLiveAreaModules.flatMap(module => (
+      module.name === POPULATION_ZONE_NAME && module.liveArea
+        ? [[
+            module.liveArea.zoneId,
+            resolvePopulationEntityInventory(productionEntities, module.liveArea.zoneId),
+          ] as const]
+        : []
+    )),
+  )
+  const populationHousingPlanTargets = resolvePopulationHousingPlanTargets(
+    unconfiguredLiveAreaModules.flatMap(module => {
+      if (module.name !== POPULATION_ZONE_NAME || !module.liveArea) return []
+      const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
+
+      return syncedInventory ? [{ generatedArea: module, syncedInventory }] : []
+    }),
+  )
+  const configuredLiveAreaModules = unconfiguredLiveAreaModules.map(module => {
     if (!module.liveArea) return module
 
     if (
@@ -757,10 +777,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     }
 
     if (module.name === POPULATION_ZONE_NAME && hasPopulationEntityInventory) {
+      const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
+
+      if (!syncedInventory) return module
+
       return createPopulationModule(
-        resolvePopulationEntityInventory(productionEntities, module.liveArea.zoneId),
+        syncedInventory,
         module,
         housingCapacityLevel,
+        populationHousingPlanTargets.get(module.liveArea.zoneId) ?? null,
       )
     }
 

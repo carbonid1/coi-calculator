@@ -10,7 +10,11 @@ import { activeHousingType } from "../housing";
 import { defaultInfiniteResearchLevels } from "../research";
 import { settlementRecipeIds } from "../settlement";
 import { type Module } from "./modules";
-import { createLegacyPopulationArea, createPopulationModule } from "./population";
+import {
+  createLegacyPopulationArea,
+  createPopulationModule,
+  resolvePopulationHousingPlanTargets,
+} from "./population";
 
 const inventory = (
   counts: ResolvedPopulationEntityInventory["counts"],
@@ -24,11 +28,11 @@ const inventory = (
   unmappedEntities: [],
 });
 
-const generatedPopulationArea = (): Module => {
-  const waterTreatmentRecipeId = "live-area-14:WaterTreatmentPlant:WaterTreatmentT2";
+const generatedPopulationArea = (zoneId = 14): Module => {
+  const waterTreatmentRecipeId = `live-area-${zoneId}:WaterTreatmentPlant:WaterTreatmentT2`;
 
   return {
-    id: "live-area-14",
+    id: `live-area-${zoneId}`,
     name: "Population",
     description: "",
     includedInFactoryTotals: false,
@@ -89,7 +93,7 @@ const generatedPopulationArea = (): Module => {
     }],
     defaultPresetId: "live",
     liveArea: {
-      zoneId: 14,
+      zoneId,
       trackedBuildings: 24,
       constructedBuildings: 24,
       activeBuildings: 21,
@@ -132,7 +136,7 @@ it("preserves the generated area while supplying recipe-less settlement calculat
   );
   const preset = population.presets[0];
   const waterTreatmentRecipeId = "live-area-14:WaterTreatmentPlant:WaterTreatmentT2";
-  const expectedPopulationCapacity = 4_896;
+  const expectedPopulationCapacity = 5_184;
 
   expect(population).toMatchObject({
     id: "live-area-14",
@@ -144,8 +148,8 @@ it("preserves the generated area while supplying recipe-less settlement calculat
   expect(population.recipes?.map(recipe => recipe.id)).toEqual([waterTreatmentRecipeId]);
   expect(population.builtBuildings).toMatchObject({
     [waterTreatmentRecipeId]: 2,
-    [settlementRecipeIds.residents]: 17,
-    [settlementRecipeIds.residentsII]: 3,
+    [settlementRecipeIds.residents]: 18,
+    [settlementRecipeIds.residentsII]: 2,
     [settlementRecipeIds.foodMarket]: 7,
     [settlementRecipeIds.internetModule]: 1,
   });
@@ -153,7 +157,7 @@ it("preserves the generated area while supplying recipe-less settlement calculat
     description: "",
     activeBuildings: {
       [waterTreatmentRecipeId]: 2,
-      [settlementRecipeIds.residents]: 17,
+      [settlementRecipeIds.residents]: 18,
       [settlementRecipeIds.residentsII]: 0,
       [settlementRecipeIds.foodMarket]: 7,
       [settlementRecipeIds.internetModule]: 1,
@@ -161,8 +165,29 @@ it("preserves the generated area while supplying recipe-less settlement calculat
     speedLevels: {
       [settlementRecipeIds.internetModule]: expectedPopulationCapacity / 100,
     },
+    dataSources: {
+      [settlementRecipeIds.residents]: "planned",
+      [settlementRecipeIds.residentsII]: "planned",
+    },
+    planMismatches: [{
+      recipeId: settlementRecipeIds.residents,
+      current: 17,
+      currentSource: "synced",
+      target: 18,
+      direction: "at-least",
+      format: "configuration",
+      actions: [
+        {
+          type: "unpause",
+          label: "Unpause 1 Housing II",
+        },
+        {
+          type: "upgrade",
+          label: "Upgrade 1 Housing II to Housing III",
+        },
+      ],
+    }],
   });
-  expect(preset.planMismatches).toBeUndefined();
   expect(population.liveArea?.issues).toEqual([
     expect.objectContaining({ id: "UnknownSettlementBuilding:no-recipe" }),
   ]);
@@ -171,10 +196,10 @@ it("preserves the generated area while supplying recipe-less settlement calculat
   const result = calculateNet(lines);
   const stats = calculateBuildingStats(lines, result);
 
-  expect(stats.computingTflops).toBeCloseTo(282.0096);
+  expect(stats.computingTflops).toBeCloseTo(298.5984);
   expect(result.regularResults.find(item => (
     item.recipe.id === settlementRecipeIds.residents
-  ))?.actualInputs.find(input => input.resourceId === "water")?.quantity).toBeCloseTo(258.5088);
+  ))?.actualInputs.find(input => input.resourceId === "water")?.quantity).toBeCloseTo(273.7152);
 });
 
 it("projects recipe-less housing construction ghosts without inventing plan narration", () => {
@@ -203,6 +228,78 @@ it("projects recipe-less housing construction ghosts without inventing plan narr
     constructionGhosts: { [settlementRecipeIds.residents]: 1 },
     speedLevels: { [settlementRecipeIds.internetModule]: 51.84 },
   });
+});
+
+it("replaces an in-progress Housing II promotion instead of counting both tiers", () => {
+  const population = createPopulationModule(
+    inventory({
+      [settlementRecipeIds.residents]: { built: 17, running: 17 },
+      [settlementRecipeIds.residentsII]: { built: 3, running: 1 },
+      [settlementRecipeIds.internetModule]: { built: 1, running: 1 },
+    }),
+    generatedPopulationArea(),
+  );
+
+  expect(population.presets[0]).toMatchObject({
+    activeBuildings: {
+      [settlementRecipeIds.residents]: 18,
+      [settlementRecipeIds.residentsII]: 0,
+    },
+    speedLevels: {
+      [settlementRecipeIds.internetModule]: 51.84,
+    },
+    planMismatches: [{
+      actions: [{
+        type: "upgrade",
+        label: "Upgrade 1 Housing II to Housing III",
+      }],
+    }],
+  });
+});
+
+it("allocates the global housing target to only one Population area", () => {
+  const west = generatedPopulationArea(14);
+  const east = generatedPopulationArea(27);
+  const westInventory = inventory({
+    [settlementRecipeIds.residents]: { built: 10, running: 10 },
+  });
+  const eastInventory = inventory({
+    [settlementRecipeIds.residents]: { built: 7, running: 7 },
+    [settlementRecipeIds.residentsII]: { built: 1, running: 0 },
+  });
+  const targets = resolvePopulationHousingPlanTargets([
+    { generatedArea: west, syncedInventory: westInventory },
+    { generatedArea: east, syncedInventory: eastInventory },
+  ]);
+  const westPopulation = createPopulationModule(
+    westInventory,
+    west,
+    undefined,
+    targets.get(14) ?? null,
+  );
+  const eastPopulation = createPopulationModule(
+    eastInventory,
+    east,
+    undefined,
+    targets.get(27) ?? null,
+  );
+  const westPreset = westPopulation.presets[0];
+  const eastPreset = eastPopulation.presets[0];
+
+  expect([...targets]).toEqual([[27, 8]]);
+  expect(
+    (westPreset?.activeBuildings[settlementRecipeIds.residents] ?? 0)
+    + (eastPreset?.activeBuildings[settlementRecipeIds.residents] ?? 0),
+  ).toBe(18);
+  expect(westPreset?.planMismatches).toBeUndefined();
+  expect(eastPreset?.planMismatches).toMatchObject([{
+    current: 7,
+    target: 8,
+    actions: [
+      { type: "unpause", label: "Unpause 1 Housing II" },
+      { type: "upgrade", label: "Upgrade 1 Housing II to Housing III" },
+    ],
+  }]);
 });
 
 it("preserves configuration issues for configurable machine ghosts", () => {

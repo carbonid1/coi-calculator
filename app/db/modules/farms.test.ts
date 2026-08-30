@@ -818,7 +818,7 @@ describe("active crop farm plan", () => {
     }
   });
 
-  it("keeps all active crops supplied within the fixed-rotation surplus limits", () => {
+  it("exposes crop deficits from planned housing within the fixed-rotation surplus limits", () => {
     const focusBonuses = calculateOfficePlan(
       resolvedOfficePlan.value,
       defaultInfiniteResearchLevels.focusPoints,
@@ -873,6 +873,12 @@ describe("active crop farm plan", () => {
 
     expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(9);
     const rotationLimitedCrops = new Set(["poppy", "sugarCane"]);
+    const expectedDeficits = new Map([
+      ["corn", -0.2786045404310755],
+      ["fruit", -1.2767999999999944],
+      ["potato", -1.1285999999999916],
+      ["vegetables", -2.0348999999999933],
+    ]);
 
     for (const crop of Object.values(crops)) {
       if (!crop.productId) continue;
@@ -886,7 +892,13 @@ describe("active crop farm plan", () => {
 
       const maximumSurplus = rotationLimitedCrops.has(crop.productId) ? 10.001 : 5.001;
 
-      expect(flow.net, crop.name).toBeGreaterThanOrEqual(-0.001);
+      const expectedDeficit = expectedDeficits.get(crop.productId);
+
+      if (expectedDeficit == null) {
+        expect(flow.net, crop.name).toBeGreaterThanOrEqual(-0.001);
+      } else {
+        expect(flow.net, crop.name).toBeCloseTo(expectedDeficit);
+      }
       expect(primarySurplus, crop.name).toBeLessThanOrEqual(maximumSurplus);
     }
   });

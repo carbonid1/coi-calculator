@@ -8,6 +8,7 @@ import {
   populationEntityMatchers,
   type ResolvedPopulationEntityInventory,
 } from "../../helpers/population-entity-sync/population-entity-sync";
+import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import {
   activeHousingType,
   calculatePopulationCapacity,
@@ -15,14 +16,68 @@ import {
 } from "../housing";
 import { defaultInfiniteResearchLevels } from "../research";
 import { settlementRecipeIds, settlementServiceBuildings } from "../settlement";
-import { type Module } from "./modules";
+import { type Module, type PlanMismatchAction } from "./modules";
 
 export const MODELED_POPULATION_MODULE_ID = "modeled-population";
 
 const modeledHousingCount = 15;
-const plannedHousingCount = 17;
+
+export const plannedHousingCount = 18;
 const plannedWastewaterTreatmentCount = 2;
 const plannedAnaerobicDigesterCount = 3;
+
+interface PopulationHousingPlanArea {
+  generatedArea: Module;
+  syncedInventory: ResolvedPopulationEntityInventory;
+}
+
+const getDefaultPreset = (module: Module) => module.defaultPresetId
+  ? module.presets.find(preset => preset.id === module.defaultPresetId)
+  : module.presets[0];
+
+export const resolvePopulationHousingPlanTargets = (
+  areas: readonly PopulationHousingPlanArea[],
+  targetTotal: number = plannedHousingCount,
+): ReadonlyMap<number, number> => {
+  let projectedHousingTotal = 0;
+  const candidates: {
+    builtHousingIi: number;
+    pausedHousingIi: number;
+    projectedHousing: number;
+    zoneId: number;
+  }[] = [];
+
+  for (const { generatedArea, syncedInventory } of areas) {
+    const zoneId = generatedArea.liveArea?.zoneId;
+
+    if (zoneId == null) continue;
+    const currentHousing = syncedInventory.counts[settlementRecipeIds.residents]?.running ?? 0;
+    const constructionGhosts = getDefaultPreset(generatedArea)
+      ?.capacityPools?.HousingT3?.constructionGhosts ?? 0;
+    const projectedHousing = currentHousing + constructionGhosts;
+    const builtHousingIi = syncedInventory.housingIiCandidates.built;
+    const pausedHousingIi = Math.max(
+      0,
+      builtHousingIi - syncedInventory.housingIiCandidates.running,
+    );
+
+    projectedHousingTotal += projectedHousing;
+    if (builtHousingIi > 0) {
+      candidates.push({ builtHousingIi, pausedHousingIi, projectedHousing, zoneId });
+    }
+  }
+
+  const pendingHousing = Math.max(0, targetTotal - projectedHousingTotal);
+  const candidate = candidates.toSorted((left, right) => (
+    right.pausedHousingIi - left.pausedHousingIi
+    || right.builtHousingIi - left.builtHousingIi
+    || left.zoneId - right.zoneId
+  ))[0];
+
+  return pendingHousing > 0 && candidate
+    ? new Map([[candidate.zoneId, candidate.projectedHousing + pendingHousing]])
+    : new Map();
+};
 
 /**
  * Non-UI fallback used by calculations that do not have a game snapshot.
@@ -132,10 +187,9 @@ export const createPopulationModule = (
   syncedInventory: ResolvedPopulationEntityInventory,
   generatedArea: Module,
   housingCapacityLevel: number = defaultInfiniteResearchLevels.housingCapacity,
+  plannedHousingTarget: number | null = plannedHousingCount,
 ): Module => {
-  const rawGeneratedPreset = generatedArea.defaultPresetId
-    ? generatedArea.presets.find(preset => preset.id === generatedArea.defaultPresetId)
-    : generatedArea.presets[0];
+  const rawGeneratedPreset = getDefaultPreset(generatedArea);
 
   if (!rawGeneratedPreset) return generatedArea;
 
@@ -207,10 +261,66 @@ export const createPopulationModule = (
     item.recipeId,
     item.currentActive + item.constructionGhosts,
   ]));
-  const specialDataSources = Object.fromEntries(specialItems.map(item => [
+  const specialDataSources: Record<string, ValueSource> = Object.fromEntries(specialItems.map(item => [
     item.recipeId,
     "synced" as const,
   ]));
+  const currentHousingCount = specialCurrentActiveBuildings[settlementRecipeIds.residents] ?? 0;
+  const projectedHousingCount = specialActiveBuildings[settlementRecipeIds.residents] ?? 0;
+  const builtHousingCount = specialBuiltBuildings[settlementRecipeIds.residents] ?? 0;
+  const builtHousingIiCount = specialBuiltBuildings[settlementRecipeIds.residentsII] ?? 0;
+  const runningHousingIiCount = specialCurrentActiveBuildings[settlementRecipeIds.residentsII] ?? 0;
+  const pendingHousingCount = plannedHousingTarget == null
+    ? 0
+    : Math.max(0, plannedHousingTarget - projectedHousingCount);
+  const promotionCount = Math.min(builtHousingIiCount, pendingHousingCount);
+  const unpausePromotionCount = Math.max(0, promotionCount - runningHousingIiCount);
+  const buildHousingCount = Math.max(0, pendingHousingCount - promotionCount);
+  const hasHousingPlan = plannedHousingTarget != null
+    && pendingHousingCount > 0
+    && builtHousingIiCount > 0;
+
+  if (hasHousingPlan) {
+    specialActiveBuildings[settlementRecipeIds.residents] = plannedHousingTarget;
+    specialActiveBuildings[settlementRecipeIds.residentsII] = Math.max(
+      0,
+      (specialActiveBuildings[settlementRecipeIds.residentsII] ?? 0) - promotionCount,
+    );
+    specialBuiltBuildings[settlementRecipeIds.residents] = builtHousingCount + promotionCount;
+    specialBuiltBuildings[settlementRecipeIds.residentsII] = builtHousingIiCount - promotionCount;
+    specialDataSources[settlementRecipeIds.residents] = "planned";
+    specialDataSources[settlementRecipeIds.residentsII] = "planned";
+  }
+
+  const housingPlanActions: PlanMismatchAction[] = hasHousingPlan
+    ? [
+        ...(unpausePromotionCount > 0
+          ? [{
+              type: "unpause" as const,
+              label: `Unpause ${unpausePromotionCount} ${housingTypes.housingII.name}`,
+            }]
+          : []),
+        ...(promotionCount > 0
+          ? [{
+              type: "upgrade" as const,
+              label:
+                `Upgrade ${promotionCount} ${housingTypes.housingII.name} to ${activeHousingType.name}`,
+            }]
+          : []),
+        ...(buildHousingCount > 0
+          ? [{
+              type: "build" as const,
+              label: `Build ${buildHousingCount} ${activeHousingType.name}`,
+            }]
+          : []),
+      ]
+    : [];
+  const projectedCurrentActiveBuildings = hasHousingPlan
+    ? Object.fromEntries(Object.entries(specialCurrentActiveBuildings).filter(([recipeId]) => (
+        recipeId !== settlementRecipeIds.residents
+        && recipeId !== settlementRecipeIds.residentsII
+      )))
+    : specialCurrentActiveBuildings;
   const capacityMultiplier = calculateHousingCapacity(housingCapacityLevel).multiplier;
   const activeHousingCount = specialActiveBuildings[settlementRecipeIds.residents] ?? 0;
   const activeHousingIiCount = specialActiveBuildings[settlementRecipeIds.residentsII] ?? 0;
@@ -232,7 +342,7 @@ export const createPopulationModule = (
     },
     currentActiveBuildings: {
       ...withoutReplacedRecipeIds(rawGeneratedPreset.currentActiveBuildings),
-      ...specialCurrentActiveBuildings,
+      ...projectedCurrentActiveBuildings,
     },
     builtBuildings: {
       ...withoutReplacedRecipeIds(rawGeneratedPreset.builtBuildings),
@@ -241,6 +351,12 @@ export const createPopulationModule = (
     constructionGhosts: {
       ...withoutReplacedRecipeIds(rawGeneratedPreset.constructionGhosts),
       ...specialConstructionGhosts,
+    },
+    unplacedPlannedBuildings: {
+      ...withoutReplacedRecipeIds(rawGeneratedPreset.unplacedPlannedBuildings),
+      ...(hasHousingPlan && buildHousingCount > 0
+        ? { [settlementRecipeIds.residents]: buildHousingCount }
+        : {}),
     },
     capacityPools: withoutReplacedPrototypeIds(rawGeneratedPreset.capacityPools),
     dataSources: {
@@ -259,6 +375,22 @@ export const createPopulationModule = (
       [settlementRecipeIds.residentsII]: capacityMultiplier,
       [settlementRecipeIds.internetModule]: populationCapacity / 100,
     },
+    planMismatches: hasHousingPlan
+      ? [
+          ...(rawGeneratedPreset.planMismatches ?? []).filter(mismatch => (
+            mismatch.recipeId !== settlementRecipeIds.residents
+          )),
+          {
+            recipeId: settlementRecipeIds.residents,
+            current: currentHousingCount,
+            currentSource: "synced" as const,
+            target: plannedHousingTarget,
+            direction: "at-least" as const,
+            format: "configuration" as const,
+            actions: housingPlanActions,
+          },
+        ]
+      : rawGeneratedPreset.planMismatches,
   };
 
   return {
