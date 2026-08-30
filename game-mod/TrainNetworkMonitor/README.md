@@ -1,49 +1,32 @@
 # Train Network Monitor
 
-Standalone Captain of Industry 0.8.7 mod with a live Train Network capacity
-dashboard and a continuous critical notification for fleet-wide traffic jams.
+Captain of Industry 0.8.7 mod with an optional Train Network capacity dashboard
+and one grouped alert for sustained fleet jams.
 
-The toolbar dashboard shows only non-empty Train Networks. Each network reports
-occupied / total trains, busy / total Waiting bays, and occupied / total trains
-for every wagon type present: Unit, Loose, Fluid, Molten, Universal, Mixed, or
-an unlabeled generic train row when no cargo-wagon type applies. A train is free
-only while it is waiting for a network job; dispatched, returning, refueling,
-paused, and otherwise unavailable trains count as occupied. The dashboard keeps
-no history, makes no capacity decisions, and uses no warning thresholds.
+## Capacity dashboard
 
-A train counts as stuck only when it has remained in `Waiting for free track`,
-`Waiting for super block`, or `Waiting for bidirectional super block` for the
-configured number of in-game months, from one month up to one in-game year
-(12 months). The default is one month. The monitor times each uninterrupted
-wait itself and resets that train's timer whenever it leaves those states, so
-separate routine queue waits are never added together. The red alert
-starts when the stuck count reaches both three trains and 10% of active, spawned
-trains. It clears automatically when the stuck count drops below that threshold.
-The alert panel groups all affected trains into one visible row with an `(Nx)`
-counter. Clicking the row cycles the camera through the currently stuck trains,
-starting with the longest-waiting train when a new jam begins.
+Enable it in **Mod Settings** to see:
 
-The cooperative in-game **Mod Settings** button opens two save-scoped settings:
+- Occupied / total trains.
+- Busy / total Waiting bays.
+- Train counts for Unit, Loose, Fluid, Molten, Universal, Mixed, and generic
+  formations.
 
-- `stuck_after_cycles` controls the whole number of in-game months a train must
-  wait before it counts as stuck. The key retains its original name for save
-  compatibility.
-- `pause_on_red_alert` is disabled by default. When enabled, the mod pauses once
-  as this mod's traffic-jam red alert begins. Other game alerts are unaffected.
+Only non-empty networks and wagon types are shown. A train is free only while
+waiting for a network job. The dashboard is off by default and stops updating
+when disabled.
 
-The mod never resumes the game automatically, and manually resuming while the
-same alert remains active does not immediately pause the game again.
+## Jam alerts
 
-The settings hub follows the `CoI.AutoHelpers.Settings` convention used by
-other Captain of Industry mods. Train Network Monitor joins an existing hub or
-creates it when loaded first, so compatible mods share one button and window.
-The standalone settings button remains as a fallback if the cooperative hub
-cannot initialize.
+One grouped red alert appears when at least three trains and 10% of the active
+fleet remain blocked for the configured delay. Click it to cycle through the
+affected trains, starting with the longest wait.
 
-The mod changes no train behavior. The dashboard stores no data, and only the
-two alert settings are stored in the save. The mod can be used without the CoI
-Calculator Exporter and works with the base game's trains and with trains added
-by the official Trains expansion.
+Set the delay from 1–12 in-game months and optionally pause when a new alert
+starts. The alert clears when traffic recovers.
+
+Settings are stored per save. The mod does not change train routing or behavior
+and works with base-game trains and the official Trains expansion.
 
 Build from the repository root:
 

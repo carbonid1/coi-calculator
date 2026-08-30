@@ -187,8 +187,12 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
                 resolver.Resolve<ControllerContext>(),
                 resolver.Resolve<ToolbarHud>(),
                 m_trainNetworksManager,
-                m_simLoopEvents);
-            Log.Info("Train Network Monitor: live network dashboard enabled.");
+                m_simLoopEvents,
+                JsonConfig.GetBool(TrainNetworkSettingsPanel.DashboardEnabledKey));
+            Log.Info(
+                "Train Network Monitor: live network dashboard controls initialized ("
+                + (m_dashboardController.IsEnabled ? "enabled" : "disabled")
+                + ").");
         }
         catch (Exception exception)
         {
@@ -208,7 +212,9 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
                 new LocStrFormatted("Train Network Monitor"),
                 new LocStrFormatted("Settings"),
                 300,
-                () => new TrainNetworkSettingsPanel(JsonConfig),
+                () => new TrainNetworkSettingsPanel(
+                    JsonConfig,
+                    setDashboardEnabled),
                 SettingsIconPath,
                 SettingsIconPath));
             Log.Info(
@@ -228,7 +234,8 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
             m_settingsController = new TrainNetworkSettingsController(
                 resolver.Resolve<ControllerContext>(),
                 resolver.Resolve<ToolbarHud>(),
-                JsonConfig);
+                JsonConfig,
+                setDashboardEnabled);
             Log.Info(
                 "Train Network Monitor: shared Mod Settings hub not found; "
                 + "standalone settings button enabled.");
@@ -239,6 +246,19 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
                 "Train Network Monitor: standalone settings UI unavailable: "
                 + exception);
         }
+    }
+
+    private void setDashboardEnabled(bool enabled)
+    {
+        if (m_dashboardController == null)
+        {
+            return;
+        }
+
+        m_dashboardController.SetEnabled(enabled);
+        Log.Info(
+            "Train Network Monitor: live network dashboard "
+            + (enabled ? "enabled." : "disabled."));
     }
 
     private void onSimUpdate()
@@ -447,25 +467,30 @@ internal sealed class TrainNetworkDashboardController
     private const int RefreshIntervalUpdates = 11;
 
     private readonly TrainNetworksManager m_trainNetworksManager;
+    private readonly Button m_toolbarButton;
     private ISimLoopEvents m_simLoopEvents;
+    private bool m_isEnabled;
+    private bool m_isUpdateSubscribed;
     private int m_updatesUntilRefresh;
 
     public TrainNetworkDashboardController(
         ControllerContext context,
         ToolbarHud toolbarHud,
         TrainNetworksManager trainNetworksManager,
-        ISimLoopEvents simLoopEvents)
+        ISimLoopEvents simLoopEvents,
+        bool isEnabled)
         : base(context, null)
     {
         m_trainNetworksManager = trainNetworksManager;
         m_simLoopEvents = simLoopEvents;
-        toolbarHud.AddMainMenuButton(
+        m_toolbarButton = toolbarHud.AddMainMenuButton(
             new LocStrFormatted("Train Network Monitor"),
             this,
             NetworkIconPath,
             220f,
             null);
-        m_simLoopEvents.UpdateEndForUi.AddNonSaveable(this, onUiUpdate);
+        m_toolbarButton.Hide();
+        SetEnabled(isEnabled);
     }
 
     public event Action<IToolbarItemController> VisibilityChanged
@@ -478,22 +503,33 @@ internal sealed class TrainNetworkDashboardController
 
     public bool DeactivateShortcutsIfNotVisible { get { return false; } }
 
-    public void Dispose()
-    {
-        if (m_simLoopEvents != null)
-        {
-            try
-            {
-                m_simLoopEvents.UpdateEndForUi.RemoveNonSaveable(this, onUiUpdate);
-            }
-            catch
-            {
-            }
+    public bool IsEnabled { get { return m_isEnabled; } }
 
-            m_simLoopEvents = null;
+    public void SetEnabled(bool enabled)
+    {
+        if (enabled == m_isEnabled)
+        {
+            return;
+        }
+
+        m_isEnabled = enabled;
+        if (enabled)
+        {
+            m_toolbarButton.Show();
+            subscribeToUpdates();
+            return;
         }
 
         DeactivateSelf();
+        m_toolbarButton.Hide();
+        unsubscribeFromUpdates();
+    }
+
+    public void Dispose()
+    {
+        SetEnabled(false);
+        unsubscribeFromUpdates();
+        m_simLoopEvents = null;
     }
 
     protected override TrainNetworkDashboardWindow CreateWindow()
@@ -503,6 +539,11 @@ internal sealed class TrainNetworkDashboardController
 
     protected override void OnActivate()
     {
+        if (!m_isEnabled)
+        {
+            return;
+        }
+
         base.OnActivate();
         m_updatesUntilRefresh = RefreshIntervalUpdates;
         if (HasWindow)
@@ -513,7 +554,7 @@ internal sealed class TrainNetworkDashboardController
 
     private void onUiUpdate()
     {
-        if (!IsActive || !HasWindow)
+        if (!m_isEnabled || !IsActive || !HasWindow)
         {
             return;
         }
@@ -526,6 +567,35 @@ internal sealed class TrainNetworkDashboardController
 
         m_updatesUntilRefresh = RefreshIntervalUpdates;
         Window.Refresh();
+    }
+
+    private void subscribeToUpdates()
+    {
+        if (m_isUpdateSubscribed || m_simLoopEvents == null)
+        {
+            return;
+        }
+
+        m_simLoopEvents.UpdateEndForUi.AddNonSaveable(this, onUiUpdate);
+        m_isUpdateSubscribed = true;
+    }
+
+    private void unsubscribeFromUpdates()
+    {
+        if (!m_isUpdateSubscribed || m_simLoopEvents == null)
+        {
+            return;
+        }
+
+        try
+        {
+            m_simLoopEvents.UpdateEndForUi.RemoveNonSaveable(this, onUiUpdate);
+        }
+        catch
+        {
+        }
+
+        m_isUpdateSubscribed = false;
     }
 }
 
@@ -540,7 +610,8 @@ internal sealed class TrainNetworkDashboardWindow : Window
         : base(new LocStrFormatted("Train Network Monitor"), false)
     {
         m_trainNetworksManager = trainNetworksManager;
-        WindowSize(560.px(), 720.px());
+        WindowWidth(620.px());
+        WindowMaxHeight(Percent.FromPercentVal(85));
         MakeMovableAndEnablePositionSaving();
         EnablePinning();
 
@@ -610,7 +681,7 @@ internal sealed class TrainNetworkDashboardNetworkRow : Column
     private readonly int m_networkId;
     private readonly UiComponent m_colorSwatch;
     private readonly Label m_nameLabel;
-    private readonly TrainNetworkDashboardOccupancy m_trainOccupancy;
+    private readonly TrainNetworkDashboardMetricRow m_trainRow;
     private readonly TrainNetworkDashboardMetricRow m_waitingBayRow;
     private readonly List<TrainNetworkDashboardMetricRow> m_typeRows =
         new List<TrainNetworkDashboardMetricRow>();
@@ -631,20 +702,19 @@ internal sealed class TrainNetworkDashboardNetworkRow : Column
             .Height(24.px())
             .NoShrink();
         m_nameLabel = new Label(snapshot.Name).FontBold().FlexGrow(1);
-        Icon trainIcon = new Icon(TrainIconPath)
-            .Width(26.px())
-            .Height(22.px())
-            .NoShrink();
-        m_trainOccupancy = new TrainNetworkDashboardOccupancy();
-        m_trainOccupancy.Tooltip(new LocStrFormatted("Occupied / total trains"));
 
         Row header = new Row(6.pt());
         header.AlignItemsCenter();
         header.Add(m_colorSwatch);
         header.Add(m_nameLabel);
-        header.Add(trainIcon);
-        header.Add(m_trainOccupancy);
         Add(header);
+
+        m_trainRow = new TrainNetworkDashboardMetricRow(
+            TrainIconPath,
+            new LocStrFormatted(Tr.StatsCat__Trains.ToString()),
+            true,
+            new LocStrFormatted("Occupied / total trains"));
+        Add(m_trainRow);
 
         m_waitingBayRow = new TrainNetworkDashboardMetricRow(
             WaitingBayIconPath,
@@ -689,7 +759,7 @@ internal sealed class TrainNetworkDashboardNetworkRow : Column
     {
         m_colorSwatch.Background(snapshot.Color);
         m_nameLabel.Value(snapshot.Name);
-        m_trainOccupancy.Value(snapshot.OccupiedTrains, snapshot.TotalTrains);
+        m_trainRow.Value(snapshot.OccupiedTrains, snapshot.TotalTrains);
         m_waitingBayRow.Value(snapshot.BusyWaitingBays, snapshot.TotalWaitingBays);
 
         for (int i = 0; i < snapshot.TypeRows.Count; i++)
@@ -1069,14 +1139,17 @@ internal sealed class TrainNetworkSettingsController
         "Assets/Unity/UserInterface/General/Configure.svg";
 
     private readonly ModJsonConfig m_jsonConfig;
+    private readonly Action<bool> m_onDashboardEnabledChanged;
 
     public TrainNetworkSettingsController(
         ControllerContext context,
         ToolbarHud toolbarHud,
-        ModJsonConfig jsonConfig)
+        ModJsonConfig jsonConfig,
+        Action<bool> onDashboardEnabledChanged)
         : base(context, null)
     {
         m_jsonConfig = jsonConfig;
+        m_onDashboardEnabledChanged = onDashboardEnabledChanged;
         toolbarHud.AddMainMenuButton(
             new LocStrFormatted("Train Network Monitor settings"),
             this,
@@ -1097,23 +1170,32 @@ internal sealed class TrainNetworkSettingsController
 
     protected override TrainNetworkSettingsWindow CreateWindow()
     {
-        return new TrainNetworkSettingsWindow(m_jsonConfig);
+        return new TrainNetworkSettingsWindow(
+            m_jsonConfig,
+            m_onDashboardEnabledChanged);
     }
 }
 
 internal sealed class TrainNetworkSettingsWindow : Window
 {
-    public TrainNetworkSettingsWindow(ModJsonConfig jsonConfig)
+    public TrainNetworkSettingsWindow(
+        ModJsonConfig jsonConfig,
+        Action<bool> onDashboardEnabledChanged)
         : base(new LocStrFormatted("Train Network Monitor"), false)
     {
-        WindowSize(560.px(), 240.px());
+        WindowWidth(560.px());
+        WindowMaxHeight(Percent.FromPercentVal(85));
         CloseOnClickOutside();
-        AddBodySingle(new TrainNetworkSettingsPanel(jsonConfig));
+        AddBodySingle(new TrainNetworkSettingsPanel(
+            jsonConfig,
+            onDashboardEnabledChanged));
     }
 }
 
 internal sealed class TrainNetworkSettingsPanel : Column
 {
+    internal const string DashboardEnabledKey = "enable_capacity_dashboard";
+
     private const string StuckAfterKey = "stuck_after_cycles";
     private const string PauseOnAlertKey = "pause_on_red_alert";
     private const int DefaultStuckAfterMonths = 1;
@@ -1122,14 +1204,45 @@ internal sealed class TrainNetworkSettingsPanel : Column
     private static readonly Px ModifiedBorder = 1.pt();
 
     private readonly ModJsonConfig m_jsonConfig;
+    private readonly Action<bool> m_onDashboardEnabledChanged;
 
-    public TrainNetworkSettingsPanel(ModJsonConfig jsonConfig)
+    public TrainNetworkSettingsPanel(
+        ModJsonConfig jsonConfig,
+        Action<bool> onDashboardEnabledChanged)
         : base(8.pt())
     {
         m_jsonConfig = jsonConfig;
+        m_onDashboardEnabledChanged = onDashboardEnabledChanged;
         this.AlignItemsStretch().PaddingBottom(10.pt());
+        Add(createDashboardControl());
         Add(createStuckAfterControl());
         Add(createPauseControl());
+    }
+
+    private UiComponent createDashboardControl()
+    {
+        Toggle toggle = new Toggle()
+            .JustifyItemsStart()
+            .Value(m_jsonConfig.GetBool(DashboardEnabledKey));
+        Column row = new Column(InnerGap);
+        row.AlignItemsStretch().PaddingLeft(2.pt());
+        row.Add(createHeader(
+            "Capacity dashboard",
+            "Shows live Train Network capacity. Off stops dashboard updates."));
+        row.Add(new Row(1.pt()) { toggle });
+
+        updateModifiedBorder(row, m_jsonConfig.GetBool(DashboardEnabledKey));
+        toggle.OnValueChanged(delegate(bool value)
+        {
+            string error;
+            if (m_jsonConfig.TrySetValue(DashboardEnabledKey, value, out error))
+            {
+                bool isEnabled = m_jsonConfig.GetBool(DashboardEnabledKey);
+                m_onDashboardEnabledChanged(isEnabled);
+                updateModifiedBorder(row, isEnabled);
+            }
+        });
+        return row;
     }
 
     private UiComponent createStuckAfterControl()
@@ -1144,8 +1257,8 @@ internal sealed class TrainNetworkSettingsPanel : Column
         Column row = new Column(InnerGap);
         row.AlignItemsStretch().PaddingLeft(2.pt());
         row.Add(createHeader(
-            "Alert after waiting",
-            "How long a train may wait for a free track: 1–12 in-game months (12 months = 1 year)."));
+            "Jam alert delay",
+            "Blocked time before a train counts toward the jam alert (1–12 months)."));
         row.Add(new Row(1.pt()) { field });
         row.Add(errorLabel);
 
@@ -1185,8 +1298,8 @@ internal sealed class TrainNetworkSettingsPanel : Column
         Column row = new Column(InnerGap);
         row.AlignItemsStretch().PaddingLeft(2.pt());
         row.Add(createHeader(
-            "Pause on red alert",
-            "Pause once when this mod's train traffic red alert begins. Other alerts are unaffected, and the game never resumes automatically."));
+            "Pause on jam alert",
+            "Pause once when a new jam alert starts."));
         row.Add(new Row(1.pt()) { toggle });
 
         updateModifiedBorder(row, m_jsonConfig.GetBool(PauseOnAlertKey));

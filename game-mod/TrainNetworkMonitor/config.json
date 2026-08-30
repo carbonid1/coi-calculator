@@ -1,13 +1,17 @@
 {
+  "enable_capacity_dashboard": {
+    "default": false,
+    "description": "Shows live Train Network capacity. Off stops dashboard updates."
+  },
   "stuck_after_cycles": {
     "default": 1,
     "min": 1,
     "max": 12,
     "is_integer": true,
-    "description": "How long a train may wait for a free track: 1–12 in-game months (12 months = 1 year)."
+    "description": "Blocked time before a train counts toward the jam alert (1–12 months)."
   },
   "pause_on_red_alert": {
     "default": false,
-    "description": "Pause once when the Train Network Monitor red alert begins. Other game alerts are not affected, and the game never resumes automatically."
+    "description": "Pause once when a new jam alert starts."
   }
 }

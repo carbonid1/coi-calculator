@@ -31,9 +31,10 @@ Recommended image order: generated thumbnail, dashboard screenshot, live alert s
 ## Before upload
 
 1. In the save's **Mods & DLCs** screen, add `Train Network Monitor`, then load a representative existing save.
-2. Verify the mod appears as version 0.4.0 and the dashboard shows only non-empty Train Networks with correct Waiting bay, Unit, Loose, Fluid, Molten, Universal, Mixed, and generic counts.
-3. Verify the settings tab opens, the alert counter updates, alert clicks focus affected trains, and optional pausing happens only once per new jam.
-4. Verify the game log contains no mod exceptions.
-5. Upload `Builds/TrainNetworkMonitor-0.4.0.zip` to COI Hub, select the state, tags, and license above, add the screenshots, preview the page, and publish.
+2. Verify the mod appears as version 0.4.1, the dashboard is disabled by default, and no dashboard toolbar button is visible until it is enabled in Mod Settings.
+3. Enable the dashboard and verify it shows only non-empty Train Networks with correct Waiting bay, Unit, Loose, Fluid, Molten, Universal, Mixed, and generic counts. Disable it again and verify its open window closes and its toolbar button disappears.
+4. Verify the settings tab opens, the alert counter updates, alert clicks focus affected trains, and optional pausing happens only once per new jam.
+5. Verify the game log contains no mod exceptions.
+6. Upload `Builds/TrainNetworkMonitor-0.4.1.zip` to COI Hub, select the state, tags, and license above, add the screenshots, preview the page, and publish.
 
 The bundled `CoI.AutoHelpers.Settings.LICENSE.txt` must remain in every release because the shared settings helper is MIT-licensed code by Kayser.
