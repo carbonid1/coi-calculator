@@ -4,20 +4,13 @@ import { buildModuleLines } from "../../helpers/build-module-lines/build-module-
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { mines } from "./mines";
 
-it("demand-mines Bauxite and Titanium Ore for the expansion chains", () => {
+it("leaves Bauxite and Titanium Ore extraction to their named mine modules", () => {
   const lines = buildModuleLines(mines, null).lines;
-  const result = calculateNet(lines, {}, 90, {}, {
-    bauxite: 142.5,
-    titaniumOre: 38.8,
-  });
-  const source = (recipeId: string) => result.sourceResults.find(({ recipe }) => (
-    recipe.id === recipeId
-  ));
 
-  expect(source("bauxite-map-mine")?.actualOutputs)
-    .toEqual([{ resourceId: "bauxite", quantity: 142.5 }]);
-  expect(source("titanium-map-mine")?.actualOutputs)
-    .toEqual([{ resourceId: "titaniumOre", quantity: 38.8 }]);
+  expect(lines.find(({ recipe }) => recipe.id === "bauxite-map-mine"))
+    .toBeUndefined();
+  expect(lines.find(({ recipe }) => recipe.id === "titanium-map-mine"))
+    .toBeUndefined();
 });
 
 it("demand-mines Coal when local Coal Makers are paused", () => {

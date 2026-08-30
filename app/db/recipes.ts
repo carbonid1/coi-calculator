@@ -56,6 +56,15 @@ export type OutputModifierId =
 export type BalanceBy = 'input' | 'output'
 export type RecipeAllocation = 'primary' | 'fallback' | 'surplus'
 export type SourceKind = 'groundwater' | 'map-mine' | 'virtual-provision' | 'world-mine'
+export type SourceMode = 'demand' | 'module-demand' | 'demand-capped' | 'module-demand-capped'
+
+export const isUnboundedDemandSourceMode = (mode: SourceMode | undefined) => (
+  mode === 'demand' || mode === 'module-demand'
+)
+
+export const isModuleScopedSourceMode = (mode: SourceMode | undefined) => (
+  mode === 'module-demand' || mode === 'module-demand-capped'
+)
 
 export interface SharedCapacity {
   /** Recipes with the same ID share one installed building pool inside a module. */
@@ -87,6 +96,8 @@ export interface Recipe {
   stationRole?: 'input' | 'export'
   /** Optional concise label used when the building name is already visible. */
   displayName?: string
+  /** Internal calculation line intentionally omitted from the module card list. */
+  hiddenFromModuleView?: boolean
   name: string
   building: string
   /** Whether generic cards show recipe and speed metadata below the building name. */
@@ -129,8 +140,8 @@ export interface Recipe {
   appliesRecyclingEfficiency?: boolean
   /** Emits the recoverable material composition carried by Recyclables. */
   sortsRecyclableSources?: boolean
-  /** Demand sources cover deficits; module-capped sources cannot supply consumers in other modules. */
-  sourceMode?: 'demand' | 'demand-capped' | 'module-demand-capped'
+  /** Demand sources cover deficits; module variants remain owned by one physical area. */
+  sourceMode?: SourceMode
   sourceKind?: SourceKind
   /** Synced aquifer state and its weather-limited steady-state pump ceiling. */
   groundwaterConstraint?: GroundwaterSourceConstraint

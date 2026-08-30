@@ -192,6 +192,7 @@ import {
   getSyncedCropFarmConfigurations,
   getSyncedCropFarmEntities,
 } from './helpers/synced-production-config/synced-production-config'
+import { transferTerrainMineOwnership } from './helpers/terrain-mine-ownership/terrain-mine-ownership'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 
 const groupLabels: Record<RecipeGroup, string> = {
@@ -765,7 +766,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     )
   })
   const modulesWithLiveAreas = [
-    ...configuredAreaModules,
+    ...transferTerrainMineOwnership(configuredAreaModules, configuredLiveAreaModules),
     ...configuredLiveAreaModules,
   ]
   const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
@@ -1112,7 +1113,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       })()
     : null
 
-  const displayedModuleLines = moduleResult?.lines ?? []
+  const displayedModuleLines = moduleResult?.lines.filter(
+    line => !line.recipe.hiddenFromModuleView,
+  ) ?? []
   const displayedRegularResults = moduleResult?.regularResults ?? []
   const displayedSourceResults = moduleResult?.sourceResults ?? []
   const displayedSinkResults = moduleResult?.sinkResults ?? []

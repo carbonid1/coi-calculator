@@ -1,3 +1,4 @@
+import { isUnboundedDemandSourceMode } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
@@ -25,7 +26,9 @@ export const SinkCard: React.FC<Props> = ({
   // Effective building count based on the first produced or consumed resource.
   const effectiveCount = hasWork
     ? (() => {
-        if (result.recipe.sourceMode === "demand") return result.activeBuildings;
+        if (isUnboundedDemandSourceMode(result.recipe.sourceMode)) {
+          return result.activeBuildings;
+        }
 
         const referenceQuantity = result.recipe.outputs[0]?.quantity
           ?? result.recipe.inputs[0]?.quantity

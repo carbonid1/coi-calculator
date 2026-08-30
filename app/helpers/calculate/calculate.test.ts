@@ -731,6 +731,57 @@ it("limits module-scoped Groundwater Pumps to their module's Water demand", () =
   expect(reportedWaterNet(withRemoteDemand)).toBe(-500);
 });
 
+it("keeps module-scoped source capacity out of other modules", () => {
+  const terrainSource: Recipe = {
+    id: "test-module-terrain-source",
+    name: "Test Module Terrain Source",
+    building: "Terrain extraction",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "titaniumOre", quantity: 100 }],
+    sourceMode: "module-demand",
+    sourceKind: "map-mine",
+  };
+  const mineCrusher: Recipe = {
+    id: "test-mine-crusher",
+    name: "Test Mine Crusher",
+    building: "Crusher (Large)",
+    group: "production",
+    balanceBy: "output",
+    balanceInputIds: ["titaniumOre"],
+    balanceInputScope: "module",
+    inputs: [{ resourceId: "titaniumOre", quantity: 100 }],
+    outputs: [{ resourceId: "titaniumOreCrushed", quantity: 100 }],
+  };
+  const remoteCrusher: Recipe = {
+    id: "test-remote-crusher",
+    name: "Test Remote Crusher",
+    building: "Crusher (Large)",
+    group: "production",
+    balanceBy: "input",
+    balanceInputIds: ["titaniumOre"],
+    inputs: [{ resourceId: "titaniumOre", quantity: 100 }],
+    outputs: [{ resourceId: "titaniumOreCrushed", quantity: 100 }],
+  };
+  const result = calculateNet([
+    fixedLine(terrainSource, "mine"),
+    balancedLine(remoteCrusher, "remote"),
+    balancedLine(mineCrusher, "mine"),
+  ], { titaniumOre: 40 }, undefined, {}, { titaniumOreCrushed: 140 });
+  const regularResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+  const sourceResult = result.sourceResults.find(
+    candidate => candidate.recipe.id === terrainSource.id,
+  );
+
+  expect(regularResult(remoteCrusher.id)?.actualInputs[0]?.quantity).toBe(40);
+  expect(regularResult(mineCrusher.id)?.actualInputs[0]?.quantity).toBe(100);
+  expect(sourceResult?.actualOutputs[0]?.quantity).toBe(100);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "titaniumOre")?.net)
+    .toBe(0);
+});
+
 it("uses recovered Water before Groundwater Pumps or Liquid Dumps", () => {
   const groundwaterPump: Recipe = {
     id: "test-factory-groundwater-pump",

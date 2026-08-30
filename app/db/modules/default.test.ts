@@ -108,14 +108,16 @@ it("provides two active Rubber Makers for the Ethanol route", () => {
   });
 });
 
-it("treats the completed Default-area Titanium machines as modeled active capacity", () => {
+it("leaves Titanium crushing in its named mine and keeps the remaining chain in Default", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
   const lines = buildModuleLines(general, preset ?? null).lines;
 
+  expect(lines.find((line) => line.recipe.id === "crusher-large-titanium"))
+    .toBeUndefined();
+
   for (const recipeId of [
-    "crusher-large-titanium",
     "arc-furnace-ii-titanium-ore",
     "chemical-plant-ii-titanium-chlorination",
     "chemical-plant-ii-titanium-reduction",
@@ -132,19 +134,21 @@ it("treats the completed Default-area Titanium machines as modeled active capaci
   }
 });
 
-it("treats the completed front half of the Aluminum chain as current capacity", () => {
+it("leaves Bauxite crushing in its named mine and keeps the remaining Aluminum chain in Default", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
   const lines = buildModuleLines(general, preset ?? null).lines;
   const expectedCounts = {
-    "crusher-large-bauxite": { activeBuildings: 3, builtBuildings: 3 },
     "chemical-plant-ii-bauxite-digestion": { activeBuildings: 3, builtBuildings: 3 },
     "settling-tank-red-mud-acid": { activeBuildings: 5, builtBuildings: 5 },
     "rotary-kiln-alumina-fuel-gas": { activeBuildings: 3, builtBuildings: 4 },
     "aluminum-cell-electrolysis": { activeBuildings: 3, builtBuildings: 3 },
     "metal-caster-ii-aluminum": { activeBuildings: 3, builtBuildings: 3 },
   };
+
+  expect(lines.find((line) => line.recipe.id === "crusher-large-bauxite"))
+    .toBeUndefined();
 
   for (const [recipeId, counts] of Object.entries(expectedCounts)) {
     const line = lines.find((candidate) => candidate.recipe.id === recipeId);

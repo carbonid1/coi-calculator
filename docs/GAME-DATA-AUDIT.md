@@ -267,9 +267,16 @@ Unzoned plants belong to Default. Installed v0.8.7 worker values are:
 | Ore sorting plant (large) |      30 |
 
 Verified in `OreSortingPlantData` and `Costs.Buildings`. The calculator represents
-these as no-flow static loads because their material sorting is not a production
-recipe. Exporter schema v7 supplies completed and non-paused entity counts from
-the loaded save; without synced data the counts are zero. Their power use is
+the plant itself as a no-flow static load because material sorting is not a
+production recipe. An operating sorter also identifies a named area as a terrain
+mine: assigned Crusher recipes in that same area receive module-local terrain
+inputs when the input has an installed map-mine source. Area names and resource
+IDs are not configured manually, and two areas mining the same material retain
+separate extraction flows. A crusher without an operating sorter receives no
+implicit terrain supply; contract-delivered mine inputs remain future work.
+
+Exporter schema v7 supplies completed and non-paused entity counts from the
+loaded save; without synced data the counts are zero. Their power use is
 activity-dependent and is excluded from calculator totals.
 
 ## Electrified trains
@@ -438,21 +445,21 @@ The primary chain's full-building rates are:
 | Aluminum Cell     | 24 Alumina + 6 Graphite          | 24 Molten Aluminum + 18 Carbon Dioxide |
 | Metal Caster II   | 24 Molten Aluminum               | 24 Aluminum                            |
 
-Default owns the planned primary Aluminum chain and sizes it against Rocket II,
-Composite Core, and Titanium Alloy demand. Bauxite is represented as a
-demand-mined terrain resource in Mines; installed terrain data confirms that it
-is directly mineable in addition to the world-map Bauxite quarry. Four planned
-Settling Tanks use the installed acid route for Red Mud recovery instead of
-dumping it.
+The synced Bauxite area is discovered from its operating Ore Sorting Plant and
+three Large Crushers configured for Bauxite Milling; its name is not special.
+Those crushers export Bauxite Powder into the factory pool, so Default starts at
+Bauxite Digestion and sizes the remaining Aluminum chain against Rocket II,
+Composite Core, and Titanium Alloy demand. Four planned Settling Tanks use the
+installed acid route for Red Mud recovery instead of dumping it.
 
 ## Titanium recipes
 
-Default owns Titanium ore crushing, smelting, chlorination, reduction, sponge
-smelting, alloy mixing, and cooled casting. Process Steam owns chloride
-purification because its Distillation Stage III consumes High Steam. Titanium
-Ore remains a demand-mined terrain resource in Mines. The former experimental
-Space Points Exp. module is removed, so every planned input and output is now
-visible in the standard Factory Total modules.
+The synced Titanium area is likewise discovered from its operating Ore Sorting
+Plant and Large Crusher configured for Ilmenite Milling. It exports Crushed
+Titanium Ore into the factory pool. Default starts at Titanium Ore smelting;
+Process Steam owns chloride purification because its Distillation Stage III
+consumes High Steam. Bauxite and Titanium are no longer supplied by the legacy
+global Mines module, and no named or rendered virtual mine is created.
 
 ## Offices and Focuses
 

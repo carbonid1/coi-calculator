@@ -3,7 +3,7 @@ import { isMaintenanceDepotPrototype } from '../../db/modules/area-maintenance'
 import { isSolarPanelPrototype } from '../../db/modules/area-solar'
 import { isAreaAssignableStaticInfrastructurePrototype } from '../../db/modules/area-static-infrastructure'
 import { type Module, type LiveAreaIssue } from '../../db/modules/modules'
-import { type Ingredient, type Recipe } from '../../db/recipes'
+import { recipes, type Ingredient, type Recipe } from '../../db/recipes'
 import {
   getLinkedOnlyLiveModuleInputIds,
   getSurplusConsumptionSettings,
@@ -26,6 +26,8 @@ const environmentalEmissionProductIds = new Set([
   'Product_Virtual_PollutedAir',
   'Product_Virtual_PollutedWater',
 ])
+const crusherPrototypeIds = new Set(['Crusher', 'CrusherLarge'])
+const oreSortingPlantPrototypeIds = new Set(['OreSortingPlantT1', 'OreSortingPlantT2'])
 
 const normalizeResourceKey = (value: string) => value
   .normalize('NFKD')
@@ -111,6 +113,19 @@ for (const resource of Object.values(resources)) {
   resourceIdByKey.set(normalizeResourceKey(resource.name), resource.id)
 }
 
+const terrainSourceRecipeByResourceId = new Map(
+  recipes.flatMap(recipe => {
+    const [output] = recipe.outputs
+
+    return recipe.sourceKind === 'map-mine'
+      && recipe.outputs.length === 1
+      && recipe.inputs.length === 0
+      && output
+      ? [[output.resourceId, recipe] as const]
+      : []
+  }),
+)
+
 const resolveResourceId = (product: { productId: string; name: string }) => (
   resourceIdByKey.get(normalizeResourceKey(product.name))
   ?? resourceIdByKey.get(normalizeResourceKey(product.productId))
@@ -182,6 +197,7 @@ export const createLiveAreaModules = (
   return zones.flatMap(zone => {
     if (!zone.name || existingNames.has(zone.name)) return []
 
+    const plan = plans[zone.name]
     const zoneEntities = entities.filter(entity => (
       entity.zones.some(entityZone => entityZone.id === zone.id)
       && (entity.constructed || isPlannedEntity(entity))
@@ -266,6 +282,7 @@ export const createLiveAreaModules = (
     }
 
     const liveRecipes: GameSelectableRecipe[] = []
+    const terrainCrusherRecipeIds = new Set<string>()
     const builtBuildings: Record<string, number> = {}
     const activeBuildings: Record<string, number> = {}
     const constructionGhosts: Record<string, number> = {}
@@ -340,6 +357,9 @@ export const createLiveAreaModules = (
             }
           : undefined,
       })
+      if (crusherPrototypeIds.has(group.prototypeId)) {
+        terrainCrusherRecipeIds.add(recipeId)
+      }
       builtBuildings[recipeId] = group.built
       activeBuildings[recipeId] = group.running + group.planned
       currentActiveBuildings[recipeId] = group.running
@@ -353,6 +373,11 @@ export const createLiveAreaModules = (
       const linkedOnlyInputIds = getLinkedOnlyLiveModuleInputIds(
         recipe.inputs.map(input => input.resourceId),
       )
+      const terrainInputIds = terrainCrusherRecipeIds.has(recipe.id)
+        ? recipe.inputs
+            .map(input => input.resourceId)
+            .filter(resourceId => terrainSourceRecipeByResourceId.has(resourceId))
+        : []
       const surplusConsumption = getSurplusConsumptionSettings(
         recipe.inputs.map(input => input.resourceId),
         recipe.gameRecipeId,
@@ -364,11 +389,15 @@ export const createLiveAreaModules = (
             surplusConsumptionPriority: surplusConsumption.priority,
           }
         : {}
-      const linkedOnlyInputFields = linkedOnlyInputIds.length > 0
+      const moduleScopedInputIds = [...new Set([
+        ...linkedOnlyInputIds,
+        ...terrainInputIds,
+      ])]
+      const moduleScopedInputFields = moduleScopedInputIds.length > 0
         ? {
             balanceInputIds: [...new Set([
               ...(recipe.balanceInputIds ?? []),
-              ...linkedOnlyInputIds,
+              ...moduleScopedInputIds,
             ])],
             balanceInputScope: 'module' as const,
           }
@@ -378,7 +407,7 @@ export const createLiveAreaModules = (
         return {
           ...recipe,
           ...surplusConsumptionFields,
-          ...linkedOnlyInputFields,
+          ...moduleScopedInputFields,
         }
       }
 
@@ -386,7 +415,7 @@ export const createLiveAreaModules = (
         return {
           ...recipe,
           ...surplusConsumptionFields,
-          ...linkedOnlyInputFields,
+          ...moduleScopedInputFields,
           balanceBy: 'output' as const,
           balanceOutputIds: recipe.outputs.map(output => output.resourceId),
         }
@@ -396,7 +425,7 @@ export const createLiveAreaModules = (
         return {
           ...recipe,
           ...surplusConsumptionFields,
-          ...linkedOnlyInputFields,
+          ...moduleScopedInputFields,
           balanceBy: 'input' as const,
           balanceInputIds: recipe.inputs.map(input => input.resourceId),
         }
@@ -404,16 +433,58 @@ export const createLiveAreaModules = (
 
       return recipe
     })
-    const plan = plans[zone.name]
+    const terrainSourceTemplates = [...new Map(
+      balancedLiveRecipes
+        .filter(recipe => terrainCrusherRecipeIds.has(recipe.id))
+        .flatMap(recipe => recipe.inputs)
+        .flatMap(input => {
+          const source = terrainSourceRecipeByResourceId.get(input.resourceId)
+
+          return source ? [[input.resourceId, source] as const] : []
+        }),
+    ).values()]
+    const hasOreSortingPlant = zoneEntities.some(entity => (
+      oreSortingPlantPrototypeIds.has(entity.prototypeId)
+    ))
+    const hasOperatingOreSortingPlant = zoneEntities.some(entity => (
+      oreSortingPlantPrototypeIds.has(entity.prototypeId)
+      && entity.constructed
+      && entity.running
+    ))
+    const implicitSourceRecipes: Recipe[] = hasOperatingOreSortingPlant
+      ? terrainSourceTemplates.map(source => {
+          const [output] = source.outputs
+
+          if (!output) throw new Error(`Terrain source ${source.id} has no output`)
+
+          const recipeId = `${moduleIdForZone(zone.id)}:terrain-source:${output.resourceId}`
+
+          builtBuildings[recipeId] = 1
+          activeBuildings[recipeId] = 1
+          currentActiveBuildings[recipeId] = 1
+          dataSources[recipeId] = 'synced'
+
+          return {
+            ...source,
+            id: recipeId,
+            name: `${resources[output.resourceId].name} terrain extraction`,
+            building: 'Terrain extraction',
+            sourceMode: 'module-demand',
+            hiddenFromModuleView: true,
+          }
+        })
+      : []
     const requestedExports = plan?.requestedExports
+    const usesFactoryPool = plan?.resourcePool === 'factory'
+      || (hasOreSortingPlant && terrainSourceTemplates.length > 0)
 
     const liveModule: Module = {
       id: moduleIdForZone(zone.id),
       name: zone.name,
       description: '',
-      includedInFactoryTotals: plan?.resourcePool === 'factory',
+      includedInFactoryTotals: usesFactoryPool,
       builtBuildings,
-      recipes: balancedLiveRecipes,
+      recipes: [...balancedLiveRecipes, ...implicitSourceRecipes],
       presets: [{
         id: 'live',
         name: 'Live area',
@@ -425,7 +496,7 @@ export const createLiveAreaModules = (
         capacityPools: presetCapacityPools,
         dataSources,
         fixed: [],
-        outputTargets: plan?.resourcePool === 'factory' ? requestedExports : undefined,
+        outputTargets: usesFactoryPool ? requestedExports : undefined,
         requestedExports,
       }],
       defaultPresetId: 'live',

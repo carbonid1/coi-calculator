@@ -258,6 +258,213 @@ describe('createLiveAreaModules', () => {
     ]))
   })
 
+  it('infers terrain supply from an operating sorter and assigned crusher recipe', () => {
+    const bauxiteMilling = {
+      id: 'BauxiteMilling',
+      name: 'Bauxite milling',
+      durationSeconds: 40,
+      assigned: true,
+      inputs: [{ productId: 'Product_Bauxite', name: 'Bauxite', quantity: 48 }],
+      outputs: [{ productId: 'Product_BauxitePowder', name: 'Bauxite powder', quantity: 48 }],
+    }
+    const titaniumMilling = {
+      id: 'IlmeniteMilling',
+      name: 'Ilmenite milling',
+      durationSeconds: 30,
+      assigned: true,
+      inputs: [{ productId: 'Product_TitaniumOre', name: 'Titanium ore', quantity: 48 }],
+      outputs: [{
+        productId: 'Product_TitaniumOreCrushed',
+        name: 'Titanium ore crushed',
+        quantity: 48,
+      }],
+    }
+    const crusher = (
+      entityId: number,
+      zoneId: number,
+      zoneName: string,
+      selectedRecipe: typeof bauxiteMilling,
+    ): SyncedAreaEntity => ({
+      ...entity(entityId, true, true, [selectedRecipe]),
+      prototypeId: 'CrusherLarge',
+      prototypeName: 'Crusher (large)',
+      zones: [{ id: zoneId, name: zoneName }],
+    })
+    const sorter = (
+      entityId: number,
+      zoneId: number,
+      zoneName: string,
+      running = true,
+    ): SyncedAreaEntity => ({
+      ...entity(entityId, true, running, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      zones: [{ id: zoneId, name: zoneName }],
+    })
+    const mineModules = createLiveAreaModules(
+      [
+        { id: 18, name: 'North titanium pit' },
+        { id: 19, name: 'East bauxite pit' },
+      ],
+      [
+        sorter(1, 18, 'North titanium pit'),
+        crusher(2, 18, 'North titanium pit', titaniumMilling),
+        sorter(3, 19, 'East bauxite pit'),
+        crusher(4, 19, 'East bauxite pit', bauxiteMilling),
+        crusher(5, 19, 'East bauxite pit', bauxiteMilling),
+        crusher(6, 19, 'East bauxite pit', bauxiteMilling),
+      ],
+      [],
+    )
+    const calculateMine = (
+      name: string,
+      demand: Parameters<typeof calculateNet>[4],
+    ) => {
+      const mine = mineModules.find(module => module.name === name)
+
+      if (!mine) throw new Error(`Missing ${name}`)
+
+      const preset = mine.presets[0]
+      const { lines } = buildModuleLines(mine, preset ?? null)
+
+      return { mine, lines, result: calculateNet(lines, {}, undefined, {}, demand) }
+    }
+    const bauxite = calculateMine('East bauxite pit', { bauxitePowder: 142.5 })
+    const titanium = calculateMine('North titanium pit', { titaniumOreCrushed: 38.8 })
+    const bauxiteCrusher = bauxite.result.regularResults.find(result => (
+      result.recipe.gameRecipeId === 'BauxiteMilling'
+    ))
+    const titaniumCrusher = titanium.result.regularResults.find(result => (
+      result.recipe.gameRecipeId === 'IlmeniteMilling'
+    ))
+
+    expect(bauxite.mine.includedInFactoryTotals).toBe(true)
+    expect(titanium.mine.includedInFactoryTotals).toBe(true)
+    expect(bauxite.lines.find(line => line.recipe.sourceMode === 'module-demand'))
+      .toMatchObject({
+        activeBuildings: 1,
+        dataSource: 'synced',
+        recipe: { hiddenFromModuleView: true },
+      })
+    expect(titanium.lines.find(line => line.recipe.sourceMode === 'module-demand'))
+      .toMatchObject({
+        activeBuildings: 1,
+        dataSource: 'synced',
+        recipe: { hiddenFromModuleView: true },
+      })
+    expect(titaniumCrusher?.recipe).toMatchObject({
+      balanceInputIds: ['titaniumOre'],
+      balanceInputScope: 'module',
+    })
+    expect(bauxiteCrusher).toMatchObject({
+      activeBuildings: 3,
+      actualInputs: [{ resourceId: 'bauxite', quantity: 142.5 }],
+      actualOutputs: [{ resourceId: 'bauxitePowder', quantity: 142.5 }],
+    })
+    expect(bauxiteCrusher?.supplyRatio).toBeCloseTo(142.5 / 216)
+    expect(titaniumCrusher).toMatchObject({
+      activeBuildings: 1,
+      actualInputs: [{ resourceId: 'titaniumOre', quantity: 38.8 }],
+      actualOutputs: [{ resourceId: 'titaniumOreCrushed', quantity: 38.8 }],
+    })
+    expect(titaniumCrusher?.supplyRatio).toBeCloseTo(38.8 / 96)
+    expect(bauxite.result.sourceResults.find(result => (
+      result.recipe.sourceMode === 'module-demand'
+    ))?.actualOutputs).toEqual([{ resourceId: 'bauxite', quantity: 142.5 }])
+    expect(titanium.result.sourceResults.find(result => (
+      result.recipe.sourceMode === 'module-demand'
+    ))?.actualOutputs).toEqual([{ resourceId: 'titaniumOre', quantity: 38.8 }])
+  })
+
+  it('keeps inferred extraction local when another mine uses the same recipe', () => {
+    const titaniumMilling = {
+      id: 'IlmeniteMilling',
+      name: 'Ilmenite milling',
+      durationSeconds: 30,
+      assigned: true,
+      inputs: [{ productId: 'Product_TitaniumOre', name: 'Titanium ore', quantity: 48 }],
+      outputs: [{
+        productId: 'Product_TitaniumOreCrushed',
+        name: 'Titanium ore crushed',
+        quantity: 48,
+      }],
+    }
+    const areaEntity = (
+      entityId: number,
+      zoneId: number,
+      zoneName: string,
+      prototypeId: string,
+      prototypeName: string,
+      entityRecipes: SyncedAreaEntity['recipes'],
+    ): SyncedAreaEntity => ({
+      ...entity(entityId, true, true, entityRecipes),
+      prototypeId,
+      prototypeName,
+      zones: [{ id: zoneId, name: zoneName }],
+    })
+    const mineModules = createLiveAreaModules(
+      [
+        { id: 30, name: 'Mine A' },
+        { id: 31, name: 'Mine B' },
+      ],
+      [
+        areaEntity(1, 30, 'Mine A', 'OreSortingPlantT1', 'Ore sorting plant', []),
+        areaEntity(2, 30, 'Mine A', 'CrusherLarge', 'Crusher (large)', [titaniumMilling]),
+        areaEntity(3, 31, 'Mine B', 'OreSortingPlantT2', 'Ore sorting plant (large)', []),
+        areaEntity(4, 31, 'Mine B', 'CrusherLarge', 'Crusher (large)', [titaniumMilling]),
+      ],
+      [],
+    )
+    const lines = mineModules.flatMap(mine => (
+      buildModuleLines(mine, mine.presets[0] ?? null).lines
+    ))
+    const result = calculateNet(lines, {}, undefined, {}, { titaniumOreCrushed: 150 })
+    const crusherResults = result.regularResults.filter(candidate => (
+      candidate.recipe.gameRecipeId === 'IlmeniteMilling'
+    ))
+    const sourceResults = result.sourceResults.filter(candidate => (
+      candidate.recipe.sourceMode === 'module-demand'
+    ))
+
+    expect(crusherResults.map(candidate => candidate.actualInputs[0]?.quantity))
+      .toEqual([96, 54])
+    expect(sourceResults.map(candidate => candidate.actualOutputs[0]?.quantity))
+      .toEqual([96, 54])
+    expect(sourceResults.map(candidate => candidate.moduleId))
+      .toEqual(crusherResults.map(candidate => candidate.moduleId))
+  })
+
+  it('does not invent terrain supply when a crusher area has no sorting plant', () => {
+    const titaniumMilling = {
+      id: 'IlmeniteMilling',
+      name: 'Ilmenite milling',
+      durationSeconds: 30,
+      assigned: true,
+      inputs: [{ productId: 'Product_TitaniumOre', name: 'Titanium ore', quantity: 48 }],
+      outputs: [{
+        productId: 'Product_TitaniumOreCrushed',
+        name: 'Titanium ore crushed',
+        quantity: 48,
+      }],
+    }
+    const crusher = {
+      ...entity(1, true, true, [titaniumMilling]),
+      prototypeId: 'CrusherLarge',
+      prototypeName: 'Crusher (large)',
+    }
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [crusher], [])
+    const { lines } = buildModuleLines(module!, module?.presets[0] ?? null)
+    const result = calculateNet(lines, {}, undefined, {}, { titaniumOreCrushed: 96 })
+
+    expect(module?.recipes?.some(recipe => recipe.sourceMode === 'module-demand')).toBe(false)
+    expect(module?.includedInFactoryTotals).toBe(false)
+    expect(module?.recipes?.[0]).toMatchObject({
+      balanceInputIds: ['titaniumOre'],
+      balanceInputScope: 'module',
+    })
+    expect(result.regularResults[0]?.supplyRatio).toBe(0)
+  })
+
   it('normalizes fractional game recipe durations without truncating them', () => {
     const fractionalRecipe = {
       ...recipe,

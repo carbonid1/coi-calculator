@@ -1,5 +1,9 @@
 import { baseConfig } from "../../db/config";
-import { type Recipe } from "../../db/recipes";
+import {
+  isModuleScopedSourceMode,
+  isUnboundedDemandSourceMode,
+  type Recipe,
+} from "../../db/recipes";
 import { type Resource, type ResourceId, resources } from "../../db/resources";
 import {
   getRecipeInputQuantity,
@@ -379,6 +383,8 @@ export const calculateNet = (
   const sourceOutputCapacities = new Map<ProductionLine, Map<ResourceId, number>>();
   const totalSourceCapacityByResource = new Map<ResourceId, number>();
   const totalModuleSourceCapacityByResource = new Map<string, number>();
+  const terrainSourceCapacityByResource = new Map<string, number>();
+  const terrainSourceKeysByResource = new Map<ResourceId, Set<string>>();
   const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => (
     `${moduleId}:${resourceId}`
   );
@@ -413,6 +419,19 @@ export const calculateNet = (
       moduleKey,
       (totalModuleSourceCapacityByResource.get(moduleKey) ?? 0) + quantity,
     );
+    if (
+      isModuleScopedSourceMode(line.recipe.sourceMode)
+      && line.recipe.sourceKind === "map-mine"
+    ) {
+      terrainSourceCapacityByResource.set(
+        moduleKey,
+        (terrainSourceCapacityByResource.get(moduleKey) ?? 0) + quantity,
+      );
+      const sourceKeys = terrainSourceKeysByResource.get(resourceId) ?? new Set<string>();
+
+      sourceKeys.add(moduleKey);
+      terrainSourceKeysByResource.set(resourceId, sourceKeys);
+    }
   };
   const getSourceScale = (
     line: ProductionLine,
@@ -483,10 +502,19 @@ export const calculateNet = (
 
   // Demand sources are effectively unbounded during allocation. Their final
   // output is reduced after regular production has supplied what it can.
-  for (const line of sourceLines.filter((source) => source.recipe.sourceMode === "demand")) {
+  for (const line of sourceLines.filter((source) => (
+    isUnboundedDemandSourceMode(source.recipe.sourceMode)
+  ))) {
     for (const output of line.recipe.outputs) {
       const flow = simGet(output.resourceId);
-      const capacity = line.activeBuildings > 0 ? flow.consumed : 0;
+      const moduleFlow = getSimulatedModuleFlow(line.moduleId, output.resourceId);
+      let capacity = 0;
+
+      if (line.activeBuildings > 0) {
+        capacity = isModuleScopedSourceMode(line.recipe.sourceMode)
+          ? Math.max(0, moduleFlow.consumed - moduleFlow.produced)
+          : flow.consumed;
+      }
 
       flow.produced += capacity;
       setSourceOutputCapacity(line, output.resourceId, capacity);
@@ -560,12 +588,34 @@ export const calculateNet = (
 
     return flow;
   };
-  const getAvailableInput = (line: ProductionLine, resourceId: ResourceId) => {
-    const flow = line.recipe.balanceInputScope === "module"
-      ? getActualModuleFlow(line.moduleId, resourceId)
-      : getFlow(resourceId);
+  const getUnreservedGlobalInput = (resourceId: ResourceId) => {
+    const globalFlow = getFlow(resourceId);
+    const unavailableModuleSupply = [...(terrainSourceKeysByResource.get(resourceId) ?? [])]
+      .reduce((total, key) => {
+        const capacity = terrainSourceCapacityByResource.get(key) ?? 0;
+        const moduleFlow = actualModuleFlows.get(key) ?? { consumed: 0, produced: 0 };
+        const nonSourceProduction = moduleFlow.produced - capacity;
+        const localSourceDemand = Math.max(0, moduleFlow.consumed - nonSourceProduction);
+        const locallyUsed = Math.min(capacity, localSourceDemand);
 
-    return flow.produced - flow.consumed;
+        return total + capacity - locallyUsed;
+      }, 0);
+
+    return globalFlow.produced - globalFlow.consumed - unavailableModuleSupply;
+  };
+  const getAvailableInput = (line: ProductionLine, resourceId: ResourceId) => {
+    const moduleKey = moduleResourceKey(line.moduleId, resourceId);
+    const hasOwnedModuleSource = (
+      terrainSourceCapacityByResource.get(moduleKey) ?? 0
+    ) > 0;
+
+    if (line.recipe.balanceInputScope === "module" || hasOwnedModuleSource) {
+      const flow = getActualModuleFlow(line.moduleId, resourceId);
+
+      return flow.produced - flow.consumed;
+    }
+
+    return getUnreservedGlobalInput(resourceId);
   };
 
   // Caller-supplied resources, such as contract imports, are virtual sources.
@@ -804,6 +854,13 @@ export const calculateNet = (
 
     for (const input of line.recipe.inputs) {
       if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
+        const available = getAvailableInput(line, input.resourceId);
+        const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+        if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+        continue;
+      }
+      if (terrainSourceKeysByResource.has(input.resourceId)) {
         const available = getAvailableInput(line, input.resourceId);
         const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
@@ -1155,6 +1212,13 @@ export const calculateNet = (
             if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
             continue;
           }
+          if (terrainSourceKeysByResource.has(input.resourceId)) {
+            const available = getAvailableInput(line, input.resourceId);
+            const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+            if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+            continue;
+          }
           if (!hardSuppliedIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
 
           const flow = getFlow(input.resourceId);
@@ -1208,7 +1272,7 @@ export const calculateNet = (
     const moduleSourceCapacities = new Map<string, number>();
 
     for (const line of sourceLines) {
-      if (line.recipe.sourceMode !== "module-demand-capped") continue;
+      if (!isModuleScopedSourceMode(line.recipe.sourceMode)) continue;
 
       for (const output of line.recipe.outputs) {
         const key = moduleResourceKey(line.moduleId, output.resourceId);
@@ -1234,7 +1298,7 @@ export const calculateNet = (
           );
         }
 
-        if (line.recipe.sourceMode === "module-demand-capped") {
+        if (isModuleScopedSourceMode(line.recipe.sourceMode)) {
           const key = moduleResourceKey(line.moduleId, output.resourceId);
 
           if (!remainingModuleDemand.has(key)) {
@@ -1257,7 +1321,7 @@ export const calculateNet = (
       for (const output of line.recipe.outputs) {
         const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
         const key = moduleResourceKey(line.moduleId, output.resourceId);
-        const moduleScoped = line.recipe.sourceMode === "module-demand-capped";
+        const moduleScoped = isModuleScopedSourceMode(line.recipe.sourceMode);
         const remaining = moduleScoped
           ? remainingModuleDemand.get(key) ?? 0
           : remainingGlobalDemand.get(output.resourceId) ?? 0;
@@ -1355,7 +1419,7 @@ export const calculateNet = (
   const remainingModuleSourceDemand = new Map<string, number>();
 
   for (const line of sourceLines) {
-    if (line.recipe.sourceMode !== "module-demand-capped") continue;
+    if (!isModuleScopedSourceMode(line.recipe.sourceMode)) continue;
 
     for (const output of line.recipe.outputs) {
       const key = moduleResourceKey(line.moduleId, output.resourceId);
@@ -1410,7 +1474,7 @@ export const calculateNet = (
       const flow = getFlow(output.resourceId);
       const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
       const moduleKey = moduleResourceKey(line.moduleId, output.resourceId);
-      const moduleScoped = line.recipe.sourceMode === "module-demand-capped";
+      const moduleScoped = isModuleScopedSourceMode(line.recipe.sourceMode);
       const remaining = moduleScoped
         ? remainingModuleSourceDemand.get(moduleKey) ?? 0
         : remainingSourceDemand.get(output.resourceId) ?? 0;
@@ -1493,7 +1557,7 @@ export const calculateNet = (
       for (const result of sourceResults.toReversed()) {
         if (
           !result.recipe.sourceMode
-          || result.recipe.sourceMode === "module-demand-capped"
+          || isModuleScopedSourceMode(result.recipe.sourceMode)
           || excess <= 1e-9
         ) continue;
 

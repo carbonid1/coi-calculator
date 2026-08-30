@@ -1,5 +1,6 @@
 import { getBuildingData } from "../../db/buildings";
 import { type Module } from "../../db/modules/modules";
+import { isUnboundedDemandSourceMode } from "../../db/recipes";
 import { type ResourceId } from "../../db/resources";
 import {
   type PassiveResult,
@@ -246,7 +247,8 @@ export const calculateBuildingDiagnostics = (
     const physicalCapacityResults = results.filter((result) => (
       result.recipe.tracksPhysicalCapacity !== false
       && result.recipe.sinkMode !== "unbounded"
-      && !(result.recipe.sourceMode === "demand" && result.recipe.sourceKind != null)
+      && !(isUnboundedDemandSourceMode(result.recipe.sourceMode)
+        && result.recipe.sourceKind != null)
     ));
     const tracksPhysicalCapacity = physicalCapacityResults.length > 0;
     // A shared physical-capacity pool can contain both current recipes and a
