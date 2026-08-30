@@ -33,8 +33,8 @@ The standalone settings button remains as a fallback if the cooperative hub
 cannot initialize.
 
 The mod changes no train behavior. It stores only these two settings in the
-save and can be used without the CoI Calculator Exporter. It requires the
-official Trains expansion.
+save and can be used without the CoI Calculator Exporter. It works with the
+base game's trains and with trains added by the official Trains expansion.
 
 Build from the repository root:
 

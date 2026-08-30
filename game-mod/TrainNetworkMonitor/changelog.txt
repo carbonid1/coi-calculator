@@ -1,3 +1,7 @@
+0.3.9
+- Removed the incorrect Trains expansion dependency. Trains are part of the base game, and the monitor works with or without the expansion.
+- Fixed COI Hub installation, which previously tried to download the expansion as a Hub mod.
+
 0.3.8
 - Fixed the delay setting to measure each uninterrupted waiting-for-track period independently. The timer now resets whenever a train leaves the waiting state instead of relying on the game's non-resetting reservation timer.
 
