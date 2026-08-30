@@ -11,8 +11,9 @@ import {
 
 const createLiveIronMine = (): Module => {
   const source = recipes.find(recipe => recipe.id === 'iron-map-mine')
+  const crusher = recipes.find(recipe => recipe.id === 'crusher-large-iron')
 
-  if (!source) throw new Error('Missing Iron map-mine fixture')
+  if (!source || !crusher) throw new Error('Missing Iron mine fixtures')
 
   return {
     id: 'live-area-99',
@@ -20,11 +21,18 @@ const createLiveIronMine = (): Module => {
     description: '',
     includedInFactoryTotals: true,
     builtBuildings: { 'live-area-99:terrain-source:ironOre': 1 },
-    recipes: [{
-      ...source,
-      id: 'live-area-99:terrain-source:ironOre',
-      sourceMode: 'module-demand',
-    }],
+    recipes: [
+      {
+        ...source,
+        id: 'live-area-99:terrain-source:ironOre',
+        sourceMode: 'module-demand',
+      },
+      {
+        ...crusher,
+        id: 'live-area-99:CrusherLarge:IronOreCrushing',
+        building: 'Crusher (large)',
+      },
+    ],
     presets: [{
       id: 'live',
       name: 'Live area',
@@ -54,5 +62,20 @@ describe('terrain mine ownership', () => {
     expect(updatedDefault?.builtBuildings).toHaveProperty('crusher-large-copper', 1)
     expect(updatedDefault?.presets[0]?.builtBuildings)
       .not.toHaveProperty('crusher-large-iron')
+  })
+
+  it('keeps the Default crusher when a live sorter exports raw material', () => {
+    const rawIronMine = createLiveIronMine()
+    const source = rawIronMine.recipes?.find(recipe => recipe.sourceKind === 'map-mine')
+
+    if (!source) throw new Error('Missing live Iron source')
+
+    const [updatedDefault, updatedMines] = transferTerrainMineOwnership(
+      [defaultArea, mines],
+      [{ ...rawIronMine, recipes: [source] }],
+    )
+
+    expect(updatedMines?.builtBuildings).not.toHaveProperty('iron-map-mine')
+    expect(updatedDefault?.builtBuildings).toHaveProperty('crusher-large-iron', 1)
   })
 })

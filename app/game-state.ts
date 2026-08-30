@@ -155,6 +155,25 @@ export interface SyncedTrainStationConfiguration {
   selectedProduct: SyncedProductRef | null
 }
 
+export interface SyncedOreSorterProduct extends SyncedProductRef {
+  /** Whether the game's terrain-conversion loss applies to this material. */
+  canBeWasted: boolean
+  sortedLastCycle: number
+}
+
+export interface SyncedOreSorterConfiguration {
+  /** Effective focus-adjusted mixed input capacity per 60-second production cycle. */
+  throughputPerCycle: number
+  conversionLossPercent: number
+  products: SyncedOreSorterProduct[]
+}
+
+/** Mine-tower inventory is provenance only; vehicles do not determine throughput. */
+export interface SyncedMineTower {
+  entityId: number
+  assignedOreSorterEntityIds: number[]
+}
+
 /**
  * Stable, recipe-aware physical building identity exported for module binding.
  * The payload is intentionally module-neutral; vehicle-zone ownership decides
@@ -213,6 +232,8 @@ export interface SyncedAreaEntity {
   }
   zones: SyncedLogisticsZoneRef[]
   recipes: SyncedAreaRecipe[]
+  /** Present for ore sorting plants in schema 31 and newer. */
+  oreSorter?: SyncedOreSorterConfiguration | null
   /** Present in schema 29 and newer. */
   trainStation?: SyncedTrainStationConfiguration | null
 }
@@ -294,7 +315,8 @@ export const MAINTENANCE_ENTITY_SCHEMA_VERSION = 27 as const
 export const AREA_GHOST_SCHEMA_VERSION = 28 as const
 export const TRAIN_STATION_PRODUCT_SCHEMA_VERSION = 29 as const
 export const CAPTAIN_OFFICE_SCHEMA_VERSION = 30 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 30 as const
+export const TERRAIN_SORTER_SCHEMA_VERSION = 31 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 31 as const
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -320,6 +342,7 @@ export type SupportedGameStateSchemaVersion =
   | 27
   | 28
   | 29
+  | 30
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -336,6 +359,7 @@ export interface GameStateSnapshot {
   groundwater: SyncedGroundwaterState | null
   productionEntities: SyncedProductionEntity[] | null
   areaEntities: SyncedAreaEntity[]
+  mineTowers: SyncedMineTower[]
   vehicles: {
     total: number
     workersAssigned: number
@@ -817,6 +841,36 @@ const isAreaRecipe = (value: unknown): value is SyncedAreaRecipe => {
     new Set(outputs.map(output => output.productId)).size === outputs.length
 }
 
+const oreSorterPrototypeIds = new Set(['OreSortingPlantT1', 'OreSortingPlantT2'])
+
+const isOreSorterProduct = (value: unknown): value is SyncedOreSorterProduct => (
+  isUnknownRecord(value) &&
+  typeof value.productId === 'string' &&
+  value.productId.length > 0 &&
+  typeof value.name === 'string' &&
+  value.name.length > 0 &&
+  typeof value.canBeWasted === 'boolean' &&
+  isNonNegativeInteger(value.sortedLastCycle)
+)
+
+const isOreSorterConfiguration = (
+  value: unknown,
+): value is SyncedOreSorterConfiguration => {
+  if (
+    !isUnknownRecord(value) ||
+    !isNonNegativeFiniteNumber(value.throughputPerCycle) ||
+    value.throughputPerCycle <= 0 ||
+    !isNonNegativeInteger(value.conversionLossPercent) ||
+    value.conversionLossPercent > 100 ||
+    !Array.isArray(value.products)
+  ) return false
+
+  const products = value.products.filter(isOreSorterProduct)
+
+  return products.length === value.products.length &&
+    new Set(products.map(product => product.productId)).size === products.length
+}
+
 const isAreaEntity = (
   value: unknown,
   schemaVersion: SupportedGameStateSchemaVersion,
@@ -849,6 +903,12 @@ const isAreaEntity = (
     recipes.length === value.recipes.length &&
     new Set(zones.map(zone => zone.id)).size === zones.length &&
     new Set(recipes.map(recipe => recipe.id)).size === recipes.length &&
+    (
+      schemaVersion < TERRAIN_SORTER_SCHEMA_VERSION ||
+      (oreSorterPrototypeIds.has(value.prototypeId)
+        ? isOreSorterConfiguration(value.oreSorter)
+        : value.oreSorter === null)
+    ) &&
     hasValidTrainStationConfiguration(value, schemaVersion)
 }
 
@@ -864,6 +924,39 @@ const normalizeAreaEntities = (
   return entities.length === value.length &&
     new Set(entities.map(entity => entity.entityId)).size === entities.length
     ? entities
+    : null
+}
+
+const normalizeMineTowers = (
+  value: unknown,
+  schemaVersion: SupportedGameStateSchemaVersion,
+): SyncedMineTower[] | null => {
+  if (schemaVersion < TERRAIN_SORTER_SCHEMA_VERSION) return []
+  if (!Array.isArray(value)) return null
+
+  const towers: SyncedMineTower[] = []
+  const assignedSorterIds = new Set<number>()
+
+  for (const candidate of value) {
+    if (
+      !isUnknownRecord(candidate) ||
+      !isNonNegativeInteger(candidate.entityId) ||
+      !Array.isArray(candidate.assignedOreSorterEntityIds) ||
+      !candidate.assignedOreSorterEntityIds.every(isNonNegativeInteger) ||
+      new Set(candidate.assignedOreSorterEntityIds).size !==
+        candidate.assignedOreSorterEntityIds.length ||
+      candidate.assignedOreSorterEntityIds.some(entityId => assignedSorterIds.has(entityId))
+    ) return null
+
+    candidate.assignedOreSorterEntityIds.forEach(entityId => assignedSorterIds.add(entityId))
+    towers.push({
+      entityId: candidate.entityId,
+      assignedOreSorterEntityIds: candidate.assignedOreSorterEntityIds,
+    })
+  }
+
+  return new Set(towers.map(tower => tower.entityId)).size === towers.length
+    ? towers
     : null
 }
 
@@ -1112,6 +1205,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 27 &&
     schemaVersion !== 28 &&
     schemaVersion !== 29 &&
+    schemaVersion !== 30 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null
@@ -1135,6 +1229,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion,
   )
   const areaEntities = normalizeAreaEntities(snapshot.areaEntities, schemaVersion)
+  const mineTowers = normalizeMineTowers(snapshot.mineTowers, schemaVersion)
   const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
   const total = vehicles?.total
   const trucks = vehicles?.trucks
@@ -1165,6 +1260,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     (schemaVersion >= SAVE_ID_SCHEMA_VERSION && !saveId) ||
     (schemaVersion >= PRODUCTION_ENTITY_SCHEMA_VERSION && !productionEntities) ||
     (schemaVersion >= AREA_GHOST_SCHEMA_VERSION && !areaEntities) ||
+    (schemaVersion >= TERRAIN_SORTER_SCHEMA_VERSION && !mineTowers) ||
     !vehicles ||
     !isNonNegativeInteger(total) ||
     !isNonNegativeInteger(workersAssigned) ||
@@ -1287,6 +1383,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     groundwater: schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION ? groundwater : null,
     productionEntities,
     areaEntities: areaEntities ?? [],
+    mineTowers: mineTowers ?? [],
     vehicles: {
       total,
       workersAssigned,

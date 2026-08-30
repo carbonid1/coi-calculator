@@ -434,6 +434,129 @@ describe('createLiveAreaModules', () => {
       .toEqual(crusherResults.map(candidate => candidate.moduleId))
   })
 
+  it('shares one linked sorter capacity across every configured raw material', () => {
+    const coalSorter: SyncedAreaEntity = {
+      ...entity(1, true, true, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [
+          {
+            productId: 'Product_Coal',
+            name: 'Coal',
+            canBeWasted: true,
+            sortedLastCycle: 70,
+          },
+          {
+            productId: 'Product_Dirt',
+            name: 'Dirt',
+            canBeWasted: false,
+            sortedLastCycle: 20,
+          },
+          {
+            productId: 'Product_Rock',
+            name: 'Rock',
+            canBeWasted: false,
+            sortedLastCycle: 70,
+          },
+        ],
+      },
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [coalSorter],
+      [],
+      undefined,
+      [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
+    )
+
+    if (!module) throw new Error('Missing linked sorter module')
+
+    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const result = calculateNet(lines, {}, undefined, {}, {
+      coal: 72,
+      dirt: 40,
+      rock: 80,
+    })
+    const sorterResults = result.regularResults.filter(candidate => (
+      candidate.recipe.sourceKind === 'map-mine'
+    ))
+
+    expect(module.includedInFactoryTotals).toBe(true)
+    expect(lines).toHaveLength(3)
+    expect(new Set(lines.map(line => line.capacityPoolId)).size).toBe(1)
+    expect(sorterResults.map(candidate => candidate.actualOutputs[0]?.quantity))
+      .toEqual([72, 40, 40])
+    expect(sorterResults.reduce((total, candidate) => total + candidate.supplyRatio, 0))
+      .toBeCloseTo(1)
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'rock')?.net).toBe(-40)
+  })
+
+  it('does not create terrain supply until a mine tower links the sorter', () => {
+    const unlinkedSorter: SyncedAreaEntity = {
+      ...entity(1, true, true, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [{
+          productId: 'Product_Coal',
+          name: 'Coal',
+          canBeWasted: true,
+          sortedLastCycle: 0,
+        }],
+      },
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [unlinkedSorter],
+      [],
+      undefined,
+      [],
+    )
+
+    expect(module?.includedInFactoryTotals).toBe(false)
+    expect(module?.recipes).toEqual([])
+  })
+
+  it('keeps a paused linked sorter claim with zero active supply', () => {
+    const pausedSorter: SyncedAreaEntity = {
+      ...entity(1, true, false, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [{
+          productId: 'Product_Coal',
+          name: 'Coal',
+          canBeWasted: true,
+          sortedLastCycle: 0,
+        }],
+      },
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [pausedSorter],
+      [],
+      undefined,
+      [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
+    )
+
+    if (!module) throw new Error('Missing paused sorter module')
+
+    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const result = calculateNet(lines, {}, undefined, {}, { coal: 10 })
+
+    expect(lines[0]).toMatchObject({ activeBuildings: 0, builtBuildings: 1 })
+    expect(result.regularResults[0]?.actualOutputs).toEqual([
+      { resourceId: 'coal', quantity: 0 },
+    ])
+  })
+
   it('does not invent terrain supply when a crusher area has no sorting plant', () => {
     const titaniumMilling = {
       id: 'IlmeniteMilling',

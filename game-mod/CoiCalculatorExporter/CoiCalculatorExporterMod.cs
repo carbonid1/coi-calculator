@@ -9,6 +9,8 @@ using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
 using Mafi.Core.Buildings.Farms;
+using Mafi.Core.Buildings.Mine;
+using Mafi.Core.Buildings.OreSorting;
 using Mafi.Core.Buildings.Storages;
 using Mafi.Core.Entities;
 using Mafi.Core.Entities.Static;
@@ -28,6 +30,7 @@ using Mafi.Core.Population;
 using Mafi.Core.Population.Edicts;
 using Mafi.Core.Prototypes;
 using Mafi.Core.PropertiesDb;
+using Mafi.Core.Products;
 using Mafi.Core.Research;
 using Mafi.Core.Simulation;
 using Mafi.Core.SpaceProgram;
@@ -410,7 +413,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":30,");
+            json.Append("\"schemaVersion\":31,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -793,10 +796,37 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                         json.Append(',');
                     }
                 }
-                json.Append("],\"trainStation\":");
+                json.Append("],\"oreSorter\":");
+                appendOreSorterConfiguration(json, entity.OreSorter);
+                json.Append(",\"trainStation\":");
                 appendTrainStationConfiguration(json, entity.TrainStation);
                 json.Append('}');
                 if (i < production.AreaEntities.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+            json.Append("],");
+            json.Append("\"mineTowers\":[");
+            for (int i = 0; i < production.MineTowers.Count; i++)
+            {
+                MineTowerSnapshot tower = production.MineTowers[i];
+                json.Append('{');
+                appendNumber(json, "entityId", tower.EntityId, true);
+                json.Append("\"assignedOreSorterEntityIds\":[");
+                for (int sorterIndex = 0;
+                    sorterIndex < tower.AssignedOreSorterEntityIds.Count;
+                    sorterIndex++)
+                {
+                    json.Append(tower.AssignedOreSorterEntityIds[sorterIndex]
+                        .ToString(CultureInfo.InvariantCulture));
+                    if (sorterIndex < tower.AssignedOreSorterEntityIds.Count - 1)
+                    {
+                        json.Append(',');
+                    }
+                }
+                json.Append("]}");
+                if (i < production.MineTowers.Count - 1)
                 {
                     json.Append(',');
                 }
@@ -944,6 +974,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         List<ProductionEntitySnapshot> productionEntities =
             new List<ProductionEntitySnapshot>();
         List<AreaEntitySnapshot> areaEntities = new List<AreaEntitySnapshot>();
+        List<MineTowerSnapshot> mineTowers = new List<MineTowerSnapshot>();
 
         foreach (IEntity entity in m_entitiesManager.Entities)
         {
@@ -954,6 +985,22 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             }
 
             List<LogisticsZoneSnapshot> entityZones = getLogisticsZones(staticEntity);
+            MineTower mineTower = entity as MineTower;
+            if (mineTower != null && staticEntity != null && staticEntity.IsConstructed)
+            {
+                List<int> assignedOreSorterEntityIds = new List<int>();
+                foreach (OreSortingPlant assignedSorter in mineTower.AssignedInputOreSorters)
+                {
+                    if (!assignedSorter.IsDestroyed)
+                    {
+                        assignedOreSorterEntityIds.Add(assignedSorter.Id.Value);
+                    }
+                }
+                assignedOreSorterEntityIds.Sort();
+                mineTowers.Add(new MineTowerSnapshot(
+                    entity.Id.Value,
+                    assignedOreSorterEntityIds));
+            }
             if (staticEntity != null && isNamedAreaBuilding(entity, entityZones))
             {
                 string prototypeName = staticEntity.Prototype.Strings.Name.TranslatedString;
@@ -970,6 +1017,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     staticEntity.CenterTile.Y,
                     entityZones,
                     getAreaRecipes(entity, staticEntity),
+                    getOreSorterConfiguration(entity),
                     getTrainStationConfiguration(entity)));
             }
 
@@ -1134,6 +1182,10 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             return left.EntityId.CompareTo(right.EntityId);
         });
+        mineTowers.Sort(delegate(MineTowerSnapshot left, MineTowerSnapshot right)
+        {
+            return left.EntityId.CompareTo(right.EntityId);
+        });
 
         return new ProductionSnapshot(
             dataCenters,
@@ -1146,7 +1198,40 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             cropFarmEntities,
             machines,
             productionEntities,
-            areaEntities);
+            areaEntities,
+            mineTowers);
+    }
+
+    private static OreSorterConfigurationSnapshot getOreSorterConfiguration(IEntity entity)
+    {
+        OreSortingPlant sorter = entity as OreSortingPlant;
+        if (sorter == null)
+        {
+            return null;
+        }
+
+        double throughputPerCycle = sorter.SortedPerDuration.Value
+            * 60.0
+            / sorter.Prototype.Duration.Seconds.ToDouble();
+        List<OreSorterProductSnapshot> products = new List<OreSorterProductSnapshot>();
+        foreach (ProductProto product in sorter.AllowedProducts)
+        {
+            string name = product.Strings.Name.TranslatedString;
+            products.Add(new OreSorterProductSnapshot(
+                product.Id.ToString(),
+                String.IsNullOrWhiteSpace(name) ? product.Id.ToString() : name,
+                sorter.ProductsData[product].CanBeWasted,
+                sorter.GetSortedLastMonth(product).Value));
+        }
+        products.Sort(delegate(OreSorterProductSnapshot left, OreSorterProductSnapshot right)
+        {
+            return String.CompareOrdinal(left.ProductId, right.ProductId);
+        });
+
+        return new OreSorterConfigurationSnapshot(
+            throughputPerCycle,
+            sorter.Prototype.ConversionLoss.ToIntPercentRounded(),
+            products);
     }
 
     private static List<AreaRecipeSnapshot> getAreaRecipes(
@@ -1986,6 +2071,39 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         json.Append('}');
     }
 
+    private static void appendOreSorterConfiguration(
+        StringBuilder json,
+        OreSorterConfigurationSnapshot sorter)
+    {
+        if (sorter == null)
+        {
+            json.Append("null");
+            return;
+        }
+
+        json.Append('{');
+        appendDecimal(json, "throughputPerCycle", sorter.ThroughputPerCycle, true);
+        appendNumber(json, "conversionLossPercent", sorter.ConversionLossPercent, true);
+        json.Append("\"products\":[");
+        for (int i = 0; i < sorter.Products.Count; i++)
+        {
+            OreSorterProductSnapshot product = sorter.Products[i];
+            json.Append('{');
+            appendString(json, "productId", product.ProductId, true);
+            appendString(json, "name", product.Name, true);
+            json.Append("\"canBeWasted\":");
+            json.Append(product.CanBeWasted ? "true" : "false");
+            json.Append(',');
+            appendNumber(json, "sortedLastCycle", product.SortedLastCycle, false);
+            json.Append('}');
+            if (i < sorter.Products.Count - 1)
+            {
+                json.Append(',');
+            }
+        }
+        json.Append("]}");
+    }
+
     private static void appendHistoryAverage(
         StringBuilder json,
         string name,
@@ -2241,6 +2359,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly List<MachineInventorySnapshot> Machines;
         public readonly List<ProductionEntitySnapshot> ProductionEntities;
         public readonly List<AreaEntitySnapshot> AreaEntities;
+        public readonly List<MineTowerSnapshot> MineTowers;
 
         public ProductionSnapshot(
             BuildingCountSnapshot dataCenters,
@@ -2253,7 +2372,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             List<CropFarmEntitySnapshot> cropFarmEntities,
             List<MachineInventorySnapshot> machines,
             List<ProductionEntitySnapshot> productionEntities,
-            List<AreaEntitySnapshot> areaEntities)
+            List<AreaEntitySnapshot> areaEntities,
+            List<MineTowerSnapshot> mineTowers)
         {
             DataCenters = dataCenters;
             Racks = racks;
@@ -2266,6 +2386,19 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             Machines = machines;
             ProductionEntities = productionEntities;
             AreaEntities = areaEntities;
+            MineTowers = mineTowers;
+        }
+    }
+
+    private sealed class MineTowerSnapshot
+    {
+        public readonly int EntityId;
+        public readonly List<int> AssignedOreSorterEntityIds;
+
+        public MineTowerSnapshot(int entityId, List<int> assignedOreSorterEntityIds)
+        {
+            EntityId = entityId;
+            AssignedOreSorterEntityIds = assignedOreSorterEntityIds;
         }
     }
 
@@ -2371,6 +2504,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly int TileY;
         public readonly List<LogisticsZoneSnapshot> Zones;
         public readonly List<AreaRecipeSnapshot> Recipes;
+        public readonly OreSorterConfigurationSnapshot OreSorter;
         public readonly TrainStationConfigurationSnapshot TrainStation;
 
         public AreaEntitySnapshot(
@@ -2384,6 +2518,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             int tileY,
             List<LogisticsZoneSnapshot> zones,
             List<AreaRecipeSnapshot> recipes,
+            OreSorterConfigurationSnapshot oreSorter,
             TrainStationConfigurationSnapshot trainStation)
         {
             EntityId = entityId;
@@ -2396,7 +2531,45 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             TileY = tileY;
             Zones = zones;
             Recipes = recipes;
+            OreSorter = oreSorter;
             TrainStation = trainStation;
+        }
+    }
+
+    private sealed class OreSorterConfigurationSnapshot
+    {
+        public readonly double ThroughputPerCycle;
+        public readonly int ConversionLossPercent;
+        public readonly List<OreSorterProductSnapshot> Products;
+
+        public OreSorterConfigurationSnapshot(
+            double throughputPerCycle,
+            int conversionLossPercent,
+            List<OreSorterProductSnapshot> products)
+        {
+            ThroughputPerCycle = throughputPerCycle;
+            ConversionLossPercent = conversionLossPercent;
+            Products = products;
+        }
+    }
+
+    private sealed class OreSorterProductSnapshot
+    {
+        public readonly string ProductId;
+        public readonly string Name;
+        public readonly bool CanBeWasted;
+        public readonly int SortedLastCycle;
+
+        public OreSorterProductSnapshot(
+            string productId,
+            string name,
+            bool canBeWasted,
+            int sortedLastCycle)
+        {
+            ProductId = productId;
+            Name = name;
+            CanBeWasted = canBeWasted;
+            SortedLastCycle = sortedLastCycle;
         }
     }
 

@@ -5,6 +5,10 @@ import { recipes } from '../../db/recipes'
 import { type ResourceId } from '../../db/resources'
 
 const crusherBuildings = new Set(['Crusher', 'Crusher (Large)'])
+const isCrusherBuilding = (building: string) => (
+  crusherBuildings.has(building)
+  || building.toLocaleLowerCase() === 'crusher (large)'
+)
 
 const withoutKeys = <T>(
   values: Record<string, T> | undefined,
@@ -41,7 +45,6 @@ export const getClaimedTerrainResourceIds = (
     module.recipes
       ?.filter(recipe => (
         recipe.sourceKind === 'map-mine'
-        && recipe.sourceMode === 'module-demand'
       ))
       .flatMap(recipe => recipe.outputs.map(output => output.resourceId))
       ?? []
@@ -49,9 +52,9 @@ export const getClaimedTerrainResourceIds = (
 )
 
 /**
- * A synced sorter + crusher area owns its selected terrain ore. Retire the
- * matching modeled source and Default-area first-stage crusher so the same
- * mine is never counted twice while other ores keep their legacy fallback.
+ * A linked synced sorter owns every configured terrain material, even while
+ * paused. Retire matching modeled sources, but retire a Default crusher only
+ * when an actual live-area crusher has selected the matching first-stage flow.
  */
 export const transferTerrainMineOwnership = (
   configuredModules: readonly Module[],
@@ -69,11 +72,21 @@ export const transferTerrainMineOwnership = (
       ))
       .map(recipe => recipe.id),
   )
+  const liveCrusherInputIds = new Set(
+    liveModules.flatMap(module => (
+      module.recipes
+        ?.filter(recipe => isCrusherBuilding(recipe.building))
+        .flatMap(recipe => recipe.inputs)
+        .filter(input => claimedResourceIds.has(input.resourceId))
+        .map(input => input.resourceId)
+        ?? []
+    )),
+  )
   const legacyCrusherIds = new Set(
     recipes
       .filter(recipe => (
-        crusherBuildings.has(recipe.building)
-        && recipe.inputs.some(input => claimedResourceIds.has(input.resourceId))
+        isCrusherBuilding(recipe.building)
+        && recipe.inputs.some(input => liveCrusherInputIds.has(input.resourceId))
       ))
       .map(recipe => recipe.id),
   )

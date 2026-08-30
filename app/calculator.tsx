@@ -131,6 +131,7 @@ import {
   MAINTENANCE_ENTITY_SCHEMA_VERSION,
   NAMED_AREA_ENTITY_SCHEMA_VERSION,
   ROCKET_INFRASTRUCTURE_SCHEMA_VERSION,
+  TERRAIN_SORTER_SCHEMA_VERSION,
   syncedInfrastructureBuildingIds,
   syncedRocketBuildingIds,
 } from './game-state'
@@ -693,12 +694,21 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       ? [createConfiguredSpaceStationModule()]
       : []),
   ]
+  const terrainSorterEntityIds = new Set(
+    (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
+      ? gameState.snapshot?.mineTowers.flatMap(tower => tower.assignedOreSorterEntityIds) ?? []
+      : [],
+  )
   const generatedLiveAreaModules =
     (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
       ? createLiveAreaModules(
           gameState.snapshot?.logisticsZones ?? [],
           gameState.snapshot?.areaEntities ?? [],
           configuredAreaModules,
+          undefined,
+          (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
+            ? gameState.snapshot?.mineTowers
+            : undefined,
         )
       : []
   const generatedLiveAreaZoneIds = new Set(
@@ -823,6 +833,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     builtConfig: staticInfrastructureBuiltConfig,
     defaultModuleId: DEFAULT_MODULE_ID,
     modules: configuredBaseModules,
+    managedEntityIds: terrainSorterEntityIds,
     productionEntities: hasAreaBuildingInventory ? productionEntities : undefined,
     runningConfig: staticInfrastructureRunningConfig,
   })

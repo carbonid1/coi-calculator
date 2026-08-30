@@ -109,6 +109,8 @@ interface ResolveStaticInfrastructureModuleAssignmentsOptions {
   areaEntities?: readonly SyncedAreaEntity[]
   builtConfig: StaticInfrastructureConfig
   defaultModuleId: string
+  /** Physical entities modeled by a richer live-area recipe instead of a static card. */
+  managedEntityIds?: ReadonlySet<number>
   modules: readonly Pick<Module, 'id' | 'name' | 'liveArea'>[]
   productionEntities?: readonly SyncedProductionEntity[]
   runningConfig: StaticInfrastructureConfig
@@ -165,6 +167,7 @@ export const resolveStaticInfrastructureModuleAssignments = ({
   areaEntities,
   builtConfig,
   defaultModuleId,
+  managedEntityIds = new Set(),
   modules,
   productionEntities,
   runningConfig,
@@ -210,6 +213,7 @@ export const resolveStaticInfrastructureModuleAssignments = ({
   }
 
   const assignEntity = (
+    entityId: number,
     prototypeId: string,
     zones: readonly { id: number; name: string | null }[],
     constructed: boolean,
@@ -220,6 +224,15 @@ export const resolveStaticInfrastructureModuleAssignments = ({
     const definition = definitionByPrototypeId.get(prototypeId)
 
     if (!definition) return
+
+    if (managedEntityIds.has(entityId)) {
+      if (constructed) {
+        add(defaultAssignment.builtBuildings, definition.recipeId, -1)
+        add(defaultAssignment.activeBuildings, definition.recipeId, -Number(running))
+        add(defaultAssignment.currentActiveBuildings, definition.recipeId, -Number(running))
+      }
+      return
+    }
 
     const matchingModuleIds = new Set(zones.flatMap(zone => {
       const moduleId = moduleIdByZoneId.get(zone.id)
@@ -264,6 +277,7 @@ export const resolveStaticInfrastructureModuleAssignments = ({
   if (productionEntities !== undefined) {
     for (const entity of productionEntities) {
       assignEntity(
+        entity.entityId,
         entity.prototypeId,
         entity.zones,
         true,
@@ -275,6 +289,7 @@ export const resolveStaticInfrastructureModuleAssignments = ({
   } else if (areaEntities !== undefined) {
     for (const entity of areaEntities.filter(entity => entity.constructed)) {
       assignEntity(
+        entity.entityId,
         entity.prototypeId,
         entity.zones,
         true,
@@ -288,6 +303,7 @@ export const resolveStaticInfrastructureModuleAssignments = ({
   if (areaEntities !== undefined) {
     for (const entity of areaEntities.filter(isConstructionGhost)) {
       assignEntity(
+        entity.entityId,
         entity.prototypeId,
         entity.zones,
         false,
