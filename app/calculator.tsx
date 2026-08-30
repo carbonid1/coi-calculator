@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
 import { ChickenFarmSettings } from './components/ChickenFarmSettings'
@@ -94,6 +94,7 @@ import { resolvePlanningBaselines } from './db/planning-baselines'
 import { type RecipeGroup } from './db/recipes'
 import { emptyInfiniteResearchLevels } from './db/research'
 import { mapReserveResources } from './db/reserve-resources'
+import { type ResourceId } from './db/resources'
 import {
   emptyRocketInfrastructureConfig,
   plannedRocketInfrastructureConfig,
@@ -163,6 +164,10 @@ import { calculateTreeGrowthSpeed } from './helpers/modifiers/calculate-tree-gro
 import { calculateUnityCapacity } from './helpers/modifiers/calculate-unity-capacity'
 import { getRecipeOutputQuantity } from './helpers/modifiers/recipe-output'
 import { extractModuleResult } from './helpers/module-result/module-result'
+import {
+  createPooledLinkSourceShadows,
+  hasPooledLinkSourceConnections,
+} from './helpers/pooled-link-source-shadows/pooled-link-source-shadows'
 import { resolvePopulationEntityInventory } from './helpers/population-entity-sync/population-entity-sync'
 import { getPresetResourceDemands } from './helpers/preset-resource-demands/preset-resource-demands'
 import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
@@ -466,6 +471,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   )
   const syncedResearchLevels = gameState.snapshot?.research
   const researchLevels = syncedResearchLevels ?? emptyInfiniteResearchLevels
+  const rocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
+    defaultSpaceStationLevel,
+    researchLevels.rocketsCapacity,
+  )
   const officePlan = resolvedOfficePlan.value
   const officePlanCalculation = calculateOfficePlan(officePlan, researchLevels.focusPoints)
   const focusBonuses = officePlanCalculation.bonuses
@@ -590,7 +599,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const configureModules = () =>
     modules.map(module => {
       if (module.id === DEFAULT_MODULE_ID) {
-        return createDefaultModule(defaultGroundwaterResolution, defaultGroundwaterConstraint)
+        return createDefaultModule(
+          defaultGroundwaterResolution,
+          defaultGroundwaterConstraint,
+          rocketIiRecurringLogistics,
+        )
       }
 
       if (module.id === SPACE_STATION_MODULE_ID) {
@@ -821,10 +834,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel)
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel)
   const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel)
-  const rocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
-    defaultSpaceStationLevel,
-    researchLevels.rocketsCapacity,
-  )
   const outputModifiers = {
     foodConsumption: foodConsumption.multiplier,
     maintenanceOutput: maintenanceOutput.multiplier,
@@ -847,24 +856,94 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     configuredModules,
     moduleResourceLinkDefinitions,
   )
-  const linkedModulesResult = calculateLinkedModules({
-    links: resolvedModuleResourceLinks,
-    modules: configuredModules,
-    outputModifiers,
-    recyclingEfficiencyPercent,
-  })
-  const factoryResult = calculateFactoryTotal(
-    configuredModules,
-    {
-      boundaryDemands: linkedModulesResult.boundaryDemands,
-      boundarySupplies: linkedModulesResult.boundarySupplies,
-      contracts: enabledContracts,
-      recyclingEfficiencyPercent,
+  const calculationRevision = `${gameState.snapshot?.exportedAtUtc ?? 'modeled'}:${JSON.stringify(
+    machineZoneAssignments,
+  )}`
+  const { factoryResult, linkedModulesResult } = useMemo(() => {
+    const calculateFactory = (
+      linkedResult: ReturnType<typeof calculateLinkedModules>,
+      moduleFixedDemands: ReadonlyMap<
+        string,
+        Partial<Record<ResourceId, number>>
+      > = new Map(),
+    ) => calculateFactoryTotal(
+      configuredModules,
+      {
+        boundaryDemands: linkedResult.boundaryDemands,
+        boundarySupplies: linkedResult.boundarySupplies,
+        contracts: enabledContracts,
+        recyclingEfficiencyPercent,
+        outputModifiers,
+        shipsFuelUseMultiplier: shipsFuelUse.multiplier,
+        contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
+        moduleFixedDemands,
+      },
+    )
+    const baseLinkedModulesResult = calculateLinkedModules({
+      links: resolvedModuleResourceLinks,
+      modules: configuredModules,
       outputModifiers,
-      shipsFuelUseMultiplier: shipsFuelUse.multiplier,
-      contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
-    },
-  )
+      recyclingEfficiencyPercent,
+    })
+
+    if (!hasPooledLinkSourceConnections(resolvedModuleResourceLinks, configuredModules)) {
+      return {
+        linkedModulesResult: baseLinkedModulesResult,
+        factoryResult: calculateFactory(baseLinkedModulesResult),
+      }
+    }
+
+    const baseFactoryResult = calculateFactory(baseLinkedModulesResult)
+    const pooledLinkSources = createPooledLinkSourceShadows({
+      calculation: baseFactoryResult.calculation,
+      lines: baseFactoryResult.allLines,
+      links: resolvedModuleResourceLinks,
+      modules: configuredModules,
+      outputModifiers,
+    })
+    const rawLinkedModulesResult = calculateLinkedModules({
+      links: resolvedModuleResourceLinks,
+      modules: [
+        ...configuredModules.filter(moduleDefinition => (
+          !pooledLinkSources.sourceModuleIds.has(moduleDefinition.id)
+        )),
+        ...pooledLinkSources.modules,
+      ],
+      outputModifiers,
+      recyclingEfficiencyPercent,
+    })
+    const resolvedLinkedModulesResult = {
+      ...rawLinkedModulesResult,
+      moduleResults: new Map(
+        [...rawLinkedModulesResult.moduleResults].filter(([moduleId]) => (
+          !pooledLinkSources.sourceModuleIds.has(moduleId)
+        )),
+      ),
+    }
+    const linkedDemandsByPooledSource = new Map<
+      string,
+      Partial<Record<ResourceId, number>>
+    >()
+
+    for (const transfer of resolvedLinkedModulesResult.transfers) {
+      if (!pooledLinkSources.sourceModuleIds.has(transfer.sourceModuleId)) continue
+
+      const demands = linkedDemandsByPooledSource.get(transfer.sourceModuleId) ?? {}
+
+      demands[transfer.resourceId] = (demands[transfer.resourceId] ?? 0) + transfer.quantity
+      linkedDemandsByPooledSource.set(transfer.sourceModuleId, demands)
+    }
+
+    return {
+      linkedModulesResult: resolvedLinkedModulesResult,
+      factoryResult: calculateFactory(
+        resolvedLinkedModulesResult,
+        linkedDemandsByPooledSource,
+      ),
+    }
+    // Every calculation input above is a pure derivation of these two state values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calculationRevision])
   const isModifiers = activeModuleId === MODIFIERS_ID
   const isContracts = activeModuleId === CONTRACTS_ID
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID
@@ -940,10 +1019,19 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         const lines = activeModuleFactoryResult.allLines.filter(
           line => line.moduleId === activeModule.id,
         )
+        const displayDemands = getPresetResourceDemands(preset)
+
+        for (const transfer of linkedModulesResult.transfers) {
+          if (transfer.sourceModuleId !== activeModule.id) continue
+
+          displayDemands[transfer.resourceId] = (
+            displayDemands[transfer.resourceId] ?? 0
+          ) + transfer.quantity
+        }
         const calc = extractModuleResult(
           activeModule.id,
           activeModuleFactoryResult.calculation,
-          getPresetResourceDemands(preset),
+          displayDemands,
         )
 
         return { lines, ...calc }

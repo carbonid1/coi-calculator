@@ -22,7 +22,7 @@ import {
   NUCLEAR_MODULE_ID,
 } from "./nuclear";
 
-it("keeps process waste and graphite balanced with the current coal-route capacity", () => {
+it("keeps process waste and graphite balanced with the Copper #1 boundary", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
@@ -55,6 +55,16 @@ it("keeps process waste and graphite balanced with the current coal-route capaci
   const result = calculateFactoryTotal(
     configuredModules,
     {
+      boundaryDemands: {
+        acid: 96,
+        copperScrap: 384,
+        graphite: 24,
+      },
+      boundarySupplies: {
+        brine: 48,
+        copper: 384,
+        water: 96,
+      },
       contracts: activeContracts,
       recyclingEfficiencyPercent:
         calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
@@ -96,8 +106,8 @@ it("keeps process waste and graphite balanced with the current coal-route capaci
   )!;
 
   expect(carbonDioxideResult.builtBuildings).toBe(2);
-  expect(carbonDioxideResult.activeBuildings).toBe(2);
-  expect(carbonDioxideResult.dataSource).toBeUndefined();
+  expect(carbonDioxideResult.activeBuildings).toBe(1);
+  expect(carbonDioxideResult.dataSource).toBe("modeled");
   expect(coalResult.builtBuildings).toBe(3);
   expect(carbonDioxideResult.capacityPoolId).toBeUndefined();
   expect(coalResult.capacityPoolId).toBeUndefined();
@@ -106,8 +116,8 @@ it("keeps process waste and graphite balanced with the current coal-route capaci
   expect(carbonDioxideResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(coalResult.supplyRatio).toBeGreaterThan(0.7);
-  expect(coalResult.supplyRatio).toBeLessThan(0.75);
+  expect(coalResult.supplyRatio).toBeGreaterThan(0.83);
+  expect(coalResult.supplyRatio).toBeLessThan(0.85);
   expect(carbonDioxide.net).toBeCloseTo(0, 6);
   expect(graphite.produced).toBeCloseTo(graphite.consumed, 6);
   expect(graphite.net).toBeCloseTo(0, 6);

@@ -219,19 +219,21 @@ describe("planned advanced production", () => {
     expect(factoryResult("cooled-caster-ii-titanium-alloy")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "titaniumAlloy",
     )?.quantity).toBeCloseTo(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2, 6);
+    expect(factory.flows.find(({ resourceId }) => resourceId === "moltenIron")?.net ?? 0)
+      .toBeCloseTo(0, 6);
     expect(factoryResult("settling-tank-red-mud-acid")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "ironOreCrushed",
     )?.quantity).toBeCloseTo(17.4065255732, 6);
-    for (const recipeId of [
-      "aluminum-cell-electrolysis",
-      "cooled-caster-ii-aluminum",
-    ]) {
-      const building = factoryResult(recipeId);
-
-      expect(building?.activeBuildings).toBe(3);
-      expect((building?.activeBuildings ?? 0) * (building?.supplyRatio ?? 0))
-        .toBeGreaterThan(2);
-    }
+    expect(factoryResult("aluminum-cell-electrolysis")).toMatchObject({
+      activeBuildings: 3,
+      builtBuildings: 3,
+    });
+    expect(factoryResult("metal-caster-ii-aluminum")).toMatchObject({
+      activeBuildings: 3,
+      builtBuildings: 3,
+    });
+    expect(3 * (factoryResult("metal-caster-ii-aluminum")?.supplyRatio ?? 0))
+      .toBeGreaterThan(2);
     expect(stats.workers).toBe(0);
     expect(stats.computingTflops).toBe(0);
   });

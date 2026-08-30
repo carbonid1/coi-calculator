@@ -10,6 +10,11 @@ import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
 import {
+  calculateRocketIiRecurringLogistics,
+  defaultSpaceStationLevel,
+} from "../space-station";
+import {
+  createDefaultModule,
   defaultArea as general,
   modeledDefaultRecipeIds,
   unplacedPlannedDefaultBuildings,
@@ -23,6 +28,23 @@ import { createFbrPowerPlantModule } from "./fbr-power-plant";
 import { modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
 import { processSteam } from "./process-steam";
+
+it("updates Rocket II material targets from the active capacity research level", () => {
+  const logistics = calculateRocketIiRecurringLogistics(defaultSpaceStationLevel, 2);
+  const configured = createDefaultModule(undefined, undefined, logistics);
+  const preset = configured.presets.find(candidate => candidate.id === configured.defaultPresetId);
+
+  expect(preset?.outputTargets).toMatchObject({
+    compositePanel: logistics.compositePanelPerCycle + 4,
+    titaniumAlloy: logistics.titaniumAlloyPerCycle + 2,
+  });
+  expect(preset?.builtBuildings).toMatchObject({
+    "metal-caster-ii-aluminum": 3,
+  });
+  expect(preset?.activeBuildings).toMatchObject({
+    "metal-caster-ii-aluminum": 2,
+  });
+});
 
 it("models the physical Default-area Low Steam recovery cluster", () => {
   const preset = general.presets.find((candidate) => (
@@ -124,7 +146,7 @@ it("treats the completed front half of the Aluminum chain as current capacity", 
     "settling-tank-red-mud-acid": { activeBuildings: 5, builtBuildings: 5 },
     "rotary-kiln-alumina-fuel-gas": { activeBuildings: 3, builtBuildings: 4 },
     "aluminum-cell-electrolysis": { activeBuildings: 3, builtBuildings: 3 },
-    "cooled-caster-ii-aluminum": { activeBuildings: 3, builtBuildings: 3 },
+    "metal-caster-ii-aluminum": { activeBuildings: 3, builtBuildings: 3 },
   };
 
   for (const [recipeId, counts] of Object.entries(expectedCounts)) {
@@ -268,6 +290,21 @@ it("models two Exhaust Scrubbers with one paused", () => {
   });
 });
 
+it("models two CO2 Graphite plants with one paused", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "chemical-plant-ii-graphite",
+  );
+
+  expect(line).toMatchObject({
+    activeBuildings: 1,
+    builtBuildings: 2,
+    dataSource: "modeled",
+  });
+});
+
 it("models the completed silicon expansion as active", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
@@ -282,7 +319,7 @@ it("models the completed silicon expansion as active", () => {
     .toMatchObject({ activeBuildings: 2, builtBuildings: 2, dataSource: "modeled" });
 });
 
-it("plans five Default-area buildings to expand the complete Copper chain", () => {
+it("leaves Copper smelting, casting, and electrolysis to the synced Copper area", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -292,43 +329,34 @@ it("plans five Default-area buildings to expand the complete Copper chain", () =
   for (const recipeId of [
     "arc-furnace-ii-copper-scrap",
     "arc-furnace-ii-copper-ore",
+    "metal-caster-ii-copper",
+    "copper-electrolysis-acid",
   ]) {
-    expect(line(recipeId)).toMatchObject({
-      activeBuildings: 5,
-      currentActiveBuildings: 4,
-      builtBuildings: 4,
-      constructionGhosts: 0,
-      unplacedPlannedBuildings: 1,
-      capacityPoolActiveBuildings: 5,
-      capacityPoolBuiltBuildings: 4,
-      capacityPoolCurrentActiveBuildings: 4,
-      capacityPoolConstructionGhosts: 0,
-      capacityPoolUnplacedPlannedBuildings: 1,
-      dataSource: "planned",
-    });
+    expect(line(recipeId)).toBeUndefined();
+    expect(general.builtBuildings[recipeId]).toBeUndefined();
+    expect(preset?.activeBuildings[recipeId]).toBeUndefined();
   }
 
-  expect(line("metal-caster-ii-copper")).toMatchObject({
-    activeBuildings: 10,
-    currentActiveBuildings: 8,
-    builtBuildings: 8,
+});
+
+it("plans one additional large Copper Ore crusher without marking it built", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const line = buildModuleLines(general, preset ?? null).lines.find(
+    (candidate) => candidate.recipe.id === "crusher-large-copper",
+  );
+
+  expect(line).toMatchObject({
+    activeBuildings: 2,
+    currentActiveBuildings: 1,
+    builtBuildings: 1,
     constructionGhosts: 0,
-    unplacedPlannedBuildings: 2,
-    dataSource: "planned",
-  });
-  expect(line("copper-electrolysis-acid")).toMatchObject({
-    activeBuildings: 10,
-    currentActiveBuildings: 8,
-    builtBuildings: 8,
-    constructionGhosts: 0,
-    unplacedPlannedBuildings: 2,
+    unplacedPlannedBuildings: 1,
     dataSource: "planned",
   });
   expect(unplacedPlannedDefaultBuildings).toEqual({
-    "arc-furnace-ii-copper-scrap": 1,
-    "arc-furnace-ii-copper-ore": 1,
-    "metal-caster-ii-copper": 2,
-    "copper-electrolysis-acid": 2,
+    "crusher-large-copper": 1,
   });
 });
 

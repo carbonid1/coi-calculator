@@ -27,7 +27,22 @@ export interface ModuleResourceTransfer extends ModuleResourceLink {
 }
 
 /** Seeded through the same resource-link shape a future module-link UI edits. */
-export const moduleResourceLinkDefinitions: readonly ModuleResourceLinkDefinition[] = []
+export const moduleResourceLinkDefinitions: readonly ModuleResourceLinkDefinition[] = [
+  {
+    id: 'copper-1-exhaust-to-exaust-1',
+    sourceModuleName: 'Copper #1',
+    targetModuleName: 'Exaust #1',
+    resourceId: 'exhaust',
+    mode: 'surplus-only',
+  },
+  {
+    id: 'copper-1-sea-water-to-exaust-1',
+    sourceModuleName: 'Copper #1',
+    targetModuleName: 'Exaust #1',
+    resourceId: 'seaWater',
+    mode: 'produce-to-demand',
+  },
+]
 
 export const resolveModuleResourceLinks = (
   modules: readonly Module[],

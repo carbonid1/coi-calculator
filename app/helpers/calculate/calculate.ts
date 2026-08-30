@@ -320,6 +320,14 @@ export const calculateNet = (
   fixedDemands: Partial<Record<ResourceId, number>> = {},
   nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
   plannedSupportingResourceIds: ReadonlySet<ResourceId> = new Set(),
+  moduleFixedDemands: ReadonlyMap<
+    string,
+    Partial<Record<ResourceId, number>>
+  > = new Map(),
+  moduleSuppliedResources: ReadonlyMap<
+    string,
+    Partial<Record<ResourceId, number>>
+  > = new Map(),
 ) => {
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
@@ -370,6 +378,7 @@ export const calculateNet = (
   );
   const sourceOutputCapacities = new Map<ProductionLine, Map<ResourceId, number>>();
   const totalSourceCapacityByResource = new Map<ResourceId, number>();
+  const totalModuleSourceCapacityByResource = new Map<string, number>();
   const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => (
     `${moduleId}:${resourceId}`
   );
@@ -398,6 +407,12 @@ export const calculateNet = (
       resourceId,
       (totalSourceCapacityByResource.get(resourceId) ?? 0) + quantity,
     );
+    const moduleKey = moduleResourceKey(line.moduleId, resourceId);
+
+    totalModuleSourceCapacityByResource.set(
+      moduleKey,
+      (totalModuleSourceCapacityByResource.get(moduleKey) ?? 0) + quantity,
+    );
   };
   const getSourceScale = (
     line: ProductionLine,
@@ -422,10 +437,21 @@ export const calculateNet = (
   for (const [id, qty] of suppliedEntries) {
     simGet(id).produced += qty;
   }
+  for (const [moduleId, supplies] of moduleSuppliedResources) {
+    for (const [id, qty] of typedEntries(supplies)) {
+      getSimulatedModuleFlow(moduleId, id).produced += qty;
+    }
+  }
   // Factory consumers such as contracts participate in the same demand graph
   // as recipes, allowing upstream modules to balance their production.
   for (const [id, qty] of fixedDemandEntries) {
     simGet(id).consumed += qty;
+  }
+  for (const [moduleId, demands] of moduleFixedDemands) {
+    for (const [id, qty] of typedEntries(demands)) {
+      simGet(id).consumed += qty;
+      getSimulatedModuleFlow(moduleId, id).consumed += qty;
+    }
   }
 
   for (const line of sourceLines.filter((source) => source.recipe.sourceMode == null)) {
@@ -546,8 +572,19 @@ export const calculateNet = (
   for (const [id, qty] of suppliedEntries) {
     getFlow(id).produced += qty;
   }
+  for (const [moduleId, supplies] of moduleSuppliedResources) {
+    for (const [id, qty] of typedEntries(supplies)) {
+      getActualModuleFlow(moduleId, id).produced += qty;
+    }
+  }
   for (const [id, qty] of fixedDemandEntries) {
     getFlow(id).consumed += qty;
+  }
+  for (const [moduleId, demands] of moduleFixedDemands) {
+    for (const [id, qty] of typedEntries(demands)) {
+      getFlow(id).consumed += qty;
+      getActualModuleFlow(moduleId, id).consumed += qty;
+    }
   }
 
   // Sources reserve enough supply for allocation. Unused output is removed
@@ -563,13 +600,17 @@ export const calculateNet = (
   const reservedSourceInputs = new Map<ProductionLine, Map<ResourceId, number>>();
 
   const allocationRatios = new Map<ProductionLine, number>();
+  const surplusOnlyConsumption = new Map<ResourceId, number>();
+  const surplusOnlyModuleConsumption = new Map<string, number>();
   const createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const sortedRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const capacityTracker = createCapacityTracker(regularLines);
   const applyRegularLine = (line: ProductionLine, ratio: number, additive = false) => {
+    const previousRatio = allocationRatios.get(line) ?? 0;
+
     allocationRatios.set(
       line,
-      (additive ? (allocationRatios.get(line) ?? 0) : 0) + ratio,
+      (additive ? previousRatio : 0) + ratio,
     );
     capacityTracker.use(line, ratio);
 
@@ -604,6 +645,19 @@ export const calculateNet = (
 
       flow.consumed += actualQuantity;
       getActualModuleFlow(line.moduleId, input.resourceId).consumed += actualQuantity;
+
+      if (line.recipe.consumeSurplusInputIds?.includes(input.resourceId)) {
+        surplusOnlyConsumption.set(
+          input.resourceId,
+          (surplusOnlyConsumption.get(input.resourceId) ?? 0) + actualQuantity,
+        );
+        const moduleKey = moduleResourceKey(line.moduleId, input.resourceId);
+
+        surplusOnlyModuleConsumption.set(
+          moduleKey,
+          (surplusOnlyModuleConsumption.get(moduleKey) ?? 0) + actualQuantity,
+        );
+      }
     }
     for (const output of line.recipe.outputs) {
       const outputQuantity = getRecipeOutputQuantity(line.recipe, output, outputModifiers);
@@ -645,6 +699,46 @@ export const calculateNet = (
         createdRecyclableSources.set(line, sourceComposition);
       }
     }
+  };
+  const getDrivingConsumption = (resourceId: ResourceId) => Math.max(
+    0,
+    getFlow(resourceId).consumed - (surplusOnlyConsumption.get(resourceId) ?? 0),
+  );
+  const getModuleDrivingConsumption = (moduleId: string, resourceId: ResourceId) => {
+    const key = moduleResourceKey(moduleId, resourceId);
+
+    return Math.max(
+      0,
+      getActualModuleFlow(moduleId, resourceId).consumed
+        - (surplusOnlyModuleConsumption.get(key) ?? 0),
+    );
+  };
+  const getOutputDemandRatio = (
+    line: ProductionLine,
+    resourceId: ResourceId,
+    capacity: number,
+    globallyProduced: number,
+  ) => {
+    if (capacity <= 0) return 0;
+
+    const globalDemand = Math.max(
+      0,
+      getDrivingConsumption(resourceId) - globallyProduced,
+    );
+    const moduleDemand = moduleFixedDemands.get(line.moduleId)?.[resourceId] ?? 0;
+
+    if (moduleDemand <= 0) return globalDemand / capacity;
+
+    const key = moduleResourceKey(line.moduleId, resourceId);
+    const moduleFlow = getActualModuleFlow(line.moduleId, resourceId);
+    const moduleProduction = moduleFlow.produced
+      - (totalModuleSourceCapacityByResource.get(key) ?? 0);
+    const selectedSourceDemand = Math.max(
+      0,
+      getModuleDrivingConsumption(line.moduleId, resourceId) - moduleProduction,
+    );
+
+    return Math.max(globalDemand, selectedSourceDemand) / capacity;
   };
 
   // Fixed recipes reserve their physical building capacity first.
@@ -744,7 +838,12 @@ export const calculateNet = (
       const internallyProduced = flow.produced
         - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
 
-      return [Math.max(0, flow.consumed - internallyProduced) / capacity];
+      return [getOutputDemandRatio(
+        line,
+        output.resourceId,
+        capacity,
+        internallyProduced,
+      )];
     });
 
     ratio = outputDemandRatios.length > 0
@@ -798,7 +897,12 @@ export const calculateNet = (
           const internallyProduced = flow.produced
             - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
 
-          return [Math.max(0, flow.consumed - internallyProduced) / capacity];
+          return [getOutputDemandRatio(
+            line,
+            output.resourceId,
+            capacity,
+            internallyProduced,
+          )];
         });
 
         ratio = outputDemandRatios.length > 0
@@ -842,6 +946,8 @@ export const calculateNet = (
     flows: cloneFlows(flows),
     actualModuleFlows: cloneModuleFlows(actualModuleFlows),
     allocationRatios: new Map(allocationRatios),
+    surplusOnlyConsumption: new Map(surplusOnlyConsumption),
+    surplusOnlyModuleConsumption: new Map(surplusOnlyModuleConsumption),
     capacity: capacityTracker.snapshot(),
     createdRecyclableSources: cloneLineResourceMaps(createdRecyclableSources),
     sortedRecyclableSources: cloneLineResourceMaps(sortedRecyclableSources),
@@ -857,6 +963,12 @@ export const calculateNet = (
     }));
     restoreMap(actualModuleFlows, state.actualModuleFlows, (flow) => ({ ...flow }));
     restoreMap(allocationRatios, state.allocationRatios, (ratio) => ratio);
+    restoreMap(surplusOnlyConsumption, state.surplusOnlyConsumption, (quantity) => quantity);
+    restoreMap(
+      surplusOnlyModuleConsumption,
+      state.surplusOnlyModuleConsumption,
+      (quantity) => quantity,
+    );
     restoreMap(
       createdRecyclableSources,
       state.createdRecyclableSources,
@@ -1068,7 +1180,12 @@ export const calculateNet = (
           const internallyProduced = flow.produced
             - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
 
-          return [Math.max(0, flow.consumed - internallyProduced) / capacity];
+          return [getOutputDemandRatio(
+            line,
+            output.resourceId,
+            capacity,
+            internallyProduced,
+          )];
         });
 
         ratio = outputDemandRatios.length > 0
@@ -1253,7 +1370,7 @@ export const calculateNet = (
                 : inputTotal
             ), 0)
           : total
-      ), 0);
+      ), moduleFixedDemands.get(line.moduleId)?.[output.resourceId] ?? 0);
       const moduleProduced = regularResults.reduce((total, result) => (
         result.moduleId === line.moduleId
           ? total + result.actualOutputs.reduce((outputTotal, actualOutput) => (

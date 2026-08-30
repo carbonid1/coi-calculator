@@ -217,7 +217,7 @@ describe('createLiveAreaModules', () => {
     expect(result.regularResults.map(item => item.supplyRatio)).toEqual([0, 0])
   })
 
-  it('balances input-free suppliers to matching demand inside the live area', () => {
+  it('keeps synced Sea Water pumps local while balancing them to area demand', () => {
     const seawaterPump = {
       id: 'OceanWaterPumping',
       name: 'Ocean Water Pumping',
@@ -276,23 +276,34 @@ describe('createLiveAreaModules', () => {
     const { lines } = buildModuleLines(module, module.presets[0] ?? null)
     const result = calculateNet(
       lines,
-      {},
+      { steamLow: 96 },
       undefined,
       {},
-      getPresetResourceDemands(module.presets[0]),
+      {
+        ...getPresetResourceDemands(module.presets[0]),
+        seaWater: 72,
+      },
+      new Set(),
+      new Set(),
+      new Map(),
+      new Map([[module.id, { steamLow: 96 }]]),
     )
-    const pumpResults = result.regularResults.filter(item => (
+    const pumpResults = result.sourceResults.filter(item => (
       item.recipe.building === 'Seawater pump'
     ))
     const desalinatorResult = result.regularResults.find(item => (
       item.recipe.building === 'Thermal desalinator'
     ))
-    const seawaterFlow = result.resourceFlows.find(flow => flow.resourceId === 'seaWater')
+    const seawaterFlow = result.allResourceFlows.find(flow => flow.resourceId === 'seaWater')
 
     expect(pumpResults.reduce((total, item) => (
       total + (item.actualOutputs[0]?.quantity ?? 0)
     ), 0)).toBe(288)
-    expect(pumpResults.map(item => item.operatingMode)).toEqual(['balanced', 'balanced'])
+    expect(pumpResults).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        recipe: expect.objectContaining({ sourceMode: 'module-demand-capped' }),
+      }),
+    ]))
     expect(desalinatorResult).toMatchObject({
       operatingMode: 'balanced',
       supplyRatio: 1,
@@ -300,7 +311,7 @@ describe('createLiveAreaModules', () => {
         { resourceId: 'seaWater', quantity: 288 },
       ]),
     })
-    expect(seawaterFlow).toBeUndefined()
+    expect(seawaterFlow?.net).toBe(-72)
   })
 
   it('leaves an auto-balanced producer inactive without requested exports', () => {
@@ -389,7 +400,10 @@ describe('createLiveAreaModules', () => {
       {},
       getPresetResourceDemands(module.presets[0]),
     )
-    const recipeResult = (gameRecipeId: string) => result.regularResults.find(
+    const recipeResult = (gameRecipeId: string) => [
+      ...result.regularResults,
+      ...result.sourceResults,
+    ].find(
       candidate => candidate.recipe.gameRecipeId === gameRecipeId,
     )
     const net = (resourceId: string) => result.allResourceFlows.find(
@@ -398,6 +412,8 @@ describe('createLiveAreaModules', () => {
 
     expect(desalinatorRecipe).toMatchObject({
       balanceBy: 'output',
+      balanceInputIds: ['seaWater', 'steamLow'],
+      balanceInputScope: 'module',
       consumeSurplusInputIds: ['steamLow'],
       consumeSurplusInputScope: 'module',
       surplusConsumptionPriority: 10,
@@ -410,14 +426,40 @@ describe('createLiveAreaModules', () => {
     expect(net('brine')).toBe(2)
   })
 
-  it('propagates the Copper #1 export request and costs through a synced ghost chain', () => {
+  it('uses available Copper Scrap before falling back to Crushed Ore', () => {
     const arcRecipe = {
       id: 'CopperSmeltingArc',
       name: 'Copper Smelting Arc',
       durationSeconds: 60,
       assigned: true,
-      inputs: [{ productId: 'Product_CopperOreCrushed', name: 'Copper Ore Crushed', quantity: 48 }],
-      outputs: [{ productId: 'Product_MoltenCopper', name: 'Molten Copper', quantity: 48 }],
+      inputs: [
+        { productId: 'Product_CopperOreCrushed', name: 'Copper Ore Crushed', quantity: 48 },
+        { productId: 'Product_Sand', name: 'Sand', quantity: 6 },
+        { productId: 'Product_Graphite', name: 'Graphite', quantity: 3 },
+        { productId: 'Product_Water', name: 'Water', quantity: 6 },
+      ],
+      outputs: [
+        { productId: 'Product_MoltenCopper', name: 'Molten Copper', quantity: 48 },
+        { productId: 'Product_Slag', name: 'Slag', quantity: 18 },
+        { productId: 'Product_SteamLow', name: 'Steam (Low)', quantity: 6 },
+        { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 12 },
+      ],
+    }
+    const arcScrapRecipe = {
+      id: 'CopperSmeltingArcScrap',
+      name: 'Copper Smelting Arc Scrap',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [
+        { productId: 'Product_CopperScrap', name: 'Copper Scrap', quantity: 48 },
+        { productId: 'Product_Graphite', name: 'Graphite', quantity: 3 },
+        { productId: 'Product_Water', name: 'Water', quantity: 6 },
+      ],
+      outputs: [
+        { productId: 'Product_MoltenCopper', name: 'Molten Copper', quantity: 48 },
+        { productId: 'Product_SteamLow', name: 'Steam (Low)', quantity: 6 },
+        { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 6 },
+      ],
     }
     const castingRecipe = {
       id: 'CopperCasting',
@@ -442,9 +484,9 @@ describe('createLiveAreaModules', () => {
       entityId: number,
       prototypeId: string,
       prototypeName: string,
-      entityRecipe: typeof arcRecipe,
+      entityRecipes: SyncedAreaEntity['recipes'],
     ) => ({
-      ...entity(entityId, false, false, [entityRecipe]),
+      ...entity(entityId, false, false, entityRecipes),
       prototypeId,
       prototypeName,
       zones: [{ id: 16, name: 'Copper #1' }],
@@ -453,13 +495,16 @@ describe('createLiveAreaModules', () => {
       [{ id: 16, name: 'Copper #1' }],
       [
         ...Array.from({ length: 8 }, (_, index) => (
-          chainEntity(index + 1, 'AirSeparator', 'Arc furnace II', arcRecipe)
+          chainEntity(index + 1, 'ArcFurnace2', 'Arc furnace II', [
+            arcRecipe,
+            arcScrapRecipe,
+          ])
         )),
         ...Array.from({ length: 16 }, (_, index) => (
-          chainEntity(index + 20, 'AirSeparator2', 'Metal caster II', castingRecipe)
+          chainEntity(index + 20, 'AirSeparator2', 'Metal caster II', [castingRecipe])
         )),
         ...Array.from({ length: 16 }, (_, index) => (
-          chainEntity(index + 40, 'AirSeparator3', 'Copper electrolysis', electrolysisRecipe)
+          chainEntity(index + 40, 'AirSeparator3', 'Copper electrolysis', [electrolysisRecipe])
         )),
       ],
       [],
@@ -471,19 +516,43 @@ describe('createLiveAreaModules', () => {
     const { lines } = buildModuleLines(module, preset ?? null)
     const result = calculateNet(
       lines,
-      {},
+      { copperScrap: 120 },
       undefined,
       {},
-      getPresetResourceDemands(preset),
+      { copper: 384, slag: 1_000 },
     )
 
-    expect(preset?.requestedExports).toEqual({ copper: 384 })
-    expect(result.regularResults).toEqual(expect.arrayContaining([
+    expect(module.includedInFactoryTotals).toBe(true)
+    expect(preset?.requestedExports).toBeUndefined()
+    expect(preset?.outputTargets).toBeUndefined()
+    const arcResults = result.regularResults.filter(candidate => (
+      candidate.recipe.gameRecipeId?.startsWith('CopperSmeltingArc')
+    ))
+
+    expect(arcResults.map(candidate => candidate.recipe.gameRecipeId)).toEqual([
+      'CopperSmeltingArcScrap',
+      'CopperSmeltingArc',
+    ])
+    expect(arcResults).toEqual([
       expect.objectContaining({
-        recipe: expect.objectContaining({ id: expect.stringContaining('CopperSmeltingArc') }),
+        actualInputs: expect.arrayContaining([
+          { resourceId: 'copperScrap', quantity: 120 },
+        ]),
         operatingMode: 'balanced',
-        supplyRatio: 1,
+        supplyRatio: 0.3125,
       }),
+      expect.objectContaining({
+        recipe: expect.objectContaining({
+          balanceOutputIds: ['moltenCopper'],
+        }),
+        actualInputs: expect.arrayContaining([
+          { resourceId: 'copperOreCrushed', quantity: 264 },
+        ]),
+        operatingMode: 'balanced',
+        supplyRatio: 0.6875,
+      }),
+    ])
+    expect(result.regularResults).toEqual(expect.arrayContaining([
       expect.objectContaining({
         recipe: expect.objectContaining({ id: expect.stringContaining('CopperCasting') }),
         operatingMode: 'balanced',
@@ -500,9 +569,12 @@ describe('createLiveAreaModules', () => {
       produced: 384,
       net: 0,
     })
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'moltenCopper')).toMatchObject({
+      net: 0,
+    })
     expect(calculateBuildingStats(lines, result)).toMatchObject({
       workers: 224,
-      electricityKw: 54_400,
+      electricityKw: 48_400,
     })
   })
 

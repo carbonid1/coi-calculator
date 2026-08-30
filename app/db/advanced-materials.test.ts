@@ -20,7 +20,7 @@ describe("installed v0.8.7 advanced-material recipes", () => {
       "rotary-kiln-alumina-fuel-gas",
       "rotary-kiln-alumina-hydrogen",
       "aluminum-cell-electrolysis",
-      "cooled-caster-ii-aluminum",
+      "metal-caster-ii-aluminum",
       "arc-furnace-aluminum-scrap",
       "arc-furnace-ii-aluminum-scrap",
       "crystallizer-alumina",

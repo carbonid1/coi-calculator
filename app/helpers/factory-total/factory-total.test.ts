@@ -7,7 +7,7 @@ import {
   resolveMaintenanceDepotModuleAssignments,
 } from "../../db/modules/area-maintenance";
 import { DEFAULT_MODULE_ID } from "../../db/modules/default";
-import { modules } from "../../db/modules/modules";
+import { type Module, modules } from "../../db/modules/modules";
 import {
   createNuclearModule,
   defaultNuclearConfig,
@@ -115,12 +115,12 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.imported).toBeCloseTo(139.163133289, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(139.163133289, 5);
+    expect(contractResult?.imported).toBeCloseTo(134.895888232122, 5);
+    expect(contractResult?.requiredImported).toBeCloseTo(134.895888232122, 5);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(25.1363409504, 8);
-    expect(ironOre?.consumed).toBeCloseTo(139.163133289, 5);
-    expect(ironOre?.produced).toBeCloseTo(139.163133289, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(24.365569811927, 8);
+    expect(ironOre?.consumed).toBeCloseTo(134.895888232122, 5);
+    expect(ironOre?.produced).toBeCloseTo(134.895888232122, 5);
     expect(ironOre?.net).toBeCloseTo(0, 5);
     expect(ironOreCrushed?.net).toBeCloseTo(0, 5);
     const recoveredCrushedOre = redMudRecovery?.actualOutputs.find(
@@ -140,7 +140,7 @@ describe("Factory Total contracts", () => {
     expect(ironMineOutput?.quantity).toBeCloseTo(0, 5);
   });
 
-  it("balances the Copper Ore contract against live factory demand", () => {
+  it("leaves the Copper Ore contract idle without a synced Copper-area boundary", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, {
       ...baselineFactoryOptions,
       contracts: activeContracts,
@@ -157,13 +157,13 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.exported).toBeCloseTo(29.421814325929798, 8);
-    expect(contractResult?.imported).toBeCloseTo(191.24179311854368, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(191.24179311854368, 5);
+    expect(contractResult?.exported).toBe(0);
+    expect(contractResult?.imported).toBe(0);
+    expect(contractResult?.requiredImported).toBe(0);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(34.54304888203695, 8);
-    expect(copperOre?.consumed).toBeCloseTo(191.24179311854368, 5);
-    expect(copperOre?.produced).toBeCloseTo(191.24179311854368, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBe(0);
+    expect(copperOre?.consumed).toBeCloseTo(0, 5);
+    expect(copperOre?.produced).toBeCloseTo(0, 5);
     expect(copperOre?.net).toBeCloseTo(0, 5);
     const copperMineOutput = copperMine?.actualOutputs.find(
       (output) => output.resourceId === "copperOre",
@@ -352,6 +352,50 @@ describe("Factory Total contracts", () => {
 });
 
 describe("Factory Total module boundaries", () => {
+  it("treats a pooled live export request as module supply, not factory demand", () => {
+    const pooledLiveModule: Module = {
+      id: "live-copper",
+      name: "Copper #1",
+      description: "",
+      includedInFactoryTotals: true,
+      builtBuildings: { "live-copper-output": 1 },
+      recipes: [{
+        id: "live-copper-output",
+        name: "Live Copper output",
+        building: "Copper electrolysis",
+        group: "production",
+        inputs: [],
+        outputs: [{ resourceId: "copper", quantity: 384 }],
+      }],
+      presets: [{
+        id: "live",
+        name: "Live",
+        description: "",
+        activeBuildings: { "live-copper-output": 1 },
+        fixed: [],
+        outputTargets: { copper: 384 },
+        requestedExports: { copper: 384 },
+      }],
+      defaultPresetId: "live",
+      liveArea: {
+        zoneId: 16,
+        trackedBuildings: 1,
+        constructedBuildings: 1,
+        activeBuildings: 1,
+        pausedBuildings: 0,
+        constructionGhosts: 0,
+        issues: [],
+      },
+    };
+    const result = calculateFactoryTotal([pooledLiveModule], baselineFactoryOptions);
+
+    expect(result.flows.find(flow => flow.resourceId === "copper")).toMatchObject({
+      consumed: 0,
+      produced: 384,
+      net: 384,
+    });
+  });
+
   it("includes unlinked live-module supplies and demands in the global pool", () => {
     const result = calculateFactoryTotal([], {
       ...baselineFactoryOptions,

@@ -3,6 +3,7 @@ import {
   type ModuleResourceTransfer,
 } from '../../db/module-resource-links'
 import { type Module, type Preset } from '../../db/modules/modules'
+import { getLinkedOnlyLiveModuleInputIds } from '../../db/resource-disposition'
 import { type ResourceId } from '../../db/resources'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import {
@@ -155,7 +156,9 @@ export const calculateLinkedModules = ({
   outputModifiers = {},
   recyclingEfficiencyPercent,
 }: CalculateLinkedModulesOptions): LinkedModulesCalculation => {
-  const liveModules = modules.filter(moduleDefinition => moduleDefinition.liveArea)
+  const liveModules = modules.filter(moduleDefinition => (
+    moduleDefinition.liveArea && moduleDefinition.includedInFactoryTotals === false
+  ))
   const liveModuleIds = new Set(liveModules.map(moduleDefinition => moduleDefinition.id))
   const activeLinks = links.filter(link => (
     liveModuleIds.has(link.sourceModuleId)
@@ -242,10 +245,9 @@ export const calculateLinkedModules = ({
     }
 
     const demands = getPresetResourceDemands(preset)
-
-    for (const [resourceId, quantity] of typedEntries(outgoingDemands)) {
-      addQuantity(demands, resourceId, quantity)
-    }
+    const moduleDemands = new Map([
+      [moduleDefinition.id, outgoingDemands],
+    ])
 
     const calculation = calculateNet(
       baseLines.get(moduleDefinition.id) ?? [],
@@ -255,6 +257,8 @@ export const calculateLinkedModules = ({
       demands,
       nonConstrainingInputs,
       planning ? nonConstrainingInputs : new Set(),
+      moduleDemands,
+      new Map([[moduleDefinition.id, suppliedResources]]),
     )
 
     return [moduleDefinition.id, {
@@ -513,6 +517,8 @@ export const calculateLinkedModules = ({
         }
         continue
       }
+
+      if (getLinkedOnlyLiveModuleInputIds([resourceId]).length > 0) continue
 
       const flow = getResultFlow(moduleDefinition.id, run.calculation, resourceId)
       let net = flow.produced

@@ -10,6 +10,8 @@ export interface MinimizeSurplusPolicy {
 }
 
 export interface ResourceDispositionPolicy {
+  /** Synced live modules may receive this resource only through their own production or an explicit link. */
+  liveModuleInput?: 'linked-only'
   minimizeSurplus?: MinimizeSurplusPolicy
 }
 
@@ -25,7 +27,11 @@ export interface SurplusConsumptionSettings {
  * installed capacity after ordinary output demand has been satisfied.
  */
 export const resourceDispositionPolicies: Partial<Record<ResourceId, ResourceDispositionPolicy>> = {
+  seaWater: {
+    liveModuleInput: 'linked-only',
+  },
   steamLow: {
+    liveModuleInput: 'linked-only',
     minimizeSurplus: {
       scope: 'module',
       defaultConsumerPriority: 100,
@@ -35,6 +41,12 @@ export const resourceDispositionPolicies: Partial<Record<ResourceId, ResourceDis
     },
   },
 }
+
+export const getLinkedOnlyLiveModuleInputIds = (
+  inputIds: readonly ResourceId[],
+) => inputIds.filter(resourceId => (
+  resourceDispositionPolicies[resourceId]?.liveModuleInput === 'linked-only'
+))
 
 export const getSurplusConsumptionSettings = (
   inputIds: readonly ResourceId[],

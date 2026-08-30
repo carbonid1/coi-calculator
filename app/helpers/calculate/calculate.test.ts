@@ -211,6 +211,169 @@ it("uses remaining capacity to consume preferred module surplus and propagates s
   expect(net("brine")).toBeCloseTo(20);
 });
 
+it("never increases primary production to feed a surplus-only byproduct consumer", () => {
+  const copperAndSteam: Recipe = {
+    id: "test-copper-and-steam",
+    name: "Test Copper And Steam",
+    building: "Test Furnace",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["copper", "steamLow"],
+    inputs: [],
+    outputs: [
+      { resourceId: "copper", quantity: 10 },
+      { resourceId: "steamLow", quantity: 10 },
+    ],
+  };
+  const desalinator: Recipe = {
+    id: "test-surplus-only-desalinator",
+    name: "Test Surplus-only Desalinator",
+    building: "Test Desalinator",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["water"],
+    consumeSurplusInputIds: ["steamLow"],
+    consumeSurplusInputScope: "module",
+    inputs: [{ resourceId: "steamLow", quantity: 20 }],
+    outputs: [{ resourceId: "water", quantity: 10 }],
+  };
+  const result = calculateNet([
+    balancedLine(copperAndSteam, "copper", 2),
+    balancedLine(desalinator, "copper"),
+  ], {}, undefined, {}, { copper: 10, water: 10 });
+  const recipeResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+  const net = (resourceId: string) => result.allResourceFlows.find(
+    flow => flow.resourceId === resourceId,
+  )?.net ?? 0;
+
+  expect(recipeResult(copperAndSteam.id)?.supplyRatio).toBeCloseTo(0.5);
+  expect(recipeResult(desalinator.id)?.supplyRatio).toBeCloseTo(1);
+  expect(net("copper")).toBeCloseTo(0);
+  expect(net("steamLow")).toBeCloseTo(-10);
+  expect(net("water")).toBeCloseTo(0);
+});
+
+it("keeps a module export demand on the selected producer", () => {
+  const selectedProducer: Recipe = {
+    id: "test-selected-module-producer",
+    name: "Selected module producer",
+    building: "Selected producer",
+    group: "production",
+    balanceBy: "output",
+    outputs: [{ resourceId: "copper", quantity: 10 }],
+    inputs: [],
+  };
+  const otherProducer: Recipe = {
+    ...selectedProducer,
+    id: "test-other-module-producer",
+    name: "Other module producer",
+    building: "Other producer",
+  };
+  const result = calculateNet(
+    [
+      fixedLine(otherProducer, "other"),
+      balancedLine(selectedProducer, "selected"),
+    ],
+    {},
+    undefined,
+    {},
+    {},
+    new Set(),
+    new Set(),
+    new Map([["selected", { copper: 10 }]]),
+  );
+  const selectedResult = result.regularResults.find(
+    candidate => candidate.recipe.id === selectedProducer.id,
+  );
+
+  expect(selectedResult?.supplyRatio).toBe(1);
+  expect(selectedResult?.actualOutputs).toContainEqual({
+    resourceId: "copper",
+    quantity: 10,
+  });
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "copper")).toMatchObject({
+    consumed: 10,
+    produced: 20,
+    net: 10,
+  });
+});
+
+it("uses an unavoidable co-product before starting a fallback producer", () => {
+  const titaniumSmelting: Recipe = {
+    id: "test-titanium-with-molten-iron",
+    name: "Test Titanium With Molten Iron",
+    building: "Test Titanium Furnace",
+    group: "production",
+    inputs: [],
+    outputs: [
+      { resourceId: "titaniumSlag", quantity: 10 },
+      { resourceId: "moltenIron", quantity: 10 },
+    ],
+  };
+  const ironOreSmelting: Recipe = {
+    id: "test-fallback-iron-ore-smelting",
+    name: "Test Fallback Iron Ore Smelting",
+    building: "Test Iron Furnace",
+    group: "production",
+    balanceBy: "output",
+    balanceInputIds: [],
+    balanceOutputIds: ["moltenIron"],
+    allocation: "fallback",
+    allocationPriority: 25,
+    inputs: [{ resourceId: "ironOreCrushed", quantity: 10 }],
+    outputs: [{ resourceId: "moltenIron", quantity: 10 }],
+  };
+  const steelmaking: Recipe = {
+    id: "test-steelmaking",
+    name: "Test Steelmaking",
+    building: "Test Oxygen Furnace",
+    group: "production",
+    inputs: [{ resourceId: "moltenIron", quantity: 100 }],
+    outputs: [{ resourceId: "steel", quantity: 50 }],
+  };
+  const ironCrusher: Recipe = {
+    id: "test-fallback-iron-crusher",
+    name: "Test Fallback Iron Crusher",
+    building: "Test Iron Crusher",
+    group: "production",
+    balanceBy: "output",
+    allocation: "fallback",
+    allocationPriority: 40,
+    inputs: [{ resourceId: "ironOre", quantity: 10 }],
+    outputs: [{ resourceId: "ironOreCrushed", quantity: 10 }],
+  };
+  const ironMine: Recipe = {
+    id: "test-iron-mine",
+    name: "Test Iron Mine",
+    building: "Test Iron Mine",
+    group: "source",
+    balanceBy: "output",
+    sourceMode: "demand",
+    inputs: [],
+    outputs: [{ resourceId: "ironOre", quantity: 10 }],
+  };
+  const result = calculateNet([
+    fixedLine(titaniumSmelting, "default"),
+    fixedLine(steelmaking, "default"),
+    balancedLine(ironOreSmelting, "default", 10),
+    balancedLine(ironCrusher, "default", 10),
+    balancedLine(ironMine, "mines", 10),
+  ]);
+  const fallback = result.regularResults.find(
+    candidate => candidate.recipe.id === ironOreSmelting.id,
+  );
+
+  expect(fallback?.actualOutputs[0]?.quantity).toBeCloseTo(90);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "moltenIron")?.net)
+    .toBeCloseTo(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "ironOreCrushed")?.net)
+    .toBeCloseTo(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "ironOre")?.net)
+    .toBeCloseTo(0);
+});
+
 it("lets an explicit private input start a consumer and exposes ordinary support demand", () => {
   const waterProducer: Recipe = {
     id: "test-linked-water-producer",
@@ -401,7 +564,7 @@ it("leaves preferred surplus when supporting production capacity is exhausted", 
   expect(net("steamLow")).toBeCloseTo(10);
 });
 
-it("does not use another module's surplus for additional consumption", () => {
+it("does not import linked-only Steam (Low) from another live module", () => {
   const steamProducer: Recipe = {
     id: "test-remote-low-steam-producer",
     name: "Test Remote Low Steam Producer",
@@ -425,6 +588,8 @@ it("does not use another module's surplus for additional consumption", () => {
     group: "production",
     balanceBy: "output",
     balanceOutputIds: ["water"],
+    balanceInputIds: ["steamLow"],
+    balanceInputScope: "module",
     consumeSurplusInputIds: ["steamLow"],
     consumeSurplusInputScope: "module",
     inputs: [{ resourceId: "steamLow", quantity: 10 }],
@@ -439,9 +604,9 @@ it("does not use another module's surplus for additional consumption", () => {
     candidate => candidate.recipe.id === desalinator.id,
   );
 
-  expect(desalinatorResult?.supplyRatio).toBeCloseTo(5 / 60);
+  expect(desalinatorResult?.supplyRatio).toBe(0);
   expect(result.allResourceFlows.find(flow => flow.resourceId === "steamLow")?.net)
-    .toBeCloseTo(20 - 5 / 3);
+    .toBe(20);
 });
 
 it("does not invent external inputs merely to consume surplus", () => {

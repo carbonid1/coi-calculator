@@ -3,6 +3,7 @@ import { type SharedMachineClaimResolution } from "../../helpers/machine-allocat
 import { createGroundwaterPumpRecipe } from "../recipes";
 import {
   defaultRocketIiRecurringLogistics,
+  type RocketIiRecurringLogistics,
 } from "../space-station";
 import { type Module } from "./modules";
 
@@ -12,35 +13,18 @@ export const DEFAULT_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
 export const plannedNewDefaultBuildings = {} as const;
 
-const plannedCopperBuildingTargets = {
-  "arc-furnace-ii-copper-scrap": 5,
-  "arc-furnace-ii-copper-ore": 5,
-  "metal-caster-ii-copper": 10,
-  "copper-electrolysis-acid": 10,
+const plannedDefaultBuildingTargets = {
+  "crusher-large-copper": 2,
 } as const;
 
 export const unplacedPlannedDefaultBuildings = {
-  "arc-furnace-ii-copper-scrap": 1,
-  "arc-furnace-ii-copper-ore": 1,
-  "metal-caster-ii-copper": 2,
-  "copper-electrolysis-acid": 2,
+  "crusher-large-copper": 1,
 } as const;
 
-const plannedDefaultCapacityPools = {
-  "arc-furnace-ii-copper": {
-    active: 5,
-    built: 4,
-    currentActive: 4,
-    constructionGhosts: 0,
-    unplacedPlanned: 1,
-  },
-} as const;
+const plannedDefaultCapacityPools = {} as const;
 
 const currentActiveDefaultBuildings = {
-  "arc-furnace-ii-copper-scrap": 4,
-  "arc-furnace-ii-copper-ore": 4,
-  "metal-caster-ii-copper": 8,
-  "copper-electrolysis-acid": 8,
+  "crusher-large-copper": 1,
 } as const;
 
 /** Current Default-area values manually confirmed from the game but not snapshot-synced yet. */
@@ -66,6 +50,7 @@ export const modeledDefaultRecipeIds = [
   "chemical-plant-ii-chemical-fuel",
   "chemical-plant-ii-diamond-paste-cooking-oil",
   "chemical-plant-ii-ethanol",
+  "chemical-plant-ii-graphite",
   "cracking-unit-fuel-gas-diesel",
   "crystallizer-alumina",
   "crystallizer-silicon-wafer",
@@ -97,7 +82,7 @@ export const modeledDefaultRecipeIds = [
 
 export const plannedDefaultBuildings = {
   ...plannedNewDefaultBuildings,
-  ...plannedCopperBuildingTargets,
+  ...plannedDefaultBuildingTargets,
 } as const;
 
 export const plannedDefaultBuiltBuildings = Object.fromEntries(
@@ -118,7 +103,7 @@ const defaultBase: Module = {
     "settling-tank-red-mud-acid": 5,
     "rotary-kiln-alumina-fuel-gas": 4,
     "aluminum-cell-electrolysis": 3,
-    "cooled-caster-ii-aluminum": 3,
+    "metal-caster-ii-aluminum": 3,
     "assembly-v-solar-cell-mono": 1,
     "crystallizer-alumina": 1,
     "chemical-plant-ii-chemical-fuel": 1,
@@ -164,16 +149,12 @@ const defaultBase: Module = {
     "chemical-plant-ii-ethanol": 4,
     "chemical-plant-ii-graphite": 2,
     "chemical-plant-ii-graphite-coal": 3,
-    "copper-electrolysis-acid": 8,
     "waste-sorting-recyclables": 2,
     "exhaust-scrubber-limestone": 2,
     "glass-maker-ii": 4,
     "arc-furnace-ii-glass-broken": 2,
     "arc-furnace-ii-glass-mix": 2,
     "mixer-ii-glass-mix-acid": 1,
-    "arc-furnace-ii-copper-scrap": 4,
-    "arc-furnace-ii-copper-ore": 4,
-    "metal-caster-ii-copper": 8,
     "crusher-large-copper": 1,
     "gold-furnace-scrap": 1,
     "gold-furnace-concentrate": 1,
@@ -250,7 +231,7 @@ const defaultBase: Module = {
         "settling-tank-red-mud-acid": 5,
         "rotary-kiln-alumina-fuel-gas": 4,
         "aluminum-cell-electrolysis": 3,
-        "cooled-caster-ii-aluminum": 3,
+        "metal-caster-ii-aluminum": 3,
         "assembly-v-solar-cell-mono": 1,
         "crystallizer-alumina": 1,
         "chemical-plant-ii-chemical-fuel": 1,
@@ -296,16 +277,12 @@ const defaultBase: Module = {
         "chemical-plant-ii-ethanol": 4,
         "chemical-plant-ii-graphite": 2,
         "chemical-plant-ii-graphite-coal": 3,
-        "copper-electrolysis-acid": 8,
         "waste-sorting-recyclables": 2,
         "exhaust-scrubber-limestone": 2,
         "glass-maker-ii": 4,
         "arc-furnace-ii-glass-broken": 2,
         "arc-furnace-ii-glass-mix": 2,
         "mixer-ii-glass-mix-acid": 1,
-        "arc-furnace-ii-copper-scrap": 4,
-        "arc-furnace-ii-copper-ore": 4,
-        "metal-caster-ii-copper": 8,
         "crusher-large-copper": 1,
         "gold-furnace-scrap": 1,
         "gold-furnace-concentrate": 1,
@@ -373,7 +350,7 @@ const defaultBase: Module = {
         "settling-tank-red-mud-acid": 5,
         "rotary-kiln-alumina-fuel-gas": 3,
         "aluminum-cell-electrolysis": 3,
-        "cooled-caster-ii-aluminum": 3,
+        "metal-caster-ii-aluminum": 3,
         "assembly-v-solar-cell-mono": 1,
         "crystallizer-alumina": 1,
         "chemical-plant-ii-chemical-fuel": 1,
@@ -381,6 +358,7 @@ const defaultBase: Module = {
         "assembly-v-composite-core": 1,
         "assembly-v-crew-supplies": 1,
         "chemical-plant-ii-ethanol": 4,
+        "chemical-plant-ii-graphite": 1,
         "diamond-reactor-synthesis": 1,
         "chemical-plant-ii-diamond-paste-cooking-oil": 1,
         "crusher-large-titanium": 1,
@@ -448,14 +426,23 @@ const defaultBase: Module = {
 };
 
 const defaultFactoryReservePumpTarget = 1;
+const aluminumCasterCapacityPerCycle = 24;
+// Four Aluminum supports the two planned Composite Cores, while another 0.5
+// supports the planned Chemical Fuel. Rocket II adds the remaining panel load.
+const nonRocketAluminumDemandPerCycle = 4.5;
 
 export const createDefaultModule = (
   groundwaterPumpResolution?: SharedMachineClaimResolution,
   groundwaterConstraint?: GroundwaterSourceConstraint,
+  rocketIiRecurringLogistics: RocketIiRecurringLogistics = defaultRocketIiRecurringLogistics,
 ): Module => {
   const source = groundwaterPumpResolution ? "synced" as const : "modeled" as const;
   const built = groundwaterPumpResolution?.built ?? defaultFactoryReservePumpTarget;
   const running = groundwaterPumpResolution?.running ?? defaultFactoryReservePumpTarget;
+  const requiredAluminumCasters = Math.ceil((
+    rocketIiRecurringLogistics.compositePanelPerCycle
+    + nonRocketAluminumDemandPerCycle
+  ) / aluminumCasterCapacityPerCycle);
 
   return {
     ...defaultBase,
@@ -469,12 +456,23 @@ export const createDefaultModule = (
     },
     presets: defaultBase.presets.map(preset => ({
       ...preset,
+      outputTargets: {
+        ...preset.outputTargets,
+        compositePanel: rocketIiRecurringLogistics.compositePanelPerCycle + 4,
+        titaniumAlloy: rocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,
+      },
       builtBuildings: {
         ...preset.builtBuildings,
         [DEFAULT_GROUNDWATER_RECIPE_ID]: built,
       },
       activeBuildings: {
         ...preset.activeBuildings,
+        "metal-caster-ii-aluminum": Math.min(
+          preset.builtBuildings?.["metal-caster-ii-aluminum"]
+            ?? defaultBase.builtBuildings["metal-caster-ii-aluminum"]
+            ?? 0,
+          requiredAluminumCasters,
+        ),
         [DEFAULT_GROUNDWATER_RECIPE_ID]: running,
       },
       dataSources: {

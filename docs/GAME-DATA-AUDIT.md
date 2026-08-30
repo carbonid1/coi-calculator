@@ -418,7 +418,7 @@ The primary chain's full-building rates are:
 | Chemical Plant II | 72 Bauxite Powder + 24 Brine     | 36 Hydrated Alumina + 36 Red Mud       |
 | Rotary Kiln (gas) | 36 Hydrated Alumina + 6 Fuel Gas | 24 Alumina + 6 Carbon Dioxide          |
 | Aluminum Cell     | 24 Alumina + 6 Graphite          | 24 Molten Aluminum + 18 Carbon Dioxide |
-| Cooled Caster II  | 24 Molten Aluminum               | 24 Aluminum                            |
+| Metal Caster II   | 24 Molten Aluminum               | 24 Aluminum                            |
 
 Default owns the planned primary Aluminum chain and sizes it against Rocket II,
 Composite Core, and Titanium Alloy demand. Bauxite is represented as a

@@ -44,6 +44,41 @@ const createModule = (
 })
 
 describe('linked live modules', () => {
+  it('does not duplicate a factory-pooled live area through isolated boundaries', () => {
+    const copperChain: Recipe = {
+      id: 'copper-chain',
+      name: 'Copper chain',
+      building: 'Copper production',
+      group: 'production',
+      balanceBy: 'output',
+      inputs: [
+        { resourceId: 'copperScrap', quantity: 384 },
+        { resourceId: 'acid', quantity: 96 },
+        { resourceId: 'graphite', quantity: 24 },
+      ],
+      outputs: [{ resourceId: 'copper', quantity: 384 }],
+    }
+    const copper = createModule(
+      'copper',
+      'Copper #1',
+      [copperChain],
+      [],
+      { copper: 384 },
+    )
+
+    copper.includedInFactoryTotals = true
+
+    const result = calculateLinkedModules({
+      links: [],
+      modules: [copper],
+      recyclingEfficiencyPercent: 100,
+    })
+
+    expect(result.boundaryDemands).toEqual({})
+    expect(result.boundarySupplies).toEqual({})
+    expect(result.moduleResults.has(copper.id)).toBe(false)
+  })
+
   it('resolves the same name-based link records a future UI can persist', () => {
     const source = createModule('source', 'Source', [])
     const target = createModule('target', 'Target', [])
@@ -78,8 +113,8 @@ describe('linked live modules', () => {
       id: 'source-sea-water',
       name: 'Sea water pump',
       building: 'Pump',
-      group: 'production',
-      balanceBy: 'output',
+      group: 'source',
+      sourceMode: 'module-demand-capped',
       inputs: [],
       outputs: [{ resourceId: 'seaWater', quantity: 10 }],
     }
@@ -148,7 +183,7 @@ describe('linked live modules', () => {
         requestedQuantity: 5,
       }),
     ])
-    expect(sourceResult?.regularResults.find(
+    expect(sourceResult?.sourceResults.find(
       item => item.recipe.id === seaWaterPump.id,
     )?.supplyRatio).toBe(0.5)
     expect(targetResult?.regularResults.find(
@@ -159,6 +194,30 @@ describe('linked live modules', () => {
     )?.supplyRatio).toBe(1)
     expect(result.boundaryDemands).toEqual({ limestone: 2 })
     expect(result.boundarySupplies).toEqual({ sulfur: 1 })
+  })
+
+  it('keeps unlinked Steam (Low) and Sea Water inside live module ledgers', () => {
+    const producer: Recipe = {
+      id: 'local-utility-producer',
+      name: 'Local utility producer',
+      building: 'Producer',
+      group: 'production',
+      inputs: [],
+      outputs: [
+        { resourceId: 'steamLow', quantity: 10 },
+        { resourceId: 'seaWater', quantity: 10 },
+      ],
+    }
+    const source = createModule('source', 'Source', [producer], [producer.id])
+
+    const result = calculateLinkedModules({
+      links: [],
+      modules: [source],
+      recyclingEfficiencyPercent: 100,
+    })
+
+    expect(result.boundaryDemands).toEqual({})
+    expect(result.boundarySupplies).toEqual({})
   })
 
   it('allocates one target requirement across multiple demand-triggered sources', () => {

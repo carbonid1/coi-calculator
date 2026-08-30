@@ -2,7 +2,10 @@ import { liveAreaPlans, type LiveAreaPlans } from '../../db/live-area-plans'
 import { isAreaAssignableStaticInfrastructurePrototype } from '../../db/modules/area-static-infrastructure'
 import { type Module, type LiveAreaIssue } from '../../db/modules/modules'
 import { type Ingredient, type Recipe } from '../../db/recipes'
-import { getSurplusConsumptionSettings } from '../../db/resource-disposition'
+import {
+  getLinkedOnlyLiveModuleInputIds,
+  getSurplusConsumptionSettings,
+} from '../../db/resource-disposition'
 import { resources, type ResourceId } from '../../db/resources'
 import {
   type SyncedAreaEntity,
@@ -35,11 +38,24 @@ const runtimeRecipeBehaviors: Record<
   Pick<
     Recipe,
     | 'appliesRecyclingEfficiency'
+    | 'balanceBy'
+    | 'balanceInputIds'
+    | 'balanceOutputIds'
     | 'consumeSurplusInputIds'
     | 'consumeSurplusInputScope'
+    | 'electricityMultiplier'
     | 'surplusConsumptionPriority'
   >
 > = {
+  'ArcFurnace2:CopperSmeltingArc': {
+    balanceBy: 'output',
+    balanceOutputIds: ['moltenCopper'],
+  },
+  'ArcFurnace2:CopperSmeltingArcScrap': {
+    balanceBy: 'input',
+    balanceInputIds: ['copperScrap'],
+    electricityMultiplier: 0.6,
+  },
   'ChemicalPlant2:GraphiteProductionCo2': {
     consumeSurplusInputIds: ['carbonDioxide'],
     consumeSurplusInputScope: 'module',
@@ -66,6 +82,12 @@ const runtimeRecipeBehaviors: Record<
     surplusConsumptionPriority: 100,
   },
   'Shredder:ShreddingRetiredWaste': { appliesRecyclingEfficiency: false },
+}
+
+/** Explicit game UI order for selectable recipes whose prototype list is not display-ordered. */
+const runtimeRecipePriorities: Readonly<Record<string, number>> = {
+  'ArcFurnace2:CopperSmeltingArcScrap': 0,
+  'ArcFurnace2:CopperSmeltingArc': 1,
 }
 
 for (const resource of Object.values(resources)) {
@@ -204,10 +226,18 @@ export const createLiveAreaModules = (
       }
     }
 
-    const orderedGroups = [...groups.values()].sort((left, right) => (
-      left.prototypeName.localeCompare(right.prototypeName)
-      || left.recipe.name.localeCompare(right.recipe.name)
-    ))
+    const orderedGroups = [...groups.values()].sort((left, right) => {
+      const prototypeOrder = left.prototypeName.localeCompare(right.prototypeName)
+
+      if (prototypeOrder !== 0) return prototypeOrder
+
+      const leftPriority = runtimeRecipePriorities[`${left.prototypeId}:${left.recipe.id}`]
+        ?? Number.MAX_SAFE_INTEGER
+      const rightPriority = runtimeRecipePriorities[`${right.prototypeId}:${right.recipe.id}`]
+        ?? Number.MAX_SAFE_INTEGER
+
+      return leftPriority - rightPriority || left.recipe.name.localeCompare(right.recipe.name)
+    })
     const recipeCountByPrototype = new Map<string, number>()
 
     for (const group of orderedGroups) {
@@ -267,15 +297,21 @@ export const createLiveAreaModules = (
       const runtimeBehavior = runtimeRecipeBehaviors[
         `${group.prototypeId}:${group.recipe.id}`
       ]
+      const normalizedInputs = inputs.filter((input): input is Ingredient => Boolean(input))
+      const normalizedOutputs = outputs.filter((output): output is Ingredient => Boolean(output))
+      const isModuleSeaWaterPump = normalizedInputs.length === 0
+        && normalizedOutputs.length > 0
+        && normalizedOutputs.every(output => output.resourceId === 'seaWater')
 
       liveRecipes.push({
         id: recipeId,
         gameRecipeId: group.recipe.id,
         name: group.recipe.name,
         building: group.prototypeName,
-        group: 'production',
-        inputs: inputs.filter((input): input is Ingredient => Boolean(input)),
-        outputs: outputs.filter((output): output is Ingredient => Boolean(output)),
+        group: isModuleSeaWaterPump ? 'source' : 'production',
+        sourceMode: isModuleSeaWaterPump ? 'module-demand-capped' : undefined,
+        inputs: normalizedInputs,
+        outputs: normalizedOutputs,
         cycleDurationSeconds: group.recipe.durationSeconds,
         ...runtimeBehavior,
         sharedCapacity: hasSharedCapacity
@@ -294,6 +330,11 @@ export const createLiveAreaModules = (
     }
 
     const balancedLiveRecipes = liveRecipes.map(recipe => {
+      if (recipe.group === 'source') return recipe
+
+      const linkedOnlyInputIds = getLinkedOnlyLiveModuleInputIds(
+        recipe.inputs.map(input => input.resourceId),
+      )
       const surplusConsumption = getSurplusConsumptionSettings(
         recipe.inputs.map(input => input.resourceId),
         recipe.gameRecipeId,
@@ -305,11 +346,29 @@ export const createLiveAreaModules = (
             surplusConsumptionPriority: surplusConsumption.priority,
           }
         : {}
+      const linkedOnlyInputFields = linkedOnlyInputIds.length > 0
+        ? {
+            balanceInputIds: [...new Set([
+              ...(recipe.balanceInputIds ?? []),
+              ...linkedOnlyInputIds,
+            ])],
+            balanceInputScope: 'module' as const,
+          }
+        : {}
+
+      if (recipe.balanceBy) {
+        return {
+          ...recipe,
+          ...surplusConsumptionFields,
+          ...linkedOnlyInputFields,
+        }
+      }
 
       if (recipe.outputs.length > 0) {
         return {
           ...recipe,
           ...surplusConsumptionFields,
+          ...linkedOnlyInputFields,
           balanceBy: 'output' as const,
           balanceOutputIds: recipe.outputs.map(output => output.resourceId),
         }
@@ -319,6 +378,7 @@ export const createLiveAreaModules = (
         return {
           ...recipe,
           ...surplusConsumptionFields,
+          ...linkedOnlyInputFields,
           balanceBy: 'input' as const,
           balanceInputIds: recipe.inputs.map(input => input.resourceId),
         }
@@ -326,13 +386,14 @@ export const createLiveAreaModules = (
 
       return recipe
     })
-    const requestedExports = plans[zone.name]?.requestedExports
+    const plan = plans[zone.name]
+    const requestedExports = plan?.requestedExports
 
     const liveModule: Module = {
       id: moduleIdForZone(zone.id),
       name: zone.name,
       description: '',
-      includedInFactoryTotals: false,
+      includedInFactoryTotals: plan?.resourcePool === 'factory',
       builtBuildings,
       recipes: balancedLiveRecipes,
       presets: [{
@@ -346,6 +407,7 @@ export const createLiveAreaModules = (
         capacityPools: presetCapacityPools,
         dataSources,
         fixed: [],
+        outputTargets: plan?.resourcePool === 'factory' ? requestedExports : undefined,
         requestedExports,
       }],
       defaultPresetId: 'live',

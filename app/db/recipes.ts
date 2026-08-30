@@ -1754,9 +1754,9 @@ export const recipes: Recipe[] = [
     ],
   },
   {
-    id: 'cooled-caster-ii-aluminum',
-    name: 'Cooled Caster II (Aluminum)',
-    building: 'Cooled Caster II',
+    id: 'metal-caster-ii-aluminum',
+    name: 'Metal Caster II (Aluminum)',
+    building: 'Metal Caster II',
     group: 'production',
     cycleDurationSeconds: 20,
     balanceBy: 'output',
@@ -3310,7 +3310,13 @@ export const recipes: Recipe[] = [
     group: 'production',
     cycleDurationSeconds: 20,
     balanceBy: 'output',
+    // Scrap and unavoidable co-products (notably Titanium Ore's Molten Iron)
+    // are allocated first. This ore route fills only the remaining demand and
+    // then starts its Crusher support chain in the following fallback step.
+    balanceInputIds: [],
     balanceOutputIds: ['moltenIron'],
+    allocation: 'fallback',
+    allocationPriority: 25,
     sharedCapacity: { id: 'arc-furnace-ii-iron', priority: 2 },
     inputs: [
       { resourceId: 'ironOreCrushed', quantity: 48 },

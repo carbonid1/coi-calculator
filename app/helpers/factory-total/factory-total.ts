@@ -34,6 +34,8 @@ export interface FactoryTotalOptions {
   boundarySupplies?: Partial<Record<ResourceId, number>>;
   /** Unlinked input drawn by isolated live modules from the global factory. */
   boundaryDemands?: Partial<Record<ResourceId, number>>;
+  /** Private linked output reserved inside its factory-pooled source module. */
+  moduleFixedDemands?: ReadonlyMap<string, Partial<Record<ResourceId, number>>>;
 }
 
 interface ElectricityDispatchGroup {
@@ -75,6 +77,10 @@ const calculateWithDispatch = (
   fixedDemands: Partial<Record<ResourceId, number>> = {},
   electricityDispatchTargets: Record<string, number> = {},
   nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
+  moduleFixedDemands: ReadonlyMap<
+    string,
+    Partial<Record<ResourceId, number>>
+  > = new Map(),
 ) => {
   const groupsById = new Map<string, ElectricityDispatchGroup>();
   const prioritizedLines = lines.filter((line) => (
@@ -161,6 +167,8 @@ const calculateWithDispatch = (
       outputModifiers,
       fixedDemands,
       nonConstrainingSuppliedResourceIds,
+      new Set(),
+      moduleFixedDemands,
     );
 
     const modeledDemandMw = calculateBuildingStats(
@@ -415,6 +423,8 @@ const calculateWithDispatch = (
     outputModifiers,
     fixedDemands,
     nonConstrainingSuppliedResourceIds,
+    new Set(),
+    moduleFixedDemands,
   );
 
   const buildingStats = calculateBuildingStats(
@@ -442,6 +452,7 @@ export const calculateFactoryTotal = (
     contractsProfitMultiplier = 1,
     boundarySupplies = {},
     boundaryDemands = {},
+    moduleFixedDemands = new Map(),
   }: FactoryTotalOptions,
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
@@ -460,7 +471,13 @@ export const calculateFactoryTotal = (
     allLines.push(...lines);
 
     for (const resourceId of mod.localResources ?? []) localResourceIds.add(resourceId);
-    for (const [resourceId, quantity] of typedEntries(getPresetResourceDemands(preset))) {
+    // A globally pooled live module uses requestedExports as an internal output
+    // target. Only its separately modeled fixed loads are external factory demand.
+    const presetDemands = mod.liveArea
+      ? (preset?.fixedDemands ?? {})
+      : getPresetResourceDemands(preset)
+
+    for (const [resourceId, quantity] of typedEntries(presetDemands)) {
       fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
     }
     for (const [groupId, quantity] of Object.entries(preset?.electricityDispatchTargets ?? {})) {
@@ -482,6 +499,8 @@ export const calculateFactoryTotal = (
     outputModifiers,
     fixedDemands,
     electricityDispatchTargets,
+    new Set(),
+    moduleFixedDemands,
   );
   const demandSourceProduction = getDemandSourceProduction(
     withoutContracts.calculation,
@@ -534,6 +553,7 @@ export const calculateFactoryTotal = (
       contractDemands,
       electricityDispatchTargets,
       contractInputIds,
+      moduleFixedDemands,
     );
   };
   let demandBalancedImports = new Map<string, number>();
