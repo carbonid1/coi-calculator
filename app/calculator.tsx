@@ -154,7 +154,10 @@ import {
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
 import { calculateGroundwaterClaimLimits } from './helpers/groundwater/calculate-groundwater-production'
-import { createLiveAreaModules } from './helpers/live-area-modules/live-area-modules'
+import {
+  createLiveAreaModules,
+  getModeledTerrainSorterEntityIds,
+} from './helpers/live-area-modules/live-area-modules'
 import {
   allocateSharedMachines,
   type MachineZoneAssignments,
@@ -694,11 +697,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       ? [createConfiguredSpaceStationModule()]
       : []),
   ]
-  const terrainSorterEntityIds = new Set(
-    (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
-      ? gameState.snapshot?.mineTowers.flatMap(tower => tower.assignedOreSorterEntityIds) ?? []
-      : [],
-  )
   const generatedLiveAreaModules =
     (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
       ? createLiveAreaModules(
@@ -711,6 +709,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             : undefined,
         )
       : []
+  const terrainSorterEntityIds =
+    (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
+      ? getModeledTerrainSorterEntityIds(
+          gameState.snapshot?.areaEntities ?? [],
+          gameState.snapshot?.mineTowers ?? [],
+          generatedLiveAreaModules,
+        )
+      : new Set<number>()
   const generatedLiveAreaZoneIds = new Set(
     generatedLiveAreaModules.flatMap(module => (
       module.liveArea ? [module.liveArea.zoneId] : []

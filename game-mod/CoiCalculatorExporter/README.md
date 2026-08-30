@@ -98,6 +98,12 @@ Schema 30 adds completed and running counts for Captain's Office I and II. The
 calculator assigns their workforce to an exact matching area, with unzoned or
 ambiguous offices remaining in Default. Schema 29 and older snapshots normalize
 these unavailable counts to zero.
+Schema 31 adds mine-tower-to-sorter assignments plus each sorter's configured
+terrain products, effective focus-adjusted throughput, and conversion loss.
+The calculator shares sorter capacity across configured mineable resources. Dirt,
+Slag, and Waste do not provide mine supply. Rock provides supply only when no
+other mineable resource is selected. Mine towers establish terrain provenance;
+assigned trucks, excavators, and train stations do not set throughput.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as

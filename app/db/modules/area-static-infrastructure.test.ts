@@ -139,6 +139,26 @@ it("assigns Captain's office workforce to its exact area", () => {
   })
 })
 
+it('does not duplicate a sorter already modeled by its live terrain flows', () => {
+  const assignments = resolveStaticInfrastructureModuleAssignments({
+    builtConfig: config({ oreSortingPlant: 1 }),
+    runningConfig: config({ oreSortingPlant: 1 }),
+    defaultModuleId: defaultModule.id,
+    managedEntityIds: new Set([4]),
+    modules: [defaultModule, copperModule],
+    productionEntities: [
+      productionEntity(4, 'OreSortingPlantT1', ['Copper #1']),
+    ],
+  })
+
+  expect(assignments.default).toMatchObject({
+    builtBuildings: { 'static-ore-sorting-plant': 0 },
+    activeBuildings: { 'static-ore-sorting-plant': 0 },
+  })
+  expect(assignments[copperModule.id]?.builtBuildings)
+    .not.toHaveProperty('static-ore-sorting-plant')
+})
+
 it('places a station construction ghost in its live area without counting it as built', () => {
   const assignments = resolveStaticInfrastructureModuleAssignments({
     areaEntities: [areaEntity(7, 'TrainStationLoose_ELEC', 'Copper #1')],

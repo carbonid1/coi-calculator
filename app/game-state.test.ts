@@ -507,6 +507,43 @@ const schema30Snapshot = {
     },
   ],
 }
+const oreSorter = {
+  throughputPerCycle: 160,
+  conversionLossPercent: 10,
+  products: [
+    {
+      productId: 'Product_Coal',
+      name: 'Coal',
+      canBeWasted: true,
+    },
+    {
+      productId: 'Product_Dirt',
+      name: 'Dirt',
+      canBeWasted: false,
+    },
+  ],
+}
+const schema31Snapshot = {
+  ...schema30Snapshot,
+  schemaVersion: 31,
+  areaEntities: [
+    ...schema30Snapshot.areaEntities.map(entity => ({ ...entity, oreSorter: null })),
+    {
+      entityId: 902,
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      constructionState: 'Constructed',
+      constructed: true,
+      running: true,
+      tile: { x: 510, y: 610 },
+      zones: [{ id: 30, name: 'Test' }],
+      recipes: [],
+      oreSorter,
+      trainStation: null,
+    },
+  ],
+  mineTowers: [{ entityId: 1001, assignedOreSorterEntityIds: [902] }],
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -676,6 +713,33 @@ describe('game-state snapshot validation', () => {
         expect.objectContaining({ prototypeId: 'CaptainOfficeT2' }),
       ]),
     })
+    expect(normalizeGameStateSnapshot(schema31Snapshot)).toMatchObject({
+      schemaVersion: 31,
+      areaEntities: expect.arrayContaining([
+        expect.objectContaining({ entityId: 902, oreSorter }),
+      ]),
+      mineTowers: [{ entityId: 1001, assignedOreSorterEntityIds: [902] }],
+    })
+  })
+
+  it('requires valid sorter configuration and unique tower ownership in schema 31', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema31Snapshot,
+      mineTowers: undefined,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema31Snapshot,
+      areaEntities: schema31Snapshot.areaEntities.map(entity => (
+        entity.entityId === 902 ? { ...entity, oreSorter: null } : entity
+      )),
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema31Snapshot,
+      mineTowers: [
+        ...schema31Snapshot.mineTowers,
+        { entityId: 1002, assignedOreSorterEntityIds: [902] },
+      ],
+    })).toBeNull()
   })
 
   it("requires Captain's office counts in schema 30", () => {

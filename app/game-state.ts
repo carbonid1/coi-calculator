@@ -158,7 +158,6 @@ export interface SyncedTrainStationConfiguration {
 export interface SyncedOreSorterProduct extends SyncedProductRef {
   /** Whether the game's terrain-conversion loss applies to this material. */
   canBeWasted: boolean
-  sortedLastCycle: number
 }
 
 export interface SyncedOreSorterConfiguration {
@@ -849,8 +848,7 @@ const isOreSorterProduct = (value: unknown): value is SyncedOreSorterProduct => 
   value.productId.length > 0 &&
   typeof value.name === 'string' &&
   value.name.length > 0 &&
-  typeof value.canBeWasted === 'boolean' &&
-  isNonNegativeInteger(value.sortedLastCycle)
+  typeof value.canBeWasted === 'boolean'
 )
 
 const isOreSorterConfiguration = (

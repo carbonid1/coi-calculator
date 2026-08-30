@@ -5,7 +5,10 @@ import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateBuildingStats } from '../building-stats/building-stats'
 import { calculateNet } from '../calculate/calculate'
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
-import { createLiveAreaModules } from './live-area-modules'
+import {
+  createLiveAreaModules,
+  getModeledTerrainSorterEntityIds,
+} from './live-area-modules'
 
 const recipe = {
   id: 'AirSeparation',
@@ -434,7 +437,7 @@ describe('createLiveAreaModules', () => {
       .toEqual(crusherResults.map(candidate => candidate.moduleId))
   })
 
-  it('shares one linked sorter capacity across every configured raw material', () => {
+  it('draws only the primary resource when a sorter also selects incidental terrain', () => {
     const coalSorter: SyncedAreaEntity = {
       ...entity(1, true, true, []),
       prototypeId: 'OreSortingPlantT1',
@@ -447,19 +450,16 @@ describe('createLiveAreaModules', () => {
             productId: 'Product_Coal',
             name: 'Coal',
             canBeWasted: true,
-            sortedLastCycle: 70,
           },
           {
             productId: 'Product_Dirt',
             name: 'Dirt',
             canBeWasted: false,
-            sortedLastCycle: 20,
           },
           {
             productId: 'Product_Rock',
             name: 'Rock',
             canBeWasted: false,
-            sortedLastCycle: 70,
           },
         ],
       },
@@ -485,13 +485,56 @@ describe('createLiveAreaModules', () => {
     ))
 
     expect(module.includedInFactoryTotals).toBe(true)
-    expect(lines).toHaveLength(3)
+    expect(lines).toHaveLength(1)
     expect(new Set(lines.map(line => line.capacityPoolId)).size).toBe(1)
     expect(sorterResults.map(candidate => candidate.actualOutputs[0]?.quantity))
-      .toEqual([72, 40, 40])
-    expect(sorterResults.reduce((total, candidate) => total + candidate.supplyRatio, 0))
-      .toBeCloseTo(1)
-    expect(result.allResourceFlows.find(flow => flow.resourceId === 'rock')?.net).toBe(-40)
+      .toEqual([72])
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'dirt')?.net).toBe(-40)
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'rock')?.net).toBe(-80)
+    expect(getModeledTerrainSorterEntityIds(
+      [coalSorter],
+      [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
+      [module],
+    )).toEqual(new Set([1]))
+  })
+
+  it('treats Rock as the source when a linked sorter selects only incidental terrain', () => {
+    const rockSorter: SyncedAreaEntity = {
+      ...entity(1, true, true, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [
+          { productId: 'Product_Dirt', name: 'Dirt', canBeWasted: false },
+          { productId: 'Product_Rock', name: 'Rock', canBeWasted: false },
+          { productId: 'Product_Slag', name: 'Slag', canBeWasted: false },
+          { productId: 'Product_Waste', name: 'Waste', canBeWasted: false },
+        ],
+      },
+    }
+    const towers = [{ entityId: 99, assignedOreSorterEntityIds: [1] }]
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [rockSorter],
+      [],
+      undefined,
+      towers,
+    )
+
+    if (!module) throw new Error('Missing dedicated Rock mine module')
+
+    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const result = calculateNet(lines, {}, undefined, {}, { rock: 80, dirt: 20 })
+
+    expect(lines.map(line => line.recipe.outputs[0]?.resourceId)).toEqual(['rock'])
+    expect(result.regularResults[0]?.actualOutputs).toEqual([
+      { resourceId: 'rock', quantity: 80 },
+    ])
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'dirt')?.net).toBe(-20)
+    expect(getModeledTerrainSorterEntityIds([rockSorter], towers, [module]))
+      .toEqual(new Set([1]))
   })
 
   it('does not create terrain supply until a mine tower links the sorter', () => {
@@ -506,7 +549,6 @@ describe('createLiveAreaModules', () => {
           productId: 'Product_Coal',
           name: 'Coal',
           canBeWasted: true,
-          sortedLastCycle: 0,
         }],
       },
     }
@@ -522,6 +564,135 @@ describe('createLiveAreaModules', () => {
     expect(module?.recipes).toEqual([])
   })
 
+  it('keeps an incidental-only linked sorter out of the terrain supply model', () => {
+    const dirtSorter: SyncedAreaEntity = {
+      ...entity(1, true, true, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [
+          { productId: 'Product_Dirt', name: 'Dirt', canBeWasted: false },
+          { productId: 'Product_Slag', name: 'Slag', canBeWasted: false },
+          { productId: 'Product_Waste', name: 'Waste', canBeWasted: false },
+        ],
+      },
+    }
+    const towers = [{ entityId: 99, assignedOreSorterEntityIds: [1] }]
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [dirtSorter],
+      [],
+      undefined,
+      towers,
+    )
+
+    expect(module?.includedInFactoryTotals).toBe(false)
+    expect(module?.recipes).toEqual([])
+    expect(getModeledTerrainSorterEntityIds(
+      [dirtSorter],
+      towers,
+      module ? [module] : [],
+    )).toEqual(new Set())
+  })
+
+  it('does not manage a sorter when its area belongs to a configured module', () => {
+    const sorter: SyncedAreaEntity = {
+      ...entity(1, true, true, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      zones: [{ id: 16, name: 'Mines' }],
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [{
+          productId: 'Product_Coal',
+          name: 'Coal',
+          canBeWasted: true,
+        }],
+      },
+    }
+    const towers = [{ entityId: 99, assignedOreSorterEntityIds: [1] }]
+    const liveModules = createLiveAreaModules(
+      [{ id: 16, name: 'Mines' }],
+      [sorter],
+      [{
+        id: 'mines',
+        name: 'Mines',
+        description: '',
+        builtBuildings: {},
+        presets: [],
+        defaultPresetId: null,
+      }],
+      undefined,
+      towers,
+    )
+
+    expect(liveModules).toEqual([])
+    expect(getModeledTerrainSorterEntityIds([sorter], towers, liveModules))
+      .toEqual(new Set())
+  })
+
+  it('routes a configured ore through the selected crusher recipe when applicable', () => {
+    const bauxiteMilling = {
+      id: 'BauxiteMilling',
+      name: 'Bauxite milling',
+      durationSeconds: 30,
+      assigned: true,
+      inputs: [{ productId: 'Product_Bauxite', name: 'Bauxite', quantity: 48 }],
+      outputs: [{ productId: 'Product_BauxitePowder', name: 'Bauxite powder', quantity: 48 }],
+    }
+    const sorter: SyncedAreaEntity = {
+      ...entity(1, true, true, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [{
+          productId: 'Product_Bauxite',
+          name: 'Bauxite',
+          canBeWasted: true,
+        }],
+      },
+    }
+    const crusher: SyncedAreaEntity = {
+      ...entity(2, true, true, [bauxiteMilling]),
+      prototypeId: 'CrusherLarge',
+      prototypeName: 'Crusher (large)',
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [sorter, crusher],
+      [],
+      undefined,
+      [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
+    )
+
+    if (!module) throw new Error('Missing Bauxite mine module')
+
+    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const result = calculateNet(lines, {}, undefined, {}, { bauxitePowder: 96 })
+    const sorterResult = result.regularResults.find(candidate => (
+      candidate.recipe.sourceKind === 'map-mine'
+    ))
+    const crusherResult = result.regularResults.find(candidate => (
+      candidate.recipe.gameRecipeId === 'BauxiteMilling'
+    ))
+
+    expect(crusherResult).toMatchObject({
+      supplyRatio: 1,
+      actualInputs: [{ resourceId: 'bauxite', quantity: 96 }],
+      actualOutputs: [{ resourceId: 'bauxitePowder', quantity: 96 }],
+    })
+    expect(sorterResult).toMatchObject({
+      supplyRatio: 96 / 144,
+      actualOutputs: [{ resourceId: 'bauxite', quantity: 96 }],
+    })
+    expect(result.sourceResults).toEqual([])
+  })
+
   it('keeps a paused linked sorter claim with zero active supply', () => {
     const pausedSorter: SyncedAreaEntity = {
       ...entity(1, true, false, []),
@@ -534,7 +705,6 @@ describe('createLiveAreaModules', () => {
           productId: 'Product_Coal',
           name: 'Coal',
           canBeWasted: true,
-          sortedLastCycle: 0,
         }],
       },
     }

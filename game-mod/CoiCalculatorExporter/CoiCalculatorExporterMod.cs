@@ -1220,8 +1220,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             products.Add(new OreSorterProductSnapshot(
                 product.Id.ToString(),
                 String.IsNullOrWhiteSpace(name) ? product.Id.ToString() : name,
-                sorter.ProductsData[product].CanBeWasted,
-                sorter.GetSortedLastMonth(product).Value));
+                sorter.ProductsData[product].CanBeWasted));
         }
         products.Sort(delegate(OreSorterProductSnapshot left, OreSorterProductSnapshot right)
         {
@@ -2093,8 +2092,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             appendString(json, "name", product.Name, true);
             json.Append("\"canBeWasted\":");
             json.Append(product.CanBeWasted ? "true" : "false");
-            json.Append(',');
-            appendNumber(json, "sortedLastCycle", product.SortedLastCycle, false);
             json.Append('}');
             if (i < sorter.Products.Count - 1)
             {
@@ -2558,18 +2555,15 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly string ProductId;
         public readonly string Name;
         public readonly bool CanBeWasted;
-        public readonly int SortedLastCycle;
 
         public OreSorterProductSnapshot(
             string productId,
             string name,
-            bool canBeWasted,
-            int sortedLastCycle)
+            bool canBeWasted)
         {
             ProductId = productId;
             Name = name;
             CanBeWasted = canBeWasted;
-            SortedLastCycle = sortedLastCycle;
         }
     }
 

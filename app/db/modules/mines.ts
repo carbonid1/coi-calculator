@@ -13,8 +13,6 @@ export const mines: Module = {
       "limestone-map-mine": 1,
       "gold-map-mine": 1,
       "sand-map-mine": 1,
-      "rock-map-mine": 1,
-      "dirt-map-mine": 1,
       "sulfur-world-mine": 1,
       "slag-terrain-dump": 1,
       "waste-terrain-dump": 1,

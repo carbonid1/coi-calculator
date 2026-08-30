@@ -73,14 +73,16 @@ export const transferTerrainMineOwnership = (
       .map(recipe => recipe.id),
   )
   const liveCrusherInputIds = new Set(
-    liveModules.flatMap(module => (
-      module.recipes
+    liveModules
+      .filter(module => module.includedInFactoryTotals !== false)
+      .flatMap(module => (
+        module.recipes
         ?.filter(recipe => isCrusherBuilding(recipe.building))
         .flatMap(recipe => recipe.inputs)
         .filter(input => claimedResourceIds.has(input.resourceId))
         .map(input => input.resourceId)
         ?? []
-    )),
+      )),
   )
   const legacyCrusherIds = new Set(
     recipes

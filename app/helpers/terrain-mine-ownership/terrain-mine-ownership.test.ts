@@ -78,4 +78,29 @@ describe('terrain mine ownership', () => {
     expect(updatedMines?.builtBuildings).not.toHaveProperty('iron-map-mine')
     expect(updatedDefault?.builtBuildings).toHaveProperty('crusher-large-iron', 1)
   })
+
+  it('keeps the Default crusher when its live replacement is outside Factory Total', () => {
+    const liveIronMine = createLiveIronMine()
+    const source = liveIronMine.recipes?.find(recipe => recipe.sourceKind === 'map-mine')
+    const crusher = liveIronMine.recipes?.find(recipe => recipe.id.includes('CrusherLarge'))
+
+    if (!source || !crusher) throw new Error('Missing live Iron fixtures')
+
+    const [updatedDefault, updatedMines] = transferTerrainMineOwnership(
+      [defaultArea, mines],
+      [
+        { ...liveIronMine, recipes: [source] },
+        {
+          ...liveIronMine,
+          id: 'live-area-100',
+          name: 'Detached crushers',
+          includedInFactoryTotals: false,
+          recipes: [crusher],
+        },
+      ],
+    )
+
+    expect(updatedMines?.builtBuildings).not.toHaveProperty('iron-map-mine')
+    expect(updatedDefault?.builtBuildings).toHaveProperty('crusher-large-iron', 1)
+  })
 })

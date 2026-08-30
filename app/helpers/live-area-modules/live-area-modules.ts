@@ -29,6 +29,12 @@ const environmentalEmissionProductIds = new Set([
 ])
 const crusherPrototypeIds = new Set(['Crusher', 'CrusherLarge'])
 const oreSortingPlantPrototypeIds = new Set(['OreSortingPlantT1', 'OreSortingPlantT2'])
+const incidentalTerrainResourceIds = new Set<ResourceId>([
+  'dirt',
+  'rock',
+  'slag',
+  'waste',
+])
 
 const normalizeResourceKey = (value: string) => value
   .normalize('NFKD')
@@ -131,6 +137,53 @@ const resolveResourceId = (product: { productId: string; name: string }) => (
   resourceIdByKey.get(normalizeResourceKey(product.name))
   ?? resourceIdByKey.get(normalizeResourceKey(product.productId))
 )
+
+type OreSorterProduct = NonNullable<SyncedAreaEntity['oreSorter']>['products'][number]
+
+interface ResolvedTerrainProduct {
+  priority: number
+  product: OreSorterProduct
+  resourceId: ResourceId
+}
+
+const resolveTerrainSourceProducts = (products: readonly OreSorterProduct[]) => {
+  const resolved: ResolvedTerrainProduct[] = products.flatMap((product, priority) => {
+    const resourceId = resolveResourceId(product)
+
+    return resourceId ? [{ priority, product, resourceId }] : []
+  })
+  const primary = resolved.filter(({ resourceId }) => (
+    !incidentalTerrainResourceIds.has(resourceId)
+  ))
+
+  // Rock is reliable only for a dedicated rock pit. Dirt, Slag, and Waste are
+  // incidental terrain/byproducts and never establish mine supply.
+  return primary.length > 0
+    ? primary
+    : resolved.filter(({ resourceId }) => resourceId === 'rock')
+}
+
+export const getModeledTerrainSorterEntityIds = (
+  entities: readonly SyncedAreaEntity[],
+  mineTowers: readonly SyncedMineTower[],
+  liveModules: readonly Module[],
+): ReadonlySet<number> => {
+  const assignedSorterIds = new Set(
+    mineTowers.flatMap(tower => tower.assignedOreSorterEntityIds),
+  )
+  const modeledZoneIds = new Set(liveModules.flatMap(module => (
+    module.liveArea ? [module.liveArea.zoneId] : []
+  )))
+
+  return new Set(entities.flatMap(entity => (
+    assignedSorterIds.has(entity.entityId)
+    && entity.oreSorter
+    && entity.zones.some(zone => modeledZoneIds.has(zone.id))
+    && resolveTerrainSourceProducts(entity.oreSorter.products).length > 0
+      ? [entity.entityId]
+      : []
+  )))
+}
 
 const toIngredient = (
   product: SyncedAreaRecipe['inputs'][number],
@@ -299,6 +352,7 @@ export const createLiveAreaModules = (
     const currentActiveBuildings: Record<string, number> = {}
     const dataSources: NonNullable<Module['presets'][number]['dataSources']> = {}
     const presetCapacityPools: NonNullable<Module['presets'][number]['capacityPools']> = {}
+    let terrainSorterSourceCount = 0
 
     for (const [prototypeId, pool] of capacityPools) {
       presetCapacityPools[prototypeId] = {
@@ -382,6 +436,21 @@ export const createLiveAreaModules = (
 
       if (!configuration) continue
 
+      const sourceProducts = resolveTerrainSourceProducts(configuration.products)
+
+      for (const product of configuration.products) {
+        if (!resolveResourceId(product)) {
+          addIssue(
+            issues,
+            `${sorter.prototypeId}:${sorter.entityId}:${product.productId}`,
+            sorter.prototypeName,
+            `Configured terrain product “${product.name}” is not supported.`,
+          )
+        }
+      }
+
+      if (sourceProducts.length === 0) continue
+
       const capacityPoolId = `terrain-sorter:${sorter.entityId}`
       const built = Number(sorter.constructed)
       const active = Number(sorter.constructed && sorter.running)
@@ -393,19 +462,7 @@ export const createLiveAreaModules = (
         constructionGhosts: 0,
       }
 
-      for (const [priority, product] of configuration.products.entries()) {
-        const resourceId = resolveResourceId(product)
-
-        if (!resourceId) {
-          addIssue(
-            issues,
-            `${sorter.prototypeId}:${sorter.entityId}:${product.productId}`,
-            sorter.prototypeName,
-            `Configured terrain product “${product.name}” is not supported.`,
-          )
-          continue
-        }
-
+      for (const { priority, product, resourceId } of sourceProducts) {
         const outputYield = product.canBeWasted
           ? 1 - configuration.conversionLossPercent / 100
           : 1
@@ -436,6 +493,7 @@ export const createLiveAreaModules = (
         currentActiveBuildings[recipeId] = active
         constructionGhosts[recipeId] = 0
         dataSources[recipeId] = 'synced'
+        terrainSorterSourceCount++
       }
     }
 
@@ -549,7 +607,7 @@ export const createLiveAreaModules = (
     const requestedExports = plan?.requestedExports
     const usesFactoryPool = plan?.resourcePool === 'factory'
       || (mineTowers
-        ? terrainSorterEntities.length > 0
+        ? terrainSorterSourceCount > 0
         : hasOreSortingPlant && terrainSourceTemplates.length > 0)
 
     const liveModule: Module = {
