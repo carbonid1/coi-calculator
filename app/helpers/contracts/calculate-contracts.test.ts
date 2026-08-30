@@ -146,8 +146,41 @@ describe("contract plans", () => {
     expect(ammonia?.fuelPerProductionCycle).toBeCloseTo(21.675);
   });
 
+  it("covers the current Sand replacement target with the focused four-module Quartz plan", () => {
+    const quartzContract = activeContracts.find(
+      (contract) => contract.id === "quartz-for-coal",
+    );
+    const { contractResults } = applyContracts(
+      [{
+        resourceId: "quartz",
+        name: "Quartz",
+        consumed: 137.62,
+        produced: 0,
+        net: -137.62,
+      }],
+      quartzContract ? [quartzContract] : [],
+      1,
+      new Map(),
+      1.14,
+    );
+    const quartz = contractResults[0];
+
+    expect(quartz).toMatchObject({
+      imported: 137.62,
+      requiredImported: 137.62,
+      uncoveredImported: 0,
+      importedPerTrip: 1_840,
+      fuelPerTrip: 289,
+    });
+    expect(quartz?.exported).toBeCloseTo(137.62 * 10 / 23);
+    expect(quartz?.maxImportedPerProductionCycle).toBeCloseTo(
+      1_840 / (426 / 60),
+    );
+    expect(quartz?.fuelPerProductionCycle).toBeCloseTo(137.62 / 1_840 * 289);
+  });
+
   it("counts all planned ships and their cargo modules", () => {
-    expect(calculateContractWorkers(activeContracts)).toBe(168);
+    expect(calculateContractWorkers(activeContracts)).toBe(210);
   });
 
   it("applies Ship Fuel Use research before the ship's Save Fuel mode", () => {

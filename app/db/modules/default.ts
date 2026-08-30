@@ -13,18 +13,16 @@ export const DEFAULT_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
 export const plannedNewDefaultBuildings = {} as const;
 
-const plannedDefaultBuildingTargets = {
-  "crusher-large-copper": 2,
-} as const;
+const plannedDefaultBuildingTargets = {} as const;
 
-export const unplacedPlannedDefaultBuildings = {
-  "crusher-large-copper": 1,
-} as const;
+export const unplacedPlannedDefaultBuildings = {} as const;
 
 const plannedDefaultCapacityPools = {} as const;
 
 const currentActiveDefaultBuildings = {
   "crusher-large-copper": 1,
+  "crusher-large-quartz": 1,
+  "crusher-large-quartz-crushed": 2,
 } as const;
 
 /** Current Default-area values manually confirmed from the game but not snapshot-synced yet. */
@@ -54,8 +52,11 @@ export const modeledDefaultRecipeIds = [
   "cracking-unit-fuel-gas-diesel",
   "crystallizer-alumina",
   "crystallizer-silicon-wafer",
+  "crusher-large-copper",
   "crusher-large-gold-crushing",
   "crusher-large-gold-milling",
+  "crusher-large-quartz",
+  "crusher-large-quartz-crushed",
   "diamond-reactor-synthesis",
   "exhaust-scrubber-limestone",
   "fermentation-tank-antibiotics",
@@ -156,6 +157,8 @@ const defaultBase: Module = {
     "arc-furnace-ii-glass-mix": 2,
     "mixer-ii-glass-mix-acid": 1,
     "crusher-large-copper": 1,
+    "crusher-large-quartz": 1,
+    "crusher-large-quartz-crushed": 2,
     "gold-furnace-scrap": 1,
     "gold-furnace-concentrate": 1,
     "settling-tank-gold": 2,
@@ -284,6 +287,8 @@ const defaultBase: Module = {
         "arc-furnace-ii-glass-mix": 2,
         "mixer-ii-glass-mix-acid": 1,
         "crusher-large-copper": 1,
+        "crusher-large-quartz": 1,
+        "crusher-large-quartz-crushed": 2,
         "gold-furnace-scrap": 1,
         "gold-furnace-concentrate": 1,
         "settling-tank-gold": 2,
@@ -400,6 +405,8 @@ const defaultBase: Module = {
         "anaerobic-digester-vegetables": 2,
         "anaerobic-digester-poppy": 2,
         "cracking-unit-fuel-gas-diesel": 2,
+        "crusher-large-quartz": 1,
+        "crusher-large-quartz-crushed": 2,
         ...plannedDefaultBuildings,
       },
       dataSources: {

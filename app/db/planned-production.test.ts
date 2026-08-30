@@ -8,6 +8,7 @@ import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maint
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { baseConfig } from "./config";
+import { activeContracts } from "./contracts";
 import { defaultActiveEdicts } from "./edicts";
 import {
   DEFAULT_MODULE_ID,
@@ -236,5 +237,46 @@ describe("planned advanced production", () => {
       .toBeGreaterThan(2);
     expect(stats.workers).toBe(0);
     expect(stats.computingTflops).toBe(0);
+  });
+
+  it("replaces map-mined Sand with the demand-balanced Quartz contract", () => {
+    const factory = calculateFactoryTotal(modules, {
+      contracts: activeContracts,
+      contractsProfitMultiplier: 1.14,
+      recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+      outputModifiers,
+    });
+    const quartzContract = factory.contractResults.find(
+      ({ contract }) => contract.id === "quartz-for-coal",
+    );
+    const sandMine = factory.calculation.sourceResults.find(
+      ({ recipe }) => recipe.id === "sand-map-mine",
+    );
+    const quartzCrusher = factory.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "crusher-large-quartz",
+    );
+    const sandCrusher = factory.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "crusher-large-quartz-crushed",
+    );
+
+    expect(quartzContract?.imported ?? 0).toBeGreaterThan(0);
+    expect(quartzContract?.uncoveredImported).toBeCloseTo(0, 6);
+    expect(sandMine?.actualOutputs[0]?.quantity).toBeCloseTo(0, 6);
+    expect(quartzCrusher?.actualOutputs.find(
+      ({ resourceId }) => resourceId === "quartzCrushed",
+    )?.quantity).toBeCloseTo(quartzContract?.imported ?? 0, 6);
+    expect(quartzCrusher).toMatchObject({
+      activeBuildings: 1,
+      builtBuildings: 1,
+      dataSource: "modeled",
+    });
+    expect(sandCrusher).toMatchObject({
+      activeBuildings: 2,
+      builtBuildings: 2,
+      dataSource: "modeled",
+    });
+    expect(sandCrusher?.actualOutputs.find(
+      ({ resourceId }) => resourceId === "sand",
+    )?.quantity).toBeCloseTo(quartzContract?.imported ?? 0, 6);
   });
 });

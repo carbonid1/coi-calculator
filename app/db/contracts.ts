@@ -277,7 +277,7 @@ export const activeContracts: ActiveContract[] = [
     shipping: {
       fuelResourceId: "hydrogen",
       saveFuel: true,
-      // Conservative proxy from the measured 426-second Iron Ore route.
+      // Observed full Coal -> Quartz round trip.
       roundTripDurationProductionCycles: 426 / 60,
     },
   }),
@@ -308,6 +308,35 @@ export const activeContracts: ActiveContract[] = [
       saveFuel: true,
       // Conservative proxy from the measured 427-second Uranium route.
       roundTripDurationProductionCycles: 427 / 60,
+    },
+  }),
+  defineActiveContract("quartz-for-coal", {
+    importedPerProductionCycle: null,
+    infrastructure: {
+      cargoDepotSize: 4,
+      cargoShipWorkers: 22,
+      cargoModules: [
+        {
+          buildingName: "Loose Module (L)",
+          count: 1,
+          direction: "export",
+          resourceId: "coal",
+          workersPerModule: 5,
+        },
+        {
+          buildingName: "Loose Module (L)",
+          count: 3,
+          direction: "import",
+          resourceId: "quartz",
+          workersPerModule: 5,
+        },
+      ],
+    },
+    shipping: {
+      fuelResourceId: "hydrogen",
+      saveFuel: true,
+      // Conservative proxy from the measured 426-second Iron Ore route.
+      roundTripDurationProductionCycles: 426 / 60,
     },
   }),
 ];

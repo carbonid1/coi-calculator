@@ -234,6 +234,24 @@ Unity cost (0.2 rather than 0.3).
   Ethanol, 38.4615 Sugar, 28.8462 Ammonia, 76.9231 Oxygen, 38.4615 Hydrogen
   Fluoride, 38.4615 Poppy, 19.2308 Acid, and 19.2308 Glass.
 
+The active Coal -> Quartz plan replaces the Sand map mine through the two-stage
+Quartz crushing chain. It uses a size-4 ship with one Loose Module (L) export
+and three Loose Module (L) imports. The 30 August 2026 synced plan imports
+137.848 Quartz per production cycle and exports 59.934 Coal. Contracts
+Profitability step 7 rounds the base 20-Quartz bundle to 23 Quartz for each 10
+Coal, matching the game's full shipment of 800 Coal -> 1,840 Quartz. Three
+return modules provide 2,400 units of physical space; the focused exchange caps
+the usable shipment at 1,840 Quartz. The observed 426-second (7.1-cycle) round
+trip can therefore deliver at most 259.1549 Quartz per production cycle.
+
+The confirmed current conversion chain has one active Crusher (Large) for
+Quartz and two active Crushers (Large) for Quartz Crushed. Their Sand ceiling is
+192 per production cycle, leaving 54.152 Sand per production cycle of rate
+headroom over current demand. The ship and four occupied cargo modules add 42
+workers; the active crushers use another 18. With Ship Fuel Use level 6 and Save
+Fuel enabled, the ship uses 272 Hydrogen per trip and averages 20.378 Hydrogen
+per production cycle at the synced demand.
+
 Verified in `CargoShipsData`, `TrucksData`, `CargoShipV1`, `CargoShipV2`,
 `CargoShipAssignedToDockJobProviderBase`, the large cargo-module prototypes,
 `AssemblyData`, `FermentationTankData`, and `ChemicalPlantData`.

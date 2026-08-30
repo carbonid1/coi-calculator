@@ -90,6 +90,7 @@ it("runs both Cracking Units at full throughput", () => {
     line.moduleId === "general"
     && line.recipe.id === "cracking-unit-fuel-gas-diesel"
   ));
+
   expect(activeCrackingUnit?.supplyRatio).toBe(1);
 });
 
@@ -335,7 +336,7 @@ it("leaves Copper smelting, casting, and electrolysis to the synced Copper area"
 
 });
 
-it("plans one additional large Copper Ore crusher without marking it built", () => {
+it("models the existing large Copper Ore crusher without an expansion target", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -344,16 +345,14 @@ it("plans one additional large Copper Ore crusher without marking it built", () 
   );
 
   expect(line).toMatchObject({
-    activeBuildings: 2,
+    activeBuildings: 1,
     currentActiveBuildings: 1,
     builtBuildings: 1,
     constructionGhosts: 0,
-    unplacedPlannedBuildings: 1,
-    dataSource: "planned",
+    unplacedPlannedBuildings: 0,
+    dataSource: "modeled",
   });
-  expect(unplacedPlannedDefaultBuildings).toEqual({
-    "crusher-large-copper": 1,
-  });
+  expect(unplacedPlannedDefaultBuildings).toEqual({});
 });
 
 it("covers the silicon and Electronics II/III factory demand", () => {
@@ -667,6 +666,8 @@ it("keeps the completed advanced recipes current in their operating modules", ()
   expect(Object.keys(plannedNewDefaultBuildings)).toHaveLength(0);
   expect(modeledDefaultRecipeIds).toEqual(expect.arrayContaining([
     "assembly-v-composite-panel",
+    "crusher-large-quartz",
+    "crusher-large-quartz-crushed",
     "lens-polisher",
   ]));
   expect(generalLines).toHaveLength(2);

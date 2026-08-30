@@ -27,6 +27,7 @@ const scaleQuantityLikeGame = (quantity: number, multiplier: number) => (
 export const calculateContractShipping = (
   contract: ActiveContract,
   shipsFuelUseMultiplier = 1,
+  contractsProfitMultiplier = 1,
 ) => {
   const shipSize = contract.plan.infrastructure.cargoDepotSize;
   const capacityMultiplier = cargoShipping.capacityMultiplierByShipSize[shipSize];
@@ -38,9 +39,29 @@ export const calculateContractShipping = (
     (total, module) => total + (module.direction === "import" ? module.count : 0),
     0,
   );
-  const importedPerTrip = importModuleCount
+  const exportModuleCount = contract.plan.infrastructure.cargoModules.reduce(
+    (total, module) => total + (module.direction === "export" ? module.count : 0),
+    0,
+  );
+  const importCargoCapacity = importModuleCount
     * cargoShipping.onboardLargeModuleCapacity
     * capacityMultiplier;
+  const exportCargoCapacity = exportModuleCount
+    * cargoShipping.onboardLargeModuleCapacity
+    * capacityMultiplier;
+  const effectiveImportedQuantity = scaleQuantityLikeGame(
+    contract.exchange.imported.quantity,
+    Math.max(0.01, contractsProfitMultiplier),
+  );
+  const exchangeLimitedImportedPerTrip = contract.exchange.exported.quantity > 0
+    ? exportCargoCapacity
+      * effectiveImportedQuantity
+      / contract.exchange.exported.quantity
+    : 0;
+  const importedPerTrip = Math.min(
+    importCargoCapacity,
+    exchangeLimitedImportedPerTrip,
+  );
   const fuelResourceMultiplier = contract.plan.shipping.fuelResourceId === "hydrogen"
     ? cargoShipping.hydrogenDieselEnergyRatio
     : 1;
@@ -126,14 +147,18 @@ export const applyContracts = (
     const requestedImported = contract.plan.importedPerProductionCycle
       ?? demandBalancedImports.get(contract.id)
       ?? requiredImported;
-    const shipping = calculateContractShipping(contract, shipsFuelUseMultiplier);
-    const imported = shipping.maxImportedPerProductionCycle === null
-      ? requestedImported
-      : Math.min(requestedImported, shipping.maxImportedPerProductionCycle);
     const effectiveImportedQuantity = scaleQuantityLikeGame(
       contract.exchange.imported.quantity,
       Math.max(0.01, contractsProfitMultiplier),
     );
+    const shipping = calculateContractShipping(
+      contract,
+      shipsFuelUseMultiplier,
+      contractsProfitMultiplier,
+    );
+    const imported = shipping.maxImportedPerProductionCycle === null
+      ? requestedImported
+      : Math.min(requestedImported, shipping.maxImportedPerProductionCycle);
     const exported = effectiveImportedQuantity > 0
       ? imported * contract.exchange.exported.quantity / effectiveImportedQuantity
       : 0;
