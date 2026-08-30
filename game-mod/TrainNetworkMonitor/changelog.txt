@@ -1,3 +1,10 @@
+0.4.0
+- Added a live toolbar dashboard for non-empty Train Networks.
+- Added occupied / total train counts for each network and each wagon type present: Unit, Loose, Fluid, Molten, Universal, Mixed, and an unlabeled generic train row.
+- Added busy / total Waiting bay counts, including trains currently servicing or heading to a bay.
+- Kept the existing grouped traffic-jam alert, focus cycling, and optional pause behavior unchanged.
+- Dashboard values update only while its window is open and keep no history or saved state.
+
 0.3.9
 - Removed the incorrect Trains expansion dependency. Trains are part of the base game, and the monitor works with or without the expansion.
 - Fixed COI Hub installation, which previously tried to download the expansion as a Hub mod.

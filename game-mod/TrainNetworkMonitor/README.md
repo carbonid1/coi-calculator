@@ -1,7 +1,15 @@
 # Train Network Monitor
 
-Standalone Captain of Industry 0.8.7 mod that raises a continuous critical
-notification when the train fleet is traffic-jammed.
+Standalone Captain of Industry 0.8.7 mod with a live Train Network capacity
+dashboard and a continuous critical notification for fleet-wide traffic jams.
+
+The toolbar dashboard shows only non-empty Train Networks. Each network reports
+occupied / total trains, busy / total Waiting bays, and occupied / total trains
+for every wagon type present: Unit, Loose, Fluid, Molten, Universal, Mixed, or
+an unlabeled generic train row when no cargo-wagon type applies. A train is free
+only while it is waiting for a network job; dispatched, returning, refueling,
+paused, and otherwise unavailable trains count as occupied. The dashboard keeps
+no history, makes no capacity decisions, and uses no warning thresholds.
 
 A train counts as stuck only when it has remained in `Waiting for free track`,
 `Waiting for super block`, or `Waiting for bidirectional super block` for the
@@ -32,9 +40,10 @@ creates it when loaded first, so compatible mods share one button and window.
 The standalone settings button remains as a fallback if the cooperative hub
 cannot initialize.
 
-The mod changes no train behavior. It stores only these two settings in the
-save and can be used without the CoI Calculator Exporter. It works with the
-base game's trains and with trains added by the official Trains expansion.
+The mod changes no train behavior. The dashboard stores no data, and only the
+two alert settings are stored in the save. The mod can be used without the CoI
+Calculator Exporter and works with the base game's trains and with trains added
+by the official Trains expansion.
 
 Build from the repository root:
 

@@ -10,6 +10,7 @@ using Mafi.Core.GameLoop;
 using Mafi.Core.Input;
 using Mafi.Core.Mods;
 using Mafi.Core.Notifications;
+using Mafi.Core.Products;
 using Mafi.Core.Prototypes;
 using Mafi.Core.Simulation;
 using Mafi.Core.Trains;
@@ -51,6 +52,8 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
     private IGameLoopEvents m_gameLoopEvents;
     private IInputScheduler m_inputScheduler;
     private TrainNetworkSettingsController m_settingsController;
+    private TrainNetworkDashboardController m_dashboardController;
+    private TrainNetworksManager m_trainNetworksManager;
     private TrainsManager m_trainsManager;
     private ISimLoopEvents m_simLoopEvents;
 
@@ -105,13 +108,14 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
     {
         m_inputScheduler = resolver.Resolve<IInputScheduler>();
         m_trainsManager = resolver.Resolve<TrainsManager>();
+        m_trainNetworksManager = resolver.Resolve<TrainNetworksManager>();
         m_notificationsManager = resolver.Resolve<INotificationsManager>();
         m_notificationsManager.ClearAllNotificationsWithId(FleetJamNotificationId);
         m_notificationsManager.ClearAllNotificationsWithId(GroupedFleetJamNotificationId);
         m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
         m_simLoopEvents.UpdateAfterCmdProc.AddNonSaveable(this, onSimUpdate);
         m_gameLoopEvents = resolver.Resolve<IGameLoopEvents>();
-        m_gameLoopEvents.RegisterRendererInitState(this, () => initializeSettingsUi(resolver));
+        m_gameLoopEvents.RegisterRendererInitState(this, () => initializeUi(resolver));
 
         clearTrainWaitTracking();
         updateNotification();
@@ -124,6 +128,19 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
 
     public void Dispose()
     {
+        if (m_dashboardController != null)
+        {
+            try
+            {
+                m_dashboardController.Dispose();
+            }
+            catch
+            {
+            }
+
+            m_dashboardController = null;
+        }
+
         if (m_settingsController != null)
         {
             try
@@ -156,13 +173,30 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
         m_inputScheduler = null;
         m_gameLoopEvents = null;
         m_notificationsManager = null;
+        m_trainNetworksManager = null;
         m_trainsManager = null;
         m_isRedAlertActive = false;
         m_pauseHandledForCurrentAlert = false;
     }
 
-    private void initializeSettingsUi(DependencyResolver resolver)
+    private void initializeUi(DependencyResolver resolver)
     {
+        try
+        {
+            m_dashboardController = new TrainNetworkDashboardController(
+                resolver.Resolve<ControllerContext>(),
+                resolver.Resolve<ToolbarHud>(),
+                m_trainNetworksManager,
+                m_simLoopEvents);
+            Log.Info("Train Network Monitor: live network dashboard enabled.");
+        }
+        catch (Exception exception)
+        {
+            Log.Info(
+                "Train Network Monitor: live network dashboard unavailable: "
+                + exception);
+        }
+
         try
         {
             ModSettings.EnsureInitialized(
@@ -400,6 +434,632 @@ public sealed class TrainNetworkMonitorMod : IMod, IDisposable
             Duration = duration;
         }
     }
+}
+
+internal sealed class TrainNetworkDashboardController
+    : WindowController<TrainNetworkDashboardWindow>, IToolbarItemController
+{
+    private const string NetworkIconPath =
+        "Assets/Unity/UserInterface/Trains/TrainNetwork.svg";
+    // Train networks run their own dispatch pass every 11 simulation updates.
+    // Matching that cadence keeps the dashboard current without redrawing it
+    // on every simulation tick.
+    private const int RefreshIntervalUpdates = 11;
+
+    private readonly TrainNetworksManager m_trainNetworksManager;
+    private ISimLoopEvents m_simLoopEvents;
+    private int m_updatesUntilRefresh;
+
+    public TrainNetworkDashboardController(
+        ControllerContext context,
+        ToolbarHud toolbarHud,
+        TrainNetworksManager trainNetworksManager,
+        ISimLoopEvents simLoopEvents)
+        : base(context, null)
+    {
+        m_trainNetworksManager = trainNetworksManager;
+        m_simLoopEvents = simLoopEvents;
+        toolbarHud.AddMainMenuButton(
+            new LocStrFormatted("Train Network Monitor"),
+            this,
+            NetworkIconPath,
+            220f,
+            null);
+        m_simLoopEvents.UpdateEndForUi.AddNonSaveable(this, onUiUpdate);
+    }
+
+    public event Action<IToolbarItemController> VisibilityChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public bool IsVisible { get { return true; } }
+
+    public bool DeactivateShortcutsIfNotVisible { get { return false; } }
+
+    public void Dispose()
+    {
+        if (m_simLoopEvents != null)
+        {
+            try
+            {
+                m_simLoopEvents.UpdateEndForUi.RemoveNonSaveable(this, onUiUpdate);
+            }
+            catch
+            {
+            }
+
+            m_simLoopEvents = null;
+        }
+
+        DeactivateSelf();
+    }
+
+    protected override TrainNetworkDashboardWindow CreateWindow()
+    {
+        return new TrainNetworkDashboardWindow(m_trainNetworksManager);
+    }
+
+    protected override void OnActivate()
+    {
+        base.OnActivate();
+        m_updatesUntilRefresh = RefreshIntervalUpdates;
+        if (HasWindow)
+        {
+            Window.Refresh();
+        }
+    }
+
+    private void onUiUpdate()
+    {
+        if (!IsActive || !HasWindow)
+        {
+            return;
+        }
+
+        m_updatesUntilRefresh--;
+        if (m_updatesUntilRefresh > 0)
+        {
+            return;
+        }
+
+        m_updatesUntilRefresh = RefreshIntervalUpdates;
+        Window.Refresh();
+    }
+}
+
+internal sealed class TrainNetworkDashboardWindow : Window
+{
+    private readonly TrainNetworksManager m_trainNetworksManager;
+    private readonly Column m_networksColumn;
+    private readonly List<TrainNetworkDashboardNetworkRow> m_networkRows =
+        new List<TrainNetworkDashboardNetworkRow>();
+
+    public TrainNetworkDashboardWindow(TrainNetworksManager trainNetworksManager)
+        : base(new LocStrFormatted("Train Network Monitor"), false)
+    {
+        m_trainNetworksManager = trainNetworksManager;
+        WindowSize(560.px(), 720.px());
+        MakeMovableAndEnablePositionSaving();
+        EnablePinning();
+
+        m_networksColumn = new Column(6.pt());
+        m_networksColumn.AlignItemsStretch().Padding(6.pt());
+        ScrollColumn scroll = new ScrollColumn();
+        scroll.Add(m_networksColumn);
+        scroll.AlignItemsStretch().FlexGrow(1);
+        AddBodySingle(scroll);
+    }
+
+    public void Refresh()
+    {
+        List<TrainNetworkDashboardSnapshot> snapshots =
+            TrainNetworkDashboardSnapshotBuilder.Build(m_trainNetworksManager);
+
+        if (!hasSameStructure(snapshots))
+        {
+            rebuild(snapshots);
+        }
+
+        for (int i = 0; i < snapshots.Count; i++)
+        {
+            m_networkRows[i].Value(snapshots[i]);
+        }
+    }
+
+    private bool hasSameStructure(List<TrainNetworkDashboardSnapshot> snapshots)
+    {
+        if (snapshots.Count != m_networkRows.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < snapshots.Count; i++)
+        {
+            if (!m_networkRows[i].MatchesStructure(snapshots[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void rebuild(List<TrainNetworkDashboardSnapshot> snapshots)
+    {
+        m_networksColumn.Clear();
+        m_networkRows.Clear();
+        for (int i = 0; i < snapshots.Count; i++)
+        {
+            TrainNetworkDashboardNetworkRow row =
+                new TrainNetworkDashboardNetworkRow(snapshots[i]);
+            m_networkRows.Add(row);
+            m_networksColumn.Add(row);
+        }
+    }
+}
+
+internal sealed class TrainNetworkDashboardNetworkRow : Column
+{
+    private const string TrainIconPath =
+        "Assets/Unity/UserInterface/Toolbar/TrainLines.svg";
+    private const string WaitingBayIconPath =
+        "Assets/Unity/UserInterface/Trains/TrainDestination.svg";
+
+    private readonly int m_networkId;
+    private readonly UiComponent m_colorSwatch;
+    private readonly Label m_nameLabel;
+    private readonly TrainNetworkDashboardOccupancy m_trainOccupancy;
+    private readonly TrainNetworkDashboardMetricRow m_waitingBayRow;
+    private readonly List<TrainNetworkDashboardMetricRow> m_typeRows =
+        new List<TrainNetworkDashboardMetricRow>();
+    private readonly List<TrainNetworkDashboardWagonKind> m_typeKinds =
+        new List<TrainNetworkDashboardWagonKind>();
+
+    public TrainNetworkDashboardNetworkRow(TrainNetworkDashboardSnapshot snapshot)
+        : base(4.pt())
+    {
+        m_networkId = snapshot.NetworkId;
+        this.AlignItemsStretch()
+            .Padding(8.pt())
+            .Background(Theme.BackgroundPanelLike)
+            .Border(1.pt(), Theme.BorderColor, 2);
+
+        m_colorSwatch = new UiComponent()
+            .Width(5.px())
+            .Height(24.px())
+            .NoShrink();
+        m_nameLabel = new Label(snapshot.Name).FontBold().FlexGrow(1);
+        Icon trainIcon = new Icon(TrainIconPath)
+            .Width(26.px())
+            .Height(22.px())
+            .NoShrink();
+        m_trainOccupancy = new TrainNetworkDashboardOccupancy();
+        m_trainOccupancy.Tooltip(new LocStrFormatted("Occupied / total trains"));
+
+        Row header = new Row(6.pt());
+        header.AlignItemsCenter();
+        header.Add(m_colorSwatch);
+        header.Add(m_nameLabel);
+        header.Add(trainIcon);
+        header.Add(m_trainOccupancy);
+        Add(header);
+
+        m_waitingBayRow = new TrainNetworkDashboardMetricRow(
+            WaitingBayIconPath,
+            new LocStrFormatted(Tr.TrainNetwork_WaitingBays.ToString()),
+            true,
+            new LocStrFormatted("Busy / total waiting bays"));
+        Add(m_waitingBayRow);
+
+        for (int i = 0; i < snapshot.TypeRows.Count; i++)
+        {
+            TrainNetworkDashboardTypeSnapshot typeSnapshot = snapshot.TypeRows[i];
+            TrainNetworkDashboardMetricRow typeRow =
+                TrainNetworkDashboardMetricRow.ForWagonType(typeSnapshot);
+            m_typeKinds.Add(typeSnapshot.Kind);
+            m_typeRows.Add(typeRow);
+            Add(typeRow);
+        }
+
+        Value(snapshot);
+    }
+
+    public bool MatchesStructure(TrainNetworkDashboardSnapshot snapshot)
+    {
+        if (snapshot.NetworkId != m_networkId
+            || snapshot.TypeRows.Count != m_typeKinds.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < snapshot.TypeRows.Count; i++)
+        {
+            if (snapshot.TypeRows[i].Kind != m_typeKinds[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public void Value(TrainNetworkDashboardSnapshot snapshot)
+    {
+        m_colorSwatch.Background(snapshot.Color);
+        m_nameLabel.Value(snapshot.Name);
+        m_trainOccupancy.Value(snapshot.OccupiedTrains, snapshot.TotalTrains);
+        m_waitingBayRow.Value(snapshot.BusyWaitingBays, snapshot.TotalWaitingBays);
+
+        for (int i = 0; i < snapshot.TypeRows.Count; i++)
+        {
+            TrainNetworkDashboardTypeSnapshot typeSnapshot = snapshot.TypeRows[i];
+            m_typeRows[i].Value(typeSnapshot.Occupied, typeSnapshot.Total);
+        }
+    }
+}
+
+internal sealed class TrainNetworkDashboardMetricRow : Row
+{
+    private const string MixedIconPath =
+        "Assets/Unity/UserInterface/Trains/WagonEmpty.svg";
+    private const string GenericTrainIconPath =
+        "Assets/Unity/UserInterface/Toolbar/TrainLines.svg";
+
+    private readonly TrainNetworkDashboardOccupancy m_occupancy;
+
+    public TrainNetworkDashboardMetricRow(
+        string iconPath,
+        LocStrFormatted label,
+        bool showLabel,
+        LocStrFormatted tooltip)
+        : this(new Icon(iconPath), label, showLabel, tooltip)
+    {
+    }
+
+    private TrainNetworkDashboardMetricRow(
+        Icon icon,
+        LocStrFormatted label,
+        bool showLabel,
+        LocStrFormatted tooltip)
+        : base(6.pt())
+    {
+        this.AlignItemsCenter().PaddingLeft(14.pt());
+        icon.Width(30.px()).Height(22.px()).NoShrink().NoTint();
+        Add(icon);
+
+        if (showLabel)
+        {
+            Add(new Label(label).FontSize(13).Width(110.px()).NoShrink());
+        }
+        else
+        {
+            Add(new UiComponent().Width(110.px()).NoShrink());
+        }
+
+        m_occupancy = new TrainNetworkDashboardOccupancy();
+        m_occupancy.Tooltip(tooltip);
+        Add(m_occupancy);
+    }
+
+    public static TrainNetworkDashboardMetricRow ForWagonType(
+        TrainNetworkDashboardTypeSnapshot snapshot)
+    {
+        LocStrFormatted label = labelFor(snapshot.Kind);
+        bool showLabel = snapshot.Kind != TrainNetworkDashboardWagonKind.Generic;
+        Icon icon;
+        if (snapshot.IconProto != null
+            && snapshot.Kind != TrainNetworkDashboardWagonKind.Mixed
+            && snapshot.Kind != TrainNetworkDashboardWagonKind.Generic)
+        {
+            icon = new Icon(snapshot.IconProto, true, true);
+        }
+        else
+        {
+            string iconPath = snapshot.Kind == TrainNetworkDashboardWagonKind.Mixed
+                ? MixedIconPath
+                : GenericTrainIconPath;
+            icon = new Icon(iconPath);
+        }
+
+        return new TrainNetworkDashboardMetricRow(
+            icon,
+            label,
+            showLabel,
+            new LocStrFormatted("Occupied / total trains"));
+    }
+
+    public void Value(int occupied, int total)
+    {
+        m_occupancy.Value(occupied, total);
+    }
+
+    private static LocStrFormatted labelFor(TrainNetworkDashboardWagonKind kind)
+    {
+        switch (kind)
+        {
+            case TrainNetworkDashboardWagonKind.Unit:
+                return new LocStrFormatted(Tr.ProductType__Countable.ToString());
+            case TrainNetworkDashboardWagonKind.Loose:
+                return new LocStrFormatted(Tr.ProductType__Loose.ToString());
+            case TrainNetworkDashboardWagonKind.Fluid:
+                return new LocStrFormatted(Tr.ProductType__Fluid.ToString());
+            case TrainNetworkDashboardWagonKind.Molten:
+                return new LocStrFormatted(Tr.ProductType__Molten.ToString());
+            case TrainNetworkDashboardWagonKind.Universal:
+                return new LocStrFormatted(Tr.ProductType__Universal.ToString());
+            case TrainNetworkDashboardWagonKind.Mixed:
+                return new LocStrFormatted("Mixed");
+            default:
+                return new LocStrFormatted("");
+        }
+    }
+}
+
+internal sealed class TrainNetworkDashboardOccupancy : Row
+{
+    private const int BarWidth = 112;
+
+    private readonly Label m_valueLabel;
+    private readonly UiComponent m_occupiedBar;
+    private readonly UiComponent m_freeBar;
+    private int m_lastOccupied = -1;
+    private int m_lastTotal = -1;
+    private int m_lastOccupiedWidth = -1;
+
+    public TrainNetworkDashboardOccupancy()
+        : base(6.pt())
+    {
+        this.AlignItemsCenter().NoShrink();
+        m_valueLabel = new Label(new LocStrFormatted("0/0"))
+            .FontSize(13)
+            .TextAlign(TextAlignment.RightMiddle)
+            .Width(46.px())
+            .NoShrink();
+        m_occupiedBar = new UiComponent()
+            .Height(7.px())
+            .Background(Theme.ImportantColor)
+            .NoShrink();
+        m_freeBar = new UiComponent()
+            .Height(7.px())
+            .Background(Theme.BackgroundDark)
+            .NoShrink();
+        Row bar = new Row(0.pt());
+        bar.Width(BarWidth.px())
+            .Height(9.px())
+            .Border(1.pt(), Theme.BorderColor, 2)
+            .NoShrink();
+        bar.Add(m_occupiedBar);
+        bar.Add(m_freeBar);
+        Add(m_valueLabel);
+        Add(bar);
+        Value(0, 0);
+    }
+
+    public void Value(int occupied, int total)
+    {
+        total = Math.Max(0, total);
+        occupied = Math.Max(0, Math.Min(occupied, total));
+        if (occupied != m_lastOccupied || total != m_lastTotal)
+        {
+            m_lastOccupied = occupied;
+            m_lastTotal = total;
+            m_valueLabel.Value(new LocStrFormatted(occupied + "/" + total));
+        }
+
+        int occupiedWidth = total == 0
+            ? 0
+            : (int)Math.Round((double)occupied * BarWidth / total);
+        occupiedWidth = Math.Max(0, Math.Min(BarWidth, occupiedWidth));
+        if (occupiedWidth == m_lastOccupiedWidth)
+        {
+            return;
+        }
+
+        m_lastOccupiedWidth = occupiedWidth;
+        m_occupiedBar.Width(occupiedWidth.px());
+        m_freeBar.Width((BarWidth - occupiedWidth).px());
+    }
+}
+
+internal static class TrainNetworkDashboardSnapshotBuilder
+{
+    private const int WagonKindCount = 7;
+
+    public static List<TrainNetworkDashboardSnapshot> Build(
+        TrainNetworksManager trainNetworksManager)
+    {
+        List<TrainNetworkDashboardSnapshot> snapshots =
+            new List<TrainNetworkDashboardSnapshot>();
+        foreach (KeyValuePair<TrainNetworkId, TrainNetwork> pair
+            in trainNetworksManager.Networks)
+        {
+            TrainNetworkDashboardSnapshot snapshot = buildNetwork(pair.Value);
+            if (snapshot.TotalTrains > 0)
+            {
+                snapshots.Add(snapshot);
+            }
+        }
+
+        snapshots.Sort((left, right) => left.NetworkId.CompareTo(right.NetworkId));
+        return snapshots;
+    }
+
+    private static TrainNetworkDashboardSnapshot buildNetwork(TrainNetwork network)
+    {
+        int[] totals = new int[WagonKindCount];
+        int[] occupied = new int[WagonKindCount];
+        IProtoWithIcon[] iconProtos = new IProtoWithIcon[WagonKindCount];
+        int totalTrains = 0;
+        int occupiedTrains = 0;
+
+        foreach (Train train in network.Trains)
+        {
+            if (train.IsDestroyed || train.IsDespawning)
+            {
+                continue;
+            }
+
+            bool isOccupied = network.GetTrainState(train)
+                != TrainNetwork.NetworkStateForUi.WaitingForJob;
+            TrainNetworkDashboardWagonKind kind = classify(train);
+            int kindIndex = (int)kind;
+            totalTrains++;
+            totals[kindIndex]++;
+            if (isOccupied)
+            {
+                occupiedTrains++;
+                occupied[kindIndex]++;
+            }
+
+            if (iconProtos[kindIndex] == null
+                && kind != TrainNetworkDashboardWagonKind.Mixed
+                && kind != TrainNetworkDashboardWagonKind.Generic
+                && train.CargoWagons.Length > 0)
+            {
+                iconProtos[kindIndex] = train.CargoWagons[0].Prototype;
+            }
+        }
+
+        int busyWaitingBays = 0;
+        foreach (ITrainStationRoot waitingBay in network.WaitingBays)
+        {
+            Option<TrainStationGroup> group = waitingBay.Group;
+            if (group.HasValue && group.Value.GetTotalServicingTrainsCount() > 0)
+            {
+                busyWaitingBays++;
+            }
+        }
+
+        List<TrainNetworkDashboardTypeSnapshot> typeRows =
+            new List<TrainNetworkDashboardTypeSnapshot>();
+        for (int i = 0; i < WagonKindCount; i++)
+        {
+            if (totals[i] > 0)
+            {
+                typeRows.Add(new TrainNetworkDashboardTypeSnapshot(
+                    (TrainNetworkDashboardWagonKind)i,
+                    occupied[i],
+                    totals[i],
+                    iconProtos[i]));
+            }
+        }
+
+        return new TrainNetworkDashboardSnapshot(
+            network.Id.Value,
+            network.Name,
+            network.Color.Primary,
+            occupiedTrains,
+            totalTrains,
+            busyWaitingBays,
+            network.WaitingBays.Count,
+            typeRows);
+    }
+
+    private static TrainNetworkDashboardWagonKind classify(Train train)
+    {
+        if (train.CargoWagons.Length == 0)
+        {
+            return TrainNetworkDashboardWagonKind.Generic;
+        }
+
+        if (train.GetHasMixedWagonTypes())
+        {
+            return TrainNetworkDashboardWagonKind.Mixed;
+        }
+
+        ProductType productType = train.CargoWagons[0].Prototype.ProductType;
+        if (productType.ExactlyMatches(CountableProductProto.ProductType))
+        {
+            return TrainNetworkDashboardWagonKind.Unit;
+        }
+
+        if (productType.ExactlyMatches(LooseProductProto.ProductType))
+        {
+            return TrainNetworkDashboardWagonKind.Loose;
+        }
+
+        if (productType.ExactlyMatches(FluidProductProto.ProductType))
+        {
+            return TrainNetworkDashboardWagonKind.Fluid;
+        }
+
+        if (productType.ExactlyMatches(MoltenProductProto.ProductType))
+        {
+            return TrainNetworkDashboardWagonKind.Molten;
+        }
+
+        if (productType.ExactlyMatches(ProductType.NON_MOLTEN))
+        {
+            return TrainNetworkDashboardWagonKind.Universal;
+        }
+
+        return TrainNetworkDashboardWagonKind.Generic;
+    }
+}
+
+internal sealed class TrainNetworkDashboardSnapshot
+{
+    public readonly int NetworkId;
+    public readonly LocStrFormatted Name;
+    public readonly ColorRgba Color;
+    public readonly int OccupiedTrains;
+    public readonly int TotalTrains;
+    public readonly int BusyWaitingBays;
+    public readonly int TotalWaitingBays;
+    public readonly List<TrainNetworkDashboardTypeSnapshot> TypeRows;
+
+    public TrainNetworkDashboardSnapshot(
+        int networkId,
+        LocStrFormatted name,
+        ColorRgba color,
+        int occupiedTrains,
+        int totalTrains,
+        int busyWaitingBays,
+        int totalWaitingBays,
+        List<TrainNetworkDashboardTypeSnapshot> typeRows)
+    {
+        NetworkId = networkId;
+        Name = name;
+        Color = color;
+        OccupiedTrains = occupiedTrains;
+        TotalTrains = totalTrains;
+        BusyWaitingBays = busyWaitingBays;
+        TotalWaitingBays = totalWaitingBays;
+        TypeRows = typeRows;
+    }
+}
+
+internal sealed class TrainNetworkDashboardTypeSnapshot
+{
+    public readonly TrainNetworkDashboardWagonKind Kind;
+    public readonly int Occupied;
+    public readonly int Total;
+    public readonly IProtoWithIcon IconProto;
+
+    public TrainNetworkDashboardTypeSnapshot(
+        TrainNetworkDashboardWagonKind kind,
+        int occupied,
+        int total,
+        IProtoWithIcon iconProto)
+    {
+        Kind = kind;
+        Occupied = occupied;
+        Total = total;
+        IconProto = iconProto;
+    }
+}
+
+internal enum TrainNetworkDashboardWagonKind
+{
+    Unit = 0,
+    Loose = 1,
+    Fluid = 2,
+    Molten = 3,
+    Universal = 4,
+    Mixed = 5,
+    Generic = 6,
 }
 
 internal sealed class TrainNetworkSettingsController
