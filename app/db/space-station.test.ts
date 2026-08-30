@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/building-diagnostics";
 import { calculateBuildingStats } from "../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
+import { createLiveAreaModules } from "../helpers/live-area-modules/live-area-modules";
 import {
   getPlanMismatchSummaries,
   getPlannedBuildSummaries,
@@ -11,7 +12,13 @@ import { baseConfig } from "./config";
 import { defaultArea as general } from "./modules/default";
 import { processSteam } from "./modules/process-steam";
 import { createResearchModule } from "./modules/research";
-import { createSpaceStationModule, spaceStation } from "./modules/space-station";
+import {
+  createLegacySpaceStationArea,
+  createSpaceStationModule,
+  selectSpaceStationZone,
+  shouldUseSpaceStationFallback,
+  spaceStation,
+} from "./modules/space-station";
 import { recipes } from "./recipes";
 import {
   calculateSpaceStationConstruction,
@@ -23,6 +30,34 @@ import {
 } from "./space-station";
 
 describe("Space Station", () => {
+  it("keeps the station fallback only for snapshots without area inventory", () => {
+    expect(shouldUseSpaceStationFallback()).toBe(true);
+    expect(shouldUseSpaceStationFallback(15)).toBe(true);
+    expect(shouldUseSpaceStationFallback(23)).toBe(true);
+    expect(shouldUseSpaceStationFallback(24)).toBe(false);
+    expect(shouldUseSpaceStationFallback(29)).toBe(false);
+  });
+
+  it("selects one Space Station area and prefers the one containing station infrastructure", () => {
+    const zones = [
+      { id: 9, name: "Space Station" },
+      { id: 4, name: "Space Station" },
+      { id: 2, name: "Other" },
+    ];
+
+    expect(selectSpaceStationZone(zones, [
+      {
+        entityId: 1,
+        prototypeId: "RocketLaunchPad",
+        running: false,
+        recipeIds: [],
+        zones: [zones[0]!],
+        nuclearReactor: null,
+      },
+    ])).toEqual(zones[0]);
+    expect(selectSpaceStationZone(zones, [])).toEqual(zones[1]);
+  });
+
   it("retains standard Station Parts after this save reached orbital research", () => {
     expect(getStationPartsKind(1, 2)).toBe("basic");
     expect(getStationPartsKind(1, 4)).toBe("standard");
@@ -188,6 +223,158 @@ describe("Space Station", () => {
       "rocket-ii-launch-amortized": "synced",
     });
     expect(preset?.planMismatches).toBeUndefined();
+  });
+
+  it("preserves the generated Space Station area while supplying orbital calculations", () => {
+    const zone = { id: 15, name: "Space Station" };
+    const [generatedArea] = createLiveAreaModules(
+      [zone],
+      [
+        {
+          entityId: 1,
+          prototypeId: "AssemblyRoboticT2",
+          prototypeName: "Assembly V",
+          constructionState: "Constructed",
+          constructed: true,
+          running: true,
+          tile: { x: 1, y: 1 },
+          zones: [zone],
+          recipes: [{
+            id: "StationPartsAssembly",
+            name: "Station parts",
+            durationSeconds: 15,
+            assigned: true,
+            inputs: [{ productId: "CompositeCore", name: "Composite Core", quantity: 4 }],
+            outputs: [{ productId: "StationParts", name: "Station Parts", quantity: 2 }],
+          }],
+        },
+        {
+          entityId: 2,
+          prototypeId: "RocketAssemblyDepot",
+          prototypeName: "Rocket assembly depot",
+          constructionState: "InConstruction",
+          constructed: false,
+          running: false,
+          tile: { x: 2, y: 2 },
+          zones: [zone],
+          recipes: [],
+        },
+        {
+          entityId: 3,
+          prototypeId: "RocketLaunchPad",
+          prototypeName: "Rocket launch pad",
+          constructionState: "Constructed",
+          constructed: true,
+          running: false,
+          tile: { x: 3, y: 3 },
+          zones: [zone],
+          recipes: [],
+        },
+      ],
+      [],
+    );
+
+    if (!generatedArea) throw new Error("Missing generated Space Station area");
+
+    const liveStation = createSpaceStationModule(
+      defaultSpaceStationConfig,
+      { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
+      { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
+      {
+        rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 0 },
+        rocketSource: "synced",
+        stationPartsAssembly: { built: 1, running: 1, source: "synced" },
+        stationSource: "synced",
+      },
+      generatedArea,
+    );
+    const preset = liveStation.presets[0];
+    const stationPartsRecipeId =
+      "live-area-15:AssemblyRoboticT2:StationPartsAssembly";
+
+    expect(liveStation).toMatchObject({
+      id: "live-area-15",
+      name: "Space Station",
+      description: "",
+      includedInFactoryTotals: true,
+      defaultPresetId: "live",
+    });
+    expect(liveStation.recipes?.map(recipe => recipe.id)).toEqual([stationPartsRecipeId]);
+    expect(liveStation.builtBuildings).not.toHaveProperty("assembly-v-station-parts");
+    expect(preset).toMatchObject({
+      description: "",
+      activeBuildings: {
+        [stationPartsRecipeId]: 1,
+        "space-station-operations": 1,
+        "space-station-orbital-research": 1,
+        "rocket-ii-assembly": 1,
+        "rocket-ii-launch-amortized": 1,
+      },
+      currentActiveBuildings: {
+        [stationPartsRecipeId]: 1,
+        "space-station-operations": 0,
+        "space-station-orbital-research": 0,
+        "rocket-ii-assembly": 0,
+        "rocket-ii-launch-amortized": 0,
+      },
+      dataSources: {
+        [stationPartsRecipeId]: "synced",
+        "space-station-operations": "planned",
+        "space-station-orbital-research": "planned",
+        "rocket-ii-assembly": "planned",
+        "rocket-ii-launch-amortized": "planned",
+      },
+      constructionGhosts: {
+        "rocket-ii-assembly": 1,
+      },
+    });
+    expect(preset?.capacityPools).toEqual({
+      AssemblyRoboticT2: expect.any(Object),
+    });
+    expect(preset?.planMismatches?.map(mismatch => mismatch.recipeId)).toEqual([
+      "space-station-operations",
+      "rocket-ii-launch-amortized",
+    ]);
+    expect(liveStation.liveArea?.issues).toEqual([]);
+  });
+
+  it("creates a generated-style Space Station area for pre-ghost snapshots", () => {
+    const area = createLegacySpaceStationArea(
+      { id: 15, name: "Space Station" },
+      [
+        {
+          entityId: 1,
+          prototypeId: "RocketAssemblyDepot",
+          running: false,
+          recipeIds: [],
+          zones: [{ id: 15, name: "Space Station" }],
+          nuclearReactor: null,
+        },
+        {
+          entityId: 2,
+          prototypeId: "RocketLaunchPad",
+          running: true,
+          recipeIds: [],
+          zones: [{ id: 15, name: "Space Station" }],
+          nuclearReactor: null,
+        },
+      ],
+    );
+
+    expect(area).toMatchObject({
+      id: "live-area-15",
+      name: "Space Station",
+      includedInFactoryTotals: false,
+      liveArea: {
+        zoneId: 15,
+        trackedBuildings: 2,
+        constructedBuildings: 2,
+        activeBuildings: 1,
+        pausedBuildings: 1,
+        constructionGhosts: 0,
+        issues: [],
+      },
+    });
   });
 
   it("keeps only unmet live targets planned and exposes actions to Factory Total", () => {

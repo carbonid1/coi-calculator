@@ -1,4 +1,9 @@
 import {
+  AREA_INVENTORY_SCHEMA_VERSION,
+  type SyncedLogisticsZoneRef,
+  type SyncedProductionEntity,
+} from "../../game-state";
+import {
   resolveDirectionalPlan,
   type ResolvedDirectionalPlan,
 } from "../../helpers/resolve-layered-value/resolve-directional-plan";
@@ -22,6 +27,103 @@ import { createAtLeastBuildingActions } from "./plan-mismatch";
 
 export const SPACE_STATION_MODULE_ID = "space-station";
 export const SPACE_STATION_PARTS_RECIPE_ID = "assembly-v-station-parts";
+export const SPACE_STATION_ZONE_NAME = "Space Station";
+
+const handledAreaPrototypeIds = new Set([
+  "RocketAssemblyDepot",
+  "RocketLaunchPad",
+]);
+
+const isStationPartsAssembly = (entity: SyncedProductionEntity) => (
+  entity.prototypeId === "AssemblyRoboticT2"
+  && entity.recipeIds.includes("StationPartsAssembly")
+);
+
+const spaceStationZoneScore = (
+  zone: SyncedLogisticsZoneRef,
+  productionEntities: readonly SyncedProductionEntity[],
+) => productionEntities.filter(entity => (
+  entity.zones.some(entityZone => entityZone.id === zone.id)
+  && (handledAreaPrototypeIds.has(entity.prototypeId) || isStationPartsAssembly(entity))
+)).length;
+
+export const selectSpaceStationZone = (
+  zones: readonly SyncedLogisticsZoneRef[],
+  productionEntities: readonly SyncedProductionEntity[],
+): SyncedLogisticsZoneRef | undefined => (
+  zones
+    .filter(zone => zone.name === SPACE_STATION_ZONE_NAME)
+    .sort((left, right) => (
+      spaceStationZoneScore(right, productionEntities)
+      - spaceStationZoneScore(left, productionEntities)
+      || left.id - right.id
+    ))[0]
+);
+
+export const shouldUseSpaceStationFallback = (schemaVersion?: number | null) => (
+  schemaVersion == null || schemaVersion < AREA_INVENTORY_SCHEMA_VERSION
+);
+
+const handledAreaRecipeMarkers = [...handledAreaPrototypeIds].map(id => `:${id}:`);
+
+const isHandledAreaRecipeId = (id: string) => (
+  handledAreaRecipeMarkers.some(marker => id.includes(marker))
+);
+
+const withoutHandledAreaRecipeIds = <T>(values: Record<string, T> | undefined) => (
+  values
+    ? Object.fromEntries(
+        Object.entries(values).filter(([id]) => !isHandledAreaRecipeId(id)),
+      )
+    : undefined
+);
+
+const withoutHandledAreaPrototypeIds = <T>(values: Record<string, T> | undefined) => (
+  values
+    ? Object.fromEntries(
+        Object.entries(values).filter(([id]) => !handledAreaPrototypeIds.has(id)),
+      )
+    : undefined
+);
+
+export const createLegacySpaceStationArea = (
+  zone: SyncedLogisticsZoneRef,
+  productionEntities: readonly SyncedProductionEntity[],
+): Module => {
+  const zoneEntities = productionEntities.filter(entity => (
+    entity.zones.some(entityZone => entityZone.id === zone.id)
+  ));
+
+  return {
+    id: `live-area-${zone.id}`,
+    name: zone.name ?? SPACE_STATION_ZONE_NAME,
+    description: "",
+    includedInFactoryTotals: false,
+    builtBuildings: {},
+    presets: [{
+      id: "live",
+      name: "Live area",
+      description: "",
+      activeBuildings: {},
+      currentActiveBuildings: {},
+      builtBuildings: {},
+      constructionGhosts: {},
+      capacityPools: {},
+      dataSources: {},
+      fixed: [],
+    }],
+    defaultPresetId: "live",
+    liveArea: {
+      zoneId: zone.id,
+      trackedBuildings: zoneEntities.length,
+      constructedBuildings: zoneEntities.length,
+      activeBuildings: zoneEntities.filter(entity => entity.running).length,
+      pausedBuildings: zoneEntities.filter(entity => !entity.running).length,
+      constructionGhosts: 0,
+      issues: [],
+    },
+  };
+};
 
 export interface SpaceStationAreaBuildingState {
   built: number;
@@ -50,6 +152,7 @@ export const createSpaceStationModule = (
   rocketBuiltConfig: RocketInfrastructureConfig = emptyRocketInfrastructureConfig,
   rocketPlanConfig: RocketInfrastructureConfig = plannedRocketInfrastructureConfig,
   currentState: SpaceStationCurrentState = {},
+  generatedArea?: Module,
 ): Module => {
   const hasStation = config.targetLevel > 0;
   const hasOrbitalResearch = config.targetLevel >= 3;
@@ -153,7 +256,7 @@ export const createSpaceStationModule = (
     }),
   ];
 
-  return {
+  const stationModule: Module = {
     id: SPACE_STATION_MODULE_ID,
     name: "Space Station",
     description: "Level 4 station and rocket infrastructure plan; projected resources and workforce are included in Factory Total",
@@ -176,6 +279,128 @@ export const createSpaceStationModule = (
       },
     ],
     defaultPresetId: "target-level",
+  };
+
+  if (!generatedArea) return stationModule;
+
+  const generatedPreset = generatedArea.defaultPresetId
+    ? generatedArea.presets.find(preset => preset.id === generatedArea.defaultPresetId)
+    : generatedArea.presets[0];
+  const stationPreset = stationModule.presets[0];
+
+  if (!generatedPreset || !stationPreset) return generatedArea;
+
+  const generatedStationPartsRecipeId = generatedArea.recipes?.find(recipe => (
+    recipe.id.includes(":AssemblyRoboticT2:")
+    && recipe.id.endsWith(":StationPartsAssembly")
+  ))?.id;
+  const stationRecipeIds = new Set([
+    "space-station-operations",
+    "space-station-orbital-research",
+    "rocket-ii-assembly",
+    "rocket-ii-launch-amortized",
+    ...(!generatedStationPartsRecipeId ? [SPACE_STATION_PARTS_RECIPE_ID] : []),
+  ]);
+  const stationValues = <T>(values: Record<string, T> | undefined) => (
+    values
+      ? Object.fromEntries(
+          Object.entries(values).filter(([id]) => stationRecipeIds.has(id)),
+        )
+      : undefined
+  );
+  const rocketConstructionGhosts = {
+    "rocket-ii-assembly":
+      generatedPreset.capacityPools?.RocketAssemblyDepot?.constructionGhosts ?? 0,
+    "rocket-ii-launch-amortized":
+      generatedPreset.capacityPools?.RocketLaunchPad?.constructionGhosts ?? 0,
+  };
+  const projectedRocketBuildings = {
+    "rocket-ii-assembly":
+      rocketRunning.rocketAssemblyDepot + rocketConstructionGhosts["rocket-ii-assembly"],
+    "rocket-ii-launch-amortized":
+      rocketRunning.rocketLaunchPad + rocketConstructionGhosts["rocket-ii-launch-amortized"],
+  };
+  const getProjectedRocketBuildingCount = (recipeId: string) => {
+    if (recipeId === "rocket-ii-assembly") {
+      return projectedRocketBuildings["rocket-ii-assembly"];
+    }
+    if (recipeId === "rocket-ii-launch-amortized") {
+      return projectedRocketBuildings["rocket-ii-launch-amortized"];
+    }
+
+    return undefined;
+  };
+  const mergedPlanMismatches = [
+    ...(generatedPreset.planMismatches ?? []).filter(mismatch => (
+      !isHandledAreaRecipeId(mismatch.recipeId)
+    )),
+    ...(stationPreset.planMismatches ?? []).filter(mismatch => {
+      if (!stationRecipeIds.has(mismatch.recipeId)) return false;
+      const projectedRocketCount = getProjectedRocketBuildingCount(mismatch.recipeId);
+
+      return projectedRocketCount == null || projectedRocketCount < mismatch.target;
+    }),
+  ];
+  const mergedPreset = {
+    ...generatedPreset,
+    description: "",
+    activeBuildings: {
+      ...withoutHandledAreaRecipeIds(generatedPreset.activeBuildings),
+      ...stationValues(stationPreset.activeBuildings),
+    },
+    currentActiveBuildings: {
+      ...withoutHandledAreaRecipeIds(generatedPreset.currentActiveBuildings),
+      "space-station-operations": hasCurrentTargetStation ? 1 : 0,
+      "space-station-orbital-research": hasCurrentTargetStation && hasOrbitalResearch ? 1 : 0,
+      "rocket-ii-assembly": rocketRunning.rocketAssemblyDepot,
+      "rocket-ii-launch-amortized": rocketRunning.rocketLaunchPad,
+      ...(!generatedStationPartsRecipeId
+        ? { [SPACE_STATION_PARTS_RECIPE_ID]: stationPartsAssembly.running }
+        : {}),
+    },
+    builtBuildings: {
+      ...withoutHandledAreaRecipeIds(generatedPreset.builtBuildings),
+      ...stationValues(stationModule.builtBuildings),
+    },
+    constructionGhosts: {
+      ...withoutHandledAreaRecipeIds(generatedPreset.constructionGhosts),
+      ...rocketConstructionGhosts,
+    },
+    capacityPools: withoutHandledAreaPrototypeIds(generatedPreset.capacityPools),
+    dataSources: {
+      ...withoutHandledAreaRecipeIds(generatedPreset.dataSources),
+      ...stationValues(stationPreset.dataSources),
+    },
+    fixed: [
+      ...new Set([
+        ...generatedPreset.fixed.filter(id => !isHandledAreaRecipeId(id)),
+        ...stationPreset.fixed.filter(id => stationRecipeIds.has(id)),
+      ]),
+    ],
+    planMismatches: mergedPlanMismatches.length > 0 ? mergedPlanMismatches : undefined,
+  };
+
+  return {
+    ...generatedArea,
+    description: "",
+    includedInFactoryTotals: true,
+    builtBuildings: {
+      ...withoutHandledAreaRecipeIds(generatedArea.builtBuildings),
+      ...stationValues(stationModule.builtBuildings),
+    },
+    recipes: generatedArea.recipes?.filter(recipe => !isHandledAreaRecipeId(recipe.id)),
+    presets: [mergedPreset],
+    defaultPresetId: mergedPreset.id,
+    liveArea: generatedArea.liveArea
+      ? {
+          ...generatedArea.liveArea,
+          issues: generatedArea.liveArea.issues.filter(issue => {
+            const prototypeId = issue.id.split(":", 1)[0];
+
+            return !prototypeId || !handledAreaPrototypeIds.has(prototypeId);
+          }),
+        }
+      : undefined,
   };
 };
 

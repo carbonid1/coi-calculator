@@ -399,7 +399,7 @@ const defaultBase: Module = {
         "anaerobic-digester-soybean": 2,
         "anaerobic-digester-vegetables": 2,
         "anaerobic-digester-poppy": 2,
-        "cracking-unit-fuel-gas-diesel": 1,
+        "cracking-unit-fuel-gas-diesel": 2,
         ...plannedDefaultBuildings,
       },
       dataSources: {
@@ -413,6 +413,7 @@ const defaultBase: Module = {
       capacityPools: plannedDefaultCapacityPools,
       fixed: [
         "general-evaporation-pond-heated-brine-surplus",
+        "cracking-unit-fuel-gas-diesel",
       ],
       outputTargets: {
         compositePanel:

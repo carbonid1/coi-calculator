@@ -19,7 +19,6 @@ import { InfiniteResearchSettings, ResearchSettings } from './components/Researc
 import { ReservesView } from './components/ReservesView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
-import { SpaceStationView } from './components/SpaceStationView'
 import { StationCardGroup } from './components/StationCardGroup'
 import { StorageCard } from './components/StorageCard'
 import { buildings } from './db/buildings'
@@ -73,7 +72,7 @@ import {
   GREENHOUSES_MODULE_ID,
 } from './db/modules/farms'
 import { MINES_MODULE_ID } from './db/modules/mines'
-import { modules } from './db/modules/modules'
+import { modules, type Module } from './db/modules/modules'
 import {
   createNuclearModule,
   defaultNuclearConfig,
@@ -87,7 +86,13 @@ import {
 } from './db/modules/population'
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from './db/modules/research'
 import { createReservesModule, RESERVES_MODULE_ID } from './db/modules/reserves'
-import { createSpaceStationModule, SPACE_STATION_MODULE_ID } from './db/modules/space-station'
+import {
+  createLegacySpaceStationArea,
+  createSpaceStationModule,
+  selectSpaceStationZone,
+  shouldUseSpaceStationFallback,
+  SPACE_STATION_ZONE_NAME,
+} from './db/modules/space-station'
 import { calculateOfficePlan, resolvedCurrentOfficePlan, resolvedOfficePlan } from './db/offices'
 import { resolvePlanningBaselines } from './db/planning-baselines'
 import { type RecipeGroup } from './db/recipes'
@@ -404,7 +409,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION &&
       gameState.snapshot.logisticsZones.some(zone => zone.name === name),
     )
-  const usesSpaceStationArea = hasExactArea('Space Station')
+  const spaceStationZone = selectSpaceStationZone(
+    gameState.snapshot?.logisticsZones ?? [],
+    productionEntities,
+  )
+  const usesSpaceStationArea = Boolean(spaceStationZone)
   const hasAreaBuildingInventory = Boolean(
     gameState.snapshot &&
     gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION &&
@@ -415,15 +424,20 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     gameState.snapshot.schemaVersion >= MAINTENANCE_ENTITY_SCHEMA_VERSION &&
     gameState.snapshot.productionEntities,
   )
+  const spaceStationAreaEntities = spaceStationZone
+    ? productionEntities.filter(entity => (
+        entity.zones.some(zone => zone.id === spaceStationZone.id)
+      ))
+    : []
   const spaceStationAreaCounts = usesSpaceStationArea
-    ? resolveAreaBuildingCounts(productionEntities, 'Space Station')
+    ? resolveAreaBuildingCounts(spaceStationAreaEntities, SPACE_STATION_ZONE_NAME)
     : {}
   const stationPartsAssemblyCount =
     usesSpaceStationArea &&
     (gameState.snapshot?.schemaVersion ?? 0) >= NAMED_AREA_ENTITY_SCHEMA_VERSION
       ? resolveAreaRecipeBuildingCount(
-          productionEntities,
-          'Space Station',
+          spaceStationAreaEntities,
+          SPACE_STATION_ZONE_NAME,
           'AssemblyRoboticT2',
           'StationPartsAssembly',
         )
@@ -592,6 +606,26 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     gameState.snapshot.productionEntities,
   )
 
+  const createConfiguredSpaceStationModule = (generatedArea?: Module) => (
+    createSpaceStationModule(
+      spaceStationConfig,
+      rocketInfrastructureBuiltConfig,
+      plannedRocketInfrastructureConfig,
+      {
+        rocketRunningConfig: rocketInfrastructureRunningConfig,
+        rocketSource:
+          (gameState.snapshot?.schemaVersion ?? 0) >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION
+            ? 'synced'
+            : 'modeled',
+        stationPartsAssembly: stationPartsAssemblyCount
+          ? { ...stationPartsAssemblyCount, source: 'synced' }
+          : undefined,
+        stationSource: syncedSpaceStation ? 'synced' : 'modeled',
+      },
+      generatedArea,
+    )
+  )
+
   const configureModules = () =>
     modules.map(module => {
       if (module.id === DEFAULT_MODULE_ID) {
@@ -599,25 +633,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           defaultGroundwaterResolution,
           defaultGroundwaterConstraint,
           rocketIiRecurringLogistics,
-        )
-      }
-
-      if (module.id === SPACE_STATION_MODULE_ID) {
-        return createSpaceStationModule(
-          spaceStationConfig,
-          rocketInfrastructureBuiltConfig,
-          plannedRocketInfrastructureConfig,
-          {
-            rocketRunningConfig: rocketInfrastructureRunningConfig,
-            rocketSource:
-              (gameState.snapshot?.schemaVersion ?? 0) >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION
-                ? 'synced'
-                : 'modeled',
-            stationPartsAssembly: stationPartsAssemblyCount
-              ? { ...stationPartsAssemblyCount, source: 'synced' }
-              : undefined,
-            stationSource: syncedSpaceStation ? 'synced' : 'modeled',
-          },
         )
       }
 
@@ -671,7 +686,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       return module
     })
-  const configuredAreaModules = configureModules()
+  const configuredAreaModules = [
+    ...configureModules(),
+    ...(shouldUseSpaceStationFallback(gameState.snapshot?.schemaVersion)
+      ? [createConfiguredSpaceStationModule()]
+      : []),
+  ]
   const generatedLiveAreaModules =
     (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
       ? createLiveAreaModules(
@@ -697,12 +717,27 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
           .map(zone => createLegacyPopulationArea(zone, productionEntities))
       : []
+  const legacySpaceStationAreas =
+    hasAreaBuildingInventory
+      ? (gameState.snapshot?.logisticsZones ?? [])
+          .filter(zone => zone.name === SPACE_STATION_ZONE_NAME)
+          .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
+          .map(zone => createLegacySpaceStationArea(zone, productionEntities))
+      : []
   const configuredLiveAreaModules = [
     ...generatedLiveAreaModules,
     ...legacyComputingAreas,
     ...legacyPopulationAreas,
+    ...legacySpaceStationAreas,
   ].map(module => {
     if (!module.liveArea) return module
+
+    if (
+      module.name === SPACE_STATION_ZONE_NAME
+      && module.liveArea.zoneId === spaceStationZone?.id
+    ) {
+      return createConfiguredSpaceStationModule(module)
+    }
 
     if (module.name === POPULATION_ZONE_NAME && hasPopulationEntityInventory) {
       return createPopulationModule(
@@ -807,6 +842,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const configuredPopulationModules = configuredModules.filter(module => (
     module.name === POPULATION_ZONE_NAME && module.liveArea
   ))
+  const configuredSpaceStationModules = configuredModules.filter(module => (
+    module.name === SPACE_STATION_ZONE_NAME && module.includedInFactoryTotals !== false
+  ))
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
   const populationHousingCounts = configuredPopulationModules.reduce(
     (counts, module) => {
@@ -825,9 +863,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const populationCapacity =
     calculatePopulationCapacity(activeHousingType, housingCount, housingCapacity.multiplier) +
     calculatePopulationCapacity(housingTypes.housingII, housingIiCount, housingCapacity.multiplier)
-  const spaceStationIncludedInFactoryTotals =
-    configuredModules.find(module => module.id === SPACE_STATION_MODULE_ID)
-      ?.includedInFactoryTotals !== false
+  const spaceStationIncludedInFactoryTotals = configuredSpaceStationModules.some(module => (
+    module.includedInFactoryTotals !== false
+  ))
   const researchEfficiency = calculateResearchEfficiency({
     edictLevel: edictLevels.researchEfficiency,
     focusBonusPercent: focusBonuses.researchEfficiency,
@@ -1258,6 +1296,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           computingCapacityTflops={computingCapacityTflops}
           computingConfig={configuredComputingModules.length > 0 ? computingRunningConfig : undefined}
           populationCapacity={configuredPopulationModules.length > 0 ? populationCapacity : undefined}
+          spaceStation={configuredSpaceStationModules.length > 0
+            ? {
+                station: defaultSpaceStationLevel,
+                logistics: rocketIiRecurringLogistics,
+              }
+            : undefined}
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
           maintenanceHistory={hasMaintenanceHistory ? (syncedMaintenance ?? null) : null}
           edictLevels={edictLevels}
@@ -1327,13 +1371,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           focusResearchLevel={researchLevels.focusPoints}
           plan={officePlan}
           source={resolvedOfficePlan.source}
-        />
-      )}
-
-      {activeModule?.id === SPACE_STATION_MODULE_ID && (
-        <SpaceStationView
-          config={defaultSpaceStationConfig}
-          logistics={rocketIiRecurringLogistics}
         />
       )}
 

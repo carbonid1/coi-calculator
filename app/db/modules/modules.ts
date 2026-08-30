@@ -131,7 +131,6 @@ export const modules: [Module, ...Module[]] = [
   processSteam,
   research,
   offices,
-  spaceStation,
   greenhouses,
   chickenFarms,
   mines,

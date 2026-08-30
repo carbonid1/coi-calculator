@@ -17,7 +17,7 @@ import {
   plannedDefaultBuiltBuildings as plannedGeneralBuiltBuildings,
   plannedNewDefaultBuildings as plannedNewGeneralBuildings,
 } from "./modules/default";
-import { modules } from "./modules/modules";
+import { factoryModelModules as modules } from "./modules/modules";
 import {
   plannedProcessSteamBuildings,
   plannedProcessSteamBuiltBuildings,

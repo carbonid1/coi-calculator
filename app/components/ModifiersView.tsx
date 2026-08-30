@@ -14,6 +14,10 @@ import {
   normalizeMaintenanceReducerLevel,
 } from "../db/edicts";
 import { type FocusEffectId } from "../db/offices";
+import {
+  type RocketIiRecurringLogistics,
+  type SpaceStationLevelData,
+} from "../db/space-station";
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
 import { type GameStateSnapshot } from "../game-state";
@@ -49,6 +53,10 @@ interface Props {
   worldMineOutputLevel: number;
   focusBonuses: Readonly<Record<FocusEffectId, number>>;
   populationCapacity?: number;
+  spaceStation?: {
+    station: SpaceStationLevelData;
+    logistics: RocketIiRecurringLogistics;
+  };
 }
 
 const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
@@ -81,6 +89,43 @@ export const PopulationCapacityOverview = ({ capacity }: { capacity: number }) =
     <p className="text-sm text-muted-foreground">Population capacity</p>
     <p className="font-mono font-semibold text-foreground">
       {capacity.toLocaleString("en-US")}
+    </p>
+  </div>
+);
+
+const formatOverviewQuantity = (value: number) => value.toLocaleString("en-US", {
+  maximumFractionDigits: 2,
+});
+
+export const formatSpaceStationOverview = (
+  station: SpaceStationLevelData,
+  logistics: RocketIiRecurringLogistics,
+) => {
+  const stationEffect = `Level ${station.level} · +${formatOverviewQuantity(
+    station.researchEfficiencyBonusPercent,
+  )}% research efficiency`;
+  const payload = `Rocket II ${formatOverviewQuantity(logistics.cargoCapacity)} cargo / launch`;
+
+  if (logistics.launchesPerCycle <= 0) {
+    return `${stationEffect} · ${payload} · 0 launches / cycle`;
+  }
+
+  return `${stationEffect} · ${payload} · every ${formatOverviewQuantity(
+    logistics.cyclesPerLaunch,
+  )} cycles (${formatOverviewQuantity(logistics.cyclesPerLaunch / 12)} in-game years)`;
+};
+
+export const SpaceStationPlanOverview = ({
+  station,
+  logistics,
+}: {
+  station: SpaceStationLevelData;
+  logistics: RocketIiRecurringLogistics;
+}) => (
+  <div className="sm:col-span-2 lg:col-span-3">
+    <p className="text-sm text-muted-foreground">Space Station plan</p>
+    <p className="font-mono font-semibold text-foreground">
+      {formatSpaceStationOverview(station, logistics)}
     </p>
   </div>
 );
@@ -202,6 +247,7 @@ export const ModifiersView: React.FC<Props> = ({
   worldMineOutputLevel,
   focusBonuses,
   populationCapacity,
+  spaceStation,
 }) => {
   const recyclingEfficiency = calculateRecyclingEfficiency(
     edictLevels.recyclingIncrease,
@@ -264,6 +310,12 @@ export const ModifiersView: React.FC<Props> = ({
             )}
             {computingConfig && (
               <div className="sm:col-span-2 lg:col-span-2"><p className="text-sm text-muted-foreground">Computing capacity</p><p className="font-mono font-semibold text-foreground">{formatComputingOverview(computingConfig, computingCapacityTflops)}</p></div>
+            )}
+            {spaceStation && (
+              <SpaceStationPlanOverview
+                station={spaceStation.station}
+                logistics={spaceStation.logistics}
+              />
             )}
           </Card.Content>
         </Card.Root>

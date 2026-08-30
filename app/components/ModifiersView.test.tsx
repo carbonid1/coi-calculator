@@ -16,11 +16,17 @@ vi.mock("@carbonid1/design-system", () => ({
 
 import { edictCatalog, getEdict } from "../db/edicts";
 import {
+  defaultRocketIiRecurringLogistics,
+  defaultSpaceStationLevel,
+} from "../db/space-station";
+import {
   EdictCard,
   formatComputingOverview,
+  formatSpaceStationOverview,
   formatSignedPercent,
   MaintenanceDemandOverview,
   PopulationCapacityOverview,
+  SpaceStationPlanOverview,
 } from "./ModifiersView";
 
 it("rounds calculated percentages before displaying them", () => {
@@ -44,6 +50,28 @@ it("shows only the final Population capacity", () => {
   expect(html).not.toContain("Housing");
   expect(html).not.toContain("multiplier");
   expect(html).not.toContain("%");
+});
+
+it("condenses the Space Station plan to its calculated effect and Rocket II cadence", () => {
+  expect(formatSpaceStationOverview(
+    defaultSpaceStationLevel,
+    defaultRocketIiRecurringLogistics,
+  )).toBe(
+    "Level 4 · +25% research efficiency · Rocket II 126 cargo / launch · "
+    + "every 11 cycles (0.92 in-game years)",
+  );
+
+  const html = renderToStaticMarkup(
+    <SpaceStationPlanOverview
+      station={defaultSpaceStationLevel}
+      logistics={defaultRocketIiRecurringLogistics}
+    />,
+  );
+
+  expect(html).toContain("Space Station plan");
+  expect(html).not.toContain("Unity");
+  expect(html).not.toContain("construction");
+  expect(html).not.toContain("Net Summary");
 });
 
 it("shows synced maintenance demand with its completed-cycle history window", () => {

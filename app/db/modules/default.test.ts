@@ -63,7 +63,7 @@ it("models the physical Default-area Low Steam recovery cluster", () => {
   });
 });
 
-it("keeps one of two Cracking Units active and balances it against surplus Fuel Gas", () => {
+it("runs both Cracking Units at full throughput", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
@@ -72,10 +72,10 @@ it("keeps one of two Cracking Units active and balances it against surplus Fuel 
   );
 
   expect(crackingUnit).toMatchObject({
-    activeBuildings: 1,
+    activeBuildings: 2,
     builtBuildings: 2,
     dataSource: "modeled",
-    operatingMode: "balanced",
+    operatingMode: "fixed",
   });
 
   const result = calculateFactoryTotal(
@@ -90,11 +90,7 @@ it("keeps one of two Cracking Units active and balances it against surplus Fuel 
     line.moduleId === "general"
     && line.recipe.id === "cracking-unit-fuel-gas-diesel"
   ));
-  const fuelGas = result.flows.find((flow) => flow.resourceId === "fuelGas");
-
-  expect(activeCrackingUnit?.supplyRatio).toBeGreaterThan(0);
-  expect(activeCrackingUnit?.supplyRatio).toBeLessThan(1);
-  expect(fuelGas?.net).toBeCloseTo(0, 6);
+  expect(activeCrackingUnit?.supplyRatio).toBe(1);
 });
 
 it("provides two active Rubber Makers for the Ethanol route", () => {
