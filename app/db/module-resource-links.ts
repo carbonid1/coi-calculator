@@ -42,6 +42,20 @@ export const moduleResourceLinkDefinitions: readonly ModuleResourceLinkDefinitio
     resourceId: 'seaWater',
     mode: 'produce-to-demand',
   },
+  {
+    id: 'copper-1-sea-water-to-steel-1',
+    sourceModuleName: 'Copper #1',
+    targetModuleName: 'Steel #1',
+    resourceId: 'seaWater',
+    mode: 'produce-to-demand',
+  },
+  {
+    id: 'steel-1-exhaust-to-exaust-1',
+    sourceModuleName: 'Steel #1',
+    targetModuleName: 'Exaust #1',
+    resourceId: 'exhaust',
+    mode: 'surplus-only',
+  },
 ]
 
 export const resolveModuleResourceLinks = (

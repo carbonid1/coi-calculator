@@ -355,6 +355,179 @@ describe("Factory Total contracts", () => {
 });
 
 describe("Factory Total module boundaries", () => {
+  it("reserves a planned import for its module and lets that input drive production", () => {
+    const competingModule: Module = {
+      id: "competing-iron-consumer",
+      name: "Competing iron consumer",
+      description: "",
+      builtBuildings: { "competing-iron-recipe": 1 },
+      recipes: [{
+        id: "competing-iron-recipe",
+        name: "Competing iron recipe",
+        building: "Competing consumer",
+        group: "production",
+        balanceBy: "input",
+        balanceInputIds: ["ironOreCrushed"],
+        inputs: [{ resourceId: "ironOreCrushed", quantity: 10 }],
+        outputs: [{ resourceId: "slag", quantity: 10 }],
+      }],
+      presets: [{
+        id: "live",
+        name: "Live",
+        description: "",
+        activeBuildings: { "competing-iron-recipe": 1 },
+        fixed: [],
+      }],
+      defaultPresetId: "live",
+    };
+    const importingModule: Module = {
+      id: "forced-iron-import",
+      name: "Forced iron import",
+      description: "",
+      builtBuildings: { "import-driven-iron-recipe": 1 },
+      recipes: [{
+        id: "import-driven-iron-recipe",
+        name: "Import-driven iron recipe",
+        building: "Arc furnace II",
+        group: "production",
+        allocation: "fallback",
+        balanceBy: "output",
+        balanceOutputIds: ["moltenIron"],
+        inputs: [
+          { resourceId: "ironOreCrushed", quantity: 10 },
+          { resourceId: "limestone", quantity: 5 },
+        ],
+        outputs: [{ resourceId: "moltenIron", quantity: 10 }],
+      }],
+      presets: [{
+        id: "live",
+        name: "Live",
+        description: "",
+        activeBuildings: { "import-driven-iron-recipe": 1 },
+        fixed: [],
+        requestedImports: { ironOreCrushed: 10 },
+      }],
+      defaultPresetId: "live",
+    };
+    const result = calculateFactoryTotal(
+      [competingModule, importingModule],
+      baselineFactoryOptions,
+    );
+    const competing = result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "competing-iron-recipe",
+    );
+    const importing = result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "import-driven-iron-recipe",
+    );
+
+    expect(competing?.supplyRatio).toBe(0);
+    expect(importing).toMatchObject({
+      supplyRatio: 1,
+      actualInputs: [
+        { resourceId: "ironOreCrushed", quantity: 10 },
+        { resourceId: "limestone", quantity: 5 },
+      ],
+      actualOutputs: [{ resourceId: "moltenIron", quantity: 10 }],
+    });
+    expect(result.flows.find(flow => flow.resourceId === "ironOreCrushed"))
+      .toMatchObject({ consumed: 10, produced: 10, net: 0 });
+    expect(result.flows.find(flow => flow.resourceId === "limestone"))
+      .toMatchObject({ consumed: 5, produced: 0, net: -5 });
+  });
+
+  it("routes a planned import through local intermediate consumers", () => {
+    const importingModule: Module = {
+      id: "forced-local-chain",
+      name: "Forced local chain",
+      description: "",
+      builtBuildings: {
+        "forced-local-smelting": 1,
+        "forced-local-steel": 1,
+        "forced-local-desalination": 1,
+      },
+      recipes: [{
+        id: "forced-local-smelting",
+        name: "Import-driven smelting",
+        building: "Arc furnace II",
+        group: "production",
+        allocation: "fallback",
+        balanceBy: "output",
+        balanceOutputIds: ["moltenIron"],
+        inputs: [
+          { resourceId: "ironOreCrushed", quantity: 10 },
+          { resourceId: "limestone", quantity: 5 },
+        ],
+        outputs: [
+          { resourceId: "moltenIron", quantity: 10 },
+          { resourceId: "steamLow", quantity: 10 },
+        ],
+      }, {
+        id: "forced-local-steel",
+        name: "Steel smelting",
+        building: "Oxygen furnace II",
+        group: "production",
+        balanceBy: "output",
+        consumeSurplusInputIds: ["moltenIron"],
+        consumeSurplusInputScope: "module",
+        inputs: [
+          { resourceId: "moltenIron", quantity: 10 },
+          { resourceId: "oxygen", quantity: 5 },
+        ],
+        outputs: [{ resourceId: "moltenSteel", quantity: 5 }],
+      }, {
+        id: "forced-local-desalination",
+        name: "Low-steam desalination",
+        building: "Thermal desalinator",
+        group: "production",
+        balanceBy: "output",
+        consumeSurplusInputIds: ["steamLow"],
+        consumeSurplusInputScope: "module",
+        inputs: [
+          { resourceId: "steamLow", quantity: 10 },
+          { resourceId: "seaWater", quantity: 10 },
+        ],
+        outputs: [{ resourceId: "water", quantity: 10 }],
+      }],
+      presets: [{
+        id: "live",
+        name: "Live",
+        description: "",
+        activeBuildings: {
+          "forced-local-smelting": 1,
+          "forced-local-steel": 1,
+          "forced-local-desalination": 1,
+        },
+        fixed: [],
+        requestedImports: { ironOreCrushed: 10 },
+      }],
+      defaultPresetId: "live",
+    };
+    const result = calculateFactoryTotal([importingModule], baselineFactoryOptions);
+    const recipeResult = (recipeId: string) => result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === recipeId,
+    );
+
+    expect(recipeResult("forced-local-smelting")?.supplyRatio).toBe(1);
+    expect(recipeResult("forced-local-steel")).toMatchObject({
+      supplyRatio: 1,
+      actualInputs: [
+        { resourceId: "moltenIron", quantity: 10 },
+        { resourceId: "oxygen", quantity: 5 },
+      ],
+    });
+    expect(recipeResult("forced-local-desalination")).toMatchObject({
+      supplyRatio: 1,
+      actualInputs: [
+        { resourceId: "steamLow", quantity: 10 },
+        { resourceId: "seaWater", quantity: 10 },
+      ],
+    });
+    expect(result.flows.find(flow => flow.resourceId === "moltenIron")?.net).toBe(0);
+    expect(result.flows.find(flow => flow.resourceId === "steamLow")?.net).toBe(0);
+    expect(result.flows.find(flow => flow.resourceId === "oxygen")?.net).toBe(-5);
+    expect(result.flows.find(flow => flow.resourceId === "seaWater")?.net).toBe(-10);
+  });
+
   it("treats a pooled live export request as module supply, not factory demand", () => {
     const pooledLiveModule: Module = {
       id: "live-copper",

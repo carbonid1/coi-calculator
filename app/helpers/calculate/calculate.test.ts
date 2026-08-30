@@ -281,7 +281,7 @@ it("keeps a module export demand on the selected producer", () => {
     {},
     {},
     new Set(),
-    new Set(),
+    new Map(),
     new Map([["selected", { copper: 10 }]]),
   );
   const selectedResult = result.regularResults.find(
@@ -450,7 +450,7 @@ it("lets a planned private producer expose support demand for surplus consumptio
     {},
     { water: 5 },
     new Set(["seaWater"]),
-    new Set(["seaWater"]),
+    new Map([["target", new Set(["seaWater"])]]),
   );
 
   expect(result.regularResults.find(
@@ -499,6 +499,62 @@ it("uses supplied support stock without treating its module ledger as a new defi
   )?.supplyRatio).toBe(1);
   expect(result.allResourceFlows.find(flow => flow.resourceId === "steamLow")?.net).toBe(0);
   expect(result.allResourceFlows.find(flow => flow.resourceId === "seaWater")?.net).toBe(0);
+});
+
+it("keeps planned supporting inputs scoped to their own module", () => {
+  const importedProcess: Recipe = {
+    id: "test-module-scoped-import",
+    name: "Imported process",
+    building: "Imported process",
+    group: "production",
+    inputs: [
+      { resourceId: "ironOreCrushed", quantity: 10 },
+      { resourceId: "oxygen", quantity: 5 },
+    ],
+    outputs: [{ resourceId: "slag", quantity: 10 }],
+  };
+  const steamProducer: Recipe = {
+    id: "test-unrelated-steam",
+    name: "Unrelated steam producer",
+    building: "Steam producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "steamLow", quantity: 10 }],
+  };
+  const unrelatedConsumer: Recipe = {
+    id: "test-unrelated-surplus-consumer",
+    name: "Unrelated surplus consumer",
+    building: "Surplus consumer",
+    group: "production",
+    balanceBy: "output",
+    consumeSurplusInputIds: ["steamLow"],
+    consumeSurplusInputScope: "module",
+    inputs: [
+      { resourceId: "steamLow", quantity: 10 },
+      { resourceId: "oxygen", quantity: 5 },
+    ],
+    outputs: [{ resourceId: "water", quantity: 10 }],
+  };
+  const result = calculateNet(
+    [
+      {
+        ...balancedLine(importedProcess, "importing"),
+        drivingInputIds: ["ironOreCrushed"],
+      },
+      fixedLine(steamProducer, "unrelated"),
+      balancedLine(unrelatedConsumer, "unrelated"),
+    ],
+    { ironOreCrushed: 10 },
+  );
+
+  expect(result.regularResults.find(
+    candidate => candidate.recipe.id === importedProcess.id,
+  )?.supplyRatio).toBe(1);
+  expect(result.regularResults.find(
+    candidate => candidate.recipe.id === unrelatedConsumer.id,
+  )?.supplyRatio).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "oxygen")?.net).toBe(-5);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "steamLow")?.net).toBe(10);
 });
 
 it("leaves preferred surplus when supporting production capacity is exhausted", () => {

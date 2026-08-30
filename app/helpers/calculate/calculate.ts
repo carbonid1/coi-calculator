@@ -285,6 +285,81 @@ const orderSupplyBalancedLines = (lines: ProductionLine[]) => {
   return ordered;
 };
 
+/**
+ * A requested module import can force an upstream recipe to run before its
+ * ordinary output demand exists. Follow that material through consumers in
+ * the same module so their external supporting inputs become factory demand
+ * instead of blocking the local production chain.
+ */
+const getDrivenSupportingResourceIds = (lines: ProductionLine[]) => {
+  const result = new Map<string, Set<ResourceId>>();
+  const linesByModule = new Map<string, ProductionLine[]>();
+
+  for (const line of lines) {
+    const moduleLines = linesByModule.get(line.moduleId) ?? [];
+
+    moduleLines.push(line);
+    linesByModule.set(line.moduleId, moduleLines);
+  }
+
+  for (const moduleLines of linesByModule.values()) {
+    const reachableIds = new Set<ResourceId>();
+    const supportingIds = new Set<ResourceId>();
+
+    for (const line of moduleLines) {
+      if (line.activeBuildings <= 0 || !line.drivingInputIds?.length) continue;
+
+      const drivingInputIds = new Set(line.drivingInputIds);
+
+      for (const input of line.recipe.inputs) {
+        if (!drivingInputIds.has(input.resourceId)) supportingIds.add(input.resourceId);
+      }
+      for (const output of line.recipe.outputs) reachableIds.add(output.resourceId);
+    }
+
+    if (reachableIds.size === 0) continue;
+
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+
+      for (const line of moduleLines) {
+        if (
+          line.activeBuildings <= 0
+          || !line.recipe.inputs.some(input => reachableIds.has(input.resourceId))
+        ) {
+          continue;
+        }
+
+        for (const input of line.recipe.inputs) {
+          if (!reachableIds.has(input.resourceId)) supportingIds.add(input.resourceId);
+        }
+        for (const output of line.recipe.outputs) {
+          if (reachableIds.has(output.resourceId)) continue;
+
+          reachableIds.add(output.resourceId);
+          changed = true;
+        }
+      }
+    }
+
+    const moduleId = moduleLines[0]?.moduleId;
+
+    if (!moduleId) continue;
+
+    const moduleSupportingIds = result.get(moduleId) ?? new Set<ResourceId>();
+
+    for (const resourceId of supportingIds) {
+      if (!reachableIds.has(resourceId)) moduleSupportingIds.add(resourceId);
+    }
+
+    if (moduleSupportingIds.size > 0) result.set(moduleId, moduleSupportingIds);
+  }
+
+  return result;
+};
+
 export const getAppliedRecyclingEfficiencyPercent = (recipe: Recipe, globalEfficiencyPercent: number) => {
   const createsRecyclables = recipe.outputs.some((output) => output.resourceId === "recyclables");
 
@@ -323,7 +398,10 @@ export const calculateNet = (
   outputModifiers: RecipeModifierMultipliers = {},
   fixedDemands: Partial<Record<ResourceId, number>> = {},
   nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
-  plannedSupportingResourceIds: ReadonlySet<ResourceId> = new Set(),
+  plannedSupportingResourceIds: ReadonlyMap<
+    string,
+    ReadonlySet<ResourceId>
+  > = new Map(),
   moduleFixedDemands: ReadonlyMap<
     string,
     Partial<Record<ResourceId, number>>
@@ -333,6 +411,32 @@ export const calculateNet = (
     Partial<Record<ResourceId, number>>
   > = new Map(),
 ) => {
+  const effectivePlannedSupportingResourceIds = new Map<string, Set<ResourceId>>();
+
+  for (const [moduleId, resourceIds] of plannedSupportingResourceIds) {
+    effectivePlannedSupportingResourceIds.set(moduleId, new Set(resourceIds));
+  }
+  for (const [moduleId, resourceIds] of getDrivenSupportingResourceIds(lines)) {
+    const effectiveIds = effectivePlannedSupportingResourceIds.get(moduleId)
+      ?? new Set<ResourceId>();
+
+    for (const resourceId of resourceIds) effectiveIds.add(resourceId);
+    effectivePlannedSupportingResourceIds.set(moduleId, effectiveIds);
+  }
+
+  const isPlannedSupportingResource = (moduleId: string, resourceId: ResourceId) => (
+    effectivePlannedSupportingResourceIds.get(moduleId)?.has(resourceId) ?? false
+  );
+  const plannedSupportingModuleKeys = new Set(
+    [...effectivePlannedSupportingResourceIds].flatMap(([moduleId, resourceIds]) => (
+      [...resourceIds].map(resourceId => `${moduleId}:${resourceId}`)
+    )),
+  );
+  const plannedSupportingIds = new Set(
+    [...effectivePlannedSupportingResourceIds.values()].flatMap(resourceIds => (
+      [...resourceIds]
+    )),
+  );
   const regularLines = lines.filter((l) => l.recipe.group !== "source" && l.recipe.group !== "sink");
   const sourceLines = lines.filter((l) => l.recipe.group === "source");
   const sinkLines = lines.filter((l) => l.recipe.group === "sink");
@@ -383,8 +487,8 @@ export const calculateNet = (
   const sourceOutputCapacities = new Map<ProductionLine, Map<ResourceId, number>>();
   const totalSourceCapacityByResource = new Map<ResourceId, number>();
   const totalModuleSourceCapacityByResource = new Map<string, number>();
-  const terrainSourceCapacityByResource = new Map<string, number>();
-  const terrainSourceKeysByResource = new Map<ResourceId, Set<string>>();
+  const ownedModuleSupplyCapacityByResource = new Map<string, number>();
+  const ownedModuleSupplyKeysByResource = new Map<ResourceId, Set<string>>();
   const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => (
     `${moduleId}:${resourceId}`
   );
@@ -400,6 +504,30 @@ export const calculateNet = (
 
     return flow;
   };
+  const addOwnedModuleSupplyCapacity = (
+    moduleId: string,
+    resourceId: ResourceId,
+    quantity: number,
+  ) => {
+    if (quantity <= 0) return;
+
+    const moduleKey = moduleResourceKey(moduleId, resourceId);
+
+    ownedModuleSupplyCapacityByResource.set(
+      moduleKey,
+      (ownedModuleSupplyCapacityByResource.get(moduleKey) ?? 0) + quantity,
+    );
+    const sourceKeys = ownedModuleSupplyKeysByResource.get(resourceId) ?? new Set<string>();
+
+    sourceKeys.add(moduleKey);
+    ownedModuleSupplyKeysByResource.set(resourceId, sourceKeys);
+  };
+
+  for (const [moduleId, supplies] of moduleSuppliedResources) {
+    for (const [resourceId, quantity] of typedEntries(supplies)) {
+      addOwnedModuleSupplyCapacity(moduleId, resourceId, quantity);
+    }
+  }
   const setSourceOutputCapacity = (
     line: ProductionLine,
     resourceId: ResourceId,
@@ -423,14 +551,7 @@ export const calculateNet = (
       isModuleScopedSourceMode(line.recipe.sourceMode)
       && line.recipe.sourceKind === "map-mine"
     ) {
-      terrainSourceCapacityByResource.set(
-        moduleKey,
-        (terrainSourceCapacityByResource.get(moduleKey) ?? 0) + quantity,
-      );
-      const sourceKeys = terrainSourceKeysByResource.get(resourceId) ?? new Set<string>();
-
-      sourceKeys.add(moduleKey);
-      terrainSourceKeysByResource.set(resourceId, sourceKeys);
+      addOwnedModuleSupplyCapacity(line.moduleId, resourceId, quantity);
     }
   };
   const getSourceScale = (
@@ -590,9 +711,9 @@ export const calculateNet = (
   };
   const getUnreservedGlobalInput = (resourceId: ResourceId) => {
     const globalFlow = getFlow(resourceId);
-    const unavailableModuleSupply = [...(terrainSourceKeysByResource.get(resourceId) ?? [])]
+    const unavailableModuleSupply = [...(ownedModuleSupplyKeysByResource.get(resourceId) ?? [])]
       .reduce((total, key) => {
-        const capacity = terrainSourceCapacityByResource.get(key) ?? 0;
+        const capacity = ownedModuleSupplyCapacityByResource.get(key) ?? 0;
         const moduleFlow = actualModuleFlows.get(key) ?? { consumed: 0, produced: 0 };
         const nonSourceProduction = moduleFlow.produced - capacity;
         const localSourceDemand = Math.max(0, moduleFlow.consumed - nonSourceProduction);
@@ -606,7 +727,7 @@ export const calculateNet = (
   const getAvailableInput = (line: ProductionLine, resourceId: ResourceId) => {
     const moduleKey = moduleResourceKey(line.moduleId, resourceId);
     const hasOwnedModuleSource = (
-      terrainSourceCapacityByResource.get(moduleKey) ?? 0
+      ownedModuleSupplyCapacityByResource.get(moduleKey) ?? 0
     ) > 0;
 
     if (line.recipe.balanceInputScope === "module" || hasOwnedModuleSource) {
@@ -790,6 +911,33 @@ export const calculateNet = (
 
     return Math.max(globalDemand, selectedSourceDemand) / capacity;
   };
+  const getDrivenInputRatio = (line: ProductionLine) => {
+    const drivingInputIds = new Set(line.drivingInputIds);
+    const factor = lineFactor(line);
+    let ratio = capacityTracker.availableRatio(line);
+
+    for (const input of line.recipe.inputs) {
+      if (
+        !drivingInputIds.has(input.resourceId)
+        && !hardSuppliedIds.has(input.resourceId)
+      ) {
+        continue;
+      }
+      if (
+        !drivingInputIds.has(input.resourceId)
+        && isPlannedSupportingResource(line.moduleId, input.resourceId)
+      ) {
+        continue;
+      }
+
+      const available = getAvailableInput(line, input.resourceId);
+      const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+      if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+    }
+
+    return ratio;
+  };
 
   // Fixed recipes reserve their physical building capacity first.
   for (const line of orderSharedCapacity(fixedLines)) {
@@ -803,6 +951,12 @@ export const calculateNet = (
     applyRegularLine(line, Math.min(requestedRatio, capacityTracker.availableRatio(line)));
   }
 
+  // Direct module imports reserve their recipe capacity before ordinary
+  // alternatives can consume the same physical machines.
+  for (const line of drivenInputLines) {
+    applyRegularLine(line, getDrivenInputRatio(line));
+  }
+
   // Ordinary supply-balanced recipes retain the existing constrained-resource
   // behavior. Shared fallback recipes are deferred until primary demand is known.
   for (const line of supplyBalancedLines) {
@@ -811,8 +965,12 @@ export const calculateNet = (
       continue;
     }
 
+    const currentRatio = allocationRatios.get(line) ?? 0;
     const factor = lineFactor(line);
-    let ratio = capacityTracker.availableRatio(line);
+    let ratio = Math.min(
+      Math.max(0, 1 - currentRatio),
+      capacityTracker.availableRatio(line),
+    );
 
     for (const input of line.recipe.inputs) {
       const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(input.resourceId) ?? false;
@@ -835,7 +993,7 @@ export const calculateNet = (
       if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
     }
 
-    applyRegularLine(line, ratio);
+    applyRegularLine(line, ratio, currentRatio > 0);
   }
 
   // Propagate demand from consumers to producers. Internally produced inputs are
@@ -849,8 +1007,12 @@ export const calculateNet = (
       continue;
     }
 
+    const currentRatio = allocationRatios.get(line) ?? 0;
     const factor = lineFactor(line);
-    let ratio = capacityTracker.availableRatio(line);
+    let ratio = Math.min(
+      Math.max(0, 1 - currentRatio),
+      capacityTracker.availableRatio(line),
+    );
 
     for (const input of line.recipe.inputs) {
       if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
@@ -860,7 +1022,7 @@ export const calculateNet = (
         if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
         continue;
       }
-      if (terrainSourceKeysByResource.has(input.resourceId)) {
+      if (ownedModuleSupplyKeysByResource.has(input.resourceId)) {
         const available = getAvailableInput(line, input.resourceId);
         const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
@@ -907,7 +1069,7 @@ export const calculateNet = (
       ? Math.min(ratio, Math.max(...outputDemandRatios))
       : 0;
 
-    applyRegularLine(line, ratio);
+    applyRegularLine(line, ratio, currentRatio > 0);
   }
 
   const applyLowerPriorityLines = (linesToApply: ProductionLine[]) => {
@@ -917,8 +1079,12 @@ export const calculateNet = (
         continue;
       }
 
+      const currentRatio = allocationRatios.get(line) ?? 0;
       const factor = lineFactor(line);
-      let ratio = capacityTracker.availableRatio(line);
+      let ratio = Math.min(
+        Math.max(0, 1 - currentRatio),
+        capacityTracker.availableRatio(line),
+      );
 
       for (const input of line.recipe.inputs) {
         const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(input.resourceId) ?? false;
@@ -967,7 +1133,7 @@ export const calculateNet = (
           : 0;
       }
 
-      applyRegularLine(line, ratio);
+      applyRegularLine(line, ratio, currentRatio > 0);
     }
   };
   const cloneFlows = (source: FlowMap): FlowMap => new Map(
@@ -1058,22 +1224,59 @@ export const calculateNet = (
 
     return false;
   };
+  const getDeficitIncrease = (
+    before: { consumed: number; produced: number } | undefined,
+    after: { consumed: number; produced: number } | undefined,
+  ) => {
+    const beforeDeficit = Math.max(
+      0,
+      (before?.consumed ?? 0) - (before?.produced ?? 0),
+    );
+    const afterDeficit = Math.max(
+      0,
+      (after?.consumed ?? 0) - (after?.produced ?? 0),
+    );
+
+    return Math.max(0, afterDeficit - beforeDeficit);
+  };
   const allocationIntroducedDeficit = (
     baseline: ReturnType<typeof snapshotAllocationState>,
-  ) => (
-    hasNewDeficit(
-      baseline.flows,
-      flows,
-      key => plannedSupportingResourceIds.has(key),
-    )
-    || hasNewDeficit(
+  ) => {
+    const resourceIds = new Set([...baseline.flows.keys(), ...flows.keys()]);
+
+    for (const resourceId of resourceIds) {
+      const globalIncrease = getDeficitIncrease(
+        baseline.flows.get(resourceId),
+        flows.get(resourceId),
+      );
+
+      if (globalIncrease <= 1e-7) continue;
+      if (!plannedSupportingIds.has(resourceId)) return true;
+
+      const supportedIncrease = [...effectivePlannedSupportingResourceIds]
+        .reduce((total, [moduleId, supportingIds]) => {
+          if (!supportingIds.has(resourceId)) return total;
+
+          const key = moduleResourceKey(moduleId, resourceId);
+
+          return total + getDeficitIncrease(
+            baseline.actualModuleFlows.get(key),
+            actualModuleFlows.get(key),
+          );
+        }, 0);
+
+      if (globalIncrease > supportedIncrease + 1e-7) return true;
+    }
+
+    return hasNewDeficit(
       baseline.actualModuleFlows,
       actualModuleFlows,
-      key => [...new Set([...suppliedIds, ...plannedSupportingResourceIds])].some(
-        resourceId => key.endsWith(`:${resourceId}`),
+      key => (
+        plannedSupportingModuleKeys.has(key)
+        || [...suppliedIds].some(resourceId => key.endsWith(`:${resourceId}`))
       ),
-    )
-  );
+    );
+  };
   const applyAdditionalSurplusConsumption = () => {
     for (const line of surplusConsumerLines) {
       const currentRatio = allocationRatios.get(line) ?? 0;
@@ -1108,7 +1311,7 @@ export const calculateNet = (
         // merely to eliminate a preferred surplus resource.
         if (
           internallyProducedIds.has(input.resourceId)
-          || plannedSupportingResourceIds.has(input.resourceId)
+          || isPlannedSupportingResource(line.moduleId, input.resourceId)
         ) {
           continue;
         }
@@ -1153,40 +1356,6 @@ export const calculateNet = (
       }
     }
   };
-  const applyDrivenInputConsumption = () => {
-    for (const line of drivenInputLines) {
-      const currentRatio = allocationRatios.get(line) ?? 0;
-      const remainingLineRatio = Math.max(0, 1 - currentRatio);
-
-      if (remainingLineRatio <= 1e-9) continue;
-
-      const drivingInputIds = new Set(line.drivingInputIds);
-      const factor = lineFactor(line);
-      let ratio = Math.min(
-        remainingLineRatio,
-        capacityTracker.availableRatio(line),
-      );
-
-      for (const input of line.recipe.inputs) {
-        if (
-          !drivingInputIds.has(input.resourceId)
-          && !hardSuppliedIds.has(input.resourceId)
-        ) {
-          continue;
-        }
-
-        const available = getAvailableInput(line, input.resourceId);
-        const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
-
-        if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
-      }
-
-      if (ratio <= 1e-9) continue;
-
-      applyRegularLine(line, ratio, true);
-      propagateAdditionalDemand();
-    }
-  };
   const propagateAdditionalDemand = () => {
     for (let iteration = 0; iteration < demandBalancedLines.length; iteration += 1) {
       let changed = false;
@@ -1212,7 +1381,7 @@ export const calculateNet = (
             if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
             continue;
           }
-          if (terrainSourceKeysByResource.has(input.resourceId)) {
+          if (ownedModuleSupplyKeysByResource.has(input.resourceId)) {
             const available = getAvailableInput(line, input.resourceId);
             const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
 
@@ -1361,8 +1530,6 @@ export const calculateNet = (
   propagateAdditionalDemand();
   reservePlannedSourceInputs();
   applyLowerPriorityLines(surplusLines);
-  propagateAdditionalDemand();
-  applyDrivenInputConsumption();
   propagateAdditionalDemand();
   applyAdditionalSurplusConsumption();
   propagateAdditionalDemand();

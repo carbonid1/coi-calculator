@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  moduleResourceLinkDefinitions,
   resolveModuleResourceLinks,
   type ModuleResourceLink,
 } from '../../db/module-resource-links'
@@ -44,6 +45,39 @@ const createModule = (
 })
 
 describe('linked live modules', () => {
+  it('exposes an isolated planned import as an exact factory boundary', () => {
+    const ironSmelting: Recipe = {
+      id: 'import-driven-smelting',
+      name: 'Import-driven smelting',
+      building: 'Arc furnace II',
+      group: 'production',
+      allocation: 'fallback',
+      balanceBy: 'output',
+      balanceOutputIds: ['moltenIron'],
+      inputs: [{ resourceId: 'ironOreCrushed', quantity: 10 }],
+      outputs: [{ resourceId: 'moltenIron', quantity: 10 }],
+    }
+    const steel = createModule('steel', 'Steel', [ironSmelting])
+    const preset = steel.presets[0]
+
+    if (!preset) throw new Error('Missing live preset')
+
+    preset.requestedImports = { ironOreCrushed: 10 }
+
+    const result = calculateLinkedModules({
+      links: [],
+      modules: [steel],
+      recyclingEfficiencyPercent: 100,
+    })
+
+    expect(result.boundaryDemands).toEqual({ ironOreCrushed: 10 })
+    expect(result.moduleResults.get(steel.id)?.regularResults[0]).toMatchObject({
+      supplyRatio: 1,
+      actualInputs: [{ resourceId: 'ironOreCrushed', quantity: 10 }],
+      actualOutputs: [{ resourceId: 'moltenIron', quantity: 10 }],
+    })
+  })
+
   it('does not duplicate a factory-pooled live area through isolated boundaries', () => {
     const copperChain: Recipe = {
       id: 'copper-chain',
@@ -98,6 +132,33 @@ describe('linked live modules', () => {
       resourceId: 'exhaust',
       mode: 'surplus-only',
     }])
+  })
+
+  it('resolves the dedicated Steel #1 routes from the synced area names', () => {
+    const copper = createModule('copper', 'Copper #1', [])
+    const steel = createModule('steel', 'Steel #1', [])
+    const exhaust = createModule('exhaust', 'Exaust #1', [])
+    const links = resolveModuleResourceLinks(
+      [copper, steel, exhaust],
+      moduleResourceLinkDefinitions,
+    )
+
+    expect(links).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'copper-1-sea-water-to-steel-1',
+        sourceModuleId: copper.id,
+        targetModuleId: steel.id,
+        resourceId: 'seaWater',
+        mode: 'produce-to-demand',
+      }),
+      expect.objectContaining({
+        id: 'steel-1-exhaust-to-exaust-1',
+        sourceModuleId: steel.id,
+        targetModuleId: exhaust.id,
+        resourceId: 'exhaust',
+        mode: 'surplus-only',
+      }),
+    ]))
   })
 
   it('routes private surplus, starts a named source on demand, and exposes other boundaries globally', () => {
@@ -288,6 +349,61 @@ describe('linked live modules', () => {
     ])
     expect(result.transfers.reduce((total, transfer) => total + transfer.quantity, 0)).toBe(10)
     expect(result.moduleResults.get(target.id)?.regularResults[0]?.supplyRatio).toBe(1)
+  })
+
+  it('preserves the full target request when a demand-triggered source is undersized', () => {
+    const pump: Recipe = {
+      id: 'limited-water-pump',
+      name: 'Limited water pump',
+      building: 'Pump',
+      group: 'production',
+      balanceBy: 'output',
+      inputs: [],
+      outputs: [{ resourceId: 'water', quantity: 6 }],
+    }
+    const consumer: Recipe = {
+      id: 'water-to-steel',
+      name: 'Water consumer',
+      building: 'Consumer',
+      group: 'production',
+      balanceBy: 'output',
+      inputs: [{ resourceId: 'water', quantity: 10 }],
+      outputs: [{ resourceId: 'steel', quantity: 10 }],
+    }
+    const source = createModule('limited-source', 'Limited source', [pump])
+    const target = createModule(
+      'limited-target',
+      'Limited target',
+      [consumer],
+      [],
+      { steel: 10 },
+    )
+    const result = calculateLinkedModules({
+      links: [{
+        id: 'limited-water-link',
+        sourceModuleId: source.id,
+        sourceModuleName: source.name,
+        targetModuleId: target.id,
+        targetModuleName: target.name,
+        resourceId: 'water',
+        mode: 'produce-to-demand',
+      }],
+      modules: [source, target],
+      recyclingEfficiencyPercent: 100,
+    })
+
+    expect(result.transfers).toEqual([
+      expect.objectContaining({
+        id: 'limited-water-link',
+        quantity: 6,
+        requestedQuantity: 10,
+      }),
+    ])
+    expect(result.moduleResults.get(target.id)?.regularResults[0]).toMatchObject({
+      supplyRatio: 0.6,
+      actualInputs: [{ resourceId: 'water', quantity: 6 }],
+      actualOutputs: [{ resourceId: 'steel', quantity: 6 }],
+    })
   })
 
   it('keeps an explicit global export when the same resource has a private link', () => {

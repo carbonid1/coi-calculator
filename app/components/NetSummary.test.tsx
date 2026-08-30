@@ -56,6 +56,34 @@ it("shows requested exports inline using planned colour and a tooltip", () => {
   expect(html).not.toContain("Requested exports");
 });
 
+it("shows requested imports first using the planned colour", () => {
+  const html = renderToStaticMarkup(
+    <NetSummary
+      flows={[{
+        resourceId: "acid",
+        name: "Acid",
+        consumed: 96,
+        produced: 0,
+        net: -96,
+      }]}
+      requestedImports={{ ironOreCrushed: 384 }}
+      requestedExports={{ steel: 192 }}
+    />,
+  );
+  const dividers = [...html.matchAll(/class="my-2 border-t border-border"/g)]
+    .map(match => match.index ?? -1);
+
+  expect(html).toContain("Planned import target: 384 Iron Ore Crushed per production cycle.");
+  expect(html).toContain("bg-highlight-muted");
+  expect(html).toContain("text-highlight-foreground");
+  expect(html).toContain('data-data-source="planned"');
+  expect(dividers).toHaveLength(2);
+  expect(html.indexOf(">Iron Ore Crushed<")).toBeLessThan(dividers[0] ?? -1);
+  expect(dividers[0]).toBeLessThan(html.indexOf(">Acid<"));
+  expect(html.indexOf(">Acid<")).toBeLessThan(dividers[1] ?? -1);
+  expect(dividers[1]).toBeLessThan(html.indexOf(">Steel<"));
+});
+
 it("puts projected delivery in the tooltip without repeating the shortfall as an input", () => {
   const html = renderToStaticMarkup(
     <NetSummary

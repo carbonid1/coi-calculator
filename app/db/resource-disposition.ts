@@ -27,6 +27,15 @@ export interface SurplusConsumptionSettings {
  * installed capacity after ordinary output demand has been satisfied.
  */
 export const resourceDispositionPolicies: Partial<Record<ResourceId, ResourceDispositionPolicy>> = {
+  moltenIron: {
+    minimizeSurplus: {
+      scope: 'module',
+      defaultConsumerPriority: 100,
+      consumerPriorities: {
+        SteelSmeltingT2: 10,
+      },
+    },
+  },
   seaWater: {
     liveModuleInput: 'linked-only',
   },

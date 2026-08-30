@@ -39,6 +39,8 @@ export interface Preset {
   speedLevels?: Record<string, number>;
   /** Manually measured resource use outside the currently modeled recipes. */
   fixedDemands?: Partial<Record<ResourceId, number>>;
+  /** Planned product quantities imported directly into this module each production cycle. */
+  requestedImports?: Partial<Record<ResourceId, number>>;
   /** Planned product quantities exported from this module each production cycle. */
   requestedExports?: Partial<Record<ResourceId, number>>;
   /** Minimum average output for a named electricity dispatch group. */

@@ -838,8 +838,82 @@ describe('createLiveAreaModules', () => {
     const { lines } = buildModuleLines(module, module.presets[0] ?? null)
     const result = calculateNet(lines)
 
+    expect(module.recipes?.map(candidate => candidate.sharedCapacity)).toEqual([
+      undefined,
+      undefined,
+    ])
+    expect(lines.map(line => line.capacityPoolId)).toEqual([undefined, undefined])
     expect(result.regularResults).toHaveLength(2)
     expect(result.regularResults.map(item => item.supplyRatio)).toEqual([0, 0])
+  })
+
+  it('keeps a completed boosted Sea Water pump separate from a default-recipe ghost', () => {
+    const seawaterPump = {
+      id: 'OceanWaterPumping',
+      name: 'Ocean Water Pumping',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [],
+      outputs: [{ productId: 'Product_SeaWater', name: 'Sea Water', quantity: 108 }],
+    }
+    const boostedSeawaterPump = {
+      ...seawaterPump,
+      id: 'OceanWaterPumping2x',
+      name: 'Ocean Water Pumping 2x',
+      outputs: [{ productId: 'Product_SeaWater', name: 'Sea Water', quantity: 216 }],
+    }
+    const pumpEntity = (
+      entityId: number,
+      constructed: boolean,
+      configuredRecipe: typeof seawaterPump,
+    ) => ({
+      ...entity(entityId, constructed, constructed, [configuredRecipe]),
+      prototypeId: 'OceanWaterPumpT1',
+      prototypeName: 'Seawater pump',
+    })
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [
+        pumpEntity(1, true, boostedSeawaterPump),
+        pumpEntity(2, false, seawaterPump),
+      ],
+      [],
+      { Test: { requestedExports: { seaWater: 300 } } },
+    )
+
+    if (!module) throw new Error('Live area module was not created')
+
+    const preset = module.presets[0] ?? null
+    const { lines } = buildModuleLines(module, preset)
+    const result = calculateNet(
+      lines,
+      {},
+      undefined,
+      {},
+      getPresetResourceDemands(preset),
+      new Set(),
+      new Map(),
+      new Map([[module.id, { seaWater: 300 }]]),
+    )
+    const sourceResult = (gameRecipeId: string) => result.sourceResults.find(candidate => (
+      candidate.recipe.gameRecipeId === gameRecipeId
+    ))
+
+    expect(lines.map(line => line.capacityPoolId)).toEqual([undefined, undefined])
+    expect(sourceResult('OceanWaterPumping2x')).toMatchObject({
+      activeBuildings: 1,
+      builtBuildings: 1,
+      constructionGhosts: 0,
+      supplyRatio: 1,
+      actualOutputs: [{ resourceId: 'seaWater', quantity: 216 }],
+    })
+    expect(sourceResult('OceanWaterPumping')).toMatchObject({
+      activeBuildings: 1,
+      builtBuildings: 0,
+      constructionGhosts: 1,
+      supplyRatio: 84 / 108,
+      actualOutputs: [{ resourceId: 'seaWater', quantity: 84 }],
+    })
   })
 
   it('keeps synced Sea Water pumps local while balancing them to area demand', () => {
@@ -909,7 +983,7 @@ describe('createLiveAreaModules', () => {
         seaWater: 72,
       },
       new Set(),
-      new Set(),
+      new Map(),
       new Map(),
       new Map([[module.id, { steamLow: 96 }]]),
     )
@@ -1200,6 +1274,193 @@ describe('createLiveAreaModules', () => {
     expect(calculateBuildingStats(lines, result)).toMatchObject({
       workers: 224,
       electricityKw: 48_400,
+    })
+  })
+
+  it('uses a forced Crushed Ore import before available Iron Scrap', () => {
+    const arcOreRecipe = {
+      id: 'IronSmeltingArc',
+      name: 'Iron Smelting Arc',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [
+        { productId: 'Product_IronOreCrushed', name: 'Iron Ore Crushed', quantity: 48 },
+        { productId: 'Product_Limestone', name: 'Limestone', quantity: 6 },
+        { productId: 'Product_Graphite', name: 'Graphite', quantity: 3 },
+        { productId: 'Product_Water', name: 'Water', quantity: 6 },
+      ],
+      outputs: [
+        { productId: 'Product_MoltenIron', name: 'Molten Iron', quantity: 48 },
+        { productId: 'Product_Slag', name: 'Slag', quantity: 18 },
+        { productId: 'Product_SteamLow', name: 'Steam (Low)', quantity: 6 },
+        { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 12 },
+      ],
+    }
+    const arcScrapRecipe = {
+      id: 'IronSmeltingArcScrap',
+      name: 'Iron Smelting Arc Scrap',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [
+        { productId: 'Product_IronScrap', name: 'Iron Scrap', quantity: 48 },
+        { productId: 'Product_Graphite', name: 'Graphite', quantity: 3 },
+        { productId: 'Product_Water', name: 'Water', quantity: 6 },
+      ],
+      outputs: [
+        { productId: 'Product_MoltenIron', name: 'Molten Iron', quantity: 48 },
+        { productId: 'Product_SteamLow', name: 'Steam (Low)', quantity: 6 },
+        { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 6 },
+      ],
+    }
+    const oxygenFurnaceRecipe = {
+      id: 'SteelProductionOxygenFurnace2',
+      name: 'Steel Production',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [
+        { productId: 'Product_MoltenIron', name: 'Molten Iron', quantity: 48 },
+        { productId: 'Product_Oxygen', name: 'Oxygen', quantity: 18 },
+      ],
+      outputs: [
+        { productId: 'Product_MoltenSteel', name: 'Molten Steel', quantity: 24 },
+        { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 36 },
+      ],
+    }
+    const casterRecipe = {
+      id: 'SteelCasting2',
+      name: 'Steel Casting',
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [
+        { productId: 'Product_MoltenSteel', name: 'Molten Steel', quantity: 24 },
+        { productId: 'Product_Water', name: 'Water', quantity: 12 },
+      ],
+      outputs: [{ productId: 'Product_Steel', name: 'Steel', quantity: 24 }],
+    }
+    const chainEntity = (
+      entityId: number,
+      prototypeId: string,
+      prototypeName: string,
+      entityRecipes: SyncedAreaEntity['recipes'],
+    ) => ({
+      ...entity(entityId, false, false, entityRecipes),
+      prototypeId,
+      prototypeName,
+      zones: [{ id: 21, name: 'Future Steel' }],
+    })
+    const [module] = createLiveAreaModules(
+      [{ id: 21, name: 'Future Steel' }],
+      [
+        ...Array.from({ length: 8 }, (_, index) => (
+          chainEntity(index + 1, 'ArcFurnace2', 'Arc furnace II', [
+            arcOreRecipe,
+            arcScrapRecipe,
+          ])
+        )),
+        ...Array.from({ length: 8 }, (_, index) => (
+          chainEntity(index + 20, 'OxygenFurnace2', 'Oxygen furnace II', [
+            oxygenFurnaceRecipe,
+          ])
+        )),
+        ...Array.from({ length: 8 }, (_, index) => (
+          chainEntity(index + 40, 'AirSeparator3', 'Cooled caster II', [casterRecipe])
+        )),
+      ],
+      [],
+      {
+        'Future Steel': {
+          resourcePool: 'factory',
+          requestedImports: { ironOreCrushed: 384 },
+          requestedExports: { steel: 192 },
+        },
+      },
+    )
+
+    if (!module) throw new Error('Future Steel module was not created')
+
+    const preset = module.presets[0]
+
+    expect(preset?.requestedImports).toEqual({ ironOreCrushed: 384 })
+
+    const { lines } = buildModuleLines(module, preset ?? null)
+    const normalResult = calculateNet(
+      lines.map(line => ({ ...line, drivingInputIds: undefined })),
+      {
+        graphite: 1_000,
+        ironOreCrushed: 1_000,
+        ironScrap: 120,
+        limestone: 1_000,
+        oxygen: 1_000,
+        water: 1_000,
+      },
+      undefined,
+      {},
+      getPresetResourceDemands(preset),
+    )
+    const normalArcResults = normalResult.regularResults.filter(candidate => (
+      candidate.recipe.gameRecipeId?.startsWith('IronSmeltingArc')
+    ))
+
+    expect(normalArcResults.map(candidate => candidate.supplyRatio)).toEqual([
+      0.3125,
+      0,
+    ])
+
+    const result = calculateNet(
+      lines,
+      {
+        graphite: 1_000,
+        ironOreCrushed: 384,
+        ironScrap: 120,
+        limestone: 1_000,
+        oxygen: 1_000,
+        water: 1_000,
+      },
+      undefined,
+      {},
+      getPresetResourceDemands(preset),
+    )
+    const arcResults = result.regularResults.filter(candidate => (
+      candidate.recipe.gameRecipeId?.startsWith('IronSmeltingArc')
+    ))
+
+    expect(arcResults.map(candidate => candidate.recipe.gameRecipeId)).toEqual([
+      'IronSmeltingArcScrap',
+      'IronSmeltingArc',
+    ])
+    expect(arcResults).toEqual([
+      expect.objectContaining({
+        recipe: expect.objectContaining({
+          balanceBy: 'input',
+          balanceInputIds: ['ironScrap'],
+          electricityMultiplier: 0.6,
+        }),
+        actualInputs: expect.arrayContaining([
+          { resourceId: 'ironScrap', quantity: 0 },
+        ]),
+        supplyRatio: 0,
+      }),
+      expect.objectContaining({
+        recipe: expect.objectContaining({
+          allocation: 'fallback',
+          allocationPriority: 25,
+          balanceBy: 'output',
+          balanceInputIds: [],
+          balanceOutputIds: ['moltenIron'],
+        }),
+        actualInputs: expect.arrayContaining([
+          { resourceId: 'ironOreCrushed', quantity: 384 },
+        ]),
+        supplyRatio: 1,
+      }),
+    ])
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'steel')).toMatchObject({
+      consumed: 192,
+      produced: 192,
+      net: 0,
+    })
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'moltenIron')).toMatchObject({
+      net: 0,
     })
   })
 

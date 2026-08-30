@@ -16,6 +16,11 @@ describe('resource disposition policies', () => {
       .toEqual({ inputIds: ['steamLow'], priority: 10, scope: 'module' })
   })
 
+  it('routes local Molten Iron through the installed steel furnace', () => {
+    expect(getSurplusConsumptionSettings(['moltenIron', 'oxygen'], 'SteelSmeltingT2'))
+      .toEqual({ inputIds: ['moltenIron'], priority: 10, scope: 'module' })
+  })
+
   it('allows any installed consumer to absorb a configured resource', () => {
     expect(getSurplusConsumptionSettings(['steamLow'], 'FutureSteamConsumer'))
       .toEqual({ inputIds: ['steamLow'], priority: 100, scope: 'module' })

@@ -77,7 +77,15 @@ const calculateWithDispatch = (
   fixedDemands: Partial<Record<ResourceId, number>> = {},
   electricityDispatchTargets: Record<string, number> = {},
   nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
+  plannedSupportingResourceIds: ReadonlyMap<
+    string,
+    ReadonlySet<ResourceId>
+  > = new Map(),
   moduleFixedDemands: ReadonlyMap<
+    string,
+    Partial<Record<ResourceId, number>>
+  > = new Map(),
+  moduleSuppliedResources: ReadonlyMap<
     string,
     Partial<Record<ResourceId, number>>
   > = new Map(),
@@ -167,8 +175,9 @@ const calculateWithDispatch = (
       outputModifiers,
       fixedDemands,
       nonConstrainingSuppliedResourceIds,
-      new Set(),
+      plannedSupportingResourceIds,
       moduleFixedDemands,
+      moduleSuppliedResources,
     );
 
     const modeledDemandMw = calculateBuildingStats(
@@ -423,8 +432,9 @@ const calculateWithDispatch = (
     outputModifiers,
     fixedDemands,
     nonConstrainingSuppliedResourceIds,
-    new Set(),
+    plannedSupportingResourceIds,
     moduleFixedDemands,
+    moduleSuppliedResources,
   );
 
   const buildingStats = calculateBuildingStats(
@@ -458,6 +468,13 @@ export const calculateFactoryTotal = (
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
   const fixedDemands: Partial<Record<ResourceId, number>> = {};
+  const suppliedResources: Partial<Record<ResourceId, number>> = {
+    ...boundarySupplies,
+  };
+  const moduleSuppliedResources = new Map<
+    string,
+    Partial<Record<ResourceId, number>>
+  >();
   const electricityDispatchTargets: Record<string, number> = {};
 
   for (const mod of modules) {
@@ -480,6 +497,18 @@ export const calculateFactoryTotal = (
     for (const [resourceId, quantity] of typedEntries(presetDemands)) {
       fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
     }
+    for (const [resourceId, quantity] of typedEntries(preset?.requestedImports ?? {})) {
+      const plannedQuantity = Math.max(0, quantity);
+
+      if (plannedQuantity === 0) continue;
+
+      suppliedResources[resourceId] = (suppliedResources[resourceId] ?? 0)
+        + plannedQuantity;
+      const moduleSupplies = moduleSuppliedResources.get(mod.id) ?? {};
+
+      moduleSupplies[resourceId] = (moduleSupplies[resourceId] ?? 0) + plannedQuantity;
+      moduleSuppliedResources.set(mod.id, moduleSupplies);
+    }
     for (const [groupId, quantity] of Object.entries(preset?.electricityDispatchTargets ?? {})) {
       electricityDispatchTargets[groupId] = Math.max(
         electricityDispatchTargets[groupId] ?? 0,
@@ -491,16 +520,34 @@ export const calculateFactoryTotal = (
   for (const [resourceId, quantity] of typedEntries(boundaryDemands)) {
     fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
   }
+  const plannedSupportingResourceIds = new Map<string, Set<ResourceId>>();
+
+  for (const line of allLines) {
+    const drivingInputIds = new Set(line.drivingInputIds ?? []);
+
+    if (drivingInputIds.size === 0) continue;
+
+    const supportingIds = plannedSupportingResourceIds.get(line.moduleId)
+      ?? new Set<ResourceId>();
+
+    for (const input of line.recipe.inputs) {
+      if (!drivingInputIds.has(input.resourceId)) supportingIds.add(input.resourceId);
+    }
+
+    plannedSupportingResourceIds.set(line.moduleId, supportingIds);
+  }
 
   const withoutContracts = calculateWithDispatch(
     allLines,
-    boundarySupplies,
+    suppliedResources,
     recyclingEfficiencyPercent,
     outputModifiers,
     fixedDemands,
     electricityDispatchTargets,
     new Set(),
+    plannedSupportingResourceIds,
     moduleFixedDemands,
+    moduleSuppliedResources,
   );
   const demandSourceProduction = getDemandSourceProduction(
     withoutContracts.calculation,
@@ -528,8 +575,8 @@ export const calculateFactoryTotal = (
   const calculateWithContractPlan = (
     contractPlan: ReturnType<typeof applyContracts>,
   ) => {
-    const suppliedResources: Partial<Record<ResourceId, number>> = {
-      ...boundarySupplies,
+    const suppliedResourcesWithContracts: Partial<Record<ResourceId, number>> = {
+      ...suppliedResources,
     };
     const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
     const contractInputIds = new Set<ResourceId>();
@@ -538,7 +585,9 @@ export const calculateFactoryTotal = (
       const importedId = result.contract.exchange.imported.resourceId;
       const exportedId = result.contract.exchange.exported.resourceId;
 
-      suppliedResources[importedId] = (suppliedResources[importedId] ?? 0)
+      suppliedResourcesWithContracts[importedId] = (
+        suppliedResourcesWithContracts[importedId] ?? 0
+      )
         + result.imported;
       contractDemands[exportedId] = (contractDemands[exportedId] ?? 0)
         + result.exported;
@@ -547,13 +596,15 @@ export const calculateFactoryTotal = (
 
     return calculateWithDispatch(
       allLines,
-      suppliedResources,
+      suppliedResourcesWithContracts,
       recyclingEfficiencyPercent,
       outputModifiers,
       contractDemands,
       electricityDispatchTargets,
       contractInputIds,
+      plannedSupportingResourceIds,
       moduleFixedDemands,
+      moduleSuppliedResources,
     );
   };
   let demandBalancedImports = new Map<string, number>();

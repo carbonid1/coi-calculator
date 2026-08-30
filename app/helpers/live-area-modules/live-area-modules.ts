@@ -49,6 +49,8 @@ const runtimeRecipeBehaviors: Record<
   Pick<
     Recipe,
     | 'appliesRecyclingEfficiency'
+    | 'allocation'
+    | 'allocationPriority'
     | 'balanceBy'
     | 'balanceInputIds'
     | 'balanceInputScope'
@@ -70,6 +72,18 @@ const runtimeRecipeBehaviors: Record<
   'ArcFurnace2:CopperSmeltingArcScrap': {
     balanceBy: 'input',
     balanceInputIds: ['copperScrap'],
+    electricityMultiplier: 0.6,
+  },
+  'ArcFurnace2:IronSmeltingArc': {
+    allocation: 'fallback',
+    allocationPriority: 25,
+    balanceBy: 'output',
+    balanceInputIds: [],
+    balanceOutputIds: ['moltenIron'],
+  },
+  'ArcFurnace2:IronSmeltingArcScrap': {
+    balanceBy: 'input',
+    balanceInputIds: ['ironScrap'],
     electricityMultiplier: 0.6,
   },
   'ChemicalPlant2:GraphiteProductionCo2': {
@@ -113,6 +127,8 @@ const runtimeRecipeBehaviors: Record<
 const runtimeRecipePriorities: Readonly<Record<string, number>> = {
   'ArcFurnace2:CopperSmeltingArcScrap': 0,
   'ArcFurnace2:CopperSmeltingArc': 1,
+  'ArcFurnace2:IronSmeltingArcScrap': 0,
+  'ArcFurnace2:IronSmeltingArc': 1,
 }
 
 for (const resource of Object.values(resources)) {
@@ -212,6 +228,8 @@ const selectedRecipes = (entity: SyncedAreaEntity) => {
 interface RecipeGroup {
   prototypeId: string
   prototypeName: string
+  /** Exact physical-machine configuration shared by every recipe in this group. */
+  capacityPoolId?: string
   recipe: SyncedAreaRecipe
   built: number
   running: number
@@ -276,6 +294,10 @@ export const createLiveAreaModules = (
       string,
       { built: number; running: number; planned: number }
     >()
+    const sharedCapacityPools = new Map<
+      string,
+      { built: number; running: number; planned: number }
+    >()
 
     for (const entity of productionEntities) {
       const capacityPool = capacityPools.get(entity.prototypeId) ?? {
@@ -290,6 +312,25 @@ export const createLiveAreaModules = (
       capacityPools.set(entity.prototypeId, capacityPool)
 
       const recipesForEntity = selectedRecipes(entity)
+      const sharedCapacityPoolId = recipesForEntity.length > 1
+        ? `${entity.prototypeId}:${recipesForEntity
+            .map(recipe => recipe.id)
+            .toSorted()
+            .join('+')}`
+        : undefined
+
+      if (sharedCapacityPoolId) {
+        const sharedCapacityPool = sharedCapacityPools.get(sharedCapacityPoolId) ?? {
+          built: 0,
+          running: 0,
+          planned: 0,
+        }
+
+        sharedCapacityPool.built += Number(entity.constructed)
+        sharedCapacityPool.running += Number(entity.running)
+        sharedCapacityPool.planned += Number(isPlannedEntity(entity))
+        sharedCapacityPools.set(sharedCapacityPoolId, sharedCapacityPool)
+      }
 
       if (recipesForEntity.length === 0) {
         const message = entity.recipes.length > 1
@@ -306,10 +347,11 @@ export const createLiveAreaModules = (
       }
 
       for (const recipe of recipesForEntity) {
-        const key = `${entity.prototypeId}:${recipe.id}`
+        const key = `${sharedCapacityPoolId ?? entity.prototypeId}:${recipe.id}`
         const group = groups.get(key) ?? {
           prototypeId: entity.prototypeId,
           prototypeName: entity.prototypeName,
+          capacityPoolId: sharedCapacityPoolId,
           recipe,
           built: 0,
           running: 0,
@@ -333,14 +375,19 @@ export const createLiveAreaModules = (
       const rightPriority = runtimeRecipePriorities[`${right.prototypeId}:${right.recipe.id}`]
         ?? Number.MAX_SAFE_INTEGER
 
-      return leftPriority - rightPriority || left.recipe.name.localeCompare(right.recipe.name)
+      return leftPriority - rightPriority
+        || right.running - left.running
+        || right.built - left.built
+        || left.recipe.name.localeCompare(right.recipe.name)
     })
-    const recipeCountByPrototype = new Map<string, number>()
+    const groupCountByPrototypeRecipe = new Map<string, number>()
 
     for (const group of orderedGroups) {
-      recipeCountByPrototype.set(
-        group.prototypeId,
-        (recipeCountByPrototype.get(group.prototypeId) ?? 0) + 1,
+      const key = `${group.prototypeId}:${group.recipe.id}`
+
+      groupCountByPrototypeRecipe.set(
+        key,
+        (groupCountByPrototypeRecipe.get(key) ?? 0) + 1,
       )
     }
 
@@ -356,6 +403,14 @@ export const createLiveAreaModules = (
 
     for (const [prototypeId, pool] of capacityPools) {
       presetCapacityPools[prototypeId] = {
+        active: pool.running + pool.planned,
+        built: pool.built,
+        currentActive: pool.running,
+        constructionGhosts: pool.planned,
+      }
+    }
+    for (const [capacityPoolId, pool] of sharedCapacityPools) {
+      presetCapacityPools[capacityPoolId] = {
         active: pool.running + pool.planned,
         built: pool.built,
         currentActive: pool.running,
@@ -391,8 +446,12 @@ export const createLiveAreaModules = (
         continue
       }
 
-      const recipeId = `${moduleIdForZone(zone.id)}:${group.prototypeId}:${group.recipe.id}`
-      const hasSharedCapacity = (recipeCountByPrototype.get(group.prototypeId) ?? 0) > 1
+      const baseRecipeId = `${moduleIdForZone(zone.id)}:${group.prototypeId}:${group.recipe.id}`
+      const recipeId = (groupCountByPrototypeRecipe.get(
+        `${group.prototypeId}:${group.recipe.id}`,
+      ) ?? 0) > 1
+        ? `${baseRecipeId}:${group.capacityPoolId ?? 'dedicated'}`
+        : baseRecipeId
       const runtimeBehavior = runtimeRecipeBehaviors[
         `${group.prototypeId}:${group.recipe.id}`
       ]
@@ -413,9 +472,9 @@ export const createLiveAreaModules = (
         outputs: normalizedOutputs,
         cycleDurationSeconds: group.recipe.durationSeconds,
         ...runtimeBehavior,
-        sharedCapacity: hasSharedCapacity
+        sharedCapacity: group.capacityPoolId
           ? {
-              id: group.prototypeId,
+              id: group.capacityPoolId,
               label: group.prototypeName,
               priority,
             }
@@ -604,6 +663,7 @@ export const createLiveAreaModules = (
           }
         })
       : []
+    const requestedImports = plan?.requestedImports
     const requestedExports = plan?.requestedExports
     const usesFactoryPool = plan?.resourcePool === 'factory'
       || (mineTowers
@@ -629,6 +689,7 @@ export const createLiveAreaModules = (
         dataSources,
         fixed: [],
         outputTargets: usesFactoryPool ? requestedExports : undefined,
+        requestedImports,
         requestedExports,
       }],
       defaultPresetId: 'live',

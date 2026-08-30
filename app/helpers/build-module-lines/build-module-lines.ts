@@ -16,6 +16,11 @@ export const buildModuleLines = (
     recipe.id in builtBuildings
     || Boolean(preset && recipe.id in preset.activeBuildings)
   ));
+  const requestedImportIds = new Set(
+    Object.entries(preset?.requestedImports ?? {})
+      .filter(([, quantity]) => (quantity ?? 0) > 0)
+      .map(([resourceId]) => resourceId),
+  );
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
   const lines: ProductionLine[] = visibleRecipes.map((recipe) => {
@@ -54,6 +59,9 @@ export const buildModuleLines = (
         ?? plannedCurrent
         ?? active - constructionGhosts - unplacedPlannedBuildings,
     ));
+    const drivingInputIds = recipe.inputs
+      .map(input => input.resourceId)
+      .filter(resourceId => requestedImportIds.has(resourceId));
 
     return {
       recipe,
@@ -75,6 +83,7 @@ export const buildModuleLines = (
       speedLevel,
       operatingMode: fixedIds.has(recipe.id) ? "fixed" : "balanced",
       allocationRatio,
+      drivingInputIds: drivingInputIds.length > 0 ? drivingInputIds : undefined,
     };
   });
 

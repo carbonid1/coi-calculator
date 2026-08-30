@@ -205,9 +205,13 @@ export const calculateLinkedModules = ({
       const lineDrivingIds = line.recipe.inputs
         .map(input => input.resourceId)
         .filter(resourceId => drivingInputIds.has(resourceId))
+      const combinedDrivingIds = [...new Set([
+        ...(line.drivingInputIds ?? []),
+        ...lineDrivingIds,
+      ])]
 
-      return lineDrivingIds.length > 0
-        ? { ...line, drivingInputIds: lineDrivingIds }
+      return combinedDrivingIds.length > 0
+        ? { ...line, drivingInputIds: combinedDrivingIds }
         : line
     })
 
@@ -220,7 +224,9 @@ export const calculateLinkedModules = ({
     planning: boolean,
   ) => new Map(liveModules.map(moduleDefinition => {
     const preset = getPreset(moduleDefinition)
-    const suppliedResources: Partial<Record<ResourceId, number>> = {}
+    const suppliedResources: Partial<Record<ResourceId, number>> = {
+      ...preset?.requestedImports,
+    }
     const outgoingDemands: Partial<Record<ResourceId, number>> = {}
     const nonConstrainingInputs = new Set<ResourceId>()
 
@@ -245,6 +251,20 @@ export const calculateLinkedModules = ({
     }
 
     const demands = getPresetResourceDemands(preset)
+    const requestedImportIds = new Set(
+      typedEntries(preset?.requestedImports ?? {})
+        .filter(([, quantity]) => quantity > 0)
+        .map(([resourceId]) => resourceId),
+    )
+    const plannedSupportingResourceIds = new Set(
+      (baseLines.get(moduleDefinition.id) ?? []).flatMap(line => (
+        line.recipe.inputs.some(input => requestedImportIds.has(input.resourceId))
+          ? line.recipe.inputs
+              .map(input => input.resourceId)
+              .filter(resourceId => !requestedImportIds.has(resourceId))
+          : []
+      )),
+    )
     const moduleDemands = new Map([
       [moduleDefinition.id, outgoingDemands],
     ])
@@ -256,9 +276,12 @@ export const calculateLinkedModules = ({
       outputModifiers,
       demands,
       nonConstrainingInputs,
-      planning ? nonConstrainingInputs : new Set(),
+      new Map([[moduleDefinition.id, new Set([
+          ...(planning ? nonConstrainingInputs : []),
+          ...plannedSupportingResourceIds,
+        ])]]),
       moduleDemands,
-      new Map([[moduleDefinition.id, suppliedResources]]),
+      new Map(),
     )
 
     return [moduleDefinition.id, {
@@ -299,7 +322,11 @@ export const calculateLinkedModules = ({
       const first = matchingLinks[0]
       const run = first ? runs.get(first.targetModuleId) : undefined
       const required = first && run
-        ? getLocalExternalNeed(first.targetModuleId, run, first.resourceId)
+        ? Math.max(
+            0,
+            getLocalExternalNeed(first.targetModuleId, run, first.resourceId)
+              - (run.preset?.requestedImports?.[first.resourceId] ?? 0),
+          )
         : 0
 
       return [key, required] as const
@@ -454,7 +481,9 @@ export const calculateLinkedModules = ({
 
     if (!run) continue
 
-    const inboundSupplies: Partial<Record<ResourceId, number>> = {}
+    const inboundSupplies: Partial<Record<ResourceId, number>> = {
+      ...run.preset?.requestedImports,
+    }
     const displayDemands = getPresetResourceDemands(run.preset)
 
     for (const transfer of transfers) {
@@ -487,6 +516,9 @@ export const calculateLinkedModules = ({
     for (const [resourceId] of typedEntries(run.preset?.fixedDemands ?? {})) {
       resourceIds.add(resourceId)
     }
+    for (const [resourceId] of typedEntries(run.preset?.requestedImports ?? {})) {
+      resourceIds.add(resourceId)
+    }
     for (const transfer of transfers) {
       if (
         transfer.sourceModuleId === moduleDefinition.id
@@ -497,6 +529,16 @@ export const calculateLinkedModules = ({
     }
 
     for (const resourceId of resourceIds) {
+      const requestedImport = Math.max(
+        0,
+        run.preset?.requestedImports?.[resourceId] ?? 0,
+      )
+
+      if (requestedImport > LINK_TOLERANCE) {
+        addQuantity(boundaryDemands, resourceId, requestedImport)
+        continue
+      }
+
       if (privateEndpoints.has(`${moduleDefinition.id}:${resourceId}`)) {
         const available = getLocalAvailable(moduleDefinition.id, run, resourceId)
         const demandTriggeredTransfers = transfers.reduce((total, transfer) => (

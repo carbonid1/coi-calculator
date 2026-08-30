@@ -1124,6 +1124,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           activeModule.id,
           activeModuleFactoryResult.calculation,
           displayDemands,
+          preset?.requestedImports,
         )
 
         return { lines, ...calc }
@@ -1421,6 +1422,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             <NetSummary
               flows={displayedResourceFlows}
               moduleId={activeModule.id}
+              requestedImports={preset?.requestedImports}
               requestedExports={preset?.requestedExports}
               resourceTransfers={linkedModulesResult.transfers}
               workers={buildingStats.workers}

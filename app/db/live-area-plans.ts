@@ -3,6 +3,7 @@ import { type ResourceId } from './resources'
 export interface LiveAreaPlan {
   /** Resource ledger used by this named area. Omitted areas remain isolated. */
   resourcePool?: 'factory'
+  requestedImports?: Partial<Record<ResourceId, number>>
   requestedExports?: Partial<Record<ResourceId, number>>
 }
 
@@ -12,5 +13,9 @@ export type LiveAreaPlans = Readonly<Record<string, LiveAreaPlan>>
 export const liveAreaPlans: LiveAreaPlans = {
   'Copper #1': {
     resourcePool: 'factory',
+  },
+  'Steel #1': {
+    requestedImports: { ironOreCrushed: 384 },
+    requestedExports: { steel: 192 },
   },
 }

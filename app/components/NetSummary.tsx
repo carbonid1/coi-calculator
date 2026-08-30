@@ -41,6 +41,7 @@ interface Props {
   machineZoneClaims?: readonly SharedMachineClaim[];
   machineZones?: MachineZoneSummary[];
   plannedModules?: Module[];
+  requestedImports?: Partial<Record<ResourceId, number>>;
   requestedExports?: Partial<Record<ResourceId, number>>;
   moduleId?: string;
   resourceTransfers?: readonly ModuleResourceTransfer[];
@@ -152,12 +153,21 @@ export const NetSummary: React.FC<Props> = ({
   machineZoneClaims = [],
   machineZones = [],
   plannedModules = [],
+  requestedImports = {},
   requestedExports = {},
   moduleId,
   resourceTransfers = [],
   onAssignMachineZone,
   onOpenBuilding,
 }) => {
+  const requestedImportRows = typedEntries(requestedImports)
+    .filter(([, quantity]) => quantity > 0)
+    .toSorted(([left], [right]) => (
+      resources[left].name.localeCompare(resources[right].name)
+    ));
+  const requestedImportIds = new Set(
+    requestedImportRows.map(([resourceId]) => resourceId),
+  );
   const requestedExportRows = typedEntries(requestedExports)
     .filter(([, quantity]) => quantity > 0)
     .toSorted(([left], [right]) => (
@@ -186,6 +196,7 @@ export const NetSummary: React.FC<Props> = ({
     : materialFlows
         .filter((flow) => (
           flow.net < -BALANCE_THRESHOLD
+          && !requestedImportIds.has(flow.resourceId)
           && !requestedExportIds.has(flow.resourceId)
         ))
         .toSorted((a, b) => a.name.localeCompare(b.name));
@@ -398,6 +409,7 @@ export const NetSummary: React.FC<Props> = ({
     && !computingConsumptionTflops
     && computingGenerationCapacityTflops == null
     && !workers
+    && requestedImportRows.length === 0
     && requestedExportRows.length === 0
     && inboundTransfers.length === 0
     && outboundTransfers.length === 0
@@ -544,12 +556,41 @@ export const NetSummary: React.FC<Props> = ({
       })()}
 
       {(
-        requestedExportRows.length > 0
+        requestedImportRows.length > 0
+        || requestedExportRows.length > 0
         || moduleInputFlows.length > 0
         || inboundTransfers.length > 0
         || outboundTransfers.length > 0
       ) && (
         <div className="space-y-1 border-b border-border pb-3">
+          {requestedImportRows.map(([resourceId, requested]) => {
+            const resourceName = resources[resourceId].name;
+
+            return (
+              <Tooltip
+                key={resourceId}
+                label={`Planned import target: ${formatCapacity(requested)} ${resourceName} per production cycle.`}
+                maxWidth={320}
+                className="flex w-full"
+              >
+                <div
+                  className="-mx-2 flex w-[calc(100%+1rem)] items-baseline justify-between rounded bg-highlight-muted px-2 py-0.5 text-sm text-highlight-foreground hover:bg-accent"
+                  data-data-source="planned"
+                >
+                  <span>{resourceName}</span>
+                  <span className="font-mono font-semibold tabular-nums">
+                    {formatCapacity(requested)}
+                  </span>
+                </div>
+              </Tooltip>
+            );
+          })}
+          {(
+            requestedImportRows.length > 0
+            && (moduleInputFlows.length > 0 || inboundTransfers.length > 0)
+          ) && (
+            <div aria-hidden="true" className="my-2 border-t border-border" />
+          )}
           {moduleInputFlows.map((flow) => (
             <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
               <span className="text-muted-foreground">
@@ -563,7 +604,11 @@ export const NetSummary: React.FC<Props> = ({
           {inboundTransfers.map(transfer => renderTransfer(transfer, "inbound"))}
           {(
             (requestedExportRows.length > 0 || outboundTransfers.length > 0)
-            && (moduleInputFlows.length > 0 || inboundTransfers.length > 0)
+            && (
+              requestedImportRows.length > 0
+              || moduleInputFlows.length > 0
+              || inboundTransfers.length > 0
+            )
           ) && (
             <div aria-hidden="true" className="my-2 border-t border-border" />
           )}
