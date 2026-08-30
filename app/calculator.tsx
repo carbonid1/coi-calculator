@@ -6,7 +6,6 @@ import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCa
 import { ChickenFarmSettings } from './components/ChickenFarmSettings'
 import { ContractsView } from './components/ContractsView'
 import { GameSyncStatus } from './components/GameSyncStatus'
-import { HousingView } from './components/HousingView'
 import { LiveAreaStatus } from './components/LiveAreaStatus'
 import { MinesView } from './components/MinesView'
 import { ModifiersView } from './components/ModifiersView'
@@ -45,8 +44,6 @@ import {
   activeHousingType,
   calculatePopulationCapacity,
   housingTypes,
-  resolvedCurrentHousingCount,
-  resolvedHousingCount,
 } from './db/housing'
 import {
   moduleResourceLinkDefinitions,
@@ -75,7 +72,6 @@ import {
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
 } from './db/modules/farms'
-import { createHousingModule, HOUSING_MODULE_ID } from './db/modules/housing'
 import { MINES_MODULE_ID } from './db/modules/mines'
 import { modules } from './db/modules/modules'
 import {
@@ -85,6 +81,10 @@ import {
   plannedNuclearOperation,
 } from './db/modules/nuclear'
 import { createOfficesModule, OFFICES_MODULE_ID } from './db/modules/offices'
+import {
+  createLegacyPopulationArea,
+  createPopulationModule,
+} from './db/modules/population'
 import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from './db/modules/research'
 import { createReservesModule, RESERVES_MODULE_ID } from './db/modules/reserves'
 import { createSpaceStationModule, SPACE_STATION_MODULE_ID } from './db/modules/space-station'
@@ -171,7 +171,11 @@ import {
   createPooledLinkSourceShadows,
   hasPooledLinkSourceConnections,
 } from './helpers/pooled-link-source-shadows/pooled-link-source-shadows'
-import { resolvePopulationEntityInventory } from './helpers/population-entity-sync/population-entity-sync'
+import {
+  getPopulationZones,
+  POPULATION_ZONE_NAME,
+  resolvePopulationEntityInventory,
+} from './helpers/population-entity-sync/population-entity-sync'
 import { getPresetResourceDemands } from './helpers/preset-resource-demands/preset-resource-demands'
 import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
@@ -582,14 +586,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         slaughtering: plannedChickenFarmLayout.slaughtering,
       }
     : plannedChickenFarmLayout
-  const usesPopulationArea = Boolean(
+  const hasPopulationEntityInventory = Boolean(
     gameState.snapshot &&
     gameState.snapshot.schemaVersion >= NAMED_AREA_ENTITY_SCHEMA_VERSION &&
-    hasExactArea('Population'),
+    gameState.snapshot.productionEntities,
   )
-  const populationEntityInventory = usesPopulationArea
-    ? resolvePopulationEntityInventory(productionEntities)
-    : undefined
 
   const configureModules = () =>
     modules.map(module => {
@@ -664,16 +665,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         )
       }
 
-      if (module.id === HOUSING_MODULE_ID) {
-        return createHousingModule(
-          resolvedHousingCount.value,
-          housingCapacityLevel,
-          resolvedCurrentHousingCount.value,
-          resolvedHousingCount.source,
-          populationEntityInventory,
-        )
-      }
-
       if (module.id === RESERVES_MODULE_ID) {
         return createReservesModule(gameState.snapshot?.reserves ?? null)
       }
@@ -700,11 +691,28 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
           .map(zone => createLegacyComputingArea(zone, productionEntities))
       : []
+  const legacyPopulationAreas =
+    hasPopulationEntityInventory
+      ? getPopulationZones(productionEntities)
+          .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
+          .map(zone => createLegacyPopulationArea(zone, productionEntities))
+      : []
   const configuredLiveAreaModules = [
     ...generatedLiveAreaModules,
     ...legacyComputingAreas,
+    ...legacyPopulationAreas,
   ].map(module => {
-    if (module.name !== COMPUTING_ZONE_NAME || !module.liveArea) return module
+    if (!module.liveArea) return module
+
+    if (module.name === POPULATION_ZONE_NAME && hasPopulationEntityInventory) {
+      return createPopulationModule(
+        resolvePopulationEntityInventory(productionEntities, module.liveArea.zoneId),
+        module,
+        housingCapacityLevel,
+      )
+    }
+
+    if (module.name !== COMPUTING_ZONE_NAME) return module
 
     const areaComputingConfigs =
       hasComputingEntityInventory
@@ -796,16 +804,24 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const configuredComputingModules = configuredModules.filter(module => (
     module.name === COMPUTING_ZONE_NAME && module.liveArea
   ))
+  const configuredPopulationModules = configuredModules.filter(module => (
+    module.name === POPULATION_ZONE_NAME && module.liveArea
+  ))
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
-  const configuredHousingModule = configuredModules.find(module => module.id === HOUSING_MODULE_ID)
-  const configuredHousingPreset = configuredHousingModule?.presets.find(
-    preset => preset.id === configuredHousingModule.defaultPresetId,
+  const populationHousingCounts = configuredPopulationModules.reduce(
+    (counts, module) => {
+      const preset = module.presets.find(candidate => candidate.id === module.defaultPresetId)
+        ?? module.presets[0]
+
+      counts.housing += preset?.activeBuildings[settlementRecipeIds.residents] ?? 0
+      counts.housingII += preset?.activeBuildings[settlementRecipeIds.residentsII] ?? 0
+
+      return counts
+    },
+    { housing: 0, housingII: 0 },
   )
-  const housingCount =
-    configuredHousingPreset?.activeBuildings[settlementRecipeIds.residents] ??
-    resolvedHousingCount.value
-  const housingIiCount =
-    configuredHousingPreset?.activeBuildings[settlementRecipeIds.residentsII] ?? 0
+  const housingCount = populationHousingCounts.housing
+  const housingIiCount = populationHousingCounts.housingII
   const populationCapacity =
     calculatePopulationCapacity(activeHousingType, housingCount, housingCapacity.multiplier) +
     calculatePopulationCapacity(housingTypes.housingII, housingIiCount, housingCapacity.multiplier)
@@ -1241,6 +1257,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <ModifiersView
           computingCapacityTflops={computingCapacityTflops}
           computingConfig={configuredComputingModules.length > 0 ? computingRunningConfig : undefined}
+          populationCapacity={configuredPopulationModules.length > 0 ? populationCapacity : undefined}
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
           maintenanceHistory={hasMaintenanceHistory ? (syncedMaintenance ?? null) : null}
           edictLevels={edictLevels}
@@ -1322,16 +1339,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       {activeModule?.id === CHICKEN_FARMS_MODULE_ID && (
         <ChickenFarmSettings settings={chickenFarmSettings} />
-      )}
-
-      {activeModule?.id === HOUSING_MODULE_ID && (
-        <HousingView
-          housing={activeHousingType}
-          buildingCount={housingCount}
-          capacityBonusPercent={housingCapacity.bonusPercent}
-          capacityMultiplier={housingCapacity.multiplier}
-          serviceMultiplier={unityBudget.housingMultiplier}
-        />
       )}
 
       {activeModule?.id === RESERVES_MODULE_ID && (

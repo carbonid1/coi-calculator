@@ -2,7 +2,10 @@ import { expect, it } from "vitest";
 
 import { settlementRecipeIds } from "../../db/settlement";
 import { type SyncedProductionEntity } from "../../game-state";
-import { resolvePopulationEntityInventory } from "./population-entity-sync";
+import {
+  getPopulationZones,
+  resolvePopulationEntityInventory,
+} from "./population-entity-sync";
 
 const entity = (
   entityId: number,
@@ -59,4 +62,24 @@ it("binds configurable waste-processing buildings only to matching recipes", () 
     [settlementRecipeIds.biomassCompostMixer]: { built: 1, running: 0 },
   });
   expect(inventory.unmappedEntities.map(candidate => candidate.entityId)).toEqual([2, 4]);
+});
+
+it("scopes duplicate Population names by synced area ID", () => {
+  const entities = [
+    entity(1, "HousingT3"),
+    entity(2, "HousingT3", { zones: [{ id: 27, name: "Population" }] }),
+    entity(3, "HousingT2", { zones: [{ id: 27, name: "Population" }] }),
+  ];
+
+  expect(getPopulationZones(entities)).toEqual([
+    { id: 25, name: "Population" },
+    { id: 27, name: "Population" },
+  ]);
+  expect(resolvePopulationEntityInventory(entities, 25).counts).toMatchObject({
+    [settlementRecipeIds.residents]: { built: 1, running: 1 },
+  });
+  expect(resolvePopulationEntityInventory(entities, 27).counts).toMatchObject({
+    [settlementRecipeIds.residents]: { built: 1, running: 1 },
+    [settlementRecipeIds.residentsII]: { built: 1, running: 1 },
+  });
 });

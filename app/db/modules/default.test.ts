@@ -25,7 +25,7 @@ import {
   GREENHOUSES_MODULE_ID,
 } from "./farms";
 import { createFbrPowerPlantModule } from "./fbr-power-plant";
-import { modules } from "./modules";
+import { factoryModelModules as modules } from "./modules";
 import { NUCLEAR_MODULE_ID } from "./nuclear";
 import { processSteam } from "./process-steam";
 

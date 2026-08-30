@@ -20,6 +20,7 @@ import {
   formatComputingOverview,
   formatSignedPercent,
   MaintenanceDemandOverview,
+  PopulationCapacityOverview,
 } from "./ModifiersView";
 
 it("rounds calculated percentages before displaying them", () => {
@@ -33,6 +34,16 @@ it("condenses synced computing capacity into one overview line", () => {
     { dataCenterCount: 5, rackCount: 212, waterChillers: 5 },
     848,
   )).toBe("5 data centers · 48 + 48 + 48 + 48 + 20 racks · 848 TFLOPS");
+});
+
+it("shows only the final Population capacity", () => {
+  const html = renderToStaticMarkup(<PopulationCapacityOverview capacity={4_896} />);
+
+  expect(html).toContain("Population capacity");
+  expect(html).toContain("4,896");
+  expect(html).not.toContain("Housing");
+  expect(html).not.toContain("multiplier");
+  expect(html).not.toContain("%");
 });
 
 it("shows synced maintenance demand with its completed-cycle history window", () => {

@@ -48,6 +48,7 @@ interface Props {
   treeGrowthSpeedLevel: number;
   worldMineOutputLevel: number;
   focusBonuses: Readonly<Record<FocusEffectId, number>>;
+  populationCapacity?: number;
 }
 
 const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
@@ -74,6 +75,15 @@ export const formatComputingOverview = (
 
   return `${dataCenterLabel} · ${rackLabel} · ${capacity} TFLOPS`;
 };
+
+export const PopulationCapacityOverview = ({ capacity }: { capacity: number }) => (
+  <div>
+    <p className="text-sm text-muted-foreground">Population capacity</p>
+    <p className="font-mono font-semibold text-foreground">
+      {capacity.toLocaleString("en-US")}
+    </p>
+  </div>
+);
 
 const maintenanceTiers = [
   ["maintenanceI", "Maintenance I"],
@@ -191,6 +201,7 @@ export const ModifiersView: React.FC<Props> = ({
   treeGrowthSpeedLevel,
   worldMineOutputLevel,
   focusBonuses,
+  populationCapacity,
 }) => {
   const recyclingEfficiency = calculateRecyclingEfficiency(
     edictLevels.recyclingIncrease,
@@ -248,8 +259,11 @@ export const ModifiersView: React.FC<Props> = ({
             <div><p className="text-sm text-muted-foreground">Electricity generation capacity</p><p className="font-mono font-semibold text-foreground">{formatPower(electricityGenerationCapacityMw)}</p></div>
             <div><p className="text-sm text-muted-foreground">Average sunlight ({planningWeather.horizonYears}Y)</p><p className="font-mono font-semibold text-foreground">{planningWeather.averageSunIntensityPercent}%</p></div>
             <div><p className="text-sm text-muted-foreground">Base recycling</p><p className="font-mono font-semibold text-foreground">{baseConfig.recyclingEfficiencyPercent}%</p></div>
+            {populationCapacity != null && (
+              <PopulationCapacityOverview capacity={populationCapacity} />
+            )}
             {computingConfig && (
-              <div className="sm:col-span-2 lg:col-span-3"><p className="text-sm text-muted-foreground">Computing capacity</p><p className="font-mono font-semibold text-foreground">{formatComputingOverview(computingConfig, computingCapacityTflops)}</p></div>
+              <div className="sm:col-span-2 lg:col-span-2"><p className="text-sm text-muted-foreground">Computing capacity</p><p className="font-mono font-semibold text-foreground">{formatComputingOverview(computingConfig, computingCapacityTflops)}</p></div>
             )}
           </Card.Content>
         </Card.Root>

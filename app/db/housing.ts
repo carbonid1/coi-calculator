@@ -1,9 +1,3 @@
-import {
-  type LayeredValue,
-  resolveCurrentLayeredValue,
-  resolveLayeredValue,
-} from "../helpers/resolve-layered-value/resolve-layered-value";
-
 export interface HousingType {
   id: "housing" | "housing-ii" | "housing-iii" | "housing-iv";
   name: string;
@@ -69,18 +63,6 @@ export const housingTypes = {
 } as const satisfies Record<string, HousingType>;
 
 export const activeHousingType = housingTypes.housingIII;
-export const defaultHousingCount = 11;
-export const modeledHousingCount: number | undefined = 15;
-export const plannedHousingCount: number | undefined = 17;
-
-const housingCountLayers: LayeredValue<number> = {
-  default: defaultHousingCount,
-  modeled: modeledHousingCount,
-  planned: plannedHousingCount,
-};
-
-export const resolvedCurrentHousingCount = resolveCurrentLayeredValue(housingCountLayers);
-export const resolvedHousingCount = resolveLayeredValue(housingCountLayers);
 
 export const activeHousingServices = {
   householdGoods: true,

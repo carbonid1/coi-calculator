@@ -12,7 +12,6 @@ import {
   Sprout,
   TreePine,
   type LucideIcon,
-  Users,
 } from "lucide-react";
 
 export const moduleIcons: Partial<Record<string, LucideIcon>> = {
@@ -24,7 +23,6 @@ export const moduleIcons: Partial<Record<string, LucideIcon>> = {
   "space-station": Satellite,
   greenhouses: Sprout,
   "chicken-farms": Bird,
-  housing: Users,
   "static-infrastructure": Construction,
   mines: Pickaxe,
   reserves: Archive,

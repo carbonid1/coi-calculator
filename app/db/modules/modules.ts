@@ -5,10 +5,10 @@ import { type ResourceId } from "../resources";
 import { defaultArea } from "./default";
 import { chickenFarms, greenhouses } from "./farms";
 import { forestry } from "./forestry";
-import { housing } from "./housing";
 import { mines } from "./mines";
 import { nuclear } from "./nuclear";
 import { offices } from "./offices";
+import { modeledPopulation } from "./population";
 import { processSteam } from "./process-steam";
 import { research } from "./research";
 import { reserves } from "./reserves";
@@ -134,7 +134,22 @@ export const modules: [Module, ...Module[]] = [
   spaceStation,
   greenhouses,
   chickenFarms,
-  housing,
+  mines,
+  reserves,
+  nuclear,
+];
+
+/** Includes calculator-owned assumptions needed when no game snapshot is available. */
+export const factoryModelModules: [Module, ...Module[]] = [
+  defaultArea,
+  forestry,
+  processSteam,
+  research,
+  offices,
+  spaceStation,
+  greenhouses,
+  chickenFarms,
+  modeledPopulation,
   mines,
   reserves,
   nuclear,

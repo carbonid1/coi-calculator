@@ -7,7 +7,10 @@ import {
   resolveMaintenanceDepotModuleAssignments,
 } from "../../db/modules/area-maintenance";
 import { DEFAULT_MODULE_ID } from "../../db/modules/default";
-import { type Module, modules } from "../../db/modules/modules";
+import {
+  factoryModelModules as modules,
+  type Module,
+} from "../../db/modules/modules";
 import {
   createNuclearModule,
   defaultNuclearConfig,

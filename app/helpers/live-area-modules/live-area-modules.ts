@@ -42,6 +42,7 @@ const runtimeRecipeBehaviors: Record<
     | 'appliesRecyclingEfficiency'
     | 'balanceBy'
     | 'balanceInputIds'
+    | 'balanceInputScope'
     | 'balanceOutputIds'
     | 'consumeSurplusInputIds'
     | 'consumeSurplusInputScope'
@@ -49,6 +50,10 @@ const runtimeRecipeBehaviors: Record<
     | 'surplusConsumptionPriority'
   >
 > = {
+  'AnaerobicDigester:SludgeDigestion': {
+    balanceBy: 'input',
+    balanceInputIds: ['sludge'],
+  },
   'ArcFurnace2:CopperSmeltingArc': {
     balanceBy: 'output',
     balanceOutputIds: ['moltenCopper'],
@@ -62,6 +67,11 @@ const runtimeRecipeBehaviors: Record<
     consumeSurplusInputIds: ['carbonDioxide'],
     consumeSurplusInputScope: 'module',
     surplusConsumptionPriority: 10,
+  },
+  'IndustrialMixerT2:BiomassCompost': {
+    balanceBy: 'input',
+    balanceInputIds: ['biomass'],
+    balanceInputScope: 'module',
   },
   'SmokeStack:SmokeStackCarbonDioxide': {
     consumeSurplusInputIds: ['carbonDioxide'],
@@ -84,6 +94,10 @@ const runtimeRecipeBehaviors: Record<
     surplusConsumptionPriority: 100,
   },
   'Shredder:ShreddingRetiredWaste': { appliesRecyclingEfficiency: false },
+  'WaterTreatmentPlant:WaterTreatmentT2': {
+    balanceBy: 'input',
+    balanceInputIds: ['wasteWater'],
+  },
 }
 
 /** Explicit game UI order for selectable recipes whose prototype list is not display-ordered. */

@@ -27,7 +27,7 @@ import {
   chickenFarms,
   greenhouses,
 } from "./farms";
-import { modules } from "./modules";
+import { factoryModelModules as modules } from "./modules";
 
 describe("active crop farm plan", () => {
   it("supports disabling chicken farms completely", () => {

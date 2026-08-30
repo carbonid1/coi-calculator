@@ -1,5 +1,8 @@
 import { settlementRecipeIds } from "../../db/settlement";
-import { type SyncedProductionEntity } from "../../game-state";
+import {
+  type SyncedLogisticsZoneRef,
+  type SyncedProductionEntity,
+} from "../../game-state";
 
 export const POPULATION_ZONE_NAME = "Population";
 
@@ -15,7 +18,7 @@ export interface ResolvedPopulationEntityInventory {
   unmappedEntities: SyncedProductionEntity[];
 }
 
-interface PopulationEntityMatcher {
+export interface PopulationEntityMatcher {
   prototypeId: string;
   gameRecipeIds?: readonly string[];
   recipeId: string;
@@ -26,7 +29,8 @@ interface PopulationEntityMatcher {
  * Mafi.Base IDs. Configurable machines also require the relevant live recipe,
  * so another process placed inside Population cannot satisfy its plan.
  */
-const matchers: readonly PopulationEntityMatcher[] = [
+export const populationEntityMatchers: readonly PopulationEntityMatcher[] = [
+  { prototypeId: "HousingT2", recipeId: settlementRecipeIds.residentsII },
   { prototypeId: "HousingT3", recipeId: settlementRecipeIds.residents },
   { prototypeId: "SettlementFoodModule", recipeId: settlementRecipeIds.foodMarket },
   { prototypeId: "SettlementFoodModuleT2", recipeId: settlementRecipeIds.foodMarketII },
@@ -67,6 +71,13 @@ const matchers: readonly PopulationEntityMatcher[] = [
   },
 ];
 
+export const ignoredPopulationPrototypeIds = new Set([
+  "SettlementFountain",
+  "SettlementPillar",
+  "SettlementSquare1",
+  "SettlementSquare2",
+]);
+
 const matches = (
   entity: SyncedProductionEntity,
   matcher: PopulationEntityMatcher,
@@ -78,24 +89,19 @@ const matches = (
 
 export const resolvePopulationEntityInventory = (
   productionEntities: readonly SyncedProductionEntity[],
+  zoneId?: number,
 ): ResolvedPopulationEntityInventory => {
   const entities = productionEntities.filter(entity => (
-    entity.zones.some(zone => zone.name === POPULATION_ZONE_NAME)
+    entity.zones.some(zone => (
+      zone.name === POPULATION_ZONE_NAME && (zoneId === undefined || zone.id === zoneId)
+    ))
   ));
   const counts: ResolvedPopulationEntityInventory["counts"] = {};
   const housingIiCandidates = { built: 0, running: 0 };
   const matchedEntityIds = new Set<number>();
 
   for (const entity of entities) {
-    if (entity.prototypeId === "HousingT2") {
-      housingIiCandidates.built++;
-      housingIiCandidates.running += Number(entity.running);
-      counts[settlementRecipeIds.residentsII] = housingIiCandidates;
-      matchedEntityIds.add(entity.entityId);
-      continue;
-    }
-
-    const matcher = matchers.find(candidate => matches(entity, candidate));
+    const matcher = populationEntityMatchers.find(candidate => matches(entity, candidate));
 
     if (!matcher) continue;
     const count = counts[matcher.recipeId] ?? { built: 0, running: 0 };
@@ -103,6 +109,10 @@ export const resolvePopulationEntityInventory = (
     count.built++;
     count.running += Number(entity.running);
     counts[matcher.recipeId] = count;
+    if (matcher.recipeId === settlementRecipeIds.residentsII) {
+      housingIiCandidates.built = count.built;
+      housingIiCandidates.running = count.running;
+    }
     matchedEntityIds.add(entity.entityId);
   }
 
@@ -112,4 +122,18 @@ export const resolvePopulationEntityInventory = (
     housingIiCandidates,
     unmappedEntities: entities.filter(entity => !matchedEntityIds.has(entity.entityId)),
   };
+};
+
+export const getPopulationZones = (
+  productionEntities: readonly SyncedProductionEntity[],
+): SyncedLogisticsZoneRef[] => {
+  const zones = new Map<number, SyncedLogisticsZoneRef>();
+
+  for (const entity of productionEntities) {
+    for (const zone of entity.zones) {
+      if (zone.name === POPULATION_ZONE_NAME) zones.set(zone.id, zone);
+    }
+  }
+
+  return [...zones.values()];
 };

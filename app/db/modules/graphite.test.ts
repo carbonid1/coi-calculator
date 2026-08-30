@@ -15,7 +15,7 @@ import {
   resolveMaintenanceDepotModuleAssignments,
 } from "./area-maintenance";
 import { DEFAULT_MODULE_ID } from "./default";
-import { modules } from "./modules";
+import { factoryModelModules as modules } from "./modules";
 import {
   createNuclearModule,
   defaultNuclearConfig,

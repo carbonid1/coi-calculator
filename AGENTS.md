@@ -11,6 +11,10 @@ Never report in real-time hours — user can't map that to gameplay. Report in *
 - Bad: "18k stockpile lasts 100 hours"
 - Good: "18k stockpile = N production cycles = M in-game years"
 
+## UI copy
+
+Do not narrate familiar game mechanics; show only calculated results, actionable state, and information the user explicitly requested.
+
 ## Game data
 
 When updating database files, verify numerical values and mechanics against the installed game files for the targeted game version. Log confirmed wiki discrepancies in `docs/WIKI-DISCREPANCIES.md`.

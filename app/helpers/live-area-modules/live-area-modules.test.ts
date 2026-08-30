@@ -181,6 +181,83 @@ describe('createLiveAreaModules', () => {
     })
   })
 
+  it('keeps Population waste recipes balanced against settlement byproducts', () => {
+    const populationRecipe = (
+      id: string,
+      inputs: { productId: string; name: string; quantity: number }[],
+      outputs: { productId: string; name: string; quantity: number }[],
+    ) => ({
+      id,
+      name: id,
+      durationSeconds: 60,
+      assigned: true,
+      inputs,
+      outputs,
+    })
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Population' }],
+      [
+        {
+          ...entity(1, true, true, [populationRecipe(
+            'WaterTreatmentT2',
+            [
+              { productId: 'Product_WasteWater', name: 'Waste Water', quantity: 160 },
+              { productId: 'Product_FilterMedia', name: 'Filter Media', quantity: 8 },
+              { productId: 'Product_Chlorine', name: 'Chlorine', quantity: 16 },
+            ],
+            [
+              { productId: 'Product_Water', name: 'Water', quantity: 120 },
+              { productId: 'Product_Sludge', name: 'Sludge', quantity: 36 },
+            ],
+          )]),
+          prototypeId: 'WaterTreatmentPlant',
+          prototypeName: 'Wastewater treatment',
+        },
+        {
+          ...entity(2, true, true, [populationRecipe(
+            'SludgeDigestion',
+            [{ productId: 'Product_Sludge', name: 'Sludge', quantity: 18 }],
+            [
+              { productId: 'Product_FuelGas', name: 'Fuel Gas', quantity: 8 },
+              { productId: 'Product_Compost', name: 'Compost', quantity: 3 },
+            ],
+          )]),
+          prototypeId: 'AnaerobicDigester',
+          prototypeName: 'Anaerobic digester',
+        },
+        {
+          ...entity(3, true, true, [populationRecipe(
+            'BiomassCompost',
+            [{ productId: 'Product_Biomass', name: 'Biomass', quantity: 24 }],
+            [{ productId: 'Product_Compost', name: 'Compost', quantity: 16 }],
+          )]),
+          prototypeId: 'IndustrialMixerT2',
+          prototypeName: 'Mixer II',
+        },
+      ],
+      [],
+    )
+
+    expect(module?.recipes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        gameRecipeId: 'WaterTreatmentT2',
+        balanceBy: 'input',
+        balanceInputIds: ['wasteWater'],
+      }),
+      expect.objectContaining({
+        gameRecipeId: 'SludgeDigestion',
+        balanceBy: 'input',
+        balanceInputIds: ['sludge'],
+      }),
+      expect.objectContaining({
+        gameRecipeId: 'BiomassCompost',
+        balanceBy: 'input',
+        balanceInputIds: ['biomass'],
+        balanceInputScope: 'module',
+      }),
+    ]))
+  })
+
   it('normalizes fractional game recipe durations without truncating them', () => {
     const fractionalRecipe = {
       ...recipe,
