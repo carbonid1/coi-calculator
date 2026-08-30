@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
 import { ChickenFarmSettings } from './components/ChickenFarmSettings'
-import { ComputingSettings } from './components/ComputingSettings'
 import { ContractsView } from './components/ContractsView'
 import { GameSyncStatus } from './components/GameSyncStatus'
 import { HousingView } from './components/HousingView'
@@ -30,7 +29,7 @@ import {
   resolvedChickenFarmSettings,
   resolvedCurrentChickenFarmSettings,
 } from './db/chicken-farm'
-import { resolvedComputingConfig, resolvedCurrentComputingConfig } from './db/computing'
+import { resolvedCurrentComputingConfig } from './db/computing'
 import { activeContracts, contracts, defaultActiveContractIds } from './db/contracts'
 import { activeCropFarmGroups } from './db/crop-farming'
 import {
@@ -68,7 +67,7 @@ import {
   resolveStaticInfrastructureModuleAssignments,
   selectStaticInfrastructureLines,
 } from './db/modules/area-static-infrastructure'
-import { createComputingModule, COMPUTING_MODULE_ID } from './db/modules/computing'
+import { createComputingModule, createLegacyComputingArea } from './db/modules/computing'
 import { createDefaultModule, DEFAULT_MODULE_ID } from './db/modules/default'
 import {
   createChickenFarmsModule,
@@ -141,7 +140,11 @@ import {
 import { calculateBuildingStats } from './helpers/building-stats/building-stats'
 import { type ProductionLine } from './helpers/calculate/calculate'
 import { calculateLinkedModules } from './helpers/calculate-linked-modules/calculate-linked-modules'
-import { resolveComputingEntityInventory } from './helpers/computing-entity-sync/computing-entity-sync'
+import {
+  COMPUTING_ZONE_NAME,
+  getComputingZones,
+  resolveComputingEntityInventory,
+} from './helpers/computing-entity-sync/computing-entity-sync'
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
 import { calculateGroundwaterClaimLimits } from './helpers/groundwater/calculate-groundwater-production'
@@ -502,11 +505,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const globalSyncedComputingConfigs = gameState.snapshot?.computing
     ? getSyncedComputingConfigs(gameState.snapshot.computing)
     : null
-  const syncedComputingConfigs =
+  const hasComputingEntityInventory = Boolean(
     gameState.snapshot &&
     gameState.snapshot.schemaVersion >= COMPUTING_ENTITY_SCHEMA_VERSION &&
-    gameState.snapshot.productionEntities
-      ? resolveComputingEntityInventory(gameState.snapshot.productionEntities)
+    gameState.snapshot.productionEntities,
+  )
+  const syncedComputingConfigs =
+    hasComputingEntityInventory
+      ? resolveComputingEntityInventory(productionEntities)
       : globalSyncedComputingConfigs
   const computingBuiltConfig = syncedComputingConfigs?.built ?? resolvedCurrentComputingConfig.value
   const computingRunningConfig =
@@ -514,17 +520,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const computingCurrentSource = syncedComputingConfigs
     ? ('synced' as const)
     : resolvedCurrentComputingConfig.source
-  const computingConfig = {
-    dataCenterCount: Math.max(
-      computingRunningConfig.dataCenterCount,
-      resolvedComputingConfig.value.dataCenterCount,
-    ),
-    rackCount: Math.max(computingRunningConfig.rackCount, resolvedComputingConfig.value.rackCount),
-    waterChillers: Math.max(
-      computingRunningConfig.waterChillers,
-      resolvedComputingConfig.value.waterChillers,
-    ),
-  }
   const currentChickenConfigurations = gameState.snapshot?.chickenFarms
     ? getSyncedChickenFarmConfigurations(gameState.snapshot.chickenFarms)
     : null
@@ -625,16 +620,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         )
       }
 
-      if (module.id === COMPUTING_MODULE_ID) {
-        return createComputingModule(
-          resolvedComputingConfig.value,
-          computingBuiltConfig,
-          resolvedComputingConfig.source,
-          computingCurrentSource,
-          computingRunningConfig,
-        )
-      }
-
       if (module.id === CHICKEN_FARMS_MODULE_ID) {
         return createChickenFarmsModule(
           resolvedChickenFarmSettings.value,
@@ -696,13 +681,57 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       return module
     })
   const configuredAreaModules = configureModules()
+  const generatedLiveAreaModules =
+    (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
+      ? createLiveAreaModules(
+          gameState.snapshot?.logisticsZones ?? [],
+          gameState.snapshot?.areaEntities ?? [],
+          configuredAreaModules,
+        )
+      : []
+  const generatedLiveAreaZoneIds = new Set(
+    generatedLiveAreaModules.flatMap(module => (
+      module.liveArea ? [module.liveArea.zoneId] : []
+    )),
+  )
+  const legacyComputingAreas =
+    hasComputingEntityInventory
+      ? getComputingZones(productionEntities)
+          .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
+          .map(zone => createLegacyComputingArea(zone, productionEntities))
+      : []
+  const configuredLiveAreaModules = [
+    ...generatedLiveAreaModules,
+    ...legacyComputingAreas,
+  ].map(module => {
+    if (module.name !== COMPUTING_ZONE_NAME || !module.liveArea) return module
+
+    const areaComputingConfigs =
+      hasComputingEntityInventory
+        ? resolveComputingEntityInventory(
+            productionEntities,
+            module.liveArea.zoneId,
+          )
+        : syncedComputingConfigs
+
+    return createComputingModule(
+      areaComputingConfigs?.built ?? computingBuiltConfig,
+      areaComputingConfigs?.running ?? computingRunningConfig,
+      areaComputingConfigs ? 'synced' : computingCurrentSource,
+      module,
+    )
+  })
+  const modulesWithLiveAreas = [
+    ...configuredAreaModules,
+    ...configuredLiveAreaModules,
+  ]
   const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
     defaultModuleId: DEFAULT_MODULE_ID,
     demand: maintenanceDemand,
-    modules: configuredAreaModules,
+    modules: modulesWithLiveAreas,
     productionEntities: hasMaintenanceDepotInventory ? productionEntities : undefined,
   })
-  const configuredModulesWithoutSolar = configuredAreaModules.map(module => {
+  const configuredModulesWithoutSolar = modulesWithLiveAreas.map(module => {
     const assignment = maintenanceAssignments[module.id]
 
     return assignment
@@ -742,18 +771,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       gameState.snapshot ? 'synced' : 'modeled',
     )
   })
-  const modulesWithLiveAreas = [
-    ...configuredBaseModules,
-    ...(
-      (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
-        ? createLiveAreaModules(
-            gameState.snapshot?.logisticsZones ?? [],
-            gameState.snapshot?.areaEntities ?? [],
-            configuredBaseModules,
-          )
-        : []
-    ),
-  ]
   const staticInfrastructureAssignments = resolveStaticInfrastructureModuleAssignments({
     areaEntities:
       (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
@@ -761,11 +778,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         : undefined,
     builtConfig: staticInfrastructureBuiltConfig,
     defaultModuleId: DEFAULT_MODULE_ID,
-    modules: modulesWithLiveAreas,
+    modules: configuredBaseModules,
     productionEntities: hasAreaBuildingInventory ? productionEntities : undefined,
     runningConfig: staticInfrastructureRunningConfig,
   })
-  const configuredModules = modulesWithLiveAreas.map(module => {
+  const configuredModules = configuredBaseModules.map(module => {
     const assignment = staticInfrastructureAssignments[module.id]
 
     return assignment
@@ -776,6 +793,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         )
       : module
   })
+  const configuredComputingModules = configuredModules.filter(module => (
+    module.name === COMPUTING_ZONE_NAME && module.liveArea
+  ))
   const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
   const configuredHousingModule = configuredModules.find(module => module.id === HOUSING_MODULE_ID)
   const configuredHousingPreset = configuredHousingModule?.presets.find(
@@ -1146,9 +1166,17 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     ...factoryResult.allLines,
     ...linkedModuleLines,
   ])
-  const computingCapacityTflops = calculateComputingCapacityTflops(
-    factoryResult.allLines.filter(line => line.moduleId === COMPUTING_MODULE_ID),
+  const configuredComputingModuleIds = new Set(
+    configuredComputingModules.map(module => module.id),
   )
+  const computingCapacityTflops = calculateComputingCapacityTflops(
+    factoryResult.allLines.filter(line => configuredComputingModuleIds.has(line.moduleId)),
+  )
+  const activeComputingCapacityTflops = activeModule && configuredComputingModuleIds.has(activeModule.id)
+    ? calculateComputingCapacityTflops(
+        factoryResult.allLines.filter(line => line.moduleId === activeModule.id),
+      )
+    : undefined
   const nuclearGenerationCapacityMw =
     activeModule?.id === NUCLEAR_MODULE_ID && moduleResult
       ? calculateGenerationCapacityMw(moduleResult.lines)
@@ -1211,6 +1239,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       {isModifiers && (
         <ModifiersView
+          computingCapacityTflops={computingCapacityTflops}
+          computingConfig={configuredComputingModules.length > 0 ? computingRunningConfig : undefined}
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
           maintenanceHistory={hasMaintenanceHistory ? (syncedMaintenance ?? null) : null}
           edictLevels={edictLevels}
@@ -1268,13 +1298,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       {activeModule?.id === NUCLEAR_MODULE_ID && syncedHistory && hasOperatingHistory && (
         <NuclearPlanningSettings history={syncedHistory} values={planningBaselines} />
-      )}
-
-      {activeModule?.id === COMPUTING_MODULE_ID && (
-        <ComputingSettings
-          config={computingConfig}
-          computingCapacityTflops={computingCapacityTflops}
-        />
       )}
 
       {activeModule?.id === RESEARCH_MODULE_ID && (
@@ -1340,9 +1363,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
               electricityConsumptionKw={buildingStats.electricityKw}
               electricityGenerationCapacityMw={nuclearGenerationCapacityMw}
               computingConsumptionTflops={buildingStats.computingTflops}
-              computingGenerationCapacityTflops={
-                activeModule.id === COMPUTING_MODULE_ID ? computingCapacityTflops : undefined
-              }
+              computingGenerationCapacityTflops={activeComputingCapacityTflops}
             />
           )}
 

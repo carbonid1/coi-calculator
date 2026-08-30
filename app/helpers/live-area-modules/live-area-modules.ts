@@ -1,4 +1,6 @@
 import { liveAreaPlans, type LiveAreaPlans } from '../../db/live-area-plans'
+import { isMaintenanceDepotPrototype } from '../../db/modules/area-maintenance'
+import { isSolarPanelPrototype } from '../../db/modules/area-solar'
 import { isAreaAssignableStaticInfrastructurePrototype } from '../../db/modules/area-static-infrastructure'
 import { type Module, type LiveAreaIssue } from '../../db/modules/modules'
 import { type Ingredient, type Recipe } from '../../db/recipes'
@@ -172,6 +174,8 @@ export const createLiveAreaModules = (
     ))
     const productionEntities = zoneEntities.filter(entity => (
       !isAreaAssignableStaticInfrastructurePrototype(entity.prototypeId)
+      && !isMaintenanceDepotPrototype(entity.prototypeId)
+      && !isSolarPanelPrototype(entity.prototypeId)
     ))
     const issues = new Map<string, LiveAreaIssue>()
     const groups = new Map<string, RecipeGroup>()
@@ -181,6 +185,17 @@ export const createLiveAreaModules = (
     >()
 
     for (const entity of productionEntities) {
+      const capacityPool = capacityPools.get(entity.prototypeId) ?? {
+        built: 0,
+        running: 0,
+        planned: 0,
+      }
+
+      capacityPool.built += Number(entity.constructed)
+      capacityPool.running += Number(entity.running)
+      capacityPool.planned += Number(isPlannedEntity(entity))
+      capacityPools.set(entity.prototypeId, capacityPool)
+
       const recipesForEntity = selectedRecipes(entity)
 
       if (recipesForEntity.length === 0) {
@@ -196,17 +211,6 @@ export const createLiveAreaModules = (
         )
         continue
       }
-
-      const capacityPool = capacityPools.get(entity.prototypeId) ?? {
-        built: 0,
-        running: 0,
-        planned: 0,
-      }
-
-      capacityPool.built += Number(entity.constructed)
-      capacityPool.running += Number(entity.running)
-      capacityPool.planned += Number(isPlannedEntity(entity))
-      capacityPools.set(entity.prototypeId, capacityPool)
 
       for (const recipe of recipesForEntity) {
         const key = `${entity.prototypeId}:${recipe.id}`

@@ -2,7 +2,6 @@ import { type PlanDirection } from "../../helpers/resolve-layered-value/resolve-
 import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import { type Recipe } from "../recipes";
 import { type ResourceId } from "../resources";
-import { computing } from "./computing";
 import { defaultArea } from "./default";
 import { chickenFarms, greenhouses } from "./farms";
 import { forestry } from "./forestry";
@@ -139,5 +138,4 @@ export const modules: [Module, ...Module[]] = [
   mines,
   reserves,
   nuclear,
-  computing,
 ];

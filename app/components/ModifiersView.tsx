@@ -1,6 +1,7 @@
 import { Card, cn } from "@carbonid1/design-system";
 import { Sparkles } from "lucide-react";
 
+import { type ComputingConfig, getRackAllocation } from "../db/computing";
 import { baseConfig } from "../db/config";
 import {
   edictCatalog,
@@ -31,6 +32,8 @@ import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layer
 import { getDataSourceMode, getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {
+  computingCapacityTflops: number;
+  computingConfig?: ComputingConfig;
   electricityGenerationCapacityMw: number;
   maintenanceHistory: GameStateSnapshot["history"]["maintenance"] | null;
   edictLevels: Record<EdictId, EdictLevel>;
@@ -48,6 +51,7 @@ interface Props {
 }
 
 const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
+
 export const formatSignedPercent = (value: number) => {
   const rounded = parseFloat(value.toFixed(2));
 
@@ -56,6 +60,20 @@ export const formatSignedPercent = (value: number) => {
 const formatPower = (value: number) => (
   `${parseFloat(value.toFixed(2)).toLocaleString("en-US")} MW`
 );
+
+export const formatComputingOverview = (
+  config: ComputingConfig,
+  capacityTflops: number,
+) => {
+  const rackAllocation = getRackAllocation(config.rackCount, config.dataCenterCount);
+  const dataCenterLabel = `${rackAllocation.length} data center${rackAllocation.length === 1 ? "" : "s"}`;
+  const rackLabel = rackAllocation.length > 0
+    ? `${rackAllocation.join(" + ")} racks`
+    : "0 racks";
+  const capacity = parseFloat(capacityTflops.toFixed(2)).toLocaleString("en-US");
+
+  return `${dataCenterLabel} · ${rackLabel} · ${capacity} TFLOPS`;
+};
 
 const maintenanceTiers = [
   ["maintenanceI", "Maintenance I"],
@@ -157,6 +175,8 @@ export const EdictCard = ({
 };
 
 export const ModifiersView: React.FC<Props> = ({
+  computingCapacityTflops,
+  computingConfig,
   electricityGenerationCapacityMw,
   maintenanceHistory,
   edictLevels,
@@ -228,6 +248,9 @@ export const ModifiersView: React.FC<Props> = ({
             <div><p className="text-sm text-muted-foreground">Electricity generation capacity</p><p className="font-mono font-semibold text-foreground">{formatPower(electricityGenerationCapacityMw)}</p></div>
             <div><p className="text-sm text-muted-foreground">Average sunlight ({planningWeather.horizonYears}Y)</p><p className="font-mono font-semibold text-foreground">{planningWeather.averageSunIntensityPercent}%</p></div>
             <div><p className="text-sm text-muted-foreground">Base recycling</p><p className="font-mono font-semibold text-foreground">{baseConfig.recyclingEfficiencyPercent}%</p></div>
+            {computingConfig && (
+              <div className="sm:col-span-2 lg:col-span-3"><p className="text-sm text-muted-foreground">Computing capacity</p><p className="font-mono font-semibold text-foreground">{formatComputingOverview(computingConfig, computingCapacityTflops)}</p></div>
+            )}
           </Card.Content>
         </Card.Root>
       </section>

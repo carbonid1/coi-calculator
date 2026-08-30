@@ -22,7 +22,7 @@ export interface SolarPanelModuleAssignment extends SolarPanelInventory {
 interface ResolveSolarPanelModuleAssignmentsOptions {
   defaultModuleId: string;
   fallbackInventory?: SolarPanelInventory;
-  modules: readonly Pick<Module, "id" | "name">[];
+  modules: readonly Pick<Module, "id" | "name" | "liveArea">[];
   plannedTargets?: Partial<SolarPanelCounts>;
   productionEntities?: readonly SyncedProductionEntity[];
 }
@@ -31,6 +31,10 @@ const panelByPrototypeId = new Map<string, keyof SolarPanelCounts>([
   [syncedBuildingPrototypeIds.solarPanel, "standard"],
   [syncedBuildingPrototypeIds.solarPanelMono, "mono"],
 ]);
+
+export const isSolarPanelPrototype = (prototypeId: string) => (
+  panelByPrototypeId.has(prototypeId)
+);
 
 const createCounts = (): SolarPanelCounts => ({ ...emptySolarPanelCounts });
 
@@ -90,9 +94,13 @@ export const resolveSolarPanelModuleAssignments = ({
     defaultAssignment.runningCounts = fallback.runningCounts;
   } else {
     const moduleIdsByAreaName = new Map<string, string[]>();
+    const moduleIdByZoneId = new Map<number, string>();
 
     for (const moduleDefinition of modules) {
       if (moduleDefinition.id === defaultModuleId) continue;
+      if (moduleDefinition.liveArea) {
+        moduleIdByZoneId.set(moduleDefinition.liveArea.zoneId, moduleDefinition.id);
+      }
       const moduleIds = moduleIdsByAreaName.get(moduleDefinition.name) ?? [];
 
       moduleIds.push(moduleDefinition.id);
@@ -104,9 +112,11 @@ export const resolveSolarPanelModuleAssignments = ({
 
       if (!panel) continue;
 
-      const matchingModuleIds = new Set(entity.zones.flatMap(
-        zone => moduleIdsByAreaName.get(zone.name ?? "") ?? [],
-      ));
+      const matchingModuleIds = new Set(entity.zones.flatMap(zone => {
+        const moduleId = moduleIdByZoneId.get(zone.id);
+
+        return moduleId ? [moduleId] : (moduleIdsByAreaName.get(zone.name ?? "") ?? []);
+      }));
       const ownerId = matchingModuleIds.size === 1
         ? [...matchingModuleIds][0]
         : defaultModuleId;

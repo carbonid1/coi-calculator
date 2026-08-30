@@ -31,6 +31,19 @@ const nuclearModule = createModule('nuclear', 'Nuclear')
 const computingModule = createModule('computing', 'Computing')
 const ownershipModules = [defaultModule, nuclearModule, computingModule]
 
+const createLiveModule = (id: string, name: string, zoneId: number): Module => ({
+  ...createModule(id, name),
+  liveArea: {
+    zoneId,
+    trackedBuildings: 0,
+    constructedBuildings: 0,
+    activeBuildings: 0,
+    pausedBuildings: 0,
+    constructionGhosts: 0,
+    issues: [],
+  },
+})
+
 const depotEntity = (
   entityId: number,
   prototypeId: string,
@@ -115,6 +128,26 @@ it('moves a depot with an exact named area and falls back on overlaps', () => {
   expect(assignments.general?.builtBuildings).toEqual({
     'maintenance-iii-recycling': 1,
   })
+})
+
+it('uses the synced area ID when duplicate area names exist', () => {
+  const firstComputing = createLiveModule('live-area-15', 'Computing', 15)
+  const secondComputing = createLiveModule('live-area-17', 'Computing', 17)
+  const depot = depotEntity(1, 'MaintenanceDepotT1', ['MaintenanceT1Recycling'])
+
+  depot.zones = [{ id: 15, name: 'Computing' }]
+
+  const assignments = resolveMaintenanceDepotModuleAssignments({
+    defaultModuleId: defaultModule.id,
+    modules: [defaultModule, firstComputing, secondComputing],
+    productionEntities: [depot],
+  })
+
+  expect(assignments[firstComputing.id]?.builtBuildings).toEqual({
+    'maintenance-i-recycling': 1,
+  })
+  expect(assignments[secondComputing.id]?.builtBuildings).toEqual({})
+  expect(assignments[defaultModule.id]?.builtBuildings).toEqual({})
 })
 
 it('selects every maintenance depot recipe variant for specialized area layouts', () => {

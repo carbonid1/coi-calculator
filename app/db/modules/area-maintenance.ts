@@ -64,6 +64,10 @@ const maintenanceDepots: readonly MaintenanceDepotDefinition[] = [
 const depotByPrototypeId = new Map(
   maintenanceDepots.map(definition => [definition.prototypeId, definition]),
 )
+
+export const isMaintenanceDepotPrototype = (prototypeId: string) => (
+  depotByPrototypeId.has(prototypeId)
+)
 const maintenanceResourceByRecipeId = new Map<string, MaintenanceResourceId>(
   maintenanceDepots.flatMap(definition => [
     [definition.standardRecipeId, definition.resourceId] as const,
@@ -93,7 +97,7 @@ export interface MaintenanceDepotModuleAssignment {
 interface ResolveMaintenanceDepotModuleAssignmentsOptions {
   defaultModuleId: string
   demand?: MaintenanceDemand
-  modules: readonly Pick<Module, 'id' | 'name'>[]
+  modules: readonly Pick<Module, 'id' | 'name' | 'liveArea'>[]
   productionEntities?: readonly SyncedProductionEntity[]
 }
 
@@ -142,9 +146,13 @@ export const resolveMaintenanceDepotModuleAssignments = ({
     }
   } else {
     const moduleIdsByAreaName = new Map<string, string[]>()
+    const moduleIdByZoneId = new Map<number, string>()
 
     for (const moduleDefinition of modules) {
       if (moduleDefinition.id === defaultModuleId) continue
+      if (moduleDefinition.liveArea) {
+        moduleIdByZoneId.set(moduleDefinition.liveArea.zoneId, moduleDefinition.id)
+      }
       const moduleIds = moduleIdsByAreaName.get(moduleDefinition.name) ?? []
 
       moduleIds.push(moduleDefinition.id)
@@ -157,7 +165,11 @@ export const resolveMaintenanceDepotModuleAssignments = ({
       if (!definition) continue
 
       const matchingModuleIds = new Set(
-        entity.zones.flatMap(zone => moduleIdsByAreaName.get(zone.name ?? '') ?? []),
+        entity.zones.flatMap(zone => {
+          const moduleId = moduleIdByZoneId.get(zone.id)
+
+          return moduleId ? [moduleId] : (moduleIdsByAreaName.get(zone.name ?? '') ?? [])
+        }),
       )
       const ownerId = matchingModuleIds.size === 1 ? [...matchingModuleIds][0] : defaultModuleId
       const owner = ownerId ? assignments[ownerId] : undefined

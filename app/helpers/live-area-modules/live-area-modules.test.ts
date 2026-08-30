@@ -133,6 +133,54 @@ describe('createLiveAreaModules', () => {
     })
   })
 
+  it('leaves maintenance depots and solar panels to their dedicated area ownership', () => {
+    const maintenanceDepot = {
+      ...entity(3, true, true),
+      prototypeId: 'MaintenanceDepotT1',
+      prototypeName: 'Maintenance Depot',
+    }
+    const solarPanel = {
+      ...entity(4, true, true),
+      prototypeId: 'SolarPanelMono',
+      prototypeName: 'Solar Panel (Mono)',
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [maintenanceDepot, solarPanel],
+      [],
+    )
+
+    expect(module?.recipes).toEqual([])
+    expect(module?.presets[0]?.capacityPools).toEqual({})
+    expect(module?.liveArea).toMatchObject({
+      trackedBuildings: 2,
+      activeBuildings: 2,
+      issues: [],
+    })
+  })
+
+  it('retains construction capacity for recipe-less Computing ghosts', () => {
+    const dataCenterGhost = {
+      ...entity(3, false, false, []),
+      prototypeId: 'DataCenter',
+      prototypeName: 'Data Center',
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [dataCenterGhost],
+      [],
+    )
+
+    expect(module?.presets[0]?.capacityPools).toEqual({
+      DataCenter: {
+        active: 1,
+        built: 0,
+        currentActive: 0,
+        constructionGhosts: 1,
+      },
+    })
+  })
+
   it('normalizes fractional game recipe durations without truncating them', () => {
     const fractionalRecipe = {
       ...recipe,

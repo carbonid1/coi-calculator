@@ -17,6 +17,7 @@ vi.mock("@carbonid1/design-system", () => ({
 import { edictCatalog, getEdict } from "../db/edicts";
 import {
   EdictCard,
+  formatComputingOverview,
   formatSignedPercent,
   MaintenanceDemandOverview,
 } from "./ModifiersView";
@@ -25,6 +26,13 @@ it("rounds calculated percentages before displaying them", () => {
   expect(formatSignedPercent(-19.999999999999996)).toBe("-20%");
   expect(formatSignedPercent(14.126)).toBe("+14.13%");
   expect(formatSignedPercent(-0.0000001)).toBe("0%");
+});
+
+it("condenses synced computing capacity into one overview line", () => {
+  expect(formatComputingOverview(
+    { dataCenterCount: 5, rackCount: 212, waterChillers: 5 },
+    848,
+  )).toBe("5 data centers · 48 + 48 + 48 + 48 + 20 racks · 848 TFLOPS");
 });
 
 it("shows synced maintenance demand with its completed-cycle history window", () => {

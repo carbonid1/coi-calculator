@@ -1,39 +1,54 @@
 import {
-  resolveDirectionalPlan,
-  type PlanDirection,
-} from "../../helpers/resolve-layered-value/resolve-directional-plan";
-import {
-  type CurrentValueSource,
-  type ValueSource,
-} from "../../helpers/resolve-layered-value/resolve-layered-value";
+  type SyncedLogisticsZoneRef,
+  type SyncedProductionEntity,
+} from "../../game-state";
+import { type CurrentValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import {
   computingRecipeIds,
   type ComputingConfig,
   getDataCenterCount,
-  resolvedComputingConfig,
-  resolvedCurrentComputingConfig,
 } from "../computing";
-import { type Module, type PlanMismatchAction } from "./modules";
-import {
-  createAtLeastBuildingActions,
-  createAtMostBuildingActions,
-} from "./plan-mismatch";
+import { type Module } from "./modules";
 
-export const COMPUTING_MODULE_ID = "computing";
+const COMPUTING_MODULE_ID = "computing";
 
-export type ComputingPlanDirections = Record<keyof ComputingConfig, PlanDirection>;
+export const createLegacyComputingArea = (
+  zone: SyncedLogisticsZoneRef,
+  productionEntities: readonly SyncedProductionEntity[],
+): Module => {
+  const zoneEntities = productionEntities.filter(entity => (
+    entity.zones.some(entityZone => entityZone.id === zone.id)
+  ));
 
-export const plannedComputingDirections: ComputingPlanDirections = {
-  dataCenterCount: "at-least",
-  rackCount: "at-least",
-  waterChillers: "at-least",
-};
-
-const currentLayers = (value: number, source: CurrentValueSource) => {
-  if (source === "synced") return { default: 0, synced: value };
-  if (source === "modeled") return { default: 0, modeled: value };
-
-  return { default: value };
+  return {
+    id: `live-area-${zone.id}`,
+    name: zone.name ?? "Computing",
+    description: "",
+    includedInFactoryTotals: false,
+    builtBuildings: {},
+    presets: [{
+      id: "live",
+      name: "Live area",
+      description: "",
+      activeBuildings: {},
+      currentActiveBuildings: {},
+      builtBuildings: {},
+      constructionGhosts: {},
+      capacityPools: {},
+      dataSources: {},
+      fixed: [],
+    }],
+    defaultPresetId: "live",
+    liveArea: {
+      zoneId: zone.id,
+      trackedBuildings: zoneEntities.length,
+      constructedBuildings: zoneEntities.length,
+      activeBuildings: zoneEntities.filter(entity => entity.running).length,
+      pausedBuildings: zoneEntities.filter(entity => !entity.running).length,
+      constructionGhosts: 0,
+      issues: [],
+    },
+  };
 };
 
 const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
@@ -50,19 +65,13 @@ const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
 };
 
 export const createComputingModule = (
-  config: ComputingConfig,
-  builtConfig: ComputingConfig = config,
-  dataSource: ValueSource = "modeled",
-  builtDataSource: ValueSource = dataSource,
+  builtConfig: ComputingConfig,
   runningConfig: ComputingConfig = builtConfig,
-  planDirections: ComputingPlanDirections = plannedComputingDirections,
+  currentSource: CurrentValueSource = "modeled",
+  generatedArea?: Module,
 ): Module => {
-  const target = normalizeComputingConfig(config);
   const built = normalizeComputingConfig(builtConfig);
   const running = normalizeComputingConfig(runningConfig);
-  const currentSource: CurrentValueSource = builtDataSource === "planned"
-    ? "modeled"
-    : builtDataSource;
   const items = [
     {
       recipeId: computingRecipeIds.dataCenter,
@@ -80,15 +89,6 @@ export const createComputingModule = (
       name: "Water Chiller",
     },
   ];
-  const resolvePlan = (key: (typeof items)[number]["key"]) => resolveDirectionalPlan(
-    currentLayers(running[key], currentSource),
-    { direction: planDirections[key], target: target[key] },
-  );
-  const plans = {
-    dataCenterCount: resolvePlan("dataCenterCount"),
-    rackCount: resolvePlan("rackCount"),
-    waterChillers: resolvePlan("waterChillers"),
-  };
   const builtBuildings = {
     [computingRecipeIds.dataCenter]: built.dataCenterCount,
     [computingRecipeIds.basicRack]: built.rackCount,
@@ -96,95 +96,135 @@ export const createComputingModule = (
   };
   const activeBuildings = Object.fromEntries(items.map((item) => [
     item.recipeId,
-    plans[item.key].value,
+    running[item.key],
   ]));
   const dataSources = Object.fromEntries(items.map((item) => [
     item.recipeId,
-    dataSource === "planned" ? plans[item.key].source : dataSource,
+    currentSource,
   ]));
-  const planMismatches = items.flatMap((item) => {
-    const plan = plans[item.key];
 
-    if (dataSource !== "planned" || plan.satisfied) return [];
-
-    let actions: PlanMismatchAction[];
-
-    if (plan.direction === "at-most") {
-      actions = item.key === "rackCount"
-        ? [{
-            type: "pause",
-            label: `Pause Data Centers for ${plan.difference} Basic Server Racks`,
-          }]
-        : createAtMostBuildingActions({
-            running: running[item.key],
-            target: plan.target,
-            name: item.name,
-          });
-    } else if (item.key === "rackCount") {
-      actions = [
-        ...(
-          Math.min(
-            Math.max(0, built.rackCount - running.rackCount),
-            Math.max(0, plan.target - running.rackCount),
-          ) > 0
-            ? [{
-                type: "unpause" as const,
-                label: `Unpause Data Centers for ${Math.min(
-                  Math.max(0, built.rackCount - running.rackCount),
-                  Math.max(0, plan.target - running.rackCount),
-                )} Basic Server Racks`,
-              }]
-            : []
-        ),
-        ...(plan.target > built.rackCount
-          ? [{
-              type: "build" as const,
-              label: `Install ${plan.target - built.rackCount} Basic Server Racks`,
-            }]
-          : []),
-      ];
-    } else {
-      actions = createAtLeastBuildingActions({
-        built: built[item.key],
-        running: running[item.key],
-        target: plan.target,
-        name: item.name,
-      });
-    }
-
-    return [{
-      recipeId: item.recipeId,
-      current: plan.current.value,
-      currentSource: plan.current.source,
-      target: plan.target,
-      direction: plan.direction,
-      format: "count" as const,
-      actions,
-    }];
-  });
-
-  return {
+  const computingModule: Module = {
     id: COMPUTING_MODULE_ID,
     name: "Computing",
-    description: "Data-center capacity and its closed-loop chilled-water supply",
+    description: "",
     builtBuildings,
     presets: [{
       id: "current-data-centers",
       name: "Data center configuration",
-      description: `${activeBuildings[computingRecipeIds.dataCenter]} data centers with ${activeBuildings[computingRecipeIds.basicRack]} racks`,
+      description: "",
       activeBuildings,
       dataSources,
-      planMismatches: planMismatches.length > 0 ? planMismatches : undefined,
       fixed: [computingRecipeIds.dataCenter, computingRecipeIds.basicRack],
     }],
     defaultPresetId: "current-data-centers",
   };
-};
 
-export const computing = createComputingModule(
-  resolvedComputingConfig.value,
-  resolvedCurrentComputingConfig.value,
-  resolvedComputingConfig.source,
-  resolvedCurrentComputingConfig.source,
-  resolvedCurrentComputingConfig.value,
-);
+  if (!generatedArea) return computingModule;
+
+  const handledPrototypeIds = new Set(["DataCenter", "WaterChiller"]);
+  const handledRecipeMarkers = [...handledPrototypeIds].map(id => `:${id}:`);
+  const isHandledGeneratedRecipeId = (id: string) => (
+    handledRecipeMarkers.some(marker => id.includes(marker))
+  );
+  const withoutHandledRecipeIds = <T>(values: Record<string, T> | undefined) => (
+    values
+      ? Object.fromEntries(
+          Object.entries(values).filter(([id]) => !isHandledGeneratedRecipeId(id)),
+        )
+      : undefined
+  );
+  const withoutHandledPrototypeIds = <T>(values: Record<string, T> | undefined) => (
+    values
+      ? Object.fromEntries(
+          Object.entries(values).filter(([id]) => !handledPrototypeIds.has(id)),
+        )
+      : undefined
+  );
+  const rawGeneratedPreset = generatedArea.defaultPresetId
+    ? generatedArea.presets.find(preset => preset.id === generatedArea.defaultPresetId)
+    : generatedArea.presets[0];
+  const dataCenterConstructionGhosts =
+    rawGeneratedPreset?.capacityPools?.DataCenter?.constructionGhosts ?? 0;
+  const waterChillerConstructionGhosts =
+    rawGeneratedPreset?.capacityPools?.WaterChiller?.constructionGhosts ?? 0;
+  const computingConstructionGhosts = {
+    [computingRecipeIds.dataCenter]: dataCenterConstructionGhosts,
+    [computingRecipeIds.basicRack]: 0,
+    [computingRecipeIds.waterChiller]: waterChillerConstructionGhosts,
+  };
+  const generatedPreset = rawGeneratedPreset
+    ? {
+        ...rawGeneratedPreset,
+        activeBuildings: withoutHandledRecipeIds(rawGeneratedPreset.activeBuildings) ?? {},
+        currentActiveBuildings: withoutHandledRecipeIds(
+          rawGeneratedPreset.currentActiveBuildings,
+        ),
+        builtBuildings: withoutHandledRecipeIds(rawGeneratedPreset.builtBuildings),
+        constructionGhosts: withoutHandledRecipeIds(rawGeneratedPreset.constructionGhosts),
+        dataSources: withoutHandledRecipeIds(rawGeneratedPreset.dataSources),
+        capacityPools: withoutHandledPrototypeIds(rawGeneratedPreset.capacityPools),
+      }
+    : undefined;
+  const computingPreset = computingModule.presets[0];
+
+  if (!computingPreset) return generatedArea;
+
+  const projectedComputingBuildings = {
+    ...computingPreset.activeBuildings,
+    [computingRecipeIds.dataCenter]:
+      (computingPreset.activeBuildings[computingRecipeIds.dataCenter] ?? 0)
+      + dataCenterConstructionGhosts,
+    [computingRecipeIds.waterChiller]:
+      (computingPreset.activeBuildings[computingRecipeIds.waterChiller] ?? 0)
+      + waterChillerConstructionGhosts,
+  };
+
+  const mergedPreset = generatedPreset
+    ? {
+        ...generatedPreset,
+        description: "",
+        activeBuildings: {
+          ...generatedPreset.activeBuildings,
+          ...projectedComputingBuildings,
+        },
+        currentActiveBuildings: {
+          ...generatedPreset.currentActiveBuildings,
+          ...computingPreset.activeBuildings,
+        },
+        builtBuildings: {
+          ...generatedPreset.builtBuildings,
+          ...computingModule.builtBuildings,
+        },
+        constructionGhosts: {
+          ...generatedPreset.constructionGhosts,
+          ...computingConstructionGhosts,
+        },
+        dataSources: {
+          ...generatedPreset.dataSources,
+          ...computingPreset.dataSources,
+        },
+        fixed: [...new Set([...generatedPreset.fixed, ...computingPreset.fixed])],
+      }
+    : computingPreset;
+  const handledIssuePrefixes = [...handledPrototypeIds].map(id => `${id}:`);
+
+  return {
+    ...generatedArea,
+    includedInFactoryTotals: true,
+    builtBuildings: {
+      ...withoutHandledRecipeIds(generatedArea.builtBuildings),
+      ...computingModule.builtBuildings,
+    },
+    recipes: generatedArea.recipes?.filter(recipe => !isHandledGeneratedRecipeId(recipe.id)),
+    presets: [mergedPreset],
+    defaultPresetId: mergedPreset.id,
+    liveArea: generatedArea.liveArea
+      ? {
+          ...generatedArea.liveArea,
+          issues: generatedArea.liveArea.issues.filter(issue => (
+            !handledIssuePrefixes.some(prefix => issue.id.startsWith(prefix))
+          )),
+        }
+      : undefined,
+  };
+};

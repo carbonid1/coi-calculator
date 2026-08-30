@@ -1,7 +1,6 @@
 import {
   type LayeredValue,
   resolveCurrentLayeredValue,
-  resolveLayeredValue,
 } from "../helpers/resolve-layered-value/resolve-layered-value";
 
 export interface ComputingConfig {
@@ -31,23 +30,14 @@ export const defaultComputingConfig: ComputingConfig = {
 
 export const modeledComputingConfig: ComputingConfig | undefined = undefined;
 
-export const plannedComputingConfig: ComputingConfig = {
-  // Five-data-center plan that covers the complete projected factory demand.
-  dataCenterCount: 5,
-  rackCount: 202,
-  waterChillers: 5,
-};
-
 const computingConfigLayers: LayeredValue<ComputingConfig> = {
   default: defaultComputingConfig,
   modeled: modeledComputingConfig,
-  planned: plannedComputingConfig,
 };
 
 export const resolvedCurrentComputingConfig = resolveCurrentLayeredValue(
   computingConfigLayers,
 );
-export const resolvedComputingConfig = resolveLayeredValue(computingConfigLayers);
 
 export const getDataCenterCount = (rackCount: number) => (
   Math.ceil(Math.max(0, Math.trunc(rackCount)) / dataCenter.rackCapacity)

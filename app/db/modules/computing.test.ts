@@ -1,15 +1,15 @@
 import { expect, it } from "vitest";
 
+import { type SyncedProductionEntity } from "../../game-state";
 import {
   computingRecipeIds,
   dataCenter,
   defaultComputingConfig,
   getRackAllocation,
-  plannedComputingConfig,
-  resolvedComputingConfig,
   resolvedCurrentComputingConfig,
 } from "../computing";
-import { computing, createComputingModule } from "./computing";
+import { createComputingModule, createLegacyComputingArea } from "./computing";
+import { type Module } from "./modules";
 
 it("models the current two full data centers", () => {
   const computing = createComputingModule(defaultComputingConfig);
@@ -28,16 +28,17 @@ it("models the current two full data centers", () => {
   ).toBe(384);
 });
 
-it("keeps the current racks as built capacity and the settlement expansion as planned", () => {
+it("keeps the modeled Computing fallback on current values", () => {
+  const computing = createComputingModule(
+    resolvedCurrentComputingConfig.value,
+    resolvedCurrentComputingConfig.value,
+    resolvedCurrentComputingConfig.source,
+  );
   const preset = computing.presets.at(0);
 
   expect(resolvedCurrentComputingConfig).toEqual({
     source: "default",
     value: defaultComputingConfig,
-  });
-  expect(resolvedComputingConfig).toEqual({
-    source: "planned",
-    value: plannedComputingConfig,
   });
   expect(computing.builtBuildings).toEqual({
     [computingRecipeIds.dataCenter]: 2,
@@ -45,123 +46,192 @@ it("keeps the current racks as built capacity and the settlement expansion as pl
     [computingRecipeIds.waterChiller]: 2,
   });
   expect(preset?.activeBuildings).toEqual({
+    [computingRecipeIds.dataCenter]: 2,
+    [computingRecipeIds.basicRack]: 96,
+    [computingRecipeIds.waterChiller]: 2,
+  });
+  expect(preset?.dataSources).toEqual({
+    [computingRecipeIds.dataCenter]: "default",
+    [computingRecipeIds.basicRack]: "default",
+    [computingRecipeIds.waterChiller]: "default",
+  });
+});
+
+it("keeps built and running synced computing inventory separate", () => {
+  const computingModule = createComputingModule(
+    { dataCenterCount: 5, rackCount: 202, waterChillers: 5 },
+    { dataCenterCount: 1, rackCount: 48, waterChillers: 4 },
+    "synced",
+  );
+  const preset = computingModule.presets[0];
+
+  expect(computingModule.builtBuildings).toEqual({
     [computingRecipeIds.dataCenter]: 5,
     [computingRecipeIds.basicRack]: 202,
     [computingRecipeIds.waterChiller]: 5,
   });
-  expect(preset?.dataSources).toEqual({
-    [computingRecipeIds.dataCenter]: "planned",
-    [computingRecipeIds.basicRack]: "planned",
-    [computingRecipeIds.waterChiller]: "planned",
-  });
-});
-
-it("keeps paused synced computing capacity planned and lists the operating actions", () => {
-  const computingModule = createComputingModule(
-    plannedComputingConfig,
-    { dataCenterCount: 5, rackCount: 202, waterChillers: 5 },
-    "planned",
-    "synced",
-    { dataCenterCount: 1, rackCount: 48, waterChillers: 4 },
-  );
-  const preset = computingModule.presets[0];
-
-  expect(preset.dataSources).toEqual({
-    [computingRecipeIds.dataCenter]: "planned",
-    [computingRecipeIds.basicRack]: "planned",
-    [computingRecipeIds.waterChiller]: "planned",
-  });
-  expect(preset.planMismatches).toMatchObject([
-    {
-      recipeId: computingRecipeIds.dataCenter,
-      current: 1,
-      target: 5,
-      actions: [{ type: "unpause", label: "Unpause 4 Data Centers" }],
-    },
-    {
-      recipeId: computingRecipeIds.basicRack,
-      current: 48,
-      target: 202,
-      actions: [{
-        type: "unpause",
-        label: "Unpause Data Centers for 154 Basic Server Racks",
-      }],
-    },
-    {
-      recipeId: computingRecipeIds.waterChiller,
-      current: 4,
-      target: 5,
-      actions: [{ type: "unpause", label: "Unpause 1 Water Chiller" }],
-    },
-  ]);
-});
-
-it("returns computing rows to synced independently when each target is reached", () => {
-  const computingModule = createComputingModule(
-    plannedComputingConfig,
-    { dataCenterCount: 6, rackCount: 210, waterChillers: 5 },
-    "planned",
-    "synced",
-    { dataCenterCount: 6, rackCount: 210, waterChillers: 4 },
-  );
-  const preset = computingModule.presets[0];
-
   expect(preset.activeBuildings).toEqual({
-    [computingRecipeIds.dataCenter]: 6,
-    [computingRecipeIds.basicRack]: 210,
-    [computingRecipeIds.waterChiller]: 5,
+    [computingRecipeIds.dataCenter]: 1,
+    [computingRecipeIds.basicRack]: 48,
+    [computingRecipeIds.waterChiller]: 4,
   });
   expect(preset.dataSources).toEqual({
     [computingRecipeIds.dataCenter]: "synced",
     [computingRecipeIds.basicRack]: "synced",
-    [computingRecipeIds.waterChiller]: "planned",
+    [computingRecipeIds.waterChiller]: "synced",
   });
-  expect(preset.planMismatches).toHaveLength(1);
+  expect(preset.planMismatches).toBeUndefined();
 });
 
-it("keeps an at-most computing target planned until excess capacity is paused", () => {
-  const computingModule = createComputingModule(
-    { dataCenterCount: 5, rackCount: 202, waterChillers: 5 },
-    { dataCenterCount: 6, rackCount: 210, waterChillers: 6 },
-    "planned",
+it("preserves the generated area identity and removes handled recipe issues", () => {
+  const generatedWaterChillerRecipeId = "live-area-15:WaterChiller:WaterChilling";
+  const generatedArea: Module = {
+    id: "live-area-15",
+    name: "Computing",
+    description: "",
+    includedInFactoryTotals: false,
+    builtBuildings: { [generatedWaterChillerRecipeId]: 1 },
+    recipes: [{
+      id: generatedWaterChillerRecipeId,
+      name: "WaterChilling",
+      building: "Water chiller",
+      group: "production",
+      inputs: [{ resourceId: "water", quantity: 30 }],
+      outputs: [{ resourceId: "chilledWater", quantity: 24 }],
+    }],
+    presets: [{
+      id: "live",
+      name: "Live area",
+      description: "Synced completed buildings plus synced construction ghosts.",
+      activeBuildings: { [generatedWaterChillerRecipeId]: 2 },
+      currentActiveBuildings: { [generatedWaterChillerRecipeId]: 1 },
+      builtBuildings: { [generatedWaterChillerRecipeId]: 1 },
+      constructionGhosts: { [generatedWaterChillerRecipeId]: 1 },
+      capacityPools: {
+        DataCenter: {
+          active: 2,
+          built: 1,
+          currentActive: 1,
+          constructionGhosts: 1,
+        },
+        WaterChiller: {
+          active: 2,
+          built: 1,
+          currentActive: 1,
+          constructionGhosts: 1,
+        },
+      },
+      dataSources: { [generatedWaterChillerRecipeId]: "synced" },
+      fixed: [],
+    }],
+    defaultPresetId: "live",
+    liveArea: {
+      zoneId: 15,
+      trackedBuildings: 4,
+      constructedBuildings: 2,
+      activeBuildings: 2,
+      pausedBuildings: 0,
+      constructionGhosts: 2,
+      issues: [
+        {
+          id: "DataCenter:no-recipe",
+          building: "Data Center",
+          count: 1,
+          message: "This building does not expose a production recipe.",
+        },
+      ],
+    },
+  };
+  const computing = createComputingModule(
+    { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
+    { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
     "synced",
-    { dataCenterCount: 6, rackCount: 210, waterChillers: 6 },
-    {
-      dataCenterCount: "at-most",
-      rackCount: "at-most",
-      waterChillers: "at-most",
-    },
+    generatedArea,
   );
-  const preset = computingModule.presets[0];
 
-  expect(preset.activeBuildings).toEqual({
-    [computingRecipeIds.dataCenter]: 5,
-    [computingRecipeIds.basicRack]: 202,
-    [computingRecipeIds.waterChiller]: 5,
+  expect(computing.id).toBe("live-area-15");
+  expect(computing.defaultPresetId).toBe("live");
+  expect(computing.includedInFactoryTotals).toBe(true);
+  expect(computing.liveArea?.issues).toEqual([]);
+  expect(computing.recipes).toEqual([]);
+  expect(computing.builtBuildings).not.toHaveProperty(generatedWaterChillerRecipeId);
+  expect(computing.presets[0].activeBuildings).not.toHaveProperty(
+    generatedWaterChillerRecipeId,
+  );
+  expect(computing.presets[0].description).toBe("");
+  expect(computing.presets[0]).toMatchObject({
+    activeBuildings: {
+      [computingRecipeIds.dataCenter]: 2,
+      [computingRecipeIds.basicRack]: 48,
+      [computingRecipeIds.waterChiller]: 2,
+    },
+    currentActiveBuildings: {
+      [computingRecipeIds.dataCenter]: 1,
+      [computingRecipeIds.basicRack]: 48,
+      [computingRecipeIds.waterChiller]: 1,
+    },
+    constructionGhosts: {
+      [computingRecipeIds.dataCenter]: 1,
+      [computingRecipeIds.basicRack]: 0,
+      [computingRecipeIds.waterChiller]: 1,
+    },
   });
-  expect(preset.dataSources).toEqual({
-    [computingRecipeIds.dataCenter]: "planned",
-    [computingRecipeIds.basicRack]: "planned",
-    [computingRecipeIds.waterChiller]: "planned",
+  expect(computing.presets[0].capacityPools).toEqual({});
+  expect(computing.presets[0].dataSources).toMatchObject({
+    [computingRecipeIds.dataCenter]: "synced",
+    [computingRecipeIds.basicRack]: "synced",
+    [computingRecipeIds.waterChiller]: "synced",
   });
-  expect(preset.planMismatches).toMatchObject([
+});
+
+it("creates a generated-style Computing area for pre-ghost synced snapshots", () => {
+  const productionEntities: SyncedProductionEntity[] = [
     {
-      recipeId: computingRecipeIds.dataCenter,
-      direction: "at-most",
-      actions: [{ type: "pause", label: "Pause 1 Data Center" }],
+      entityId: 1,
+      prototypeId: "DataCenter",
+      running: true,
+      recipeIds: [],
+      zones: [{ id: 15, name: "Computing" }],
+      nuclearReactor: null,
+      dataCenterRacks: 48,
     },
     {
-      recipeId: computingRecipeIds.basicRack,
-      direction: "at-most",
-      actions: [{
-        type: "pause",
-        label: "Pause Data Centers for 8 Basic Server Racks",
-      }],
+      entityId: 2,
+      prototypeId: "WaterChiller",
+      running: false,
+      recipeIds: ["WaterChilling"],
+      zones: [{ id: 15, name: "Computing" }],
+      nuclearReactor: null,
     },
-    {
-      recipeId: computingRecipeIds.waterChiller,
-      direction: "at-most",
-      actions: [{ type: "pause", label: "Pause 1 Water Chiller" }],
+  ];
+  const area = createLegacyComputingArea(
+    { id: 15, name: "Computing" },
+    productionEntities,
+  );
+  const computing = createComputingModule(
+    { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
+    { dataCenterCount: 1, rackCount: 48, waterChillers: 0 },
+    "synced",
+    area,
+  );
+
+  expect(computing).toMatchObject({
+    id: "live-area-15",
+    name: "Computing",
+    includedInFactoryTotals: true,
+    liveArea: {
+      zoneId: 15,
+      trackedBuildings: 2,
+      constructedBuildings: 2,
+      activeBuildings: 1,
+      pausedBuildings: 1,
+      constructionGhosts: 0,
+      issues: [],
     },
-  ]);
+  });
+  expect(computing.presets[0].activeBuildings).toMatchObject({
+    [computingRecipeIds.dataCenter]: 1,
+    [computingRecipeIds.basicRack]: 48,
+    [computingRecipeIds.waterChiller]: 0,
+  });
 });

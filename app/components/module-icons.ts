@@ -9,7 +9,6 @@ import {
   FlaskConical,
   Pickaxe,
   Satellite,
-  Server,
   Sprout,
   TreePine,
   type LucideIcon,
@@ -30,5 +29,4 @@ export const moduleIcons: Partial<Record<string, LucideIcon>> = {
   mines: Pickaxe,
   reserves: Archive,
   nuclear: Atom,
-  computing: Server,
 };

@@ -28,6 +28,18 @@ const defaultModule = createModule("general", "Default");
 const nuclearModule = createModule("nuclear", "Nuclear");
 const computingModule = createModule("computing", "Computing");
 const ownershipModules = [defaultModule, nuclearModule, computingModule];
+const createLiveModule = (id: string, name: string, zoneId: number): Module => ({
+  ...createModule(id, name),
+  liveArea: {
+    zoneId,
+    trackedBuildings: 0,
+    constructedBuildings: 0,
+    activeBuildings: 0,
+    pausedBuildings: 0,
+    constructionGhosts: 0,
+    issues: [],
+  },
+});
 const solarEntity = (
   entityId: number,
   prototypeId: "SolarPanel" | "SolarPanelMono",
@@ -94,6 +106,24 @@ it("counts an overlapping panel once under the Default fallback owner", () => {
   expect(assignments.general?.builtCounts.mono).toBe(1);
   expect(assignments.nuclear?.builtCounts.mono).toBe(0);
   expect(assignments.computing?.builtCounts.mono).toBe(0);
+});
+
+it("uses the synced area ID when duplicate area names exist", () => {
+  const firstComputing = createLiveModule("live-area-15", "Computing", 15);
+  const secondComputing = createLiveModule("live-area-17", "Computing", 17);
+  const panel = solarEntity(1, "SolarPanelMono", []);
+
+  panel.zones = [{ id: 17, name: "Computing" }];
+
+  const assignments = resolveSolarPanelModuleAssignments({
+    defaultModuleId: defaultModule.id,
+    modules: [defaultModule, firstComputing, secondComputing],
+    productionEntities: [panel],
+  });
+
+  expect(assignments[firstComputing.id]?.builtCounts.mono).toBe(0);
+  expect(assignments[secondComputing.id]?.builtCounts.mono).toBe(1);
+  expect(assignments[defaultModule.id]?.builtCounts.mono).toBe(0);
 });
 
 it("adds live solar buildings to their owning area module", () => {
