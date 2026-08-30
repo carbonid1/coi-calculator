@@ -958,6 +958,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         string,
         Partial<Record<ResourceId, number>>
       > = new Map(),
+      moduleSuppliedResources: ReadonlyMap<
+        string,
+        Partial<Record<ResourceId, number>>
+      > = new Map(),
     ) => calculateFactoryTotal(
       configuredModules,
       {
@@ -969,6 +973,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         shipsFuelUseMultiplier: shipsFuelUse.multiplier,
         contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
         moduleFixedDemands,
+        moduleSuppliedResources,
       },
     )
     const baseLinkedModulesResult = calculateLinkedModules({
@@ -1016,14 +1021,25 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       string,
       Partial<Record<ResourceId, number>>
     >()
+    const linkedSuppliesByPooledTarget = new Map<
+      string,
+      Partial<Record<ResourceId, number>>
+    >()
 
     for (const transfer of resolvedLinkedModulesResult.transfers) {
-      if (!pooledLinkSources.sourceModuleIds.has(transfer.sourceModuleId)) continue
+      if (pooledLinkSources.sourceModuleIds.has(transfer.sourceModuleId)) {
+        const demands = linkedDemandsByPooledSource.get(transfer.sourceModuleId) ?? {}
 
-      const demands = linkedDemandsByPooledSource.get(transfer.sourceModuleId) ?? {}
+        demands[transfer.resourceId] = (demands[transfer.resourceId] ?? 0) + transfer.quantity
+        linkedDemandsByPooledSource.set(transfer.sourceModuleId, demands)
+      }
+      if (pooledLinkSources.sourceModuleIds.has(transfer.targetModuleId)) {
+        const supplies = linkedSuppliesByPooledTarget.get(transfer.targetModuleId) ?? {}
 
-      demands[transfer.resourceId] = (demands[transfer.resourceId] ?? 0) + transfer.quantity
-      linkedDemandsByPooledSource.set(transfer.sourceModuleId, demands)
+        supplies[transfer.resourceId] = (supplies[transfer.resourceId] ?? 0)
+          + transfer.quantity
+        linkedSuppliesByPooledTarget.set(transfer.targetModuleId, supplies)
+      }
     }
 
     return {
@@ -1031,6 +1047,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       factoryResult: calculateFactory(
         resolvedLinkedModulesResult,
         linkedDemandsByPooledSource,
+        linkedSuppliesByPooledTarget,
       ),
     }
     // Every calculation input above is a pure derivation of these two state values.
@@ -1584,8 +1601,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             builtBuildings={line.builtBuildings}
                             constructionGhosts={line.constructionGhosts}
                             unplacedPlannedBuildings={line.unplacedPlannedBuildings}
-                            diagnostic={factoryBuildingDiagnostics.find(
-                              diagnostic => diagnostic.key === key,
+                            diagnostic={activeBuildingDiagnostics.find(
+                              diagnostic => diagnostic.key === targetKey,
                             )}
                             supplyRatio={result?.supplyRatio ?? 1}
                             operatingMode={result?.operatingMode ?? 'balanced'}

@@ -116,8 +116,8 @@ it("keeps process waste and graphite balanced with the Copper #1 boundary", () =
   expect(carbonDioxideResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.sharedCapacity).toBeUndefined();
   expect(coalResult.recipe.electricityMultiplier).toBe(2);
-  expect(coalResult.supplyRatio).toBeGreaterThan(0.83);
-  expect(coalResult.supplyRatio).toBeLessThan(0.85);
+  expect(coalResult.supplyRatio).toBeGreaterThan(0.70);
+  expect(coalResult.supplyRatio).toBeLessThan(0.71);
   expect(carbonDioxide.net).toBeCloseTo(0, 6);
   expect(graphite.produced).toBeCloseTo(graphite.consumed, 6);
   expect(graphite.net).toBeCloseTo(0, 6);

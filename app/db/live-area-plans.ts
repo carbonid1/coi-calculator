@@ -15,7 +15,6 @@ export const liveAreaPlans: LiveAreaPlans = {
     resourcePool: 'factory',
   },
   'Steel #1': {
-    requestedImports: { ironOreCrushed: 384 },
-    requestedExports: { steel: 192 },
+    resourcePool: 'factory',
   },
 }

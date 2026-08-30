@@ -92,7 +92,7 @@ describe("Factory Total contracts", () => {
     expect(hydrogen?.net).toBeCloseTo(0);
   });
 
-  it("balances the Iron Ore contract against live factory demand", () => {
+  it("leaves the Iron Ore contract idle without a synced Steel-area boundary", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, {
       ...baselineFactoryOptions,
       contracts: activeContracts,
@@ -118,14 +118,14 @@ describe("Factory Total contracts", () => {
       importedPerTrip: 1_600,
       fuelPerTrip: 289,
     });
-    expect(contractResult?.imported).toBeCloseTo(134.895888232122, 5);
-    expect(contractResult?.requiredImported).toBeCloseTo(134.895888232122, 5);
+    expect(contractResult?.exported).toBe(0);
+    expect(contractResult?.imported).toBe(0);
+    expect(contractResult?.requiredImported).toBe(0);
     expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
-    expect(contractResult?.fuelPerProductionCycle).toBeCloseTo(24.365569811927, 8);
-    expect(ironOre?.consumed).toBeCloseTo(134.895888232122, 5);
-    expect(ironOre?.produced).toBeCloseTo(134.895888232122, 5);
+    expect(contractResult?.fuelPerProductionCycle).toBe(0);
+    expect(ironOre?.consumed).toBe(0);
+    expect(ironOre?.produced).toBe(0);
     expect(ironOre?.net).toBeCloseTo(0, 5);
-    expect(ironOreCrushed?.net).toBeCloseTo(0, 5);
     const recoveredCrushedOre = redMudRecovery?.actualOutputs.find(
       ({ resourceId }) => resourceId === "ironOreCrushed",
     )?.quantity ?? 0;
@@ -134,8 +134,12 @@ describe("Factory Total contracts", () => {
     )?.quantity ?? 0;
 
     expect(recoveredCrushedOre).toBeGreaterThan(0);
-    expect(crushedOreFromCrusher + recoveredCrushedOre)
-      .toBeCloseTo(ironOreCrushed?.consumed ?? 0, 5);
+    expect(crushedOreFromCrusher).toBe(0);
+    expect(ironOreCrushed).toMatchObject({
+      consumed: 0,
+      produced: recoveredCrushedOre,
+      net: recoveredCrushedOre,
+    });
     const ironMineOutput = ironMine?.actualOutputs.find(
       (output) => output.resourceId === "ironOre",
     );
@@ -347,9 +351,9 @@ describe("Factory Total contracts", () => {
       quantity: 4,
     });
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
-    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.6784861111);
-    expect(recyclables?.consumed).toBeCloseTo(195.404);
-    expect(recyclables?.produced).toBeCloseTo(195.404);
+    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.6732777778);
+    expect(recyclables?.consumed).toBeCloseTo(193.904);
+    expect(recyclables?.produced).toBeCloseTo(193.904);
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });

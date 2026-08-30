@@ -470,9 +470,11 @@ export const calculateNet = (
     balancedLines.filter((line) => (line.drivingInputIds?.length ?? 0) > 0),
   );
   const demandProducedIds = new Set(
-    demandBalancedLines.flatMap((line) => (
-      line.recipe.outputs.map((output) => output.resourceId)
-    )),
+    balancedLines
+      .filter((line) => line.recipe.balanceBy === "output")
+      .flatMap((line) => (
+        line.recipe.outputs.map((output) => output.resourceId)
+      )),
   );
 
   const suppliedEntries = typedEntries(suppliedResources);
@@ -489,9 +491,23 @@ export const calculateNet = (
   const totalModuleSourceCapacityByResource = new Map<string, number>();
   const ownedModuleSupplyCapacityByResource = new Map<string, number>();
   const ownedModuleSupplyKeysByResource = new Map<ResourceId, Set<string>>();
+  const moduleScopedInputKeysByResource = new Map<ResourceId, Set<string>>();
   const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => (
     `${moduleId}:${resourceId}`
   );
+  for (const line of lines) {
+    if (line.recipe.balanceInputScope !== "module") continue;
+
+    const scopedInputIds = line.recipe.balanceInputIds
+      ?? line.recipe.inputs.map(input => input.resourceId);
+
+    for (const resourceId of scopedInputIds) {
+      const keys = moduleScopedInputKeysByResource.get(resourceId) ?? new Set<string>();
+
+      keys.add(moduleResourceKey(line.moduleId, resourceId));
+      moduleScopedInputKeysByResource.set(resourceId, keys);
+    }
+  }
   const simulatedModuleFlows = new Map<
     string,
     { consumed: number; produced: number }
@@ -711,15 +727,25 @@ export const calculateNet = (
   };
   const getUnreservedGlobalInput = (resourceId: ResourceId) => {
     const globalFlow = getFlow(resourceId);
-    const unavailableModuleSupply = [...(ownedModuleSupplyKeysByResource.get(resourceId) ?? [])]
+    const reservedModuleKeys = new Set([
+      ...(ownedModuleSupplyKeysByResource.get(resourceId) ?? []),
+      ...(moduleScopedInputKeysByResource.get(resourceId) ?? []),
+    ]);
+    const unavailableModuleSupply = [...reservedModuleKeys]
       .reduce((total, key) => {
         const capacity = ownedModuleSupplyCapacityByResource.get(key) ?? 0;
         const moduleFlow = actualModuleFlows.get(key) ?? { consumed: 0, produced: 0 };
         const nonSourceProduction = moduleFlow.produced - capacity;
         const localSourceDemand = Math.max(0, moduleFlow.consumed - nonSourceProduction);
         const locallyUsed = Math.min(capacity, localSourceDemand);
+        const unusedOwnedSupply = capacity - locallyUsed;
+        const moduleScopedSurplus = moduleScopedInputKeysByResource
+          .get(resourceId)
+          ?.has(key)
+          ? Math.max(0, moduleFlow.produced - moduleFlow.consumed)
+          : 0;
 
-        return total + capacity - locallyUsed;
+        return total + Math.max(unusedOwnedSupply, moduleScopedSurplus);
       }, 0);
 
     return globalFlow.produced - globalFlow.consumed - unavailableModuleSupply;
@@ -1435,6 +1461,25 @@ export const calculateNet = (
     }
   };
 
+  const settleFallbackDemand = () => {
+    for (let iteration = 0; iteration <= fallbackLines.length; iteration += 1) {
+      const priorFallbackLoad = fallbackLines.reduce(
+        (total, line) => total + (allocationRatios.get(line) ?? 0),
+        0,
+      );
+
+      applyLowerPriorityLines(fallbackLines);
+      propagateAdditionalDemand();
+
+      const settledFallbackLoad = fallbackLines.reduce(
+        (total, line) => total + (allocationRatios.get(line) ?? 0),
+        0,
+      );
+
+      if (settledFallbackLoad - priorFallbackLoad <= 1e-9) break;
+    }
+  };
+
   const reservePlannedSourceInputs = () => {
     const remainingGlobalDemand = new Map<ResourceId, number>();
     const remainingModuleDemand = new Map<string, number>();
@@ -1526,8 +1571,7 @@ export const calculateNet = (
 
   // Fallbacks may create supporting demand (for example Sour Water recovery
   // needs Steam). Resolve that demand before final surplus converters run.
-  applyLowerPriorityLines(fallbackLines);
-  propagateAdditionalDemand();
+  settleFallbackDemand();
   reservePlannedSourceInputs();
   applyLowerPriorityLines(surplusLines);
   propagateAdditionalDemand();

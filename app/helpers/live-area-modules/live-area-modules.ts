@@ -76,7 +76,7 @@ const runtimeRecipeBehaviors: Record<
   },
   'ArcFurnace2:IronSmeltingArc': {
     allocation: 'fallback',
-    allocationPriority: 25,
+    allocationPriority: 50,
     balanceBy: 'output',
     balanceInputIds: [],
     balanceOutputIds: ['moltenIron'],
@@ -85,6 +85,13 @@ const runtimeRecipeBehaviors: Record<
     balanceBy: 'input',
     balanceInputIds: ['ironScrap'],
     electricityMultiplier: 0.6,
+  },
+  'CasterCooledT2:SteelCastingCooled': {
+    allocation: 'fallback',
+    allocationPriority: 30,
+    balanceBy: 'output',
+    balanceInputIds: [],
+    balanceOutputIds: ['steel'],
   },
   'ChemicalPlant2:GraphiteProductionCo2': {
     consumeSurplusInputIds: ['carbonDioxide'],
@@ -95,6 +102,14 @@ const runtimeRecipeBehaviors: Record<
     balanceBy: 'input',
     balanceInputIds: ['biomass'],
     balanceInputScope: 'module',
+  },
+  'OxygenFurnaceT2:SteelSmeltingT2': {
+    allocation: 'fallback',
+    allocationPriority: 40,
+    balanceBy: 'output',
+    balanceInputIds: [],
+    balanceOutputIds: ['moltenSteel'],
+    consumeSurplusInputIds: [],
   },
   'SmokeStack:SmokeStackCarbonDioxide': {
     consumeSurplusInputIds: ['carbonDioxide'],
@@ -512,13 +527,15 @@ export const createLiveAreaModules = (
 
       const capacityPoolId = `terrain-sorter:${sorter.entityId}`
       const built = Number(sorter.constructed)
-      const active = Number(sorter.constructed && sorter.running)
+      const running = Number(sorter.constructed && sorter.running)
+      const planned = Number(isPlannedEntity(sorter))
+      const active = running + planned
 
       presetCapacityPools[capacityPoolId] = {
         active,
         built,
-        currentActive: active,
-        constructionGhosts: 0,
+        currentActive: running,
+        constructionGhosts: planned,
       }
 
       for (const { priority, product, resourceId } of sourceProducts) {
@@ -549,8 +566,8 @@ export const createLiveAreaModules = (
         })
         builtBuildings[recipeId] = built
         activeBuildings[recipeId] = active
-        currentActiveBuildings[recipeId] = active
-        constructionGhosts[recipeId] = 0
+        currentActiveBuildings[recipeId] = running
+        constructionGhosts[recipeId] = planned
         dataSources[recipeId] = 'synced'
         terrainSorterSourceCount++
       }
@@ -572,6 +589,7 @@ export const createLiveAreaModules = (
         recipe.gameRecipeId,
       )
       const surplusConsumptionFields = surplusConsumption
+        && recipe.consumeSurplusInputIds == null
         ? {
             consumeSurplusInputIds: surplusConsumption.inputIds,
             consumeSurplusInputScope: surplusConsumption.scope,

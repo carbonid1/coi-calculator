@@ -1443,7 +1443,7 @@ describe('createLiveAreaModules', () => {
       expect.objectContaining({
         recipe: expect.objectContaining({
           allocation: 'fallback',
-          allocationPriority: 25,
+          allocationPriority: 50,
           balanceBy: 'output',
           balanceInputIds: [],
           balanceOutputIds: ['moltenIron'],

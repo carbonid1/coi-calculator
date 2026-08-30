@@ -507,28 +507,20 @@ it("keeps the three built Bread Baking Units active without another construction
   expect(preset?.plannedFollowUps).toBeUndefined();
 });
 
-it("keeps five steel refining blocks active when projected demand fits", () => {
+it("keeps one small steel cleanup pair for the Titanium byproduct", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
   const lines = buildModuleLines(general, preset ?? null).lines;
 
-  for (const recipeId of [
-    "arc-furnace-ii-iron-scrap",
-    "arc-furnace-ii-iron-ore",
-  ]) {
+  for (const recipeId of ["oxygen-furnace-steel", "cooled-caster-steel"]) {
     expect(lines.find((line) => line.recipe.id === recipeId)).toMatchObject({
-      activeBuildings: 5,
-      builtBuildings: 5,
-    });
-  }
-  for (const recipeId of ["oxygen-furnace-ii-steel", "cooled-caster-ii-steel"]) {
-    expect(lines.find((line) => line.recipe.id === recipeId)).toMatchObject({
-      activeBuildings: 5,
-      builtBuildings: 5,
+      activeBuildings: 1,
+      builtBuildings: 1,
     });
     expect(lines.find((line) => line.recipe.id === recipeId)?.dataSource).toBeUndefined();
   }
+
 });
 
 it("pauses three Gold Ore buildings and disables the Gold Furnace concentrate recipe", () => {

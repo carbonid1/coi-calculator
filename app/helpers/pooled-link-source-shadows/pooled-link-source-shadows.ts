@@ -222,6 +222,92 @@ export const createPooledLinkSourceShadows = ({
       if (!canProduceToDemand) fixed.push(recipeId)
     }
 
+    // A pooled module can also be the target of another private link. Preserve
+    // enough of its local byproduct-consumption behavior for link planning to
+    // discover the inbound supporting demand without duplicating the module's
+    // factory production. Steel #1, for example, needs linked Sea Water before
+    // its desalinator can consume locally produced Steam (Low).
+    const inboundResourceIds = new Set(
+      links
+        .filter(link => (
+          link.targetModuleId === source.id
+          && link.mode === 'produce-to-demand'
+        ))
+        .map(link => link.resourceId),
+    )
+    const surplusSourceRecipeIds = new Set<ResourceId>()
+
+    for (const line of lines) {
+      if (line.moduleId !== source.id) continue
+
+      const surplusInputIds = line.recipe.consumeSurplusInputIds ?? []
+      const consumesInboundResource = line.recipe.inputs.some(input => (
+        inboundResourceIds.has(input.resourceId)
+      ))
+
+      if (!consumesInboundResource || surplusInputIds.length === 0) continue
+
+      const result = results.find(candidate => (
+        candidate.moduleId === line.moduleId
+        && candidate.recipe.id === line.recipe.id
+      ))
+      const remainingBuildings = Math.max(
+        0,
+        line.activeBuildings * (1 - (result?.supplyRatio ?? 0)),
+      )
+
+      if (remainingBuildings <= 0) continue
+
+      for (const resourceId of surplusInputIds) {
+        if (surplusSourceRecipeIds.has(resourceId)) continue
+
+        const flow = getModuleResourceFlow(source.id, resourceId, results)
+        const available = Math.max(0, flow.produced - flow.consumed)
+
+        if (available <= 0) continue
+
+        const recipeId = `pooled-link-target:${source.id}:${resourceId}:available`
+
+        recipes.push({
+          id: recipeId,
+          name: `${source.name} local ${resourceId}`,
+          building: source.name,
+          group: 'source',
+          inputs: [],
+          outputs: [{ resourceId, quantity: available }],
+        })
+        builtBuildings[recipeId] = 1
+        activeBuildings[recipeId] = 1
+        surplusSourceRecipeIds.add(resourceId)
+      }
+
+      const usableSurplusInputIds = surplusInputIds.filter(resourceId => (
+        surplusSourceRecipeIds.has(resourceId)
+      ))
+
+      if (usableSurplusInputIds.length === 0) continue
+
+      const recipeId = `pooled-link-target:${source.id}:${line.recipe.id}`
+      const planningInputIds = new Set([
+        ...inboundResourceIds,
+        ...usableSurplusInputIds,
+      ])
+
+      recipes.push({
+        id: recipeId,
+        name: `${source.name} linked input planning`,
+        building: line.recipe.building,
+        group: 'production',
+        balanceBy: 'input',
+        balanceInputIds: usableSurplusInputIds,
+        balanceInputScope: 'module',
+        inputs: line.recipe.inputs.filter(input => planningInputIds.has(input.resourceId)),
+        outputs: [],
+      })
+      builtBuildings[recipeId] = remainingBuildings
+      activeBuildings[recipeId] = remainingBuildings
+    }
+
     return [{
       id: source.id,
       name: source.name,
