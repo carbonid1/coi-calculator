@@ -8,6 +8,8 @@ import { createStaticInfrastructureModule } from './static-infrastructure'
 
 it('uses running counts for loads while retaining completed building capacity', () => {
   const built = {
+    captainOfficeI: 0,
+    captainOfficeII: 1,
     oreSortingPlant: 1,
     oreSortingPlantLarge: 1,
     electricLocomotiveII: 21,
@@ -41,7 +43,7 @@ it('uses running counts for loads while retaining completed building capacity', 
   const stats = calculateBuildingStats(result.allLines, result.calculation)
   const fuelGas = result.calculation.allResourceFlows.find(flow => flow.resourceId === 'fuelGas')
 
-  expect(stats.workers).toBe(427)
+  expect(stats.workers).toBe(451)
   expect(stats.electricityKw).toBe(0)
   expect(stats.computingTflops).toBe(0)
   expect(fuelGas).toMatchObject({ consumed: 4, produced: 0, net: -4 })
@@ -52,6 +54,8 @@ it('uses running counts for loads while retaining completed building capacity', 
 
 it('exposes modeled and synced counts through standard production lines', () => {
   const built = {
+    captainOfficeI: 0,
+    captainOfficeII: 0,
     oreSortingPlant: 1,
     oreSortingPlantLarge: 0,
     electricLocomotiveII: 0,

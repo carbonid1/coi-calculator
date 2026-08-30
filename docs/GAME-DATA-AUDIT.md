@@ -344,6 +344,26 @@ normalize the three unavailable counts to zero.
 Verified against installed v0.8.7 `VehicleDepotsData`, `Ids.Buildings`, and
 `Costs.Buildings`.
 
+## Captain's offices
+
+Captain's Office I and II are synced as area-owned population loads:
+
+| Building            | Workers each | Electricity | Prototype ID     |
+| ------------------- | -----------: | ----------: | ---------------- |
+| Captain's Office I  |            8 |      100 kW | `CaptainOfficeT1` |
+| Captain's Office II |           24 |      250 kW | `CaptainOfficeT2` |
+
+Exporter schema v30 supplies completed and non-paused counts. Each office is
+assigned to its one exact calculator-area match; unzoned or ambiguous offices
+remain in Default. Workforce is included in Factory Total, while electricity is
+excluded consistently with other static infrastructure because the exporter
+does not measure runtime utilization. Schema v29 and older snapshots normalize
+the unavailable counts to zero.
+
+Verified against the installed v0.8.7 `CaptainOfficesData`,
+`Ids.Buildings.CaptainOfficeT1`, `Ids.Buildings.CaptainOfficeT2`, and
+`Costs.Buildings` definitions.
+
 ## Solar panels
 
 Solar panels use completed entity counts from exporter schema v7; without

@@ -3489,6 +3489,24 @@ export const recipes: Recipe[] = [
   // Static infrastructure. Runtime utilization is not available, so these
   // no-flow rows account for workers while avoiding modeled production flows.
   {
+    id: 'static-captain-office-i',
+    name: "Captain's office I",
+    building: "Captain's office I",
+    group: 'production',
+    inputs: [],
+    outputs: [],
+    electricityMultiplier: 0,
+  },
+  {
+    id: 'static-captain-office-ii',
+    name: "Captain's office II",
+    building: "Captain's office II",
+    group: 'production',
+    inputs: [],
+    outputs: [],
+    electricityMultiplier: 0,
+  },
+  {
     id: 'static-ore-sorting-plant',
     name: 'Ore sorting plant',
     building: 'Ore sorting plant',

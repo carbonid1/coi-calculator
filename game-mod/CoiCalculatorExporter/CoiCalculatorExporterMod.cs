@@ -96,6 +96,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         "vehiclesDepot",
         "vehiclesDepotII",
         "vehiclesDepotIII",
+        "captainOfficeI",
+        "captainOfficeII",
         "solarPanel",
         "solarPanelMono",
         "maintenanceStatue",
@@ -116,6 +118,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         "VehiclesDepot",
         "VehiclesDepotT2",
         "VehiclesDepotT3",
+        "CaptainOfficeT1",
+        "CaptainOfficeT2",
         "SolarPanel",
         "SolarPanelMono",
         "StatueOfMaintenanceGolden",
@@ -406,7 +410,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":29,");
+            json.Append("\"schemaVersion\":30,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));

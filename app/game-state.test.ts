@@ -485,6 +485,28 @@ const schema29Snapshot = {
   ],
   areaEntities: schema28Snapshot.areaEntities.map(entity => ({ ...entity, trainStation: null })),
 }
+const schema30Snapshot = {
+  ...schema29Snapshot,
+  schemaVersion: 30,
+  buildings: {
+    ...schema29Snapshot.buildings,
+    captainOfficeI: { built: 0, running: 0 },
+    captainOfficeII: { built: 1, running: 1 },
+  },
+  productionEntities: [
+    ...schema29Snapshot.productionEntities,
+    {
+      entityId: 809,
+      prototypeId: 'CaptainOfficeT2',
+      running: true,
+      recipeIds: [],
+      zones: [{ id: 30, name: 'Test' }],
+      nuclearReactor: null,
+      dataCenterRacks: null,
+      trainStation: null,
+    },
+  ],
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -633,6 +655,10 @@ describe('game-state snapshot validation', () => {
     })
     expect(normalizeGameStateSnapshot(schema29Snapshot)).toMatchObject({
       schemaVersion: 29,
+      buildings: {
+        captainOfficeI: { built: 0, running: 0 },
+        captainOfficeII: { built: 0, running: 0 },
+      },
       productionEntities: expect.arrayContaining([
         expect.objectContaining({
           prototypeId: 'TrainStationLoose_ELEC',
@@ -640,6 +666,29 @@ describe('game-state snapshot validation', () => {
         }),
       ]),
     })
+    expect(normalizeGameStateSnapshot(schema30Snapshot)).toMatchObject({
+      schemaVersion: 30,
+      buildings: {
+        captainOfficeI: { built: 0, running: 0 },
+        captainOfficeII: { built: 1, running: 1 },
+      },
+      productionEntities: expect.arrayContaining([
+        expect.objectContaining({ prototypeId: 'CaptainOfficeT2' }),
+      ]),
+    })
+  })
+
+  it("requires Captain's office counts in schema 30", () => {
+    const buildingsWithoutCaptainOfficeII = Object.fromEntries(
+      Object.entries(schema30Snapshot.buildings).filter(
+        ([id]) => id !== 'captainOfficeII',
+      ),
+    )
+
+    expect(normalizeGameStateSnapshot({
+      ...schema30Snapshot,
+      buildings: buildingsWithoutCaptainOfficeII,
+    })).toBeNull()
   })
 
   it('requires valid construction ghosts and effective recipes in schema 28', () => {

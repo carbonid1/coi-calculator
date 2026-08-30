@@ -7,6 +7,8 @@ import {
 } from './static-infrastructure'
 
 const syncedConfig: StaticInfrastructureConfig = {
+  captainOfficeI: 0,
+  captainOfficeII: 0,
   oreSortingPlant: 7,
   oreSortingPlantLarge: 0,
   electricLocomotiveII: 21,
@@ -30,6 +32,14 @@ describe('static infrastructure workforce', () => {
 
   it('includes the aggregate vehicle workers in the infrastructure total', () => {
     expect(calculateStaticInfrastructureTotals(syncedConfig).workers).toBe(486)
+  })
+
+  it("includes both Captain's office workforce tiers", () => {
+    expect(calculateStaticInfrastructureTotals({
+      ...emptyStaticInfrastructureConfig,
+      captainOfficeI: 1,
+      captainOfficeII: 1,
+    }).workers).toBe(32)
   })
 
   it('uses only running buildings for workforce and fuel drains', () => {

@@ -23,6 +23,8 @@ export const syncedInfrastructureBuildingIds = [
   'vehiclesDepot',
   'vehiclesDepotII',
   'vehiclesDepotIII',
+  'captainOfficeI',
+  'captainOfficeII',
   'maintenanceStatue',
 ] as const
 
@@ -291,7 +293,8 @@ export const GROUNDWATER_RESERVE_SCHEMA_VERSION = 26 as const
 export const MAINTENANCE_ENTITY_SCHEMA_VERSION = 27 as const
 export const AREA_GHOST_SCHEMA_VERSION = 28 as const
 export const TRAIN_STATION_PRODUCT_SCHEMA_VERSION = 29 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 29 as const
+export const CAPTAIN_OFFICE_SCHEMA_VERSION = 30 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 30 as const
 export type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -316,6 +319,7 @@ export type SupportedGameStateSchemaVersion =
   | 26
   | 27
   | 28
+  | 29
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -872,6 +876,8 @@ type LegacySyncedBuildingId = Exclude<
   | 'vehiclesDepot'
   | 'vehiclesDepotII'
   | 'vehiclesDepotIII'
+  | 'captainOfficeI'
+  | 'captainOfficeII'
 >
 type CompatibleBuildingCounts = Record<LegacySyncedBuildingId, SyncedBuildingCount> &
   Partial<
@@ -882,7 +888,9 @@ type CompatibleBuildingCounts = Record<LegacySyncedBuildingId, SyncedBuildingCou
       | 'trainDepot'
       | 'vehiclesDepot'
       | 'vehiclesDepotII'
-      | 'vehiclesDepotIII',
+      | 'vehiclesDepotIII'
+      | 'captainOfficeI'
+      | 'captainOfficeII',
       SyncedBuildingCount
     >
   >
@@ -902,7 +910,9 @@ const isCompatibleBuildingCounts = (
       (schemaVersion === 6 && id === 'moltenStationModuleElectrified') ||
       (schemaVersion <= 10 && id === 'trainDepot') ||
       (schemaVersion <= 11 &&
-        (id === 'vehiclesDepot' || id === 'vehiclesDepotII' || id === 'vehiclesDepotIII'))
+        (id === 'vehiclesDepot' || id === 'vehiclesDepotII' || id === 'vehiclesDepotIII')) ||
+      (schemaVersion < CAPTAIN_OFFICE_SCHEMA_VERSION &&
+        (id === 'captainOfficeI' || id === 'captainOfficeII'))
 
     return isOptionalLegacyCount
       ? count === undefined || isBuildingCount(count)
@@ -1101,6 +1111,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 26 &&
     schemaVersion !== 27 &&
     schemaVersion !== 28 &&
+    schemaVersion !== 29 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null
@@ -1255,6 +1266,14 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
         running: 0,
       },
       vehiclesDepotIII: syncedBuildings.vehiclesDepotIII ?? {
+        built: 0,
+        running: 0,
+      },
+      captainOfficeI: syncedBuildings.captainOfficeI ?? {
+        built: 0,
+        running: 0,
+      },
+      captainOfficeII: syncedBuildings.captainOfficeII ?? {
         built: 0,
         running: 0,
       },

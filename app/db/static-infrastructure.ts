@@ -2,6 +2,22 @@ import { maintenanceStatue } from './maintenance-statue'
 
 export const staticInfrastructureItems = [
   {
+    id: 'captainOfficeI',
+    recipeId: 'static-captain-office-i',
+    name: "Captain's office I",
+    detail: '8 workers each; electricity is excluded',
+    building: "Captain's office I",
+    workers: 8,
+  },
+  {
+    id: 'captainOfficeII',
+    recipeId: 'static-captain-office-ii',
+    name: "Captain's office II",
+    detail: '24 workers each; electricity is excluded',
+    building: "Captain's office II",
+    workers: 24,
+  },
+  {
     id: 'oreSortingPlant',
     recipeId: 'static-ore-sorting-plant',
     name: 'Ore sorting plant',
@@ -119,6 +135,8 @@ export type StaticInfrastructureId = (typeof staticInfrastructureItems)[number][
 export type StaticInfrastructureConfig = Record<StaticInfrastructureId, number>
 
 export const emptyStaticInfrastructureConfig: StaticInfrastructureConfig = {
+  captainOfficeI: 0,
+  captainOfficeII: 0,
   oreSortingPlant: 0,
   oreSortingPlantLarge: 0,
   electricLocomotiveII: 0,
@@ -138,6 +156,8 @@ export const emptyStaticInfrastructureConfig: StaticInfrastructureConfig = {
 export const normalizeStaticInfrastructureConfig = (
   config: StaticInfrastructureConfig,
 ): StaticInfrastructureConfig => ({
+  captainOfficeI: Math.max(0, Math.trunc(config.captainOfficeI)),
+  captainOfficeII: Math.max(0, Math.trunc(config.captainOfficeII)),
   oreSortingPlant: Math.max(0, Math.trunc(config.oreSortingPlant)),
   oreSortingPlantLarge: Math.max(0, Math.trunc(config.oreSortingPlantLarge)),
   electricLocomotiveII: Math.max(0, Math.trunc(config.electricLocomotiveII)),
@@ -178,6 +198,8 @@ export const clampStaticInfrastructureRunningConfig = (
   const clamp = (id: StaticInfrastructureId) => Math.min(built[id], running[id])
 
   return {
+    captainOfficeI: clamp('captainOfficeI'),
+    captainOfficeII: clamp('captainOfficeII'),
     oreSortingPlant: clamp('oreSortingPlant'),
     oreSortingPlantLarge: clamp('oreSortingPlantLarge'),
     electricLocomotiveII: clamp('electricLocomotiveII'),

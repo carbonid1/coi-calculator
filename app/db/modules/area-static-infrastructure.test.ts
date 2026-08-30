@@ -118,6 +118,27 @@ it('moves stationary infrastructure to an exact area while global assets remain 
   })
 })
 
+it("assigns Captain's office workforce to its exact area", () => {
+  const assignments = resolveStaticInfrastructureModuleAssignments({
+    builtConfig: config({ captainOfficeII: 1 }),
+    runningConfig: config({ captainOfficeII: 1 }),
+    defaultModuleId: defaultModule.id,
+    modules: [defaultModule, copperModule],
+    productionEntities: [
+      productionEntity(3, 'CaptainOfficeT2', ['Copper #1']),
+    ],
+  })
+
+  expect(assignments[copperModule.id]).toMatchObject({
+    builtBuildings: { 'static-captain-office-ii': 1 },
+    activeBuildings: { 'static-captain-office-ii': 1 },
+  })
+  expect(assignments.default).toMatchObject({
+    builtBuildings: { 'static-captain-office-ii': 0 },
+    activeBuildings: { 'static-captain-office-ii': 0 },
+  })
+})
+
 it('places a station construction ghost in its live area without counting it as built', () => {
   const assignments = resolveStaticInfrastructureModuleAssignments({
     areaEntities: [areaEntity(7, 'TrainStationLoose_ELEC', 'Copper #1')],
@@ -274,4 +295,6 @@ it('does not expose a separate Infrastructure tab', () => {
 
 it('treats the recipe-less station root as handled infrastructure', () => {
   expect(isAreaAssignableStaticInfrastructurePrototype('TrainStationRoot_ELEC')).toBe(true)
+  expect(isAreaAssignableStaticInfrastructurePrototype('CaptainOfficeT1')).toBe(true)
+  expect(isAreaAssignableStaticInfrastructurePrototype('CaptainOfficeT2')).toBe(true)
 })

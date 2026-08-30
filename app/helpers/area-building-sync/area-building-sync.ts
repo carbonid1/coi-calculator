@@ -20,6 +20,8 @@ export const syncedBuildingPrototypeIds: Record<SyncedBuildingId, string> = {
   vehiclesDepot: "VehiclesDepot",
   vehiclesDepotII: "VehiclesDepotT2",
   vehiclesDepotIII: "VehiclesDepotT3",
+  captainOfficeI: "CaptainOfficeT1",
+  captainOfficeII: "CaptainOfficeT2",
   solarPanel: "SolarPanel",
   solarPanelMono: "SolarPanelMono",
   maintenanceStatue: "StatueOfMaintenanceGolden",

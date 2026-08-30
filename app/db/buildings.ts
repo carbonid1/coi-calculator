@@ -68,6 +68,8 @@ export const buildings: Record<string, BuildingData> = {
   "Office I": { workers: 250, electricityKw: 250, computingTflops: 12 },
   "Office II": { workers: 500, electricityKw: 400, computingTflops: 24 },
   "Office III": { workers: 1000, electricityKw: 600, computingTflops: 48 },
+  "Captain's office I": { workers: 8, electricityKw: 100 },
+  "Captain's office II": { workers: 24, electricityKw: 250 },
   "Research Lab IV": { workers: 80, electricityKw: 1000, computingTflops: 12, unityPerCycle: 0.5 },
   "Space Station IV": { workers: defaultSpaceStationLevel.crew, electricityKw: 0 },
   "Space Station Orbital Research": {

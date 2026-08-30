@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.29 exports the loaded save's physical vehicle total, assigned vehicle
+Version 0.30 exports the loaded save's physical vehicle total, assigned vehicle
 workers, vehicle categories, vehicle quota, and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the
 installed mod folder. It also exports up to 120 completed in-game months of
@@ -94,6 +94,10 @@ Schema 29 adds each electrified train-station module's selected product and
 loading direction. The calculator uses those values to label and group station
 cards inside their assigned area; it does not yet treat stations as material
 producers or consumers.
+Schema 30 adds completed and running counts for Captain's Office I and II. The
+calculator assigns their workforce to an exact matching area, with unzoned or
+ambiguous offices remaining in Default. Schema 29 and older snapshots normalize
+these unavailable counts to zero.
 Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as
@@ -110,11 +114,13 @@ metadata; the manifest explicitly allows the mod to be removed again.
 Tracked infrastructure currently includes Rocket Assembly Depots, Rocket Launch
 Pads, Electric locomotive II, all four
 electrified station module types, both ore sorting plants, Stacker towers, Train
-depots, all three vehicle-depot tiers, and The Statue of Maintenance (Golden),
+depots, all three vehicle-depot tiers, Captain's Office I and II, and The Statue of Maintenance (Golden),
 plus both solar-panel types. Train depots contribute their eight
 assigned workers to calculator workforce demand; their intermittent 250 kW draw
 is intentionally excluded. Vehicle depots contribute 6, 10, and 16 workers
-respectively, with other activity-dependent costs excluded. Rocket infrastructure
+respectively. Captain's Office I and II contribute 8 and 24 workers; their
+100 kW and 250 kW electricity draws are excluded with other activity-dependent
+infrastructure costs. Rocket infrastructure
 contributes 160 and 30 workers per running building respectively; its production,
 launch-input, power, and computing costs stay in the Space Station planning model.
 Existing snapshots
