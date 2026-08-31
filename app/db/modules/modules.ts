@@ -128,7 +128,6 @@ export interface Module {
 export const modules: [Module, ...Module[]] = [
   defaultArea,
   forestry,
-  greenhouses,
   chickenFarms,
   mines,
   reserves,

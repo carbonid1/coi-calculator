@@ -4126,6 +4126,17 @@ export const createGroundwaterPumpRecipe = (
 
   if (!recipe) throw new Error(`Missing groundwater recipe: ${recipeId}`)
 
+  return applyGroundwaterSourceConstraint(recipe, constraint)
+}
+
+export const applyGroundwaterSourceConstraint = (
+  recipe: Recipe,
+  constraint: GroundwaterSourceConstraint,
+): Recipe => {
+  if (!recipe.outputs.some(output => output.resourceId === 'water')) {
+    throw new Error(`Groundwater recipe does not produce Water: ${recipe.id}`)
+  }
+
   const outputPerPump =
     constraint.projectedPumpCount > 0
       ? constraint.sustainableOutputPerCycle / constraint.projectedPumpCount

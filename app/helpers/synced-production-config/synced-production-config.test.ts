@@ -137,9 +137,26 @@ it("preserves stable greenhouse entity IDs for plan binding", () => {
     tierId: "greenhouseII",
     running: false,
     fertilityTargetPercent: 140,
+    fertilizerId: null,
     schedule: ["corn", "wheat", "none", "none"],
     zones: [],
   }]);
+});
+
+it("does not infer a legacy fertilizer product from the fertility target", () => {
+  expect(getSyncedCropFarmEntities({
+    configurations: [],
+    entities: [{
+      entityId: 42,
+      prototypeId: "FarmT4",
+      running: true,
+      fertilityTargetPercent: 110,
+      schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+    }],
+  })[0]).toMatchObject({
+    fertilizerId: null,
+    fertilityTargetPercent: 110,
+  });
 });
 
 it("groups only the greenhouse entities selected for an area", () => {
@@ -165,4 +182,22 @@ it("groups only the greenhouse entities selected for an area", () => {
     fertilityTargetPercent: 140,
     schedule: ["corn", "wheat", "none", "none"],
   }]);
+});
+
+it("uses the supplied fertilizer product independently of the target", () => {
+  expect(getSyncedCropFarmEntities({
+    configurations: [],
+    entities: [{
+      entityId: 42,
+      prototypeId: "FarmT4",
+      running: true,
+      fertilityTargetPercent: 100,
+      fertilizerProductId: "Product_Fertilizer2",
+      schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+      zones: [{ id: 7, name: "Anything" }],
+    }],
+  })[0]).toMatchObject({
+    fertilizerId: "fertilizerII",
+    fertilityTargetPercent: 100,
+  });
 });

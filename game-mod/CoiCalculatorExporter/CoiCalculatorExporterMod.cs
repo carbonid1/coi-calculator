@@ -20,6 +20,7 @@ using Mafi.Core.Factory.ElectricPower;
 using Mafi.Core.Factory.Machines;
 using Mafi.Core.Factory.NuclearReactors;
 using Mafi.Core.Factory.Recipes;
+using Mafi.Core.Factory.Transports;
 using Mafi.Core.Factory.WellPumps;
 using Mafi.Core.Game;
 using Mafi.Core.GameLoop;
@@ -28,6 +29,7 @@ using Mafi.Core.Map;
 using Mafi.Core.Mods;
 using Mafi.Core.Population;
 using Mafi.Core.Population.Edicts;
+using Mafi.Core.Ports.Io;
 using Mafi.Core.Prototypes;
 using Mafi.Core.PropertiesDb;
 using Mafi.Core.Products;
@@ -53,6 +55,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private const string ChickenFarmPrototypeId = "ChickenFarm";
     private const string GreenhousePrototypeId = "FarmT3";
     private const string GreenhouseIiPrototypeId = "FarmT4";
+    private const string OrganicFertilizerProductId = "Product_FertilizerOrganic";
+    private const string FertilizerIProductId = "Product_Fertilizer";
+    private const string FertilizerIiProductId = "Product_Fertilizer2";
     private const string OceanWaterPumpRuntimeTypeName =
         "Mafi.Base.Prototypes.Machines.OceanWaterPump";
     private static readonly HashSet<string> TrackedProductionPrototypeIds =
@@ -189,6 +194,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private GameNameConfig m_gameNameConfig;
     private IEntitiesManager m_entitiesManager;
     private IConstructionManager m_constructionManager;
+    private IProductsManager m_productsManager;
     private IPropertiesDb m_propertiesDb;
     private IVirtualResourceManager m_virtualResourceManager;
     private ElectricityManager m_electricityManager;
@@ -251,6 +257,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_gameNameConfig = resolver.Resolve<GameNameConfig>();
         m_entitiesManager = resolver.Resolve<IEntitiesManager>();
         m_constructionManager = resolver.Resolve<IConstructionManager>();
+        m_productsManager = resolver.Resolve<IProductsManager>();
         m_propertiesDb = resolver.Resolve<IPropertiesDb>();
         m_virtualResourceManager = resolver.Resolve<IVirtualResourceManager>();
         m_electricityManager = resolver.Resolve<ElectricityManager>();
@@ -405,7 +412,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":32,");
+            json.Append("\"schemaVersion\":33,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -512,6 +519,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 appendNumber(json, "built", farm.Built, true);
                 appendNumber(json, "running", farm.Running, true);
                 appendNumber(json, "fertilityTargetPercent", farm.FertilityTargetPercent, true);
+                appendNullableString(json, "fertilizerProductId", farm.FertilizerProductId, true);
                 json.Append("\"schedule\":[");
                 for (int scheduleIndex = 0; scheduleIndex < farm.Schedule.Length; scheduleIndex++)
                 {
@@ -549,6 +557,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 json.Append(farm.Running ? "true" : "false");
                 json.Append(',');
                 appendNumber(json, "fertilityTargetPercent", farm.FertilityTargetPercent, true);
+                appendNullableString(json, "fertilizerProductId", farm.FertilizerProductId, true);
                 json.Append("\"schedule\":[");
                 for (int scheduleIndex = 0; scheduleIndex < farm.Schedule.Length; scheduleIndex++)
                 {
@@ -1077,15 +1086,19 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             }
 
             int fertilityTargetPercent = cropFarm.FertilityTargetValue.ToIntPercentRounded();
+            string fertilizerProductId = getCropFarmFertilizerProductId(cropFarm);
             cropFarmEntities.Add(new CropFarmEntitySnapshot(
                 entity.Id.Value,
                 prototypeId,
                 isRunning,
                 schedule,
                 fertilityTargetPercent,
+                fertilizerProductId,
                 entityZones));
             key.Append('|');
             key.Append(fertilityTargetPercent.ToString(CultureInfo.InvariantCulture));
+            key.Append('|');
+            key.Append(fertilizerProductId ?? "null");
 
             CropFarmSnapshot cropFarmSnapshot;
             if (!cropFarmConfigurations.TryGetValue(key.ToString(), out cropFarmSnapshot))
@@ -1093,7 +1106,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 cropFarmSnapshot = new CropFarmSnapshot(
                     prototypeId,
                     schedule,
-                    fertilityTargetPercent);
+                    fertilityTargetPercent,
+                    fertilizerProductId);
                 cropFarmConfigurations.Add(key.ToString(), cropFarmSnapshot);
             }
 
@@ -1157,6 +1171,124 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             productionEntities,
             areaEntities,
             mineTowers);
+    }
+
+    private string getCropFarmFertilizerProductId(Farm farm)
+    {
+        bool pipeIsAmbiguous;
+        string pipeProductId = getCropFarmPipeFertilizerProductId(
+            farm,
+            out pipeIsAmbiguous);
+        if (pipeIsAmbiguous)
+        {
+            return null;
+        }
+
+        if (pipeProductId != null)
+        {
+            return pipeProductId;
+        }
+
+        if (!farm.StoredFertilizerCount.IsPositive)
+        {
+            return null;
+        }
+
+        Percent maximumFertility = farm.MaxFertilityProvidedByFertilizer;
+        Percent fertilityPerUnit = farm.FertilityPerFertilizer;
+        if (maximumFertility == 100.Percent()
+            && fertilityPerUnit == 1.Percent())
+        {
+            return OrganicFertilizerProductId;
+        }
+        if (maximumFertility == 120.Percent()
+            && fertilityPerUnit == 2.Percent())
+        {
+            return FertilizerIProductId;
+        }
+        if (maximumFertility == 140.Percent()
+            && fertilityPerUnit == 2.5.Percent())
+        {
+            return FertilizerIiProductId;
+        }
+
+        return null;
+    }
+
+    private string getCropFarmPipeFertilizerProductId(
+        Farm farm,
+        out bool isAmbiguous)
+    {
+        isAmbiguous = false;
+
+        foreach (IoPort port in farm.Ports)
+        {
+            if (port.Name != Farm.INPUT_FERTILIZER_PORT_NAME
+                || !port.ConnectedPort.HasValue)
+            {
+                continue;
+            }
+
+            Transport transport = port.ConnectedPort.Value.OwnerEntity as Transport;
+            if (transport == null)
+            {
+                continue;
+            }
+
+            string transportedProductId = null;
+            foreach (TransportedProductMutable product in transport.TransportedProducts)
+            {
+                string productId = getFertilizerProductId(product.SlimId);
+                if (productId == null)
+                {
+                    isAmbiguous = true;
+                    return null;
+                }
+                if (transportedProductId != null
+                    && !String.Equals(
+                        transportedProductId,
+                        productId,
+                        StringComparison.Ordinal))
+                {
+                    isAmbiguous = true;
+                    return null;
+                }
+
+                transportedProductId = productId;
+            }
+
+            string lastProductId = getFertilizerProductId(
+                transport.LastInsertedProduct);
+            if (transportedProductId != null
+                && lastProductId != null
+                && !String.Equals(
+                    transportedProductId,
+                    lastProductId,
+                    StringComparison.Ordinal))
+            {
+                isAmbiguous = true;
+                return null;
+            }
+
+            return transportedProductId ?? lastProductId;
+        }
+
+        return null;
+    }
+
+    private string getFertilizerProductId(ProductSlimId slimId)
+    {
+        ProductProto product = slimId.ToFullOrPhantom(m_productsManager.SlimIdManager);
+        string productId = product.Id.ToString();
+
+        if (String.Equals(productId, OrganicFertilizerProductId, StringComparison.Ordinal)
+            || String.Equals(productId, FertilizerIProductId, StringComparison.Ordinal)
+            || String.Equals(productId, FertilizerIiProductId, StringComparison.Ordinal))
+        {
+            return productId;
+        }
+
+        return null;
     }
 
     private static OreSorterConfigurationSnapshot getOreSorterConfiguration(IEntity entity)
@@ -2168,6 +2300,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly string PrototypeId;
         public readonly string[] Schedule;
         public readonly int FertilityTargetPercent;
+        public readonly string FertilizerProductId;
         public readonly string Key;
         public int Built;
         public int Running;
@@ -2175,13 +2308,16 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public CropFarmSnapshot(
             string prototypeId,
             string[] schedule,
-            int fertilityTargetPercent)
+            int fertilityTargetPercent,
+            string fertilizerProductId)
         {
             PrototypeId = prototypeId;
             Schedule = schedule;
             FertilityTargetPercent = fertilityTargetPercent;
+            FertilizerProductId = fertilizerProductId;
             Key = prototypeId + "|" + String.Join("|", schedule) + "|"
-                + fertilityTargetPercent.ToString(CultureInfo.InvariantCulture);
+                + fertilityTargetPercent.ToString(CultureInfo.InvariantCulture) + "|"
+                + (fertilizerProductId ?? "null");
         }
 
         public void Add(bool isRunning)
@@ -2201,6 +2337,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly bool Running;
         public readonly string[] Schedule;
         public readonly int FertilityTargetPercent;
+        public readonly string FertilizerProductId;
         public readonly List<LogisticsZoneSnapshot> Zones;
 
         public CropFarmEntitySnapshot(
@@ -2209,6 +2346,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             bool running,
             string[] schedule,
             int fertilityTargetPercent,
+            string fertilizerProductId,
             List<LogisticsZoneSnapshot> zones)
         {
             EntityId = entityId;
@@ -2216,6 +2354,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             Running = running;
             Schedule = schedule;
             FertilityTargetPercent = fertilityTargetPercent;
+            FertilizerProductId = fertilizerProductId;
             Zones = zones;
         }
     }

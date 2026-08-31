@@ -1,6 +1,9 @@
 import { type CurrentChickenFarmEntity } from "../../db/chicken-farm";
 import { type ComputingConfig } from "../../db/computing";
-import { type CurrentCropFarmEntity } from "../../db/crop-farming";
+import {
+  type CurrentCropFarmEntity,
+  type FertilizerId,
+} from "../../db/crop-farming";
 import {
   type CurrentChickenFarmConfiguration,
   type CurrentCropFarmConfiguration,
@@ -26,6 +29,18 @@ const gameCropIds: Record<string, string> = {
   Crop_Poppy: "poppy",
   Crop_Flowers: "flowers",
 };
+
+const gameFertilizerIds: Record<string, FertilizerId> = {
+  Product_FertilizerOrganic: "organic",
+  Product_Fertilizer: "fertilizerI",
+  Product_Fertilizer2: "fertilizerII",
+};
+
+const getSyncedFertilizerId = (
+  fertilizerProductId: string | null | undefined,
+) => fertilizerProductId == null
+  ? null
+  : gameFertilizerIds[fertilizerProductId] ?? null;
 
 export const getSyncedComputingConfigs = (
   state: SyncedComputingState,
@@ -68,7 +83,15 @@ export const getSyncedCropFarmConfigurations = (
     const schedule = configuration.schedule.map(cropId => (
       cropId === null ? "none" : (gameCropIds[cropId] ?? cropId)
     ));
-    const key = [tierId, schedule.join("/"), configuration.fertilityTargetPercent].join("|");
+    const fertilizerId = getSyncedFertilizerId(
+      configuration.fertilizerProductId,
+    );
+    const key = [
+      tierId,
+      schedule.join("/"),
+      configuration.fertilityTargetPercent,
+      fertilizerId,
+    ].join("|");
     const existing = grouped.get(key);
 
     if (existing) {
@@ -102,6 +125,9 @@ export const getSyncedCropFarmEntities = (
       tierId: entity.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
       schedule: mapCropSchedule(entity.schedule),
       fertilityTargetPercent: entity.fertilityTargetPercent,
+      fertilizerId: getSyncedFertilizerId(
+        entity.fertilizerProductId,
+      ),
       running: entity.running,
       zones: entity.zones ?? [],
     }));
@@ -116,6 +142,9 @@ export const getSyncedCropFarmEntities = (
       tierId: configuration.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
       schedule: mapCropSchedule(configuration.schedule),
       fertilityTargetPercent: configuration.fertilityTargetPercent,
+      fertilizerId: getSyncedFertilizerId(
+        configuration.fertilizerProductId,
+      ),
       running: index < configuration.running,
     }),
   ));
@@ -127,10 +156,12 @@ export const getCropFarmConfigurationsFromEntities = (
   const grouped = new Map<string, CurrentCropFarmConfiguration>();
 
   for (const entity of entities) {
+    const fertilizerId = entity.fertilizerId ?? null;
     const key = [
       entity.tierId,
       entity.schedule.join("/"),
       entity.fertilityTargetPercent,
+      fertilizerId,
     ].join("|");
     const existing = grouped.get(key);
 

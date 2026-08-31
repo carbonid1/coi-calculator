@@ -25,7 +25,6 @@ import {
 } from './db/chicken-farm'
 import { resolvedCurrentComputingConfig } from './db/computing'
 import { activeContracts, contracts, defaultActiveContractIds } from './db/contracts'
-import { activeCropFarmGroups } from './db/crop-farming'
 import {
   getEdict,
   mapEdictValues,
@@ -61,15 +60,20 @@ import {
 } from './db/modules/area-static-infrastructure'
 import { createComputingModule, createLegacyComputingArea } from './db/modules/computing'
 import {
+  createCropFarmAreaModule,
+  createDefaultCropFarmModule,
+  getCropFarmGroundwaterClaimId,
+  getCropFarmOwnerZones,
+  getCropFarmRelatedZoneIds,
+} from './db/modules/crop-farm-areas'
+import {
   createDefaultModule,
   DEFAULT_MODULE_ID,
   defaultResearchProductionConfig,
 } from './db/modules/default'
 import {
   createChickenFarmsModule,
-  createGreenhousesModule,
   CHICKEN_FARMS_MODULE_ID,
-  GREENHOUSES_MODULE_ID,
 } from './db/modules/farms'
 import { MINES_MODULE_ID } from './db/modules/mines'
 import { modules, type Module } from './db/modules/modules'
@@ -114,8 +118,7 @@ import {
 import { settlementRecipeIds } from './db/settlement'
 import {
   DEFAULT_GROUNDWATER_CLAIM_ID,
-  GREENHOUSES_GROUNDWATER_CLAIM_ID,
-  groundwaterPumpClaims,
+  createGroundwaterPumpClaims,
 } from './db/shared-machine-claims'
 import { plannedSolarPanelTargets } from './db/solar'
 import {
@@ -197,11 +200,9 @@ import { getPresetResourceDemands } from './helpers/preset-resource-demands/pres
 import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import {
-  getCropFarmConfigurationsFromEntities,
   getSyncedChickenFarmConfigurations,
   getSyncedChickenFarmEntities,
   getSyncedComputingConfigs,
-  getSyncedCropFarmConfigurations,
   getSyncedCropFarmEntities,
 } from './helpers/synced-production-config/synced-production-config'
 import { transferTerrainMineOwnership } from './helpers/terrain-mine-ownership/terrain-mine-ownership'
@@ -242,6 +243,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     key: string
     moduleId: string
   } | null>(null)
+  const currentCropFarmEntities = gameState.snapshot?.cropFarms
+    ? getSyncedCropFarmEntities(gameState.snapshot.cropFarms)
+    : []
+  const cropFarmOwnerZones = getCropFarmOwnerZones(currentCropFarmEntities)
+  const cropFarmRelatedZoneIds = getCropFarmRelatedZoneIds(currentCropFarmEntities)
+  const groundwaterPumpClaims = createGroundwaterPumpClaims(cropFarmOwnerZones)
+  const groundwaterPumpClaimIds = groundwaterPumpClaims.map(claim => claim.id).join('|')
   const machineZoneAssignmentsStorageKey = gameState.snapshot?.saveId
     ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
     : null
@@ -257,6 +265,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
     const animationFrame = window.requestAnimationFrame(() => {
       try {
+        const validGroundwaterPumpClaimIds = new Set(
+          groundwaterPumpClaimIds.split('|').filter(Boolean),
+        )
         const stored: unknown = JSON.parse(
           window.localStorage.getItem(machineZoneAssignmentsStorageKey) ?? '{}',
         )
@@ -272,7 +283,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           if (
             /^-?\d+$/.test(zoneId) &&
             typeof claimId === 'string' &&
-            groundwaterPumpClaims.some(claim => claim.id === claimId)
+            validGroundwaterPumpClaimIds.has(claimId)
           ) {
             assignments[Number(zoneId)] = claimId
           }
@@ -286,7 +297,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     })
 
     return () => window.cancelAnimationFrame(animationFrame)
-  }, [machineZoneAssignmentsStorageKey])
+  }, [machineZoneAssignmentsStorageKey, groundwaterPumpClaimIds])
 
   const assignMachineZone = (zoneId: number, claimId: string | null) => {
     setMachineZoneAssignments(current => {
@@ -346,42 +357,18 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           gameState.snapshot.schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION,
         )
       : null
-  const greenhousesGroundwaterResolution =
-    sharedMachineAllocation?.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID]
   const defaultGroundwaterResolution = sharedMachineAllocation?.claims[DEFAULT_GROUNDWATER_CLAIM_ID]
   const groundwaterClaimLimits = calculateGroundwaterClaimLimits(
-    [
-      ...(greenhousesGroundwaterResolution
-        ? [
-            {
-              claimId: GREENHOUSES_GROUNDWATER_CLAIM_ID,
-              projectedPumpCount: Math.max(
-                greenhousesGroundwaterResolution.running,
-                greenhousesGroundwaterResolution.claim.target,
-              ),
-              machines: [
-                ...greenhousesGroundwaterResolution.machines,
-                ...greenhousesGroundwaterResolution.suggestedMachines,
-              ],
-            },
-          ]
-        : []),
-      ...(defaultGroundwaterResolution
-        ? [
-            {
-              claimId: DEFAULT_GROUNDWATER_CLAIM_ID,
-              projectedPumpCount: defaultGroundwaterResolution.running,
-              machines: [
-                ...defaultGroundwaterResolution.machines,
-                ...defaultGroundwaterResolution.suggestedMachines,
-              ],
-            },
-          ]
-        : []),
-    ],
+    Object.values(sharedMachineAllocation?.claims ?? {}).map(resolution => ({
+      claimId: resolution.claim.id,
+      projectedPumpCount: resolution.running,
+      machines: [
+        ...resolution.machines,
+        ...resolution.suggestedMachines,
+      ],
+    })),
     gameState.snapshot?.groundwater ?? null,
   )
-  const greenhousesGroundwaterConstraint = groundwaterClaimLimits[GREENHOUSES_GROUNDWATER_CLAIM_ID]
   const defaultGroundwaterConstraint = groundwaterClaimLimits[DEFAULT_GROUNDWATER_CLAIM_ID]
   const staticInfrastructureBuiltConfig: StaticInfrastructureConfig = {
     ...emptyStaticInfrastructureConfig,
@@ -405,12 +392,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const plannedNuclearZoneId = nuclearReactorZoneIds.size === 1
     ? [...nuclearReactorZoneIds][0]
     : undefined
-  const hasExactArea = (name: string) =>
-    Boolean(
-      gameState.snapshot &&
-      gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION &&
-      gameState.snapshot.logisticsZones.some(zone => zone.name === name),
-    )
   const spaceStationZone = selectSpaceStationZone(
     gameState.snapshot?.logisticsZones ?? [],
     productionEntities,
@@ -551,21 +532,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const currentChickenFarmEntities = gameState.snapshot?.chickenFarms
     ? getSyncedChickenFarmEntities(gameState.snapshot.chickenFarms)
     : null
-  const allCurrentCropFarmEntities = gameState.snapshot?.cropFarms
-    ? getSyncedCropFarmEntities(gameState.snapshot.cropFarms)
-    : null
-  const usesGreenhousesArea = hasExactArea('Greenhouses')
-  const currentCropFarmEntities = usesGreenhousesArea
-    ? (allCurrentCropFarmEntities?.filter(entity =>
-        entity.zones?.some(zone => zone.name === 'Greenhouses'),
-      ) ?? [])
-    : allCurrentCropFarmEntities
-  const globalCropFarmConfigurations = gameState.snapshot?.cropFarms
-    ? getSyncedCropFarmConfigurations(gameState.snapshot.cropFarms)
-    : null
-  const currentCropFarmConfigurations = usesGreenhousesArea
-    ? getCropFarmConfigurationsFromEntities(currentCropFarmEntities ?? [])
-    : globalCropFarmConfigurations
   const hasPopulationEntityInventory = Boolean(
     gameState.snapshot &&
     gameState.snapshot.schemaVersion >= NAMED_AREA_ENTITY_SCHEMA_VERSION &&
@@ -595,10 +561,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const configureModules = () =>
     modules.map(module => {
       if (module.id === DEFAULT_MODULE_ID) {
-        return createDefaultModule(
-          defaultGroundwaterResolution,
-          defaultGroundwaterConstraint,
-          rocketIiRecurringLogistics,
+        return createDefaultCropFarmModule(
+          createDefaultModule(
+            defaultGroundwaterResolution,
+            defaultGroundwaterConstraint,
+            rocketIiRecurringLogistics,
+          ),
+          currentCropFarmEntities,
         )
       }
 
@@ -612,20 +581,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           undefined,
           currentChickenFarmEntities ?? undefined,
         )
-      }
-
-      if (module.id === GREENHOUSES_MODULE_ID) {
-        return currentCropFarmConfigurations
-          ? createGreenhousesModule(
-              activeCropFarmGroups,
-              currentCropFarmConfigurations,
-              'synced',
-              undefined,
-              greenhousesGroundwaterResolution,
-              currentCropFarmEntities ?? undefined,
-              greenhousesGroundwaterConstraint,
-            )
-          : createGreenhousesModule()
       }
 
       if (module.id === RESERVES_MODULE_ID) {
@@ -753,6 +708,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         areaComputingConfigs?.running ?? computingRunningConfig,
         areaComputingConfigs ? 'synced' : computingCurrentSource,
         module,
+      )
+    }
+
+    if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId)) {
+      configuredModule = createCropFarmAreaModule(
+        configuredModule,
+        currentCropFarmEntities,
+        groundwaterClaimLimits[getCropFarmGroundwaterClaimId(module.liveArea.zoneId)],
       )
     }
 
@@ -1476,8 +1439,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           {activeModule.id !== MINES_MODULE_ID &&
             activeModule.id !== RESERVES_MODULE_ID &&
             grouped.map(({ group, label, items }) => {
+              const containsCropFarms = items.some(item => item.recipe.inputs.some(
+                input => input.weatherAdjustedFarm != null,
+              ))
               const groupTargetKey =
-                activeModule.id === GREENHOUSES_MODULE_ID && group === 'production'
+                containsCropFarms && group === 'production'
                   ? `${activeModule.id}:crop-rebalance`
                   : `${activeModule.id}:group:${group}`
 

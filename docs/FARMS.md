@@ -40,7 +40,7 @@ Natural fertility does not recover at a flat one point per day. Each day it move
 
 The structured source of truth is `app/db/crop-farming.ts`. Base crop quantities and demands are transformed by the selected farm tier. Green Manure's negative fertility demand is multiplied by the tier's yield multiplier; normal crop water and fertility demands use the tier demand multiplier.
 
-At full water and constant 100% fertility, monthly crop output is simply tier-adjusted harvest quantity divided by growth months. The active plan also applies its rotation, fertilizer, research, edict, and seeded-weather rules.
+At full water and constant 100% fertility, monthly crop output is simply tier-adjusted harvest quantity divided by growth months. Synced farms apply their own rotation, supplied fertilizer, fertility target, research, edict, and seeded-weather rules.
 
 The current global settings are Crop Yield research level 20 and Farming Boost I. Together they add 35% crop yield and 20% crop water demand. They do not change Fertilizer II consumption.
 
@@ -52,11 +52,21 @@ The seed mostly changes *when* rain occurs rather than the annual intensity budg
 
 In v0.8.6, farm crop growth does not read sunlight. Weather affects crops through rainfall and water availability; sunlight remains relevant to solar production. Farm cards show gross crop demand as a reference and the imported-water requirement after the configured 100-year weather simulation. Factory balances use the weather-adjusted import.
 
-## Current layout
+## Synced crop-farm areas
 
-The projected crop layout uses nine Greenhouse IIs across nine fixed rotation
-configurations, Fertilizer II at 140%, and full irrigation. The rotations cover
-the current Factory Total demand, including Poppy for Morphine and Tree Saplings.
+Greenhouses and Greenhouse IIs belong to their generated vehicle-area module by
+stable area ID. The area name has no special meaning. Farms outside every named
+area belong to Default, while a farm covered by several named areas has one
+stable owner so its production is counted once.
+
+Each exact combination of tier, rotation, supplied fertilizer, and fertility
+target receives one card. Running farms produce at their synced configuration;
+paused farms remain installed with zero production. Farms without a rotation
+remain visible as unconfigured inventory.
+
+The current save has nine running Greenhouse IIs with Fertilizer II at 140% and
+15 paused, unconfigured Greenhouse IIs. The running rotations cover the current
+Factory Total demand, including Poppy for Morphine and Tree Saplings.
 Carcass processing belongs to the Default module, not Chicken Farms: one
 dedicated Food Processor makes Meat + Trimmings, and a second dedicated Food
 Processor converts only surplus Carcasses into Trimmings. Surplus Trimmings
@@ -67,28 +77,21 @@ including across the last-to-first wrap. The farms do not auto-balance:
 changing population or downstream recipes leaves a visible crop deficit or
 surplus until the physical layout is revised.
 
-Greenhouses and Chicken Farms are separate calculator modules because they are
-separate physical water networks. Five Groundwater Pumps are installed for the
-Greenhouses, with all five active. Chicken Farm water is imported
-from Factory Total and can never increase those pumps' Water output.
+Groundwater Pumps inside a crop-farm area belong to that generated module. Their
+actual pause state controls installed output, and shared aquifers are capped once
+across every owning module. Pumps outside named crop-farm areas remain in Default.
 
-Schema 17 treats Groundwater Pumps as a shared physical inventory because the
-same building also supplies Default's factory-water reserve. Schema 18 exports
-vehicle-zone membership. A `Greenhouses` zone automatically owns the pumps it
-contains, while pumps outside every non-default zone belong to Default and
-therefore Default. Other zone names can be mapped once in Factory Total. Paused
-pumps remain physical inventory but do not increase active production, and
-overlapping zones mapped to different modules remain explicit conflicts.
+Schema 17 treats Groundwater Pumps as shared physical inventory. Schema 18 adds
+vehicle-area membership, and schema 26 adds aquifer state. Paused pumps remain
+physical inventory but do not increase active production. A pump covered by
+crop-farm areas with different owners remains an explicit conflict.
 
 Schema 19 exports every completed Greenhouse and Greenhouse II with a stable
-save-local entity ID. Synced entities are the physical base of the module. Each
-planned rotation binds deterministically to one entity and replaces that
-entity's live configuration in projected calculations; it is never added as a
-second building. Exact running matches remain synced, configuration changes,
-unpauses, upgrades, builds, and required pauses remain planned, and unplanned
-live configurations stay visible. Cards group entities only after applying
-these overlays, so identical effective configurations share one card while
-workers, inputs, and outputs count every physical greenhouse exactly once.
+save-local entity ID. Schema 24 adds vehicle-area membership. Schema 33 exports
+the connected fertilizer-pipe product independently from the fertility target.
+When the pipe has no known product, a non-empty, unambiguous farm buffer is used
+as a fallback. Cards group identical synced configurations while workers,
+inputs, and outputs count every physical farm exactly once.
 
 Schema 20 applies the same entity overlay to Chicken Farms. Every completed
 Chicken Farm belongs to the single Chicken Farms calculator module, regardless
@@ -112,5 +115,5 @@ before proposing construction, without requiring an area assignment.
 Crop output and fertilizer are long-run cycle averages on the calculator's
 100-year horizon. Each farm card keeps gross crop demand visible for comparison
 with the game UI, then reports the weather-adjusted imported water used by
-module and factory balances. The one planned no-crop slot still participates in
+module and factory balances. The synced no-crop slot still participates in
 the same long-run soil and weather simulation.

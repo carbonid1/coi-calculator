@@ -81,6 +81,7 @@ export interface CurrentCropFarmEntity {
   tierId: Extract<CropFarmTierId, "greenhouse" | "greenhouseII">;
   schedule: readonly string[];
   fertilityTargetPercent: number;
+  fertilizerId?: FertilizerId | null;
   running: boolean;
   zones?: readonly { id: number; name: string | null }[];
 }
@@ -524,8 +525,12 @@ export const calculateCropFarmGroupRates = (
 ): CropFarmGroupRates => {
   const tier = cropFarmTiers[group.tierId];
   const fertilizer = group.fertilizer ? fertilizers[group.fertilizer.id] : null;
-  const targetFertilityPercent = group.fertilizer?.targetFertilityPercent
-    ?? cropFarmSimulation.naturalFertilityEquilibriumPercent;
+  const targetFertilityPercent = fertilizer && group.fertilizer
+    ? Math.min(
+        group.fertilizer.targetFertilityPercent,
+        fertilizer.maximumFertilityPercent,
+      )
+    : cropFarmSimulation.naturalFertilityEquilibriumPercent;
   const targetFertilityMultiplier = targetFertilityPercent / 100;
   const cycleDays = group.schedule.reduce(
     (total, cropId) => total + crops[cropId].growthMonths * cropFarmSimulation.daysPerMonth,

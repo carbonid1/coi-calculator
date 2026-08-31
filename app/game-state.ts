@@ -86,14 +86,23 @@ interface SyncedCropFarmConfiguration {
   built: number
   running: number
   fertilityTargetPercent: number
+  /** Supplied fertilizer product. Present in schema 33 and newer. */
+  fertilizerProductId?: SyncedCropFarmFertilizerProductId | null
   schedule: (string | null)[]
 }
+
+export type SyncedCropFarmFertilizerProductId =
+  | 'Product_FertilizerOrganic'
+  | 'Product_Fertilizer'
+  | 'Product_Fertilizer2'
 
 interface SyncedCropFarmEntity {
   entityId: number
   prototypeId: 'FarmT3' | 'FarmT4'
   running: boolean
   fertilityTargetPercent: number
+  /** Supplied fertilizer product. Present in schema 33 and newer. */
+  fertilizerProductId?: SyncedCropFarmFertilizerProductId | null
   schedule: (string | null)[]
   zones?: SyncedLogisticsZoneRef[]
 }
@@ -291,7 +300,9 @@ const TRAIN_STATION_PRODUCT_SCHEMA_VERSION = 29 as const
 const CAPTAIN_OFFICE_SCHEMA_VERSION = 30 as const
 
 export const TERRAIN_SORTER_SCHEMA_VERSION = 31 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 32 as const
+const FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION = 33 as const
+
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 33 as const
 type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -319,6 +330,7 @@ type SupportedGameStateSchemaVersion =
   | 29
   | 30
   | 31
+  | 32
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -462,7 +474,25 @@ const normalizeChickenFarmState = (
   return { configurations, entities }
 }
 
-const isCropFarmConfiguration = (value: unknown): value is SyncedCropFarmConfiguration =>
+const isCropFarmFertilizerProductId = (
+  value: unknown,
+): value is SyncedCropFarmFertilizerProductId => (
+  value === 'Product_FertilizerOrganic'
+  || value === 'Product_Fertilizer'
+  || value === 'Product_Fertilizer2'
+)
+
+const hasValidCropFarmFertilizerProduct = (
+  value: unknown,
+  schemaVersion: SupportedGameStateSchemaVersion,
+) => schemaVersion < FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION || (
+  value === null || isCropFarmFertilizerProductId(value)
+)
+
+const isCropFarmConfiguration = (
+  value: unknown,
+  schemaVersion: SupportedGameStateSchemaVersion,
+): value is SyncedCropFarmConfiguration =>
   isUnknownRecord(value) &&
   (value.prototypeId === 'FarmT3' || value.prototypeId === 'FarmT4') &&
   isNonNegativeInteger(value.built) &&
@@ -470,6 +500,7 @@ const isCropFarmConfiguration = (value: unknown): value is SyncedCropFarmConfigu
   value.running <= value.built &&
   isNonNegativeInteger(value.fertilityTargetPercent) &&
   value.fertilityTargetPercent <= 200 &&
+  hasValidCropFarmFertilizerProduct(value.fertilizerProductId, schemaVersion) &&
   Array.isArray(value.schedule) &&
   value.schedule.length === 4 &&
   value.schedule.every(cropId => cropId === null || (
@@ -486,6 +517,7 @@ const isCropFarmEntity = (
   typeof value.running === 'boolean' &&
   isNonNegativeInteger(value.fertilityTargetPercent) &&
   value.fertilityTargetPercent <= 200 &&
+  hasValidCropFarmFertilizerProduct(value.fertilizerProductId, schemaVersion) &&
   Array.isArray(value.schedule) &&
   value.schedule.length === 4 &&
   value.schedule.every(cropId => cropId === null || (
@@ -506,7 +538,9 @@ const normalizeCropFarmState = (
 ): SyncedCropFarmState | null => {
   if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
 
-  const configurations = value.configurations.filter(isCropFarmConfiguration)
+  const configurations = value.configurations.filter(configuration => (
+    isCropFarmConfiguration(configuration, schemaVersion)
+  ))
 
   if (configurations.length !== value.configurations.length) return null
 
@@ -528,6 +562,7 @@ const normalizeCropFarmState = (
       configuration.prototypeId,
       configuration.schedule,
       configuration.fertilityTargetPercent,
+      configuration.fertilizerProductId,
     ]),
     { built: configuration.built, running: configuration.running },
   ]))
@@ -538,6 +573,7 @@ const normalizeCropFarmState = (
       entity.prototypeId,
       entity.schedule,
       entity.fertilityTargetPercent,
+      entity.fertilizerProductId,
     ])
     const count = entityCounts.get(key) ?? { built: 0, running: 0 }
 
@@ -1119,6 +1155,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 29 &&
     schemaVersion !== 30 &&
     schemaVersion !== TERRAIN_SORTER_SCHEMA_VERSION &&
+    schemaVersion !== 32 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null

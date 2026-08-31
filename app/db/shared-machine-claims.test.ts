@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { type SyncedMachineInventoryItem } from "../game-state";
 import { allocateSharedMachines } from "../helpers/machine-allocation/machine-allocation";
-import { createDefaultModule } from "./modules/default";
-import { createGreenhousesModule } from "./modules/farms";
 import {
+  getCropFarmGroundwaterClaimId,
+  getCropFarmGroundwaterRecipeId,
+} from "./modules/crop-farm-areas";
+import { createDefaultModule } from "./modules/default";
+import {
+  createGroundwaterPumpClaims,
   DEFAULT_GROUNDWATER_CLAIM_ID,
-  GREENHOUSES_GROUNDWATER_CLAIM_ID,
-  groundwaterPumpClaims,
 } from "./shared-machine-claims";
 
 const machine = (
@@ -26,62 +28,41 @@ const machine = (
 });
 
 describe("Groundwater Pump module claims", () => {
-  it("keeps only the Greenhouses claim planned until live zones resolve ownership", () => {
-    const allocation = allocateSharedMachines(
-      [1, 2, 3, 4, 5, 6].map(id => machine(id, true, [
-        { id: id <= 5 ? 7 : 9, name: `Zone ${id <= 5 ? 7 : 9}` },
-      ])),
-      groundwaterPumpClaims,
-    );
-    const greenhouses = createGreenhousesModule(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      allocation.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID],
-    );
-    const general = createDefaultModule(allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]);
+  it("creates a current-only claim for any generated crop-farm area", () => {
+    const claims = createGroundwaterPumpClaims([{ id: 17, name: "West agriculture" }]);
 
-    expect(greenhouses.presets[0].activeBuildings["groundwater-pump"]).toBe(5);
-    expect(greenhouses.presets[0].dataSources?.["groundwater-pump"]).toBe("planned");
-    expect(greenhouses.presets[0].planMismatches?.find(({ recipeId }) => (
-      recipeId === "groundwater-pump"
-    ))).toMatchObject({ actions: [{ type: "assign" }] });
-    expect(general.presets[0]).toMatchObject({
-      activeBuildings: { "groundwater-pump-factory-reserve": 0 },
-      dataSources: { "groundwater-pump-factory-reserve": "synced" },
+    expect(claims).toContainEqual({
+      id: getCropFarmGroundwaterClaimId(17),
+      moduleId: "live-area-17",
+      moduleName: "West agriculture",
+      recipeId: getCropFarmGroundwaterRecipeId(17),
+      machineName: "Groundwater Pump",
+      kind: "groundwater-pump",
+      target: 0,
     });
-    expect(general.presets[0].planMismatches).toBeUndefined();
   });
 
-  it("switches both module cards to synced from exact zone names and Default", () => {
+  it("assigns area pumps by random area name and keeps unzoned pumps in Default", () => {
+    const claimId = getCropFarmGroundwaterClaimId(17);
     const allocation = allocateSharedMachines([
-      ...[1, 2, 3, 4, 5].map(id => machine(id, true, [
-        { id: 10, name: "Greenhouses" },
+      ...[1, 2, 3].map(id => machine(id, true, [
+        { id: 17, name: "West agriculture" },
       ])),
-      machine(6, true, []),
-      machine(7, false, []),
-      machine(8, false, []),
-    ], groundwaterPumpClaims);
-    const greenhouses = createGreenhousesModule(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      allocation.claims[GREENHOUSES_GROUNDWATER_CLAIM_ID],
-    );
-    const general = createDefaultModule(allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]);
+      machine(4, true, []),
+      machine(5, false, []),
+    ], createGroundwaterPumpClaims([{ id: 17, name: "West agriculture" }]));
 
-    expect(greenhouses.presets[0].activeBuildings["groundwater-pump"]).toBe(5);
-    expect(greenhouses.presets[0].dataSources?.["groundwater-pump"]).toBe("synced");
-    expect(greenhouses.presets[0].planMismatches?.map(({ recipeId }) => recipeId))
-      .not.toContain("groundwater-pump");
-    expect(general.presets[0]).toMatchObject({
-      activeBuildings: { "groundwater-pump-factory-reserve": 1 },
-      dataSources: { "groundwater-pump-factory-reserve": "synced" },
+    expect(allocation.claims[claimId]).toMatchObject({
+      built: 3,
+      running: 3,
+      suggestedBuilt: 0,
+      suggestedRunning: 0,
     });
-    expect(general.presets[0].planMismatches).toBeUndefined();
-    expect(general.builtBuildings["groundwater-pump-factory-reserve"]).toBe(3);
+    expect(allocation.claims[claimId]?.actions).toEqual([]);
+    expect(allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]).toMatchObject({
+      built: 2,
+      running: 1,
+    });
   });
 
   it("keeps the live Default reserve inventory synced without generating a plan", () => {
@@ -89,7 +70,7 @@ describe("Groundwater Pump module claims", () => {
       machine(1, true, []),
       machine(2, false, []),
       machine(3, false, []),
-    ], groundwaterPumpClaims);
+    ], createGroundwaterPumpClaims([]));
     const general = createDefaultModule(allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]);
 
     expect(general.presets[0]).toMatchObject({

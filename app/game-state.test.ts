@@ -498,6 +498,20 @@ const schema32Snapshot = {
   ...schema31Snapshot,
   schemaVersion: 32,
 }
+const schema33Snapshot = {
+  ...schema32Snapshot,
+  schemaVersion: 33,
+  cropFarms: {
+    configurations: schema32Snapshot.cropFarms.configurations.map(configuration => ({
+      ...configuration,
+      fertilizerProductId: 'Product_Fertilizer2',
+    })),
+    entities: schema32Snapshot.cropFarms.entities.map(entity => ({
+      ...entity,
+      fertilizerProductId: 'Product_Fertilizer2',
+    })),
+  },
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -675,6 +689,34 @@ describe('game-state snapshot validation', () => {
       schemaVersion: 32,
       vehicles: { workersAssigned: 34 },
     })
+    expect(normalizeGameStateSnapshot(schema33Snapshot)).toMatchObject({
+      schemaVersion: 33,
+      cropFarms: {
+        configurations: [expect.objectContaining({
+          fertilizerProductId: 'Product_Fertilizer2',
+        })],
+        entities: [expect.objectContaining({
+          fertilizerProductId: 'Product_Fertilizer2',
+        })],
+      },
+    })
+  })
+
+  it('requires the supplied crop-farm fertilizer product in schema 33', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema33Snapshot,
+      cropFarms: schema32Snapshot.cropFarms,
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema33Snapshot,
+      cropFarms: {
+        ...schema33Snapshot.cropFarms,
+        entities: schema33Snapshot.cropFarms.entities.map(entity => ({
+          ...entity,
+          fertilizerProductId: 'Product_Diesel',
+        })),
+      },
+    })).toBeNull()
   })
 
   it('requires valid sorter configuration and unique tower ownership in schema 31', () => {

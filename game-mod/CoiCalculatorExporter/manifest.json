@@ -1,6 +1,6 @@
 {
   "id": "CoiCalculatorExporter",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "display_name": "CoI Calculator Exporter",
   "description_short": "Exports factory counts, area recipes, terrain sorter settings, reserves, and operating history to the local CoI calculator.",
   "description_long": "Exports assigned vehicle workers, named vehicle areas, buildings and construction ghosts, machine recipes, terrain sorters, train-station products, Groundwater Pumps, area membership, reserves, Data Centers, Water Chillers, farms, rocket infrastructure, solar panels, maintenance depots, research, edicts, and operating averages to the local CoI calculator.",
