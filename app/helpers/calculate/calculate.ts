@@ -794,9 +794,9 @@ export const calculateNet = (
   }
 
   // ── Pass 2: actual allocation with priority for constrained resources only ──
-  const flows: FlowMap = new Map();
-  const getFlow = makeGetFlow(flows);
-  const actualModuleFlows = new Map<
+  let flows: FlowMap = new Map();
+  let getFlow = makeGetFlow(flows);
+  let actualModuleFlows = new Map<
     string,
     { consumed: number; produced: number }
   >();
@@ -879,11 +879,11 @@ export const calculateNet = (
   }
   const reservedSourceInputs = new Map<ProductionLine, Map<ResourceId, number>>();
 
-  const allocationRatios = new Map<ProductionLine, number>();
-  const surplusOnlyConsumption = new Map<ResourceId, number>();
-  const surplusOnlyModuleConsumption = new Map<string, number>();
-  const createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
-  const sortedRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
+  let allocationRatios = new Map<ProductionLine, number>();
+  let surplusOnlyConsumption = new Map<ResourceId, number>();
+  let surplusOnlyModuleConsumption = new Map<string, number>();
+  let createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
+  let sortedRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const capacityTracker = createCapacityTracker(regularLines);
   const applyRegularLine = (line: ProductionLine, ratio: number, additive = false) => {
     const previousRatio = allocationRatios.get(line) ?? 0;
@@ -1245,34 +1245,39 @@ export const calculateNet = (
       applyRegularLine(line, ratio, currentRatio > 0);
     }
   };
-  const cloneFlows = (source: FlowMap): FlowMap => new Map(
-    [...source].map(([resourceId, flow]) => [resourceId, {
-      consumed: flow.consumed,
-      produced: flow.produced,
-      recyclableSourcesConsumed: new Map(flow.recyclableSourcesConsumed),
-      recyclableSourcesProduced: new Map(flow.recyclableSourcesProduced),
-    }]),
-  );
+  const cloneFlows = (source: FlowMap): FlowMap => {
+    const clone: FlowMap = new Map();
+
+    for (const [resourceId, flow] of source) {
+      clone.set(resourceId, {
+        consumed: flow.consumed,
+        produced: flow.produced,
+        recyclableSourcesConsumed: new Map(flow.recyclableSourcesConsumed),
+        recyclableSourcesProduced: new Map(flow.recyclableSourcesProduced),
+      });
+    }
+
+    return clone;
+  };
   const cloneModuleFlows = (
     source: ReadonlyMap<string, { consumed: number; produced: number }>,
-  ) => new Map(
-    [...source].map(([key, flow]) => [key, { ...flow }]),
-  );
+  ) => {
+    const clone = new Map<string, { consumed: number; produced: number }>();
+
+    for (const [key, flow] of source) clone.set(key, { ...flow });
+
+    return clone;
+  };
   const cloneLineResourceMaps = (
     source: ReadonlyMap<ProductionLine, Map<ResourceId, number>>,
-  ) => new Map(
-    [...source].map(([line, quantities]) => [line, new Map(quantities)]),
-  );
-  const restoreMap = <Key, Value>(
-    target: Map<Key, Value>,
-    source: ReadonlyMap<Key, Value>,
-    cloneValue: (value: Value) => Value,
   ) => {
-    target.clear();
+    const clone = new Map<ProductionLine, Map<ResourceId, number>>();
 
-    for (const [key, value] of source) {
-      target.set(key, cloneValue(value));
+    for (const [line, quantities] of source) {
+      clone.set(line, new Map(quantities));
     }
+
+    return clone;
   };
   const snapshotAllocationState = () => ({
     flows: cloneFlows(flows),
@@ -1287,30 +1292,14 @@ export const calculateNet = (
   const restoreAllocationState = (
     state: ReturnType<typeof snapshotAllocationState>,
   ) => {
-    restoreMap(flows, state.flows, (flow) => ({
-      consumed: flow.consumed,
-      produced: flow.produced,
-      recyclableSourcesConsumed: new Map(flow.recyclableSourcesConsumed),
-      recyclableSourcesProduced: new Map(flow.recyclableSourcesProduced),
-    }));
-    restoreMap(actualModuleFlows, state.actualModuleFlows, (flow) => ({ ...flow }));
-    restoreMap(allocationRatios, state.allocationRatios, (ratio) => ratio);
-    restoreMap(surplusOnlyConsumption, state.surplusOnlyConsumption, (quantity) => quantity);
-    restoreMap(
-      surplusOnlyModuleConsumption,
-      state.surplusOnlyModuleConsumption,
-      (quantity) => quantity,
-    );
-    restoreMap(
-      createdRecyclableSources,
-      state.createdRecyclableSources,
-      (quantities) => new Map(quantities),
-    );
-    restoreMap(
-      sortedRecyclableSources,
-      state.sortedRecyclableSources,
-      (quantities) => new Map(quantities),
-    );
+    flows = cloneFlows(state.flows);
+    getFlow = makeGetFlow(flows);
+    actualModuleFlows = cloneModuleFlows(state.actualModuleFlows);
+    allocationRatios = new Map(state.allocationRatios);
+    surplusOnlyConsumption = new Map(state.surplusOnlyConsumption);
+    surplusOnlyModuleConsumption = new Map(state.surplusOnlyModuleConsumption);
+    createdRecyclableSources = cloneLineResourceMaps(state.createdRecyclableSources);
+    sortedRecyclableSources = cloneLineResourceMaps(state.sortedRecyclableSources);
     capacityTracker.restore(state.capacity);
   };
   const hasNewDeficit = <Key extends string>(
