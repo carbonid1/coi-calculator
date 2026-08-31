@@ -60,7 +60,7 @@ export const plannedNuclearOperation: NuclearOperationPlan = {
   hydrogenReformerCount: 8,
   chlorineProcessingCount: 2,
   saltProcessingCount: 2,
-  superDesalinatorCount: 10,
+  superDesalinatorCount: 9,
   seawaterPumpCount: 6,
 };
 

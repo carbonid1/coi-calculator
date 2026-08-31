@@ -73,7 +73,7 @@ it("keeps installed nuclear capacity current while applying the operation plan",
     "electrolyzer-ii-chlorine": 2,
     "evaporation-pond-heated-salt-brine": 2,
     "seawater-pump": 6,
-    "thermal-desalinator-super": 10,
+    "thermal-desalinator-super": 9,
   });
   expect(preset?.activeBuildings).not.toHaveProperty("seawater-pump-tall");
   expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);

@@ -12,7 +12,6 @@ vi.mock("@carbonid1/design-system", () => ({
   }) => <div aria-label={label}>{children}</div>,
 }));
 vi.mock("./BuildingAttentionView", () => ({ BuildingAttentionView: () => null }));
-vi.mock("./MachineZoneMappingsView", () => ({ MachineZoneMappingsView: () => null }));
 vi.mock("./PlannedBuildsView", () => ({ PlannedBuildsView: () => null }));
 
 import { NetSummary } from "./NetSummary";

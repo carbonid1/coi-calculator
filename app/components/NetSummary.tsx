@@ -20,7 +20,6 @@ import {
 } from "../helpers/machine-allocation/machine-allocation";
 import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
-import { MachineZoneMappingsView } from "./MachineZoneMappingsView";
 import { PlannedBuildsView } from "./PlannedBuildsView";
 import { isReportedFactoryDeficit } from "./net-summary-flows";
 
@@ -646,13 +645,6 @@ export const NetSummary: React.FC<Props> = ({
         <>
           {onOpenBuilding && (
             <>
-              {onAssignMachineZone && (
-                <MachineZoneMappingsView
-                  claims={machineZoneClaims}
-                  zones={machineZones}
-                  onAssign={onAssignMachineZone}
-                />
-              )}
               <PlannedBuildsView
                 diagnostics={buildingDiagnostics}
                 machineAllocationIssues={machineAllocationIssues}
