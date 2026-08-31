@@ -6,6 +6,7 @@ import {
 } from "../game-state";
 
 interface Props {
+  exportedAtUtc: string | null;
   isFresh: boolean;
   snapshot: GameStateSnapshot | null;
   source: GameStateDataSource;
@@ -31,7 +32,13 @@ const getStatusLabel = (
   return "Game sync unavailable";
 };
 
-export const GameSyncStatus: React.FC<Props> = ({ isFresh, snapshot, source, status }) => {
+export const GameSyncStatus: React.FC<Props> = ({
+  exportedAtUtc,
+  isFresh,
+  snapshot,
+  source,
+  status,
+}) => {
   const isLive = source === "live" && isFresh;
   const updatePending = snapshot
     ? snapshot.schemaVersion < CURRENT_GAME_STATE_SCHEMA_VERSION
@@ -46,11 +53,11 @@ export const GameSyncStatus: React.FC<Props> = ({ isFresh, snapshot, source, sta
     >
       {label}
       {updatePending && " · Exporter update pending"}
-      {snapshot && (
+      {snapshot && exportedAtUtc && (
         <>
           {" · "}
-          <time dateTime={snapshot.exportedAtUtc} suppressHydrationWarning>
-            {formatSnapshotTime(snapshot.exportedAtUtc)}
+          <time dateTime={exportedAtUtc} suppressHydrationWarning>
+            {formatSnapshotTime(exportedAtUtc)}
           </time>
         </>
       )}

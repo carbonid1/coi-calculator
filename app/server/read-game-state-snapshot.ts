@@ -7,11 +7,13 @@ import {
   normalizeGameStateSnapshot,
   type GameStateSnapshot,
 } from "../game-state";
+import { calculateGameStateSnapshotRevision } from "./game-state-snapshot-revision";
 
 interface AvailableResult {
   error: null;
   httpStatus: 200;
   isFresh: boolean;
+  revision: string;
   snapshot: GameStateSnapshot;
   status: "available";
 }
@@ -20,6 +22,7 @@ interface UnavailableResult {
   error: string;
   httpStatus: 404 | 422 | 500 | 503;
   isFresh: false;
+  revision: null;
   snapshot: null;
   status: "error" | "missing";
 }
@@ -51,6 +54,7 @@ export const readGameStateSnapshot = async (): Promise<GameStateSnapshotReadResu
       error: "Captain of Industry app-data directory is unavailable.",
       httpStatus: 503,
       isFresh: false,
+      revision: null,
       snapshot: null,
       status: "error",
     };
@@ -69,6 +73,7 @@ export const readGameStateSnapshot = async (): Promise<GameStateSnapshotReadResu
         error: "The game snapshot has an unsupported or invalid format.",
         httpStatus: 422,
         isFresh: false,
+        revision: null,
         snapshot: null,
         status: "error",
       };
@@ -78,6 +83,7 @@ export const readGameStateSnapshot = async (): Promise<GameStateSnapshotReadResu
       error: null,
       httpStatus: 200,
       isFresh: Date.now() - Date.parse(snapshot.exportedAtUtc) < 20_000,
+      revision: calculateGameStateSnapshotRevision(snapshot),
       snapshot,
       status: "available",
     };
@@ -91,6 +97,7 @@ export const readGameStateSnapshot = async (): Promise<GameStateSnapshotReadResu
         error: "No game snapshot has been exported yet.",
         httpStatus: 404,
         isFresh: false,
+        revision: null,
         snapshot: null,
         status: "missing",
       };
@@ -100,6 +107,7 @@ export const readGameStateSnapshot = async (): Promise<GameStateSnapshotReadResu
       error: "The game snapshot could not be read.",
       httpStatus: 500,
       isFresh: false,
+      revision: null,
       snapshot: null,
       status: "error",
     };

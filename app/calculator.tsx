@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
 import { ChickenFarmSettings } from './components/ChickenFarmSettings'
@@ -155,6 +155,7 @@ import {
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
 import { calculateGroundwaterClaimLimits } from './helpers/groundwater/calculate-groundwater-production'
+import { createLatestRevisionCache } from './helpers/latest-revision-cache/latest-revision-cache'
 import {
   createLiveAreaModules,
   getModeledTerrainSorterEntityIds,
@@ -214,6 +215,13 @@ const FACTORY_TOTAL_ID = 'factory-total'
 const CONTRACTS_ID = 'contracts'
 const MODIFIERS_ID = 'modifiers'
 const MACHINE_ZONE_ASSIGNMENTS_KEY = 'coi-machine-zone-assignments-v1'
+
+interface FactoryCalculation {
+  factoryResult: ReturnType<typeof calculateFactoryTotal>
+  linkedModulesResult: ReturnType<typeof calculateLinkedModules>
+}
+
+const getFactoryCalculation = createLatestRevisionCache<FactoryCalculation>()
 
 const legacySettingKeys = [
   'coi-active-contract-ids',
@@ -973,10 +981,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     configuredModules,
     moduleResourceLinkDefinitions,
   )
-  const calculationRevision = `${gameState.snapshot?.exportedAtUtc ?? 'modeled'}:${JSON.stringify(
-    machineZoneAssignments,
-  )}`
-  const { factoryResult, linkedModulesResult } = useMemo(() => {
+  const calculationRevision = `${
+    gameState.revision ?? gameState.snapshot?.exportedAtUtc ?? 'modeled'
+  }:${JSON.stringify(machineZoneAssignments)}`
+  const calculateFactoryCalculation = (): FactoryCalculation => {
     const calculateFactory = (
       linkedResult: ReturnType<typeof calculateLinkedModules>,
       moduleFixedDemands: ReadonlyMap<
@@ -1075,9 +1083,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         linkedSuppliesByPooledTarget,
       ),
     }
-    // Every calculation input above is a pure derivation of these two state values.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calculationRevision])
+  }
+  // Every calculation input above is a pure derivation of the game-state revision
+  // and machine-zone assignments used by this bounded shared cache.
+  const { factoryResult, linkedModulesResult } = getFactoryCalculation(
+    calculationRevision,
+    calculateFactoryCalculation,
+  )
   const isModifiers = activeModuleId === MODIFIERS_ID
   const isContracts = activeModuleId === CONTRACTS_ID
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID
@@ -1332,6 +1344,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           <p className="text-sm text-muted-foreground">Production Chain Calculator</p>
         </div>
         <GameSyncStatus
+          exportedAtUtc={gameState.exportedAtUtc}
           isFresh={gameState.isFresh}
           snapshot={gameState.snapshot}
           source={gameState.source}
