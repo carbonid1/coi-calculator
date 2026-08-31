@@ -217,6 +217,20 @@ export const calculateLinkedModules = ({
 
     return [moduleDefinition.id, lines] as const
   }))
+  const runCache = new Map<string, Map<string, ModuleRun>>()
+  const getRunCacheKey = (
+    planning: boolean,
+    suppliedResources: Partial<Record<ResourceId, number>>,
+    outgoingDemands: Partial<Record<ResourceId, number>>,
+  ) => JSON.stringify([
+    planning,
+    typedEntries(suppliedResources)
+      .filter(([, quantity]) => quantity !== 0)
+      .toSorted(([left], [right]) => left.localeCompare(right)),
+    typedEntries(outgoingDemands)
+      .filter(([, quantity]) => quantity !== 0)
+      .toSorted(([left], [right]) => left.localeCompare(right)),
+  ])
 
   const runModules = (
     transferQuantities: ReadonlyMap<string, number>,
@@ -268,6 +282,15 @@ export const calculateLinkedModules = ({
     const moduleDemands = new Map([
       [moduleDefinition.id, outgoingDemands],
     ])
+    const cacheKey = getRunCacheKey(
+      planning,
+      suppliedResources,
+      outgoingDemands,
+    )
+    const moduleCache = runCache.get(moduleDefinition.id) ?? new Map()
+    const cached = moduleCache.get(cacheKey)
+
+    if (cached) return [moduleDefinition.id, cached] as const
 
     const calculation = calculateNet(
       baseLines.get(moduleDefinition.id) ?? [],
@@ -284,13 +307,18 @@ export const calculateLinkedModules = ({
       new Map(),
     )
 
-    return [moduleDefinition.id, {
+    const run: ModuleRun = {
       calculation,
       lines: baseLines.get(moduleDefinition.id) ?? [],
       outgoingDemands,
       preset,
       suppliedResources,
-    }] as const
+    }
+
+    moduleCache.set(cacheKey, run)
+    runCache.set(moduleDefinition.id, moduleCache)
+
+    return [moduleDefinition.id, run] as const
   }))
 
   const getSourceAvailability = (runs: ReadonlyMap<string, ModuleRun>) => (
@@ -513,10 +541,14 @@ export const calculateLinkedModules = ({
 
     const resourceIds = getFlowResourceIds(moduleDefinition.id, run.calculation)
 
-    for (const [resourceId] of typedEntries(run.preset?.fixedDemands ?? {})) {
+    for (const [resourceId] of typedEntries<ResourceId, number>(
+      run.preset?.fixedDemands ?? {},
+    )) {
       resourceIds.add(resourceId)
     }
-    for (const [resourceId] of typedEntries(run.preset?.requestedImports ?? {})) {
+    for (const [resourceId] of typedEntries<ResourceId, number>(
+      run.preset?.requestedImports ?? {},
+    )) {
       resourceIds.add(resourceId)
     }
     for (const transfer of transfers) {
