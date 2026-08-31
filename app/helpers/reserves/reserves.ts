@@ -1,11 +1,10 @@
 import { type PassiveResult } from "../calculate/calculate";
 
-export type ReserveStatus = "unavailable" | "empty" | "idle" | "draining";
+type ReserveStatus = "unavailable" | "empty" | "idle" | "draining";
 
 export interface ReserveRunway {
   balance: number | null;
   drawPerProductionCycle: number;
-  productionCyclesRemaining: number | null;
   inGameYearsRemaining: number | null;
   status: ReserveStatus;
 }
@@ -33,7 +32,6 @@ export const calculateReserveRunway = (
     return {
       balance,
       drawPerProductionCycle: normalizedDraw,
-      productionCyclesRemaining: null,
       inGameYearsRemaining: null,
       status: "unavailable",
     };
@@ -43,7 +41,6 @@ export const calculateReserveRunway = (
     return {
       balance,
       drawPerProductionCycle: normalizedDraw,
-      productionCyclesRemaining: null,
       inGameYearsRemaining: null,
       status: "empty",
     };
@@ -53,7 +50,6 @@ export const calculateReserveRunway = (
     return {
       balance,
       drawPerProductionCycle: 0,
-      productionCyclesRemaining: null,
       inGameYearsRemaining: null,
       status: "idle",
     };
@@ -64,7 +60,6 @@ export const calculateReserveRunway = (
   return {
     balance,
     drawPerProductionCycle: normalizedDraw,
-    productionCyclesRemaining,
     inGameYearsRemaining: productionCyclesRemaining / 12,
     status: "draining",
   };

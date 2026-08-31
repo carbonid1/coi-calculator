@@ -2,6 +2,7 @@ import { Button, Tooltip } from "@carbonid1/design-system";
 import { CircleMinus, CirclePause, CirclePlus, Hammer, Play, RefreshCw } from "lucide-react";
 
 import {
+  type BuildingAttention,
   type BuildingDiagnostic,
 } from "../helpers/building-diagnostics/building-diagnostics";
 
@@ -9,6 +10,8 @@ interface Props {
   diagnostics: BuildingDiagnostic[];
   onOpenBuilding: (diagnostic: BuildingDiagnostic) => void;
 }
+
+type ActionableDiagnostic = BuildingDiagnostic & { attention: BuildingAttention };
 
 const labels = {
   build: "Build",
@@ -75,7 +78,7 @@ const getTooltip = (diagnostic: BuildingDiagnostic) => {
   return `Current capacity is constrained and every built building is active.${affected}`;
 };
 
-const getAttentionLabel = (diagnostic: BuildingDiagnostic) => {
+const getAttentionLabel = (diagnostic: ActionableDiagnostic) => {
   if (
     diagnostic.attention === "add-animals"
     || diagnostic.attention === "remove-animals"
@@ -86,14 +89,12 @@ const getAttentionLabel = (diagnostic: BuildingDiagnostic) => {
     return `${verb} ${diagnostic.attentionCount.toLocaleString()} ${label}`;
   }
 
-  if (!diagnostic.attention) return "";
-
   return `${labels[diagnostic.attention]}${diagnostic.attentionCount > 0
     ? ` ${diagnostic.attentionCount}`
     : ""}`;
 };
 
-const isAttentionNotice = (attention: BuildingDiagnostic["attention"]) => (
+const isAttentionNotice = (attention: BuildingAttention) => (
   attention === "can-pause"
   || attention === "rebalance-farms"
   || attention === "remove-animals"
@@ -113,7 +114,7 @@ const getAttentionStatus = (diagnostic: BuildingDiagnostic) => {
 
 export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenBuilding }) => {
   const actionable = diagnostics
-    .filter((diagnostic) => (
+    .filter((diagnostic): diagnostic is ActionableDiagnostic => (
       !diagnostic.plannedCapacity && diagnostic.attention != null
       && !steamChainBuildings.has(diagnostic.buildingName)
     ))
@@ -132,8 +133,6 @@ export const BuildingAttentionView: React.FC<Props> = ({ diagnostics, onOpenBuil
       <div className="grid gap-1 md:grid-cols-2">
         {actionable.map((diagnostic) => {
           const attention = diagnostic.attention;
-
-          if (!attention) return null;
 
           const Icon = icons[attention];
           const tooltip = getTooltip(diagnostic);

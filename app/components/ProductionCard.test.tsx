@@ -21,7 +21,6 @@ describe("ProductionCard", () => {
       </ProductionCard>,
     );
 
-    expect(html).toContain('data-data-source="synced"');
     expect(html).toContain("border-success/40");
     expect(html).toContain("border-success/20");
     expect(html).toContain("[&amp;&gt;*]:opacity-40");

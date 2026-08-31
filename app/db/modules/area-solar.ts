@@ -10,7 +10,7 @@ import {
 } from "../solar";
 import { type Module, type Preset } from "./modules";
 
-export interface SolarPanelInventory {
+interface SolarPanelInventory {
   builtCounts: SolarPanelCounts;
   runningCounts: SolarPanelCounts;
 }

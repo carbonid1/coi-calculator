@@ -33,7 +33,6 @@ const createChickenResult = (chickens: number, farmCount = 3): RegularResult => 
   speedLevel: chickens / (farmCount * 500),
   actualInputs: [],
   actualOutputs: [],
-  appliedRecyclingEfficiencyPercent: null,
   recyclableSourceValueProduced: 0,
 });
 
@@ -129,7 +128,6 @@ describe("crop farm building diagnostics", () => {
       speedLevel: 1,
       actualInputs: [],
       actualOutputs: [],
-      appliedRecyclingEfficiencyPercent: null,
       recyclableSourceValueProduced: 0,
     }));
     const affectedIds = [...new Set(cropRecipes.flatMap(
@@ -182,7 +180,6 @@ describe("byproduct building diagnostics", () => {
       speedLevel: 1,
       actualInputs: [],
       actualOutputs: [],
-      appliedRecyclingEfficiencyPercent: null,
       recyclableSourceValueProduced: 0,
     };
     const [diagnostic] = calculateBuildingDiagnostics(
@@ -222,7 +219,6 @@ describe("byproduct building diagnostics", () => {
       speedLevel: 1,
       actualInputs: [],
       actualOutputs: [],
-      appliedRecyclingEfficiencyPercent: null,
       recyclableSourceValueProduced: 0,
     };
     const [diagnostic] = calculateBuildingDiagnostics(
@@ -356,7 +352,6 @@ describe("planned capacity diagnostics", () => {
     speedLevel: 1,
     actualInputs: [],
     actualOutputs: [],
-    appliedRecyclingEfficiencyPercent: null,
     recyclableSourceValueProduced: 0,
   });
 

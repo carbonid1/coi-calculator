@@ -341,14 +341,6 @@ export const cropProductResourceIds: ReadonlySet<ResourceId> = new Set(
   Object.values(crops).flatMap((crop) => crop.productId ? [crop.productId] : []),
 );
 
-export interface NominalCropRates {
-  quantityPerHarvest: number;
-  quantityPerMonth: number;
-  waterPerDay: number;
-  waterPerMonth: number;
-  fertilityPercentPerDay: number;
-}
-
 export interface CropFarmGroupRates {
   waterPerMonth: number;
   fertilizerPerMonth: number;
@@ -356,7 +348,7 @@ export interface CropFarmGroupRates {
 }
 
 /** Calculator-owned current baseline until crop settings can be synced from the game. */
-export const modeledCropFarmGroups: readonly CropFarmGroup[] = [
+const modeledCropFarmGroups: readonly CropFarmGroup[] = [
   {
     id: "greenhouse-ii-soybean-vegetables-fruit-vegetables",
     name: "Soybean / Vegetables / Fruit / Vegetables",
@@ -424,7 +416,7 @@ export const modeledCropFarmGroups: readonly CropFarmGroup[] = [
 ] as const;
 
 /** Fixed rebalanced rotations used by the projected Factory Total. */
-export const plannedCropFarmGroups: readonly CropFarmGroup[] = [
+const plannedCropFarmGroups: readonly CropFarmGroup[] = [
   {
     id: "greenhouse-ii-potato-fruit-potato-wheat",
     name: "Potato / Fruit / Potato / Wheat",
@@ -508,7 +500,8 @@ const cropFarmGroupLayers: LayeredValue<readonly CropFarmGroup[]> = {
 export const resolvedCurrentCropFarmGroups = resolveCurrentLayeredValue(
   cropFarmGroupLayers,
 );
-export const resolvedCropFarmGroups = resolveLayeredValue(cropFarmGroupLayers);
+const resolvedCropFarmGroups = resolveLayeredValue(cropFarmGroupLayers);
+
 export const activeCropFarmGroups = resolvedCropFarmGroups.value;
 export const cropFarmGroups = [...new Map(
   [
@@ -610,31 +603,5 @@ export const calculateCropFarmGroupRates = (
         * cyclesPerMonth
       : 0,
     outputsPerMonth,
-  };
-};
-
-/**
- * Fully watered rates at constant 100% fertility, before rotation penalties,
- * rainwater, fertilizer control, or global farm modifiers are simulated.
- */
-export const getNominalCropRates = (
-  tierId: CropFarmTierId,
-  cropId: CropId,
-): NominalCropRates => {
-  const tier = cropFarmTiers[tierId];
-  const crop = crops[cropId];
-  const fertilityMultiplier = crop.fertilityPercentPerDay < 0
-    ? tier.yieldMultiplier
-    : tier.demandMultiplier;
-  const quantityPerHarvest = crop.quantityPerHarvest * tier.yieldMultiplier;
-  const waterPerDay = crop.waterPerDay * tier.demandMultiplier;
-  const fertilityPercentPerDay = crop.fertilityPercentPerDay * fertilityMultiplier;
-
-  return {
-    quantityPerHarvest,
-    quantityPerMonth: quantityPerHarvest / crop.growthMonths,
-    waterPerDay,
-    waterPerMonth: waterPerDay * cropFarmSimulation.daysPerMonth,
-    fertilityPercentPerDay,
   };
 };

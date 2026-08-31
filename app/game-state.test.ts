@@ -22,15 +22,7 @@ const snapshot = {
     maintenanceStatue: { built: 3, running: 3 },
   },
   vehicles: {
-    total: 39,
     workersAssigned: 34,
-    trucks: 25,
-    excavators: 10,
-    treeHarvesters: 3,
-    treePlanters: 1,
-    quotaUsed: 39,
-    quotaLimit: 45,
-    quotaRemaining: 6,
   },
   history: {
     windowMonths: 120,
@@ -62,50 +54,9 @@ const snapshot = {
   },
 }
 
-const trainTraffic = {
-  totalTrains: 25,
-  activeTrains: 25,
-  waitingForTrack: 5,
-  stuckTrains: 4,
-  criticalThreshold: 3,
-  severity: 'critical',
-  sustainedWaitCycles: 1,
-  trains: [
-    {
-      id: 63,
-      name: 'Train #63',
-      state: 'WaitingForFreeTrack',
-      blockedForCycles: 2.5,
-      blockingTrainId: 65,
-    },
-    {
-      id: 64,
-      name: 'Train #64',
-      state: 'WaitingForSuperBlock',
-      blockedForCycles: 2,
-      blockingTrainId: null,
-    },
-    {
-      id: 65,
-      name: 'Train #65',
-      state: 'WaitingForBidirectionalSuperBlock',
-      blockedForCycles: 1.5,
-      blockingTrainId: 67,
-    },
-    {
-      id: 67,
-      name: 'Train #67',
-      state: 'WaitingForFreeTrack',
-      blockedForCycles: 1,
-      blockingTrainId: 63,
-    },
-  ],
-}
-
 const schema8Snapshot = {
   ...snapshot,
   schemaVersion: 8,
-  trainTraffic,
 }
 
 const research = { ...defaultInfiniteResearchLevels }
@@ -179,7 +130,6 @@ const schema15Snapshot = {
   spaceStation: {
     currentLevel: 0,
     highestLevelAchieved: 4,
-    constructionPending: true,
   },
 }
 
@@ -544,14 +494,17 @@ const schema31Snapshot = {
   ],
   mineTowers: [{ entityId: 1001, assignedOreSorterEntityIds: [902] }],
 }
+const schema32Snapshot = {
+  ...schema31Snapshot,
+  schemaVersion: 32,
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
     expect(isGameStateSnapshot(snapshot)).toBe(true)
-    expect(normalizeGameStateSnapshot(snapshot)?.trainTraffic).toBeNull()
   })
 
-  it('accepts sustained train traffic and derives a critical fleet threshold', () => {
+  it('normalizes additive fields across supported schema versions', () => {
     expect(isGameStateSnapshot(schema8Snapshot)).toBe(true)
     expect(normalizeGameStateSnapshot(schema8Snapshot)).toMatchObject({
       research: null,
@@ -575,7 +528,6 @@ describe('game-state snapshot validation', () => {
       },
     })
     expect(isGameStateSnapshot(schema12Snapshot)).toBe(true)
-    expect(normalizeGameStateSnapshot(schema12Snapshot)?.trainTraffic).toEqual(trainTraffic)
     expect(normalizeGameStateSnapshot(schema12Snapshot)).toMatchObject({
       research,
       edicts,
@@ -608,7 +560,6 @@ describe('game-state snapshot validation', () => {
       spaceStation: {
         currentLevel: 0,
         highestLevelAchieved: 4,
-        constructionPending: true,
       },
     })
     expect(normalizeGameStateSnapshot(schema16Snapshot)).toMatchObject({
@@ -719,6 +670,10 @@ describe('game-state snapshot validation', () => {
         expect.objectContaining({ entityId: 902, oreSorter }),
       ]),
       mineTowers: [{ entityId: 1001, assignedOreSorterEntityIds: [902] }],
+    })
+    expect(normalizeGameStateSnapshot(schema32Snapshot)).toMatchObject({
+      schemaVersion: 32,
+      vehicles: { workersAssigned: 34 },
     })
   })
 
@@ -1176,27 +1131,6 @@ describe('game-state snapshot validation', () => {
     ).toBeNull()
   })
 
-  it('rejects inconsistent train traffic severity and durations', () => {
-    expect(
-      isGameStateSnapshot({
-        ...schema12Snapshot,
-        trainTraffic: { ...trainTraffic, severity: 'warning' },
-      }),
-    ).toBe(false)
-    expect(
-      isGameStateSnapshot({
-        ...schema12Snapshot,
-        trainTraffic: {
-          ...trainTraffic,
-          trains: [
-            { ...trainTraffic.trains[0], blockedForCycles: 0.5 },
-            ...trainTraffic.trains.slice(1),
-          ],
-        },
-      }),
-    ).toBe(false)
-  })
-
   it('normalizes schema 6 and fills unavailable additive building counts with zero', () => {
     const buildings = Object.fromEntries(
       Object.entries(snapshot.buildings).filter(
@@ -1225,35 +1159,17 @@ describe('game-state snapshot validation', () => {
     })
   })
 
-  it('rejects impossible quota arithmetic', () => {
+  it('rejects a negative or fractional assigned-worker count', () => {
     expect(
       isGameStateSnapshot({
         ...snapshot,
-        vehicles: { ...snapshot.vehicles, quotaRemaining: 7 },
-      }),
-    ).toBe(false)
-  })
-
-  it('rejects negative or fractional counts', () => {
-    expect(
-      isGameStateSnapshot({
-        ...snapshot,
-        vehicles: { ...snapshot.vehicles, total: -1 },
+        vehicles: { workersAssigned: -1 },
       }),
     ).toBe(false)
     expect(
       isGameStateSnapshot({
         ...snapshot,
-        vehicles: { ...snapshot.vehicles, trucks: 2.5 },
-      }),
-    ).toBe(false)
-  })
-
-  it('rejects more assigned workers than physical vehicles', () => {
-    expect(
-      isGameStateSnapshot({
-        ...snapshot,
-        vehicles: { ...snapshot.vehicles, workersAssigned: 40 },
+        vehicles: { workersAssigned: 2.5 },
       }),
     ).toBe(false)
   })

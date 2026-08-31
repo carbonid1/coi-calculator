@@ -89,7 +89,6 @@ it("shows synced maintenance demand with its completed-cycle history window", ()
   expect(html).toContain("Synced");
   expect(html).toContain("698.49 / cycle");
   expect(html).toContain("120 cycles · 10 in-game years");
-  expect(html).toContain('data-data-source="synced"');
 });
 
 it("presents planned Recycling Increase with numbers and the shared planned surface", () => {
@@ -156,10 +155,10 @@ it("uses the building-card inactive treatment for level-zero edicts", () => {
 });
 
 it.each([
-  ["default", "modeled", "border-muted-foreground/30"],
-  ["synced", "synced", "border-success/40"],
-  ["planned", "planned", "border-dashed"],
-] as const)("applies the %s source surface", (source, mode, surfaceClass) => {
+  ["default", "border-muted-foreground/30"],
+  ["synced", "border-success/40"],
+  ["planned", "border-dashed"],
+] as const)("applies the %s source surface", (source, surfaceClass) => {
   const html = renderToStaticMarkup(
     <EdictCard
       edict={getEdict("growthBoost")}
@@ -168,6 +167,5 @@ it.each([
     />,
   );
 
-  expect(html).toContain(`data-data-source="${mode}"`);
   expect(html).toContain(surfaceClass);
 });

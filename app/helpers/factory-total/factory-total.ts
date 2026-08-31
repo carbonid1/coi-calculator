@@ -801,7 +801,6 @@ export const calculateFactoryTotal = (
     return {
       ...result,
       requiredImported,
-      uncoveredImported: Math.max(0, requiredImported - result.imported),
     };
   });
 

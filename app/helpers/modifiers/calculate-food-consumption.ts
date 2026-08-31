@@ -1,9 +1,6 @@
 import { getEdict, type EdictLevel } from "../../db/edicts";
 
 export interface FoodConsumptionResult {
-  foodSaverPercent: number;
-  focusPercent: number;
-  plentyOfFoodPercent: number;
   effectivePercent: number;
   multiplier: number;
 }
@@ -28,9 +25,6 @@ export const calculateFoodConsumption = (
     + normalizedFocusPercent;
 
   return {
-    foodSaverPercent,
-    focusPercent: normalizedFocusPercent,
-    plentyOfFoodPercent,
     effectivePercent,
     multiplier: 1 + effectivePercent / 100,
   };

@@ -6,5 +6,3 @@ export const maintenanceStatue = {
   fuelGasPerCycle: 2,
   gameVersion: "0.8.7",
 } as const;
-
-export const defaultMaintenanceStatueCount = 3;

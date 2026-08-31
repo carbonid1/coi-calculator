@@ -44,7 +44,7 @@ type Result = RegularResult | PassiveResult;
 
 const EPSILON = 0.001;
 
-export const getBuildingKey = (result: Result) => (
+const getBuildingKey = (result: Result) => (
   "capacityPoolId" in result && result.capacityPoolId
     ? result.capacityPoolId
     : `${result.moduleId}:${result.recipe.id}`

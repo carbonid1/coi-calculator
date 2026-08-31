@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  clampRocketInfrastructureRunningConfig,
   emptyRocketInfrastructureConfig,
   plannedRocketInfrastructureConfig,
   rocketInfrastructureItems,
@@ -23,13 +22,4 @@ describe('Space Station physical buildings', () => {
     )).toBe(190)
   })
 
-  it('uses only completed, running buildings', () => {
-    expect(clampRocketInfrastructureRunningConfig(
-      { rocketAssemblyDepot: 1, rocketLaunchPad: 2 },
-      { rocketAssemblyDepot: 3, rocketLaunchPad: 1 },
-    )).toEqual({
-      rocketAssemblyDepot: 1,
-      rocketLaunchPad: 1,
-    })
-  })
 })

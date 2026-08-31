@@ -35,16 +35,3 @@ export const normalizeRocketInfrastructureConfig = (
   rocketAssemblyDepot: Math.max(0, Math.trunc(config.rocketAssemblyDepot)),
   rocketLaunchPad: Math.max(0, Math.trunc(config.rocketLaunchPad)),
 })
-
-export const clampRocketInfrastructureRunningConfig = (
-  builtConfig: RocketInfrastructureConfig,
-  runningConfig: RocketInfrastructureConfig,
-): RocketInfrastructureConfig => {
-  const built = normalizeRocketInfrastructureConfig(builtConfig)
-  const running = normalizeRocketInfrastructureConfig(runningConfig)
-
-  return {
-    rocketAssemblyDepot: Math.min(built.rocketAssemblyDepot, running.rocketAssemblyDepot),
-    rocketLaunchPad: Math.min(built.rocketLaunchPad, running.rocketLaunchPad),
-  }
-}

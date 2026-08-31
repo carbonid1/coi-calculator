@@ -5,14 +5,7 @@ import {
 import { cropYieldResearch } from "../../db/research";
 
 export interface CropFarmingModifiers {
-  researchLevel: number;
-  researchYieldBonusPercent: number;
-  researchWaterDemandBonusPercent: number;
-  edictYieldBonusPercent: number;
-  edictWaterDemandBonusPercent: number;
-  focusYieldBonusPercent: number;
   yieldBonusPercent: number;
-  waterDemandBonusPercent: number;
   yieldMultiplier: number;
   waterDemandMultiplier: number;
 }
@@ -38,14 +31,7 @@ export const calculateCropFarmingModifiers = (
     + activeEdict.waterDemandIncreasePercent;
 
   return {
-    researchLevel: normalizedResearchLevel,
-    researchYieldBonusPercent,
-    researchWaterDemandBonusPercent,
-    edictYieldBonusPercent: activeEdict.yieldIncreasePercent,
-    edictWaterDemandBonusPercent: activeEdict.waterDemandIncreasePercent,
-    focusYieldBonusPercent: Math.max(0, focusYieldBonusPercent),
     yieldBonusPercent,
-    waterDemandBonusPercent,
     yieldMultiplier: 1 + yieldBonusPercent / 100,
     waterDemandMultiplier: 1 + waterDemandBonusPercent / 100,
   };

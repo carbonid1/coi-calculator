@@ -24,9 +24,7 @@ import {
   CHICKEN_FARMS_MODULE_ID,
   GREENHOUSES_MODULE_ID,
 } from "./farms";
-import { createFbrPowerPlantModule } from "./fbr-power-plant";
 import { factoryModelModules as modules } from "./modules";
-import { NUCLEAR_MODULE_ID } from "./nuclear";
 import { processSteam } from "./process-steam";
 
 it("updates Rocket II material targets from the active capacity research level", () => {
@@ -721,12 +719,7 @@ it("demand-balances enough Yellowcake for the two-FBR target", () => {
 
 it("keeps Greenhouse Groundwater Pumps local while Default supplies factory reserve", () => {
   const result = calculateFactoryTotal(
-    modules
-      .filter((module) => module.id !== NUCLEAR_MODULE_ID)
-      .concat(createFbrPowerPlantModule({
-        averageGeneratorOutputMw: 30.2,
-        hydrogenFuelDemandPerCycle: 50,
-      })),
+    modules,
     {
       contracts: activeContracts,
       recyclingEfficiencyPercent:

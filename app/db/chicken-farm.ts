@@ -39,7 +39,8 @@ export const defaultChickenFarmSettings: ChickenFarmSettings = {
   slaughtering: true,
 };
 
-export const modeledChickenFarmSettings: ChickenFarmSettings | undefined = undefined;
+const modeledChickenFarmSettings: ChickenFarmSettings | undefined = undefined;
+
 export const plannedChickenFarmSettings: ChickenFarmSettings = {
   ...defaultChickenFarmSettings,
   totalChickenCount: 2_350,

@@ -24,12 +24,11 @@ interface PlanSlot {
   entity: CurrentCropFarmEntity | null;
 }
 
-export interface EffectiveGreenhouseGroup {
+interface EffectiveGreenhouseGroup {
   group: CropFarmGroup;
   built: number;
   active: number;
   source: ValueSource;
-  entityIds: number[];
 }
 
 export interface ResolvedGreenhouseEntityPlan {
@@ -64,7 +63,7 @@ const getFertilizerId = (targetFertilityPercent: number): FertilizerId | null =>
   return "fertilizerII";
 };
 
-export const greenhouseConfigurationKey = (configuration: {
+const greenhouseConfigurationKey = (configuration: {
   tierId: CropFarmTierId;
   schedule: readonly string[];
   fertilityTargetPercent: number;
@@ -238,7 +237,6 @@ export const resolveGreenhouseEntityPlan = (
     built: number,
     active: number,
     source: ValueSource,
-    entityId?: number,
   ) => {
     const key = groupKey(group);
     const existing = effective.get(key);
@@ -247,7 +245,6 @@ export const resolveGreenhouseEntityPlan = (
       existing.built += built;
       existing.active += active;
       existing.source = higherSource(existing.source, source);
-      if (entityId !== undefined) existing.entityIds.push(entityId);
       return;
     }
 
@@ -256,7 +253,6 @@ export const resolveGreenhouseEntityPlan = (
       built,
       active,
       source,
-      entityIds: entityId === undefined ? [] : [entityId],
     });
   };
 
@@ -271,7 +267,6 @@ export const resolveGreenhouseEntityPlan = (
       entity ? 1 : 0,
       1,
       satisfied ? currentSource : "planned",
-      entity?.entityId,
     );
   }
 
@@ -312,7 +307,6 @@ export const resolveGreenhouseEntityPlan = (
       1,
       plannedPause ? 0 : Number(entity.running),
       plannedPause ? "planned" : currentSource,
-      entity.entityId,
     );
   }
 

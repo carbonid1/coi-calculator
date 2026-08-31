@@ -223,31 +223,6 @@ interface FactoryCalculation {
 
 const getFactoryCalculation = createLatestRevisionCache<FactoryCalculation>()
 
-const legacySettingKeys = [
-  'coi-active-contract-ids',
-  'coi-additional-edict-levels',
-  'coi-chicken-farm-settings',
-  'coi-chicken-farm-settings-v3',
-  'coi-clean-panels-level',
-  'coi-computing-config',
-  'coi-contract-modes',
-  'coi-crop-yield-level',
-  'coi-farming-boost-level',
-  'coi-housing-count',
-  'coi-maintenance-output-level',
-  'coi-maintenance-reducer-level',
-  'coi-maintenance-statue-count',
-  'coi-module',
-  'coi-planning-baselines',
-  'coi-planning-baselines-v2',
-  'coi-presets',
-  'coi-recycling-increase-level',
-  'coi-research-module-config',
-  'coi-solar-panel-counts',
-  'coi-solar-power-level',
-  'coi-tree-growth-speed-level',
-] as const
-
 interface Props {
   initialGameState: GameStateResult
 }
@@ -265,9 +240,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     : null
 
   useEffect(() => {
-    legacySettingKeys.forEach(key => window.localStorage.removeItem(key))
-    window.localStorage.removeItem(MACHINE_ZONE_ASSIGNMENTS_KEY)
-
     if (!machineZoneAssignmentsStorageKey) {
       const animationFrame = window.requestAnimationFrame(() => {
         setMachineZoneAssignments({})

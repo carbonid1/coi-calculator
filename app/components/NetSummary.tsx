@@ -209,11 +209,6 @@ export const NetSummary: React.FC<Props> = ({
       valueClassName: "text-destructive",
     },
     {
-      label: "Equilibrium (target)",
-      flows: regularFlows.filter((flow) => Math.abs(flow.net) <= BALANCE_THRESHOLD),
-      valueClassName: "text-muted-foreground",
-    },
-    {
       label: "Surplus",
       flows: regularFlows.filter((flow) => flow.net > BALANCE_THRESHOLD),
       valueClassName: "text-success",
@@ -222,11 +217,6 @@ export const NetSummary: React.FC<Props> = ({
     ...group,
     flows: group.flows.toSorted((a, b) => a.name.localeCompare(b.name)),
   }));
-  // Keep calculating equilibrium flows for diagnostics, but omit the large
-  // group from the current Factory Total presentation.
-  const displayedBalanceGroups = balanceGroups.filter(
-    (group) => group.label !== "Equilibrium (target)",
-  );
   const capacityLimitedDeficits = balanceGroups
     .find((group) => group.label === "Deficit")
     ?.flows.flatMap((flow) => {
@@ -256,7 +246,7 @@ export const NetSummary: React.FC<Props> = ({
     || (computingConsumptionTflops ?? 0) > 0
     || (workers ?? 0) > 0
   );
-  const renderBalanceGroup = (group: (typeof displayedBalanceGroups)[number]) => {
+  const renderBalanceGroup = (group: (typeof balanceGroups)[number]) => {
     if (group.label === "Deficit" && capacityLimitedDeficits.length > 0) {
       return (
         <div className="space-y-4">
@@ -502,7 +492,7 @@ export const NetSummary: React.FC<Props> = ({
                   ⚡ Consumption
                 </span>
                 <span className="font-mono text-red-600 dark:text-red-400">
-                  {showsCapacity ? formatPower(consumptionMw) : `-${formatPower(consumptionMw)}`}
+                  -{formatPower(consumptionMw)}
                 </span>
               </div>
             )}
@@ -574,7 +564,6 @@ export const NetSummary: React.FC<Props> = ({
               >
                 <div
                   className="-mx-2 flex w-[calc(100%+1rem)] items-baseline justify-between rounded bg-highlight-muted px-2 py-0.5 text-sm text-highlight-foreground hover:bg-accent"
-                  data-data-source="planned"
                 >
                   <span>{resourceName}</span>
                   <span className="font-mono font-semibold tabular-nums">
@@ -627,7 +616,6 @@ export const NetSummary: React.FC<Props> = ({
               <Tooltip key={resourceId} label={tooltip} maxWidth={320} className="flex w-full">
                 <div
                   className="-mx-2 flex w-[calc(100%+1rem)] items-baseline justify-between rounded bg-highlight-muted px-2 py-0.5 text-sm text-highlight-foreground hover:bg-accent"
-                  data-data-source="planned"
                 >
                   <span>{resourceName}</span>
                   <span className="font-mono font-semibold tabular-nums">
@@ -662,7 +650,7 @@ export const NetSummary: React.FC<Props> = ({
             </>
           )}
           <div className="grid gap-2 lg:grid-cols-2">
-            {displayedBalanceGroups.map((group) => (
+            {balanceGroups.map((group) => (
               <section key={group.label} className="rounded-lg border border-border p-3">
                 <h4 className="mb-3 text-sm font-semibold text-foreground">
                   {group.label}

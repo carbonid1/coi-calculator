@@ -25,8 +25,9 @@ import {
 import { type Module } from "./modules";
 import { createAtLeastBuildingActions } from "./plan-mismatch";
 
-export const SPACE_STATION_MODULE_ID = "space-station";
-export const SPACE_STATION_PARTS_RECIPE_ID = "assembly-v-station-parts";
+const SPACE_STATION_MODULE_ID = "space-station";
+const SPACE_STATION_PARTS_RECIPE_ID = "assembly-v-station-parts";
+
 export const SPACE_STATION_ZONE_NAME = "Space Station";
 
 const handledAreaPrototypeIds = new Set([
@@ -125,7 +126,7 @@ export const createLegacySpaceStationArea = (
   };
 };
 
-export interface SpaceStationAreaBuildingState {
+interface SpaceStationAreaBuildingState {
   built: number;
   running: number;
   source: CurrentValueSource;

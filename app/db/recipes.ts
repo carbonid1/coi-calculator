@@ -53,8 +53,8 @@ export type OutputModifierId =
   | 'solarPower'
   | 'cropYield'
   | 'treeGrowthSpeed'
-export type BalanceBy = 'input' | 'output'
-export type RecipeAllocation = 'primary' | 'fallback' | 'surplus'
+type BalanceBy = 'input' | 'output'
+type RecipeAllocation = 'primary' | 'fallback' | 'surplus'
 export type SourceKind = 'groundwater' | 'map-mine' | 'virtual-provision' | 'world-mine'
 export type SourceMode = 'demand' | 'module-demand' | 'demand-capped' | 'module-demand-capped'
 
@@ -66,7 +66,7 @@ export const isModuleScopedSourceMode = (mode: SourceMode | undefined) => (
   mode === 'module-demand' || mode === 'module-demand-capped'
 )
 
-export interface SharedCapacity {
+interface SharedCapacity {
   /** Recipes with the same ID share one installed building pool inside a module. */
   id: string
   /** Optional UI label for distinguishing separate pools of the same building type. */
@@ -77,7 +77,7 @@ export interface SharedCapacity {
   priority: number
 }
 
-export interface DisplayGroup {
+interface DisplayGroup {
   /** Independent recipes rendered as operations of one physical entity. */
   id: string
   label: string
@@ -239,7 +239,7 @@ export const createCropFarmRecipe = (group: CropFarmGroup): Recipe => {
   }
 }
 
-export const cropFarmRecipes: Recipe[] = cropFarmGroups.map(createCropFarmRecipe)
+const cropFarmRecipes: Recipe[] = cropFarmGroups.map(createCropFarmRecipe)
 
 export const recipes: Recipe[] = [
   // Sources

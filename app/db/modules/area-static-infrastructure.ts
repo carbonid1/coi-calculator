@@ -68,7 +68,7 @@ export const selectStaticInfrastructureLines = <T extends { recipe: { id: string
   lines: readonly T[],
 ): T[] => lines.filter(line => isStaticInfrastructureRecipeId(line.recipe.id))
 
-export const getStationCardRole = (recipe: {
+const getStationCardRole = (recipe: {
   id: string
   stationRole?: Recipe['stationRole']
 }): StationCardRole | null => {

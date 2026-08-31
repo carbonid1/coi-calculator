@@ -28,7 +28,7 @@ export const defaultComputingConfig: ComputingConfig = {
   waterChillers: 2,
 };
 
-export const modeledComputingConfig: ComputingConfig | undefined = undefined;
+const modeledComputingConfig: ComputingConfig | undefined = undefined;
 
 const computingConfigLayers: LayeredValue<ComputingConfig> = {
   default: defaultComputingConfig,

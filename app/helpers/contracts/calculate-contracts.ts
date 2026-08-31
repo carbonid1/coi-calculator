@@ -11,11 +11,7 @@ export interface ContractResult {
   imported: number;
   requestedImported: number;
   requiredImported: number;
-  uncoveredImported: number;
-  capacityLimitedImported: number;
-  importedPerTrip: number;
   maxImportedPerProductionCycle: number | null;
-  fuelPerTrip: number;
   fuelPerProductionCycle: number;
 }
 
@@ -24,7 +20,7 @@ const scaleQuantityLikeGame = (quantity: number, multiplier: number) => (
   Math.round(quantity * multiplier)
 );
 
-export const calculateContractShipping = (
+const calculateContractShipping = (
   contract: ActiveContract,
   shipsFuelUseMultiplier = 1,
   contractsProfitMultiplier = 1,
@@ -175,9 +171,7 @@ export const applyContracts = (
       imported,
       requestedImported,
       requiredImported,
-      uncoveredImported: Math.max(0, requiredImported - imported),
-      capacityLimitedImported: Math.max(0, requestedImported - imported),
-      ...shipping,
+      maxImportedPerProductionCycle: shipping.maxImportedPerProductionCycle,
       fuelPerProductionCycle,
     });
   }

@@ -3,7 +3,7 @@ import { planningWeather, weatherTypes } from "../../db/weather";
 import { type SyncedGroundwaterAquifer, type SyncedGroundwaterState, type SyncedMachineInventoryItem } from "../../game-state";
 import { getPlanningWeather } from "../weather/generate-planning-weather";
 
-export const GROUNDWATER_PUMP_OUTPUT_PER_CYCLE = 48;
+const GROUNDWATER_PUMP_OUTPUT_PER_CYCLE = 48;
 
 // Installed v0.8.7 GroundWaterManager.CAPACITY_REPLENISH_PER_DAY.
 const CAPACITY_REPLENISH_PER_DAY = 0.00185;

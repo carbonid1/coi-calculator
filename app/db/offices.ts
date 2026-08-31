@@ -52,7 +52,7 @@ export const officeCatalog = [
   },
 ] as const satisfies readonly OfficeTierDefinition[];
 
-export type FocusId =
+type FocusId =
   | "trucksCapacity"
   | "trainsCapacity"
   | "researchEfficiency"
@@ -96,7 +96,7 @@ export const focusCatalog = [
   { id: "worldMinesEfficiency", name: "World Mines & Rigs", effectPerStep: "+2% efficiency per step", percentPerStep: 2, maxStep: 25, basePointsCost: 50, pointsCostIncrement: 40, modeledInCalculator: false, gameVersion: "0.8.7" },
 ] as const satisfies readonly FocusDefinition[];
 
-export interface OfficeTierPlan {
+interface OfficeTierPlan {
   count: number;
   computingBoostStep: OfficeBoostStep;
 }
@@ -107,7 +107,7 @@ export interface OfficePlan {
   focusSteps: Record<FocusId, number>;
 }
 
-export const emptyFocusSteps: Record<FocusId, number> = {
+const emptyFocusSteps: Record<FocusId, number> = {
   trucksCapacity: 0,
   trainsCapacity: 0,
   researchEfficiency: 0,
@@ -132,7 +132,7 @@ export const defaultOfficePlan: OfficePlan = {
   focusSteps: { ...emptyFocusSteps },
 };
 
-export const modeledOfficePlan: OfficePlan = {
+const modeledOfficePlan: OfficePlan = {
   ...defaultOfficePlan,
   officeSuppliesAssemblyVCount: 1,
   offices: {
@@ -152,7 +152,7 @@ export const modeledOfficePlan: OfficePlan = {
  * requested. It remains authoritative over future synced data until changed
  * here explicitly; there is intentionally no automatic plan clearing.
  */
-export const plannedOfficePlan: OfficePlan | undefined = undefined;
+const plannedOfficePlan: OfficePlan | undefined = undefined;
 
 const officePlanLayers: LayeredValue<OfficePlan> = {
   default: defaultOfficePlan,

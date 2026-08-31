@@ -41,7 +41,6 @@ describe("NetSummary capacity diagnostics", () => {
       speedLevel: 1,
       actualInputs: [],
       actualOutputs: [],
-      appliedRecyclingEfficiencyPercent: null,
       recyclableSourceValueProduced: 0,
     };
 

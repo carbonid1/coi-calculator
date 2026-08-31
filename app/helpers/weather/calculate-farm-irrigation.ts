@@ -12,7 +12,6 @@ export interface FarmIrrigationRates {
   grossWaterPerMonth: number;
   /** Water removed from the farm's imported-water buffer after rain. */
   importedWaterPerMonth: number;
-  capturedRainwaterPerMonth: number;
 }
 
 const irrigationCache = new Map<string, FarmIrrigationRates>();
@@ -102,7 +101,6 @@ export const calculateFarmIrrigationRates = (
   let waterCredit = 0;
   let rainPartial = 0;
   let importedWater = 0;
-  let capturedRainwater = 0;
   let scheduleIndex = 0;
   let daysRemaining = getCropForScheduleIndex(group, scheduleIndex).growthMonths
     * cropFarmSimulation.daysPerMonth;
@@ -133,7 +131,6 @@ export const calculateFarmIrrigationRates = (
       );
 
       soilWater += storedRain;
-      capturedRainwater += storedRain;
     }
 
     const waterRawPerDay = getCropWaterRawPerDay(
@@ -201,7 +198,6 @@ export const calculateFarmIrrigationRates = (
   const rates = {
     grossWaterPerMonth,
     importedWaterPerMonth: importedWater / horizonMonths,
-    capturedRainwaterPerMonth: capturedRainwater / horizonMonths,
   };
 
   irrigationCache.set(cacheKey, rates);

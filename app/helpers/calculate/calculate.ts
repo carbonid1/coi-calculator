@@ -80,7 +80,6 @@ export interface RegularResult {
   speedLevel: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
   actualOutputs: { resourceId: ResourceId; quantity: number }[];
-  appliedRecyclingEfficiencyPercent: number | null;
   recyclableSourceValueProduced: number;
 }
 
@@ -442,7 +441,7 @@ const getDrivenSupportingResourceIds = (lines: ProductionLine[]) => {
   return result;
 };
 
-export const getAppliedRecyclingEfficiencyPercent = (recipe: Recipe, globalEfficiencyPercent: number) => {
+const getAppliedRecyclingEfficiencyPercent = (recipe: Recipe, globalEfficiencyPercent: number) => {
   const createsRecyclables = recipe.outputs.some((output) => output.resourceId === "recyclables");
 
   if (!createsRecyclables) return null;
@@ -1687,10 +1686,6 @@ export const calculateNet = (
 
       return { resourceId: output.resourceId, quantity };
     }),
-    appliedRecyclingEfficiencyPercent: getAppliedRecyclingEfficiencyPercent(
-      line.recipe,
-      recyclingEfficiencyPercent,
-    ),
     recyclableSourceValueProduced: [
       ...(createdRecyclableSources.get(line)?.values() ?? []),
     ].reduce((total, quantity) => total + quantity, 0),

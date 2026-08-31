@@ -6,7 +6,7 @@ import {
 
 export const POPULATION_ZONE_NAME = "Population";
 
-export interface SyncedPopulationBuildingCount {
+interface SyncedPopulationBuildingCount {
   built: number;
   running: number;
 }

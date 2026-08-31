@@ -1,17 +1,17 @@
 import { resolveDirectionalPlan } from "../helpers/resolve-layered-value/resolve-directional-plan";
 import { resolveCurrentLayeredValue, type ResolvedValue } from "../helpers/resolve-layered-value/resolve-layered-value";
 
-export const edictLevelOrder = [0, 1, 2, 3, 4, 5] as const;
-export const cleanPanelsLevelOrder = [0, 1, 2, 3] as const;
-export const farmingBoostLevelOrder = [0, 1, 2, 3] as const;
-export const maintenanceReducerLevelOrder = [0, 1, 2, 3] as const;
+const edictLevelOrder = [0, 1, 2, 3, 4, 5] as const;
+const cleanPanelsLevelOrder = [0, 1, 2, 3] as const;
+const farmingBoostLevelOrder = [0, 1, 2, 3] as const;
+const maintenanceReducerLevelOrder = [0, 1, 2, 3] as const;
 
 export type EdictLevel = typeof edictLevelOrder[number];
 export type CleanPanelsLevel = typeof cleanPanelsLevelOrder[number];
 export type FarmingBoostLevel = typeof farmingBoostLevelOrder[number];
 export type MaintenanceReducerLevel = typeof maintenanceReducerLevelOrder[number];
 
-export interface EdictLevelDefinition {
+interface EdictLevelDefinition {
   level: EdictLevel;
   label: string;
   effect: string;
@@ -146,7 +146,7 @@ export const defaultEdictLevels: Record<EdictId, EdictLevel> = {
 };
 
 /** Inactive state used until the exporter has supplied save-owned edicts. */
-export const inactiveEdictLevels: Record<EdictId, EdictLevel> = {
+const inactiveEdictLevels: Record<EdictId, EdictLevel> = {
   growthPause: 0,
   growthBoost: 0,
   eviction: 0,

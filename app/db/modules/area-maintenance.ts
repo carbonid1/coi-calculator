@@ -4,19 +4,19 @@ import { recipes } from '../recipes'
 import { type ResourceId } from '../resources'
 import { type Module, type Preset } from './modules'
 
-export interface MaintenanceDemand {
+interface MaintenanceDemand {
   maintenanceI: number
   maintenanceII: number
   maintenanceIII: number
 }
 
-export const emptyMaintenanceDemand = {
+const emptyMaintenanceDemand = {
   maintenanceI: 0,
   maintenanceII: 0,
   maintenanceIII: 0,
 } as const satisfies MaintenanceDemand & Partial<Record<ResourceId, number>>
 
-export const maintenanceResourceIds = [
+const maintenanceResourceIds = [
   'maintenanceI',
   'maintenanceII',
   'maintenanceIII',

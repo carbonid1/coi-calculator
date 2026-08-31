@@ -64,9 +64,6 @@ describe("Factory Total contracts", () => {
       exported: 36,
       imported: 54,
       requiredImported: 54,
-      uncoveredImported: 0,
-      importedPerTrip: 1_600,
-      fuelPerTrip: 289,
       fuelPerProductionCycle: 9.75375,
     });
 
@@ -114,14 +111,9 @@ describe("Factory Total contracts", () => {
       ({ recipe }) => recipe.id === "settling-tank-red-mud-acid",
     );
 
-    expect(contractResult).toMatchObject({
-      importedPerTrip: 1_600,
-      fuelPerTrip: 289,
-    });
     expect(contractResult?.exported).toBe(0);
     expect(contractResult?.imported).toBe(0);
     expect(contractResult?.requiredImported).toBe(0);
-    expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
     expect(contractResult?.fuelPerProductionCycle).toBe(0);
     expect(ironOre?.consumed).toBe(0);
     expect(ironOre?.produced).toBe(0);
@@ -160,14 +152,9 @@ describe("Factory Total contracts", () => {
       ({ recipe }) => recipe.id === "copper-map-mine",
     );
 
-    expect(contractResult).toMatchObject({
-      importedPerTrip: 1_600,
-      fuelPerTrip: 289,
-    });
     expect(contractResult?.exported).toBe(0);
     expect(contractResult?.imported).toBe(0);
     expect(contractResult?.requiredImported).toBe(0);
-    expect(contractResult?.uncoveredImported).toBeLessThan(0.00001);
     expect(contractResult?.fuelPerProductionCycle).toBe(0);
     expect(copperOre?.consumed).toBeCloseTo(0, 5);
     expect(copperOre?.produced).toBeCloseTo(0, 5);
@@ -195,7 +182,6 @@ describe("Factory Total contracts", () => {
     );
 
     expect(ammoniaContract?.imported).toBeGreaterThan(0);
-    expect(ammoniaContract?.uncoveredImported).toBeCloseTo(0, 10);
     expect(localAmmonia).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
     expect(localNitrogen).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
   });
@@ -247,7 +233,6 @@ describe("Factory Total contracts", () => {
     expect(result.contractResults.at(0)).toMatchObject({
       imported: 36,
       requiredImported: 54,
-      uncoveredImported: 18,
     });
     expect(uranium).toMatchObject({ consumed: 54, produced: 36, net: -18 });
   });
@@ -282,8 +267,6 @@ describe("Factory Total contracts", () => {
       imported: 40,
       requestedImported: 54,
       requiredImported: 54,
-      uncoveredImported: 14,
-      capacityLimitedImported: 14,
       maxImportedPerProductionCycle: 40,
     });
     expect(uranium).toMatchObject({ consumed: 54, produced: 40, net: -14 });
@@ -301,7 +284,6 @@ describe("Factory Total contracts", () => {
     );
 
     expect(result.contractResults.at(0)).toMatchObject({
-      fuelPerTrip: 274,
       fuelPerProductionCycle: 9.2475,
     });
   });

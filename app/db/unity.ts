@@ -2,11 +2,11 @@ import { type EdictId, type EdictLevel, edictCatalog } from "./edicts";
 import { activeHousingServices, type HousingType } from "./housing";
 import { settlementFoods } from "./settlement";
 
-export const baseUnityStorage = 20;
+const baseUnityStorage = 20;
 /** Planning assumption: settlement quality is kept perfect. */
-export const settlementQualityUnityPerCycle = 1;
+const settlementQualityUnityPerCycle = 1;
 /** Conservative planning baseline; positive health is variable and can generate more. */
-export const healthUnityPerCycleBaseline = 1;
+const healthUnityPerCycleBaseline = 1;
 
 interface UnityServiceDefinition {
   id: "food" | "electricity" | "water" | "householdGoods" | "householdAppliances" | "luxuryGoods" | "consumerElectronics" | "computing" | "medicalI" | "medicalII" | "medicalIII";
@@ -15,7 +15,7 @@ interface UnityServiceDefinition {
   active: boolean;
 }
 
-export const unityServiceDefinitions: readonly UnityServiceDefinition[] = [
+const unityServiceDefinitions: readonly UnityServiceDefinition[] = [
   { id: "food", name: "Food", baseUnityPerCycle: 1, active: true },
   { id: "electricity", name: "Electricity", baseUnityPerCycle: 1.2, active: true },
   { id: "water", name: "Water", baseUnityPerCycle: 1, active: true },
@@ -28,8 +28,6 @@ export const unityServiceDefinitions: readonly UnityServiceDefinition[] = [
   { id: "medicalIII", name: "Hospitals", baseUnityPerCycle: 1, active: false },
   { id: "computing", name: "Computing", baseUnityPerCycle: 1, active: true },
 ] as const;
-
-export type UnityServiceId = UnityServiceDefinition["id"];
 
 export interface UnityBreakdownItem {
   id: string;

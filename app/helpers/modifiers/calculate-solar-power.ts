@@ -3,13 +3,7 @@ import { solarPowerResearch } from "../../db/research";
 import { planningWeather } from "../../db/weather";
 
 export interface SolarPowerResult {
-  researchLevel: number;
-  researchBonusPercent: number;
-  edictBonusPercent: number;
   bonusPercent: number;
-  peakMultiplier: number;
-  weatherPercent: number;
-  weatherMultiplier: number;
   multiplier: number;
 }
 
@@ -29,13 +23,7 @@ export const calculateSolarPower = (
   const weatherMultiplier = weatherPercent / 100;
 
   return {
-    researchLevel: normalizedResearchLevel,
-    researchBonusPercent,
-    edictBonusPercent,
     bonusPercent,
-    peakMultiplier,
-    weatherPercent,
-    weatherMultiplier,
     multiplier: peakMultiplier * weatherMultiplier,
   };
 };

@@ -33,7 +33,7 @@ import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power"
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-mine-output";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
-import { getDataSourceMode, getDataSourceSurfaceClassName } from "./DataSourceState";
+import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {
   computingCapacityTflops: number;
@@ -146,7 +146,6 @@ export const MaintenanceDemandOverview = ({
       Maintenance demand
     </h3>
     <Card.Root
-      data-data-source="synced"
       className={getDataSourceSurfaceClassName("synced")}
     >
       <Card.Content className="space-y-4">
@@ -201,7 +200,6 @@ export const EdictCard = ({
 
   return (
     <Card.Root
-      data-data-source={getDataSourceMode(source)}
       className={cn(
         value === 0 && "[&>*]:opacity-40 shadow-none",
         getDataSourceSurfaceClassName(source, { inactive: value === 0 }),

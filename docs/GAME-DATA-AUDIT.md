@@ -415,10 +415,8 @@ Default uses the exporter's aggregate `workersAssigned` vehicle count, with one
 worker per active vehicle. Without synced data the count
 is zero. This is the sum of the game's own
 `EntityWithWorkersExtensions.WorkersAssigned(vehicle)` calculation, so paused
-vehicles remain in the physical/quota total without draining population. The
-snapshot also provides the UI-only breakdown for trucks, excavators, tree
-harvesters, and tree planters, plus used/maximum/free vehicle quota. The game
-snapshot is not used to infer movement-dependent fuel.
+vehicles do not drain population. The game snapshot is not used to infer
+movement-dependent fuel.
 
 Exporter schema v7 also scans `IEntitiesManager.Entities` for both ore sorting
 plants, Electric locomotive II, all four electrified station modules, Stacker
@@ -434,18 +432,15 @@ The exporter is read-only, opens no network service, and writes only
 `coi-calculator-state.json` inside its local mod directory. Its manifest allows
 it to be added to and removed from an existing save.
 
-The calculator normalizes both exporter schemas v6 and v7. A v6 snapshot keeps
-all available synced values and supplies zero only for the v7-only Molten station
-field. The browser persists the last valid normalized snapshot. Sync-owned values
+The calculator normalizes exporter schemas v6 through v32. Older snapshots keep
+their available synced values and normalize fields introduced by later schemas.
+The browser persists the last valid normalized snapshot. Sync-owned values
 therefore resolve in this order: compatible live snapshot, last valid snapshot,
 then zero; baked gameplay counts are never substituted.
 
-Verified against installed v0.8.7 `Costs.Vehicles`, `TrucksData`, and
-`ExcavatorsData`, `TreeHarvestersData`, and `TreePlanetersData`. All five
-represented vehicle categories consume one worker per active vehicle. The live
-snapshot API is verified against installed v0.8.7 `IVehiclesManager` and its
-`AllVehicles`, category, and vehicle-limit getters, plus `IEntitiesManager`,
-`IEntity.Prototype.Id`, and `IEntity.IsPaused` for infrastructure.
+Verified against installed v0.8.7 `EntityWithWorkersExtensions.WorkersAssigned`,
+`IVehiclesManager.AllVehicles`, `IEntitiesManager`, `IEntity.Prototype.Id`, and
+`IEntity.IsPaused`.
 
 ## Aluminum recipes
 

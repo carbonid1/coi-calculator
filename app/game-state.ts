@@ -28,18 +28,12 @@ export const syncedInfrastructureBuildingIds = [
   'maintenanceStatue',
 ] as const
 
-export type SyncedInfrastructureBuildingId = (typeof syncedInfrastructureBuildingIds)[number]
-
 export const syncedRocketBuildingIds = [
   'rocketAssemblyDepot',
   'rocketLaunchPad',
 ] as const
 
-export type SyncedRocketBuildingId = (typeof syncedRocketBuildingIds)[number]
-
-export const syncedSolarBuildingIds = ['solarPanel', 'solarPanelMono'] as const
-
-export type SyncedSolarBuildingId = (typeof syncedSolarBuildingIds)[number]
+const syncedSolarBuildingIds = ['solarPanel', 'solarPanelMono'] as const
 
 export const syncedBuildingIds = [
   ...syncedInfrastructureBuildingIds,
@@ -54,10 +48,9 @@ export interface SyncedBuildingCount {
   running: number
 }
 
-export interface SyncedSpaceStationState {
+interface SyncedSpaceStationState {
   currentLevel: number
   highestLevelAchieved: number
-  constructionPending: boolean
 }
 
 export interface SyncedComputingState {
@@ -66,7 +59,7 @@ export interface SyncedComputingState {
   waterChillers: SyncedBuildingCount
 }
 
-export interface SyncedChickenFarmConfiguration {
+interface SyncedChickenFarmConfiguration {
   slaughtering: boolean
   built: number
   running: number
@@ -79,7 +72,7 @@ export interface SyncedChickenFarmState {
   entities: SyncedChickenFarmEntity[]
 }
 
-export interface SyncedChickenFarmEntity {
+interface SyncedChickenFarmEntity {
   entityId: number
   prototypeId: 'ChickenFarm'
   running: boolean
@@ -88,7 +81,7 @@ export interface SyncedChickenFarmEntity {
   zones: SyncedLogisticsZoneRef[]
 }
 
-export interface SyncedCropFarmConfiguration {
+interface SyncedCropFarmConfiguration {
   prototypeId: 'FarmT3' | 'FarmT4'
   built: number
   running: number
@@ -96,7 +89,7 @@ export interface SyncedCropFarmConfiguration {
   schedule: (string | null)[]
 }
 
-export interface SyncedCropFarmEntity {
+interface SyncedCropFarmEntity {
   entityId: number
   prototypeId: 'FarmT3' | 'FarmT4'
   running: boolean
@@ -140,12 +133,12 @@ export interface SyncedGroundwaterState {
   replenishWhenLowPercent: number
 }
 
-export interface SyncedNuclearReactorConfiguration {
+interface SyncedNuclearReactorConfiguration {
   enrichmentStep: number
   targetPowerPercent: number
 }
 
-export interface SyncedProductRef {
+interface SyncedProductRef {
   productId: string
   name: string
 }
@@ -155,12 +148,12 @@ export interface SyncedTrainStationConfiguration {
   selectedProduct: SyncedProductRef | null
 }
 
-export interface SyncedOreSorterProduct extends SyncedProductRef {
+interface SyncedOreSorterProduct extends SyncedProductRef {
   /** Whether the game's terrain-conversion loss applies to this material. */
   canBeWasted: boolean
 }
 
-export interface SyncedOreSorterConfiguration {
+interface SyncedOreSorterConfiguration {
   /** Effective focus-adjusted mixed input capacity per 60-second production cycle. */
   throughputPerCycle: number
   conversionLossPercent: number
@@ -190,7 +183,7 @@ export interface SyncedProductionEntity {
   trainStation?: SyncedTrainStationConfiguration | null
 }
 
-export interface SyncedAreaRecipeProduct {
+interface SyncedAreaRecipeProduct {
   productId: string
   name: string
   quantity: number
@@ -205,7 +198,7 @@ export interface SyncedAreaRecipe {
   outputs: SyncedAreaRecipeProduct[]
 }
 
-export type SyncedConstructionState =
+type SyncedConstructionState =
   | 'NotInitialized'
   | 'NotStarted'
   | 'InConstruction'
@@ -255,68 +248,51 @@ export const syncedHydrogenFuelUseIds = [
   'trains',
 ] as const
 
-export type SyncedHydrogenFuelUseId = (typeof syncedHydrogenFuelUseIds)[number]
+type SyncedHydrogenFuelUseId = (typeof syncedHydrogenFuelUseIds)[number]
 
-export interface SyncedGenerationHistory {
+interface SyncedGenerationHistory {
   prototypeId: string
   name: string
   averageMw: number
   sampleMonths: number
 }
 
-export type TrainTrafficSeverity = 'clear' | 'warning' | 'critical'
+type SyncedResearchLevels = Record<InfiniteResearchId, number>
 
-export interface SyncedTrainDelay {
-  id: number
-  name: string
-  state: 'WaitingForFreeTrack' | 'WaitingForSuperBlock' | 'WaitingForBidirectionalSuperBlock'
-  blockedForCycles: number
-  blockingTrainId: number | null
-}
-
-export interface SyncedTrainTraffic {
-  totalTrains: number
-  activeTrains: number
-  waitingForTrack: number
-  stuckTrains: number
-  criticalThreshold: number
-  severity: TrainTrafficSeverity
-  sustainedWaitCycles: 1
-  trains: SyncedTrainDelay[]
-}
-
-export type SyncedResearchLevels = Record<InfiniteResearchId, number>
-
-export interface SyncedEdictState {
+interface SyncedEdictState {
   enabledLevel: EdictLevel
   activeLevel: EdictLevel
   inactiveReason: string | null
 }
 
-export type SyncedEdictStates = Record<EdictId, SyncedEdictState>
+type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
-export type SyncedReserves = ReserveBalances
+type SyncedReserves = ReserveBalances
 
 export const ROCKET_INFRASTRUCTURE_SCHEMA_VERSION = 14 as const
-export const SPACE_STATION_SCHEMA_VERSION = 15 as const
-export const PRODUCTION_CONFIG_SCHEMA_VERSION = 16 as const
+const SPACE_STATION_SCHEMA_VERSION = 15 as const
+const PRODUCTION_CONFIG_SCHEMA_VERSION = 16 as const
+
 export const MACHINE_INVENTORY_SCHEMA_VERSION = 17 as const
 export const MACHINE_ZONE_SCHEMA_VERSION = 18 as const
-export const CROP_FARM_ENTITY_SCHEMA_VERSION = 19 as const
-export const CHICKEN_FARM_ENTITY_SCHEMA_VERSION = 20 as const
-export const SAVE_ID_SCHEMA_VERSION = 21 as const
-export const PRODUCTION_ENTITY_SCHEMA_VERSION = 22 as const
+const CROP_FARM_ENTITY_SCHEMA_VERSION = 19 as const
+const CHICKEN_FARM_ENTITY_SCHEMA_VERSION = 20 as const
+const SAVE_ID_SCHEMA_VERSION = 21 as const
+const PRODUCTION_ENTITY_SCHEMA_VERSION = 22 as const
+
 export const COMPUTING_ENTITY_SCHEMA_VERSION = 23 as const
 export const AREA_INVENTORY_SCHEMA_VERSION = 24 as const
 export const NAMED_AREA_ENTITY_SCHEMA_VERSION = 25 as const
-export const GROUNDWATER_RESERVE_SCHEMA_VERSION = 26 as const
+const GROUNDWATER_RESERVE_SCHEMA_VERSION = 26 as const
+
 export const MAINTENANCE_ENTITY_SCHEMA_VERSION = 27 as const
 export const AREA_GHOST_SCHEMA_VERSION = 28 as const
-export const TRAIN_STATION_PRODUCT_SCHEMA_VERSION = 29 as const
-export const CAPTAIN_OFFICE_SCHEMA_VERSION = 30 as const
+const TRAIN_STATION_PRODUCT_SCHEMA_VERSION = 29 as const
+const CAPTAIN_OFFICE_SCHEMA_VERSION = 30 as const
+
 export const TERRAIN_SORTER_SCHEMA_VERSION = 31 as const
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 31 as const
-export type SupportedGameStateSchemaVersion =
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 32 as const
+type SupportedGameStateSchemaVersion =
   | 6
   | 7
   | 8
@@ -342,6 +318,7 @@ export type SupportedGameStateSchemaVersion =
   | 28
   | 29
   | 30
+  | 31
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -360,17 +337,8 @@ export interface GameStateSnapshot {
   areaEntities: SyncedAreaEntity[]
   mineTowers: SyncedMineTower[]
   vehicles: {
-    total: number
     workersAssigned: number
-    trucks: number
-    excavators: number
-    treeHarvesters: number
-    treePlanters: number
-    quotaUsed: number
-    quotaLimit: number
-    quotaRemaining: number
   }
-  trainTraffic: SyncedTrainTraffic | null
   research: SyncedResearchLevels | null
   edicts: SyncedEdictStates | null
   reserves: SyncedReserves | null
@@ -414,8 +382,7 @@ const isSpaceStationState = (value: unknown): value is SyncedSpaceStationState =
   isUnknownRecord(value) &&
   isNonNegativeInteger(value.currentLevel) &&
   isNonNegativeInteger(value.highestLevelAchieved) &&
-  value.currentLevel <= value.highestLevelAchieved &&
-  typeof value.constructionPending === 'boolean'
+  value.currentLevel <= value.highestLevelAchieved
 
 const isComputingState = (value: unknown): value is SyncedComputingState =>
   isUnknownRecord(value) &&
@@ -1036,59 +1003,6 @@ const isGenerationHistory = (
   value.sampleMonths <= windowMonths &&
   (value.sampleMonths > 0 || value.averageMw === 0)
 
-const trainWaitStates = new Set([
-  'WaitingForFreeTrack',
-  'WaitingForSuperBlock',
-  'WaitingForBidirectionalSuperBlock',
-])
-
-const isTrainTraffic = (value: unknown): value is SyncedTrainTraffic => {
-  if (
-    !isUnknownRecord(value) ||
-    !isNonNegativeInteger(value.totalTrains) ||
-    !isNonNegativeInteger(value.activeTrains) ||
-    value.activeTrains > value.totalTrains ||
-    !isNonNegativeInteger(value.waitingForTrack) ||
-    value.waitingForTrack > value.activeTrains ||
-    !isNonNegativeInteger(value.stuckTrains) ||
-    value.stuckTrains > value.waitingForTrack ||
-    value.sustainedWaitCycles !== 1 ||
-    !Array.isArray(value.trains)
-  ) {
-    return false
-  }
-
-  const expectedThreshold = Math.max(3, Math.ceil(value.activeTrains * 0.1))
-  let expectedSeverity: TrainTrafficSeverity = 'clear'
-
-  if (value.stuckTrains >= expectedThreshold) {
-    expectedSeverity = 'critical'
-  } else if (value.stuckTrains > 0) {
-    expectedSeverity = 'warning'
-  }
-
-  const validTrains = value.trains.filter(
-    (train): train is SyncedTrainDelay =>
-      isUnknownRecord(train) &&
-      isNonNegativeInteger(train.id) &&
-      typeof train.name === 'string' &&
-      train.name.length > 0 &&
-      typeof train.state === 'string' &&
-      trainWaitStates.has(train.state) &&
-      isNonNegativeFiniteNumber(train.blockedForCycles) &&
-      train.blockedForCycles >= 1 &&
-      (train.blockingTrainId === null || isNonNegativeInteger(train.blockingTrainId)),
-  )
-
-  return (
-    value.criticalThreshold === expectedThreshold &&
-    value.severity === expectedSeverity &&
-    validTrains.length === Math.min(value.stuckTrains, 8) &&
-    validTrains.length === value.trains.length &&
-    new Set(validTrains.map(train => train.id)).size === validTrains.length
-  )
-}
-
 const normalizeResearchLevels = (value: unknown): SyncedResearchLevels | null => {
   if (!isUnknownRecord(value)) return null
 
@@ -1204,6 +1118,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 28 &&
     schemaVersion !== 29 &&
     schemaVersion !== 30 &&
+    schemaVersion !== TERRAIN_SORTER_SCHEMA_VERSION &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null
@@ -1229,16 +1144,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const areaEntities = normalizeAreaEntities(snapshot.areaEntities, schemaVersion)
   const mineTowers = normalizeMineTowers(snapshot.mineTowers, schemaVersion)
   const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
-  const total = vehicles?.total
-  const trucks = vehicles?.trucks
   const workersAssigned = vehicles?.workersAssigned
-  const excavators = vehicles?.excavators
-  const treeHarvesters = vehicles?.treeHarvesters
-  const treePlanters = vehicles?.treePlanters
-  const quotaUsed = vehicles?.quotaUsed
-  const quotaLimit = vehicles?.quotaLimit
-  const quotaRemaining = vehicles?.quotaRemaining
-  const trainTraffic = isTrainTraffic(snapshot.trainTraffic) ? snapshot.trainTraffic : null
   const research = normalizeResearchLevels(snapshot.research)
   const edicts = normalizeEdictStates(snapshot.edicts)
   const reserves = normalizeReserves(snapshot.reserves, schemaVersion)
@@ -1260,19 +1166,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     (schemaVersion >= AREA_GHOST_SCHEMA_VERSION && !areaEntities) ||
     (schemaVersion >= TERRAIN_SORTER_SCHEMA_VERSION && !mineTowers) ||
     !vehicles ||
-    !isNonNegativeInteger(total) ||
     !isNonNegativeInteger(workersAssigned) ||
-    workersAssigned > total ||
-    !isNonNegativeInteger(trucks) ||
-    !isNonNegativeInteger(excavators) ||
-    !isNonNegativeInteger(treeHarvesters) ||
-    !isNonNegativeInteger(treePlanters) ||
-    trucks + excavators + treeHarvesters + treePlanters > total ||
-    !isNonNegativeInteger(quotaUsed) ||
-    !isNonNegativeInteger(quotaLimit) ||
-    !isNonNegativeInteger(quotaRemaining) ||
-    quotaUsed + quotaRemaining !== quotaLimit ||
-    (schemaVersion >= 8 && !trainTraffic) ||
     (schemaVersion >= 9 && (!research || !edicts)) ||
     (schemaVersion >= 10 && !reserves) ||
     !history ||
@@ -1383,17 +1277,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     areaEntities: areaEntities ?? [],
     mineTowers: mineTowers ?? [],
     vehicles: {
-      total,
       workersAssigned,
-      trucks,
-      excavators,
-      treeHarvesters,
-      treePlanters,
-      quotaUsed,
-      quotaLimit,
-      quotaRemaining,
     },
-    trainTraffic,
     research: schemaVersion >= 9 ? research : null,
     edicts: schemaVersion >= 9 ? edicts : null,
     reserves: schemaVersion >= 10 ? reserves : null,

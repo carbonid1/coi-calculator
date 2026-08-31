@@ -18,7 +18,7 @@ export type InfiniteResearchId =
   | "worldMineOutput"
   | "solarPower";
 
-export type InfiniteResearchCostCurve = "easy" | "medium" | "hard" | "extreme";
+type InfiniteResearchCostCurve = "easy" | "medium" | "hard" | "extreme";
 
 export interface InfiniteResearchDefinition {
   id: InfiniteResearchId;
@@ -52,7 +52,7 @@ export const vehiclesPollutionResearch = {
   gameVersion: GAME_VERSION,
 } as const satisfies InfiniteResearchDefinition;
 
-export const shipsPollutionResearch = {
+const shipsPollutionResearch = {
   id: "shipsPollution",
   name: "Ships Pollution",
   effectPerLevel: "-4% pollution from ships per level",
@@ -64,7 +64,7 @@ export const shipsPollutionResearch = {
   gameVersion: GAME_VERSION,
 } as const satisfies InfiniteResearchDefinition;
 
-export const trainsPollutionResearch = {
+const trainsPollutionResearch = {
   id: "trainsPollution",
   name: "Trains Pollution",
   effectPerLevel: "-4% pollution from trains per level",
@@ -161,7 +161,7 @@ export const focusPointsResearch = {
   gameVersion: GAME_VERSION,
 } as const satisfies InfiniteResearchDefinition;
 
-export const vehicleLimitResearch = {
+const vehicleLimitResearch = {
   id: "vehicleLimit",
   name: "Vehicle Limit",
   effectPerLevel: "+5 vehicle limit per level",
@@ -173,7 +173,7 @@ export const vehicleLimitResearch = {
   gameVersion: GAME_VERSION,
 } as const satisfies InfiniteResearchDefinition;
 
-export const vehiclesFuelUseResearch = {
+const vehiclesFuelUseResearch = {
   id: "vehiclesFuelUse",
   name: "Vehicles Fuel Use",
   effectPerLevel: "-1% vehicle fuel consumption per level",
@@ -197,7 +197,7 @@ export const shipsFuelUseResearch = {
   gameVersion: GAME_VERSION,
 } as const satisfies InfiniteResearchDefinition;
 
-export const trainsFuelUseResearch = {
+const trainsFuelUseResearch = {
   id: "trainsFuelUse",
   name: "Trains Fuel Use",
   effectPerLevel: "-1% train fuel consumption per level",

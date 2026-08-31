@@ -51,7 +51,7 @@ export interface Preset {
   planMismatches?: PlanMismatch[];
 }
 
-export interface CapacityPoolInventory {
+interface CapacityPoolInventory {
   active: number;
   built: number;
   currentActive?: number;
@@ -101,7 +101,7 @@ export interface PlanMismatchAction {
   label: string;
 }
 
-export interface PlannedFollowUp {
+interface PlannedFollowUp {
   id: string;
   recipeId: string;
   action: "pause";

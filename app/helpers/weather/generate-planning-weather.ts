@@ -251,19 +251,3 @@ export const getPlanningWeather = () => {
   cachedPlanningWeather = periods;
   return cachedPlanningWeather;
 };
-
-export const getPlanningWeatherAverages = () => {
-  const periods = getPlanningWeather();
-  const divisor = periods.length;
-
-  return {
-    sunIntensity: periods.reduce(
-      (total, weather) => total + weatherTypes[weather].sunIntensityPercent,
-      0,
-    ) / divisor,
-    rainIntensity: periods.reduce(
-      (total, weather) => total + weatherTypes[weather].rainIntensityPercent,
-      0,
-    ) / divisor,
-  };
-};

@@ -12,7 +12,7 @@ v0.8.7 game data.
 - 1 breeder at Power I / 3x breeding
 - 1 power reactor at Power IV / 0x breeding
 - 240 MW gross turbine capacity
-- 50 MW planned average Nuclear generation
+- 159 MW planned average Nuclear generation
 - 46.5 Hydrogen Fuel per cycle
 
 ## Reactor and fuel balance
@@ -51,49 +51,48 @@ available net output when they consume power-reactor steam.
 Each train requires two generators: one for the Super-Pressure Turbine's 18 MW
 shaft and one for the combined 12 + 6 MW High- and Low-Pressure shafts.
 
-The initial 50 MW target dispatches two turbine trains at a combined 1.67 / 2
-average load from the Power IV reactor's eight-train bank. Solar output is
-additional.
+The 159 MW target dispatches six turbine trains at a combined 5.3 / 6 average
+load from the Power IV reactor's eight-train bank. Solar output is additional.
 
-Keep six Hydrogen Reformers built, with five active and one paused. The active
-set covers current factory-wide Hydrogen demand while remaining demand-balanced.
+Keep eight Hydrogen Reformers active. The set covers current factory-wide
+Hydrogen demand while remaining demand-balanced.
 
 Hydrogen demand is allocated first. The desalinators then run only as much as
-needed for Water and Brine, preferring four Depleted-Steam units before five
+needed for Water and Brine, preferring four Depleted-Steam units before nine
 Super-Steam units. Low Steam from ordinary factory processing is handled in the
-separate Default module by one Seawater Pump, two Thermal Desalinators, and one
+separate Default module by one Seawater Pump, three Thermal Desalinators, and one
 Large Cooling Tower; that physical network does not share Seawater Pump capacity
 with Nuclear. The four physical nuclear cooling towers have both Super- and
-Depleted-Steam recipes enabled. Three remain active and share their capacity
-between the remaining streams; the fourth is a paused reserve. Any other steam
-beyond the active capacity stays visible as excess in the calculator.
+Depleted-Steam recipes enabled and share their capacity between the remaining
+streams. Any other steam beyond the active capacity stays visible as excess in
+the calculator.
 
 ## Building counts
 
-| Building | Built | Active at 50 MW |
+| Building | Target | Active at 159 MW |
 | --- | ---: | ---: |
 | Fast Breeder Reactor — Power I / 3x | 1 | 1 |
 | Fast Breeder Reactor — Power IV / 0x | 1 | 1 |
 | Nuclear Reprocessing Plant | 1 | 1 |
-| Seawater Pump | 3 | 3 |
+| Seawater Pump | 6 | 6 |
 | Enrichment Plant | 2 | 2 |
 | Chemical Plant II — Yellowcake | 2 | 2 |
-| Each turbine tier | 8 | 2 |
-| Power Generator II | 16 | 4 |
-| Hydrogen Reformer | 6 | 5, with 1 paused |
-| Electrolyzer II - Chlorine | 2 | 1 demand-balanced, 1 paused |
-| Evaporation Pond (Heated) - Brine to Salt | 2 | 1 demand-balanced, 1 paused |
+| Each turbine tier | 8 | 6 demand-balanced |
+| Power Generator II | 16 | 12 demand-balanced |
+| Hydrogen Reformer | 8 | 8 demand-balanced |
+| Electrolyzer II - Chlorine | 2 | 2 demand-balanced |
+| Evaporation Pond (Heated) - Brine to Salt | 2 | 2 demand-balanced |
 | Thermal Desalinator — Depleted | 4 | 4 |
-| Thermal Desalinator — Super | 5 | 5 |
-| Cooling Tower (Large) — shared Super/Depleted recipes | 4 | 3 |
+| Thermal Desalinator — Super | 9 | 9 demand-balanced |
+| Cooling Tower (Large) — shared Super/Depleted recipes | 4 | 4 demand-balanced |
 | Liquid Dump - Water overflow | 1 | 1, demand-balanced |
 | Liquid Dump - Brine overflow | 1 | 1, demand-balanced |
 | Smoke Stack (Large) - Oxygen overflow | 1 | 1, demand-balanced |
 | Radioactive Waste Storage | 1 | 1 |
 | Shredder | 1 | 1 |
 
-Run one Nuclear Heated Evaporation Pond and keep the second paused. Nuclear Brine satisfies ordinary
-factory demand first and its local remainder is dumped. A separate
+Run both Nuclear Heated Evaporation Ponds as demand requires. Nuclear Brine
+satisfies ordinary factory demand first and its local remainder is dumped. A separate
 Default Heated Evaporation Pond converts only non-Nuclear global Brine surplus
 to Salt. Aluminum has no reserved Brine branch in this checkpoint; introduce a
 secondary Salt plan later if Aluminum consumption makes the available Brine

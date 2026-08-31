@@ -32,7 +32,7 @@ interface ModuleRun {
   outgoingDemands: Partial<Record<ResourceId, number>>
 }
 
-export interface LinkedModuleResult extends ModuleResult {
+interface LinkedModuleResult extends ModuleResult {
   lines: ProductionLine[]
 }
 

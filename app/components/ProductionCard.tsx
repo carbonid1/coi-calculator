@@ -2,7 +2,7 @@ import { Card, cn, type CardRootProps } from "@carbonid1/design-system";
 
 import { type OperatingMode } from "../helpers/calculate/calculate";
 import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
-import { getDataSourceMode, getDataSourceSurfaceClassName } from "./DataSourceState";
+import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props extends CardRootProps {
   operatingMode: OperatingMode;
@@ -20,8 +20,6 @@ export const ProductionCard: React.FC<Props> = ({
   ...props
 }) => (
   <Card.Root
-    data-data-source={dataSource ? getDataSourceMode(dataSource) : undefined}
-    data-operating-mode={operatingMode}
     className={cn(
       passive && !dataSource && "shadow-none",
       inactive && "[&>*]:opacity-40 shadow-none",

@@ -5,9 +5,6 @@ import { calculateFoodConsumption } from "./calculate-food-consumption";
 describe("food consumption edicts", () => {
   it("uses 0% as the unmodified baseline", () => {
     expect(calculateFoodConsumption(0, 0)).toEqual({
-      foodSaverPercent: 0,
-      focusPercent: 0,
-      plentyOfFoodPercent: 0,
       effectivePercent: 0,
       multiplier: 1,
     });
@@ -28,7 +25,6 @@ describe("food consumption edicts", () => {
   it("adds the consumption Focus reduction", () => {
     expect(calculateFoodConsumption(0, 0, -10)).toMatchObject({
       effectivePercent: -10,
-      focusPercent: -10,
       multiplier: 0.9,
     });
   });

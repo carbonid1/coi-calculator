@@ -1,6 +1,6 @@
 import { type Module } from "./modules";
 
-export const PROCESS_STEAM_MODULE_ID = "process-steam";
+const PROCESS_STEAM_MODULE_ID = "process-steam";
 
 export const plannedProcessSteamBuildings = {} as const;
 

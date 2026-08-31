@@ -23,10 +23,6 @@ describe("contract plans", () => {
       imported: 54,
       requestedImported: 54,
       requiredImported: 72,
-      uncoveredImported: 18,
-      capacityLimitedImported: 0,
-      importedPerTrip: 1_600,
-      fuelPerTrip: 289,
       fuelPerProductionCycle: 9.75375,
     });
     expect(contractResults.at(0)?.maxImportedPerProductionCycle).toBeCloseTo(
@@ -53,9 +49,6 @@ describe("contract plans", () => {
       exported: 5,
       imported: 70,
       requiredImported: 70,
-      uncoveredImported: 0,
-      importedPerTrip: 1_600,
-      fuelPerTrip: 289,
     });
     expect(iron?.maxImportedPerProductionCycle).toBeCloseTo(
       1_600 / (426 / 60),
@@ -79,9 +72,6 @@ describe("contract plans", () => {
       exported: 10,
       imported: 65,
       requiredImported: 65,
-      uncoveredImported: 0,
-      importedPerTrip: 1_600,
-      fuelPerTrip: 289,
     });
     expect(copper?.maxImportedPerProductionCycle).toBeCloseTo(
       1_600 / (426 / 60),
@@ -114,8 +104,6 @@ describe("contract plans", () => {
     expect(result?.requestedImported).toBe(300);
     expect(result?.maxImportedPerProductionCycle).toBeCloseTo(1_600 / (427 / 60));
     expect(result?.imported).toBeCloseTo(1_600 / (427 / 60));
-    expect(result?.capacityLimitedImported).toBeCloseTo(300 - 1_600 / (427 / 60));
-    expect(result?.uncoveredImported).toBeCloseTo(300 - 1_600 / (427 / 60));
     expect(flows.find((flow) => flow.resourceId === "uraniumOre")?.net)
       .toBeCloseTo(-(300 - 1_600 / (427 / 60)));
   });
@@ -136,9 +124,6 @@ describe("contract plans", () => {
       exported: 20,
       imported: 120,
       requiredImported: 120,
-      uncoveredImported: 0,
-      importedPerTrip: 1_600,
-      fuelPerTrip: 289,
     });
     expect(ammonia?.maxImportedPerProductionCycle).toBeCloseTo(
       1_600 / (427 / 60),
@@ -168,9 +153,6 @@ describe("contract plans", () => {
     expect(quartz).toMatchObject({
       imported: 137.62,
       requiredImported: 137.62,
-      uncoveredImported: 0,
-      importedPerTrip: 1_840,
-      fuelPerTrip: 289,
     });
     expect(quartz?.exported).toBeCloseTo(137.62 * 10 / 23);
     expect(quartz?.maxImportedPerProductionCycle).toBeCloseTo(
@@ -192,7 +174,6 @@ describe("contract plans", () => {
     );
 
     expect(contractResults.at(0)).toMatchObject({
-      fuelPerTrip: 274,
       fuelPerProductionCycle: 9.2475,
     });
     expect(flows.find((flow) => flow.resourceId === "hydrogen")).toBeUndefined();

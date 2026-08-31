@@ -12,8 +12,5 @@ it("applies Rainwater Yield to the finite-buffer farm simulation", () => {
   const improved = calculateFarmIrrigationRates(group!, 1, 1.5);
 
   expect(improved.grossWaterPerMonth).toBe(base.grossWaterPerMonth);
-  expect(improved.capturedRainwaterPerMonth).toBeGreaterThan(
-    base.capturedRainwaterPerMonth,
-  );
   expect(improved.importedWaterPerMonth).toBeLessThan(base.importedWaterPerMonth);
 });

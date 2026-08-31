@@ -194,7 +194,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private ElectricityManager m_electricityManager;
     private FuelStatsCollector m_fuelStatsCollector;
     private MaintenanceManager m_maintenanceManager;
-    private TrainsManager m_trainsManager;
     private ResearchManager m_researchManager;
     private EdictsManager m_edictsManager;
     private OrbitManager m_orbitManager;
@@ -257,7 +256,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_electricityManager = resolver.Resolve<ElectricityManager>();
         m_fuelStatsCollector = resolver.Resolve<FuelStatsCollector>();
         m_maintenanceManager = resolver.Resolve<MaintenanceManager>();
-        m_trainsManager = resolver.Resolve<TrainsManager>();
         m_researchManager = resolver.Resolve<ResearchManager>();
         m_edictsManager = resolver.Resolve<EdictsManager>();
         m_orbitManager = resolver.Resolve<OrbitManager>();
@@ -358,7 +356,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_electricityManager = null;
         m_fuelStatsCollector = null;
         m_maintenanceManager = null;
-        m_trainsManager = null;
         m_researchManager = null;
         m_edictsManager = null;
         m_calendar = null;
@@ -387,7 +384,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             || m_electricityManager == null
             || m_fuelStatsCollector == null
             || m_maintenanceManager == null
-            || m_trainsManager == null
             || m_researchManager == null
             || m_edictsManager == null)
         {
@@ -396,11 +392,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
         try
         {
-            int quotaLimit = m_vehiclesManager.MaxVehiclesLimit;
-            int quotaRemaining = m_vehiclesManager.VehiclesLimitLeft;
-            int quotaUsed = Math.Max(0, quotaLimit - quotaRemaining);
             int workersAssigned = 0;
-            TrainTrafficSnapshot trainTraffic = getTrainTrafficSnapshot();
             int[] researchLevels = getResearchLevels();
             EdictState[] edictStates = getEdictStates();
             int[] reserves = getReserveQuantities();
@@ -413,7 +405,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":31,");
+            json.Append("\"schemaVersion\":32,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -436,9 +428,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             SpaceStation spaceStation = m_orbitManager.SpaceStation.ValueOrNull;
             json.Append("\"spaceStation\":{");
             appendNumber(json, "currentLevel", spaceStation == null ? 0 : spaceStation.CurrentTier, true);
-            appendNumber(json, "highestLevelAchieved", m_orbitManager.HighestStationTierAchieved, true);
-            json.Append("\"constructionPending\":");
-            json.Append(m_orbitManager.IsStationConstructionPending ? "true" : "false");
+            appendNumber(json, "highestLevelAchieved", m_orbitManager.HighestStationTierAchieved, false);
             json.Append("},");
             json.Append("\"computing\":{");
             appendBuildingCount(json, "dataCenters", production.DataCenters, true);
@@ -833,41 +823,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             }
             json.Append("],");
             json.Append("\"vehicles\":{");
-            appendNumber(json, "total", m_vehiclesManager.AllVehicles.Count, true);
-            appendNumber(json, "workersAssigned", workersAssigned, true);
-            appendNumber(json, "trucks", m_vehiclesManager.Trucks.Count, true);
-            appendNumber(json, "excavators", m_vehiclesManager.Excavators.Count, true);
-            appendNumber(json, "treeHarvesters", m_vehiclesManager.TreeHarvesters.Count, true);
-            appendNumber(json, "treePlanters", m_vehiclesManager.TreePlanters.Count, true);
-            appendNumber(json, "quotaUsed", quotaUsed, true);
-            appendNumber(json, "quotaLimit", quotaLimit, true);
-            appendNumber(json, "quotaRemaining", quotaRemaining, false);
+            appendNumber(json, "workersAssigned", workersAssigned, false);
             json.Append("},");
-            json.Append("\"trainTraffic\":{");
-            appendNumber(json, "totalTrains", trainTraffic.TotalTrains, true);
-            appendNumber(json, "activeTrains", trainTraffic.ActiveTrains, true);
-            appendNumber(json, "waitingForTrack", trainTraffic.WaitingForTrack, true);
-            appendNumber(json, "stuckTrains", trainTraffic.StuckTrains, true);
-            appendNumber(json, "criticalThreshold", trainTraffic.CriticalThreshold, true);
-            appendString(json, "severity", trainTraffic.Severity, true);
-            appendNumber(json, "sustainedWaitCycles", 1, true);
-            json.Append("\"trains\":[");
-            for (int i = 0; i < trainTraffic.Trains.Count; i++)
-            {
-                TrainDelay train = trainTraffic.Trains[i];
-                json.Append('{');
-                appendNumber(json, "id", train.Id, true);
-                appendString(json, "name", train.Name, true);
-                appendString(json, "state", train.State, true);
-                appendDecimal(json, "blockedForCycles", train.BlockedForCycles, true);
-                appendNullableNumber(json, "blockingTrainId", train.BlockingTrainId, false);
-                json.Append('}');
-                if (i < trainTraffic.Trains.Count - 1)
-                {
-                    json.Append(',');
-                }
-            }
-            json.Append("]},");
             json.Append("\"research\":{");
             for (int i = 0; i < TrackedResearch.Length; i++)
             {
@@ -1857,86 +1814,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         return result;
     }
 
-    private TrainTrafficSnapshot getTrainTrafficSnapshot()
-    {
-        int totalTrains = 0;
-        int activeTrains = 0;
-        int waitingForTrack = 0;
-        int stuckTrains = 0;
-        List<TrainDelay> delayedTrains = new List<TrainDelay>();
-
-        foreach (Train train in m_trainsManager.Trains)
-        {
-            if (train.IsDestroyed || train.IsDespawning)
-            {
-                continue;
-            }
-
-            totalTrains++;
-            if (!train.IsSpawned || train.IsPaused)
-            {
-                continue;
-            }
-
-            activeTrains++;
-            if (!isWaitingForTrack(train.StateForUi))
-            {
-                continue;
-            }
-
-            waitingForTrack++;
-            int blockedTicks = train.ReservationWaitTime.Ticks;
-            if (blockedTicks < Duration.OneMonth.Ticks)
-            {
-                continue;
-            }
-
-            stuckTrains++;
-            int? blockingTrainId = train.LastBlockingTrainIdOrNone.HasValue
-                ? (int?)train.LastBlockingTrainIdOrNone.Value.Value
-                : null;
-            delayedTrains.Add(new TrainDelay(
-                train.TrainId.Value,
-                String.IsNullOrWhiteSpace(train.Name)
-                    ? "Train #" + train.TrainId.Value.ToString(CultureInfo.InvariantCulture)
-                    : train.Name,
-                train.StateForUi.ToString(),
-                (double)blockedTicks / Duration.OneMonth.Ticks,
-                blockingTrainId));
-        }
-
-        delayedTrains.Sort(delegate(TrainDelay left, TrainDelay right)
-        {
-            int durationComparison = right.BlockedForCycles.CompareTo(left.BlockedForCycles);
-            return durationComparison != 0 ? durationComparison : left.Id.CompareTo(right.Id);
-        });
-        if (delayedTrains.Count > 8)
-        {
-            delayedTrains.RemoveRange(8, delayedTrains.Count - 8);
-        }
-
-        int criticalThreshold = Math.Max(3, (int)Math.Ceiling(activeTrains * 0.1));
-        string severity = stuckTrains >= criticalThreshold
-            ? "critical"
-            : stuckTrains > 0 ? "warning" : "clear";
-
-        return new TrainTrafficSnapshot(
-            totalTrains,
-            activeTrains,
-            waitingForTrack,
-            stuckTrains,
-            criticalThreshold,
-            severity,
-            delayedTrains);
-    }
-
-    private static bool isWaitingForTrack(TrainStateForUi state)
-    {
-        return state == TrainStateForUi.WaitingForFreeTrack
-            || state == TrainStateForUi.WaitingForSuperBlock
-            || state == TrainStateForUi.WaitingForBidirectionalSuperBlock;
-    }
-
     private static HistoryAverage getHistoryAverage(ItemStats stats, double scale)
     {
         Lyst<long> monthly = new Lyst<long>(HistoryWindowMonths);
@@ -2777,55 +2654,4 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
-    private sealed class TrainTrafficSnapshot
-    {
-        public readonly int TotalTrains;
-        public readonly int ActiveTrains;
-        public readonly int WaitingForTrack;
-        public readonly int StuckTrains;
-        public readonly int CriticalThreshold;
-        public readonly string Severity;
-        public readonly List<TrainDelay> Trains;
-
-        public TrainTrafficSnapshot(
-            int totalTrains,
-            int activeTrains,
-            int waitingForTrack,
-            int stuckTrains,
-            int criticalThreshold,
-            string severity,
-            List<TrainDelay> trains)
-        {
-            TotalTrains = totalTrains;
-            ActiveTrains = activeTrains;
-            WaitingForTrack = waitingForTrack;
-            StuckTrains = stuckTrains;
-            CriticalThreshold = criticalThreshold;
-            Severity = severity;
-            Trains = trains;
-        }
-    }
-
-    private sealed class TrainDelay
-    {
-        public readonly int Id;
-        public readonly string Name;
-        public readonly string State;
-        public readonly double BlockedForCycles;
-        public readonly int? BlockingTrainId;
-
-        public TrainDelay(
-            int id,
-            string name,
-            string state,
-            double blockedForCycles,
-            int? blockingTrainId)
-        {
-            Id = id;
-            Name = name;
-            State = state;
-            BlockedForCycles = blockedForCycles;
-            BlockingTrainId = blockingTrainId;
-        }
-    }
 }

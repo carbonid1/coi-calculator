@@ -18,11 +18,11 @@ import { defaultInfiniteResearchLevels } from "../research";
 import { settlementRecipeIds, settlementServiceBuildings } from "../settlement";
 import { type Module, type PlanMismatchAction } from "./modules";
 
-export const MODELED_POPULATION_MODULE_ID = "modeled-population";
+const MODELED_POPULATION_MODULE_ID = "modeled-population";
 
 const modeledHousingCount = 15;
 
-export const plannedHousingCount = 18;
+const plannedHousingCount = 18;
 const plannedWastewaterTreatmentCount = 2;
 const plannedAnaerobicDigesterCount = 3;
 

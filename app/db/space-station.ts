@@ -70,7 +70,7 @@ export const rocketIiGameData = {
 } as const;
 
 /** The station replaces its entire crew every two in-game years. */
-export const SPACE_STATION_CREW_ROTATION_CYCLES = 24;
+const SPACE_STATION_CREW_ROTATION_CYCLES = 24;
 
 /**
  * The current save previously reached orbital research, so even a level-one
@@ -123,27 +123,6 @@ export const calculateSpaceStationLevel = (
     unityPerCycle: normalizedLevel === 0
       ? 0
       : roundRate(0.15 + (normalizedLevel - 1) * 0.05),
-  };
-};
-
-export const calculateSpaceStationConstruction = (
-  config: SpaceStationConfig,
-) => {
-  const currentLevel = normalizeLevel(config.currentLevel);
-  const targetLevel = Math.max(currentLevel, normalizeLevel(config.targetLevel));
-  const byKind: Record<StationPartsKind, number> = { basic: 0, standard: 0 };
-
-  for (let level = currentLevel + 1; level <= targetLevel; level += 1) {
-    const data = calculateSpaceStationLevel(level, config.highestLevelAchieved);
-
-    byKind[data.stationPartsKind] += data.constructionParts;
-  }
-
-  return {
-    byKind,
-    currentLevel,
-    targetLevel,
-    totalParts: byKind.basic + byKind.standard,
   };
 };
 

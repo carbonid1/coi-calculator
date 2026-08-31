@@ -131,7 +131,7 @@ export const staticInfrastructureItems = [
   },
 ] as const
 
-export type StaticInfrastructureId = (typeof staticInfrastructureItems)[number]['id']
+type StaticInfrastructureId = (typeof staticInfrastructureItems)[number]['id']
 export type StaticInfrastructureConfig = Record<StaticInfrastructureId, number>
 
 export const emptyStaticInfrastructureConfig: StaticInfrastructureConfig = {
@@ -173,46 +173,3 @@ export const normalizeStaticInfrastructureConfig = (
   vehicles: Math.max(0, Math.trunc(config.vehicles)),
   maintenanceStatue: Math.max(0, Math.trunc(config.maintenanceStatue)),
 })
-
-export const calculateStaticInfrastructureTotals = (
-  builtConfig: StaticInfrastructureConfig,
-  runningConfig: StaticInfrastructureConfig = builtConfig,
-) => {
-  const running = clampStaticInfrastructureRunningConfig(builtConfig, runningConfig)
-
-  return {
-    workers: staticInfrastructureItems.reduce(
-      (total, item) => total + running[item.id] * item.workers,
-      0,
-    ),
-    fuelGasPerCycle: running.maintenanceStatue * maintenanceStatue.fuelGasPerCycle,
-  }
-}
-
-export const clampStaticInfrastructureRunningConfig = (
-  builtConfig: StaticInfrastructureConfig,
-  runningConfig: StaticInfrastructureConfig,
-): StaticInfrastructureConfig => {
-  const built = normalizeStaticInfrastructureConfig(builtConfig)
-  const running = normalizeStaticInfrastructureConfig(runningConfig)
-  const clamp = (id: StaticInfrastructureId) => Math.min(built[id], running[id])
-
-  return {
-    captainOfficeI: clamp('captainOfficeI'),
-    captainOfficeII: clamp('captainOfficeII'),
-    oreSortingPlant: clamp('oreSortingPlant'),
-    oreSortingPlantLarge: clamp('oreSortingPlantLarge'),
-    electricLocomotiveII: clamp('electricLocomotiveII'),
-    unitStationModuleElectrified: clamp('unitStationModuleElectrified'),
-    fluidStationModuleElectrified: clamp('fluidStationModuleElectrified'),
-    looseStationModuleElectrified: clamp('looseStationModuleElectrified'),
-    moltenStationModuleElectrified: clamp('moltenStationModuleElectrified'),
-    stackerTower: clamp('stackerTower'),
-    trainDepot: clamp('trainDepot'),
-    vehiclesDepot: clamp('vehiclesDepot'),
-    vehiclesDepotII: clamp('vehiclesDepotII'),
-    vehiclesDepotIII: clamp('vehiclesDepotIII'),
-    vehicles: clamp('vehicles'),
-    maintenanceStatue: clamp('maintenanceStatue'),
-  }
-}

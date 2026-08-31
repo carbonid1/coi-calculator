@@ -1,8 +1,8 @@
 import { type SyncedProductionEntity } from "../../game-state";
 
-export const NUCLEAR_ZONE_NAME = "Nuclear";
+const NUCLEAR_ZONE_NAME = "Nuclear";
 
-export interface SyncedRecipeBuildingCount {
+interface SyncedRecipeBuildingCount {
   built: number;
   running: number;
 }

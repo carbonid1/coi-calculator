@@ -13,7 +13,7 @@ import {
   type ValueSource,
 } from "../resolve-layered-value/resolve-layered-value";
 
-export interface EffectiveChickenFarmMode {
+interface EffectiveChickenFarmMode {
   slaughtering: boolean;
   built: number;
   active: number;

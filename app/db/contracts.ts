@@ -5,7 +5,7 @@ interface ContractResource {
   quantity: number;
 }
 
-export type ContractLocationId =
+type ContractLocationId =
   | "settlement-2"
   | "settlement-3"
   | "settlement-4"
@@ -31,7 +31,7 @@ export interface Contract {
   gameVersion: string;
 }
 
-export interface ContractCargoModulePlan {
+interface ContractCargoModulePlan {
   buildingName: "Fluid Module (L)" | "Loose Module (L)" | "Unit Module (L)";
   count: number;
   direction: "export" | "import";
@@ -39,7 +39,7 @@ export interface ContractCargoModulePlan {
   workersPerModule: number;
 }
 
-export interface ActiveContractPlan {
+interface ActiveContractPlan {
   /** Fixed shipment allocation, or null to balance imports against live demand. */
   importedPerProductionCycle: number | null;
   infrastructure: {
@@ -60,7 +60,7 @@ export interface ActiveContract extends Contract {
   plan: ActiveContractPlan;
 }
 
-export const contractsGameVersion = "0.8.7";
+const contractsGameVersion = "0.8.7";
 
 /**
  * Installed v0.8.7 cargo-ship constants. Large onboard cargo modules carry

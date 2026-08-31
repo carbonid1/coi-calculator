@@ -1,5 +1,5 @@
-export type ResourceState = "loose" | "fluid" | "unit";
-export type RecyclableOutputId =
+type ResourceState = "loose" | "fluid" | "unit";
+type RecyclableOutputId =
   | "ironScrap"
   | "copperScrap"
   | "aluminumScrap"

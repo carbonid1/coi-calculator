@@ -7,7 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type BuildingState = "active" | "paused" | "ghost" | "planned";
+type BuildingState = "active" | "paused" | "ghost" | "planned";
 
 const stateDefinitions: Record<
   BuildingState,
@@ -35,7 +35,7 @@ const stateDefinitions: Record<
   },
 };
 
-export const BuildingStateIcon: React.FC<{
+const BuildingStateIcon: React.FC<{
   state: BuildingState;
   className?: string;
 }> = ({ state, className }) => {

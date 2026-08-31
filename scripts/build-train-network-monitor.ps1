@@ -49,7 +49,6 @@ $references = @(
     "Mafi.dll",
     "Mafi.Core.dll",
     "Mafi.Unity.dll",
-    "Mafi.UnityCore.dll",
     "UnityEngine.CoreModule.dll",
     "UnityEngine.InputLegacyModule.dll",
     "UnityEngine.UIElementsModule.dll",

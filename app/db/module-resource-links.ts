@@ -1,7 +1,7 @@
 import { type Module } from './modules/modules'
 import { type ResourceId } from './resources'
 
-export type ModuleResourceLinkMode = 'surplus-only' | 'produce-to-demand'
+type ModuleResourceLinkMode = 'surplus-only' | 'produce-to-demand'
 
 /**
  * User-shaped connection between two module resource ports. Module names are

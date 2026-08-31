@@ -1,14 +1,8 @@
-import {
-  TREE_FULL_GROWTH_CYCLES,
-  treeGrowthSpeedResearch,
-} from "../../db/research";
+import { treeGrowthSpeedResearch } from "../../db/research";
 
 export interface TreeGrowthSpeedResult {
-  level: number;
   bonusPercent: number;
   multiplier: number;
-  growthCycles: number;
-  growthYears: number;
 }
 
 export const calculateTreeGrowthSpeed = (level: number): TreeGrowthSpeedResult => {
@@ -18,13 +12,9 @@ export const calculateTreeGrowthSpeed = (level: number): TreeGrowthSpeedResult =
   );
   const bonusPercent = normalizedLevel * treeGrowthSpeedResearch.percentPerLevel;
   const multiplier = 1 + bonusPercent / 100;
-  const growthCycles = TREE_FULL_GROWTH_CYCLES / multiplier;
 
   return {
-    level: normalizedLevel,
     bonusPercent,
     multiplier,
-    growthCycles,
-    growthYears: growthCycles / 12,
   };
 };

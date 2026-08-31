@@ -1,6 +1,6 @@
 import { type ResourceId } from './resources'
 
-export interface MinimizeSurplusPolicy {
+interface MinimizeSurplusPolicy {
   /** Surplus can be consumed only by recipes installed in the same physical module. */
   scope: 'module'
   /** Fallback priority for any compatible synced recipe. Lower values run first. */
@@ -9,7 +9,7 @@ export interface MinimizeSurplusPolicy {
   consumerPriorities?: Readonly<Record<string, number>>
 }
 
-export interface ResourceDispositionPolicy {
+interface ResourceDispositionPolicy {
   /** Synced live modules may receive this resource only through their own production or an explicit link. */
   liveModuleInput?: 'linked-only'
   minimizeSurplus?: MinimizeSurplusPolicy
@@ -26,7 +26,7 @@ export interface SurplusConsumptionSettings {
  * Recipes remain demand-driven first; these policies use only their remaining
  * installed capacity after ordinary output demand has been satisfied.
  */
-export const resourceDispositionPolicies: Partial<Record<ResourceId, ResourceDispositionPolicy>> = {
+const resourceDispositionPolicies: Partial<Record<ResourceId, ResourceDispositionPolicy>> = {
   moltenIron: {
     minimizeSurplus: {
       scope: 'module',

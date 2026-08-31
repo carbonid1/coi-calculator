@@ -1,6 +1,6 @@
 import { type ResourceId } from './resources'
 
-export interface LiveAreaPlan {
+interface LiveAreaPlan {
   /** Resource ledger used by this named area. Omitted areas remain isolated. */
   resourcePool?: 'factory'
   requestedImports?: Partial<Record<ResourceId, number>>

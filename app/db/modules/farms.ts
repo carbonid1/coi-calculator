@@ -62,12 +62,12 @@ export interface CurrentCropFarmConfiguration {
   running: number;
 }
 
-export const plannedGreenhousePlan: GreenhousePlanOptions = {
+const plannedGreenhousePlan: GreenhousePlanOptions = {
   defaultDirection: "at-least",
   totalDirection: "at-most",
 };
 
-export const plannedChickenFarmDirection: PlanDirection = "at-least";
+const plannedChickenFarmDirection: PlanDirection = "at-least";
 
 const pluralize = (name: string, count: number) => `${name}${count === 1 ? "" : "s"}`;
 const currentLayers = (value: number, source: CurrentValueSource) => {

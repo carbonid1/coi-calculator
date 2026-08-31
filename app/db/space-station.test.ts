@@ -21,7 +21,6 @@ import {
 } from "./modules/space-station";
 import { recipes } from "./recipes";
 import {
-  calculateSpaceStationConstruction,
   calculateSpaceStationLevel,
   calculateRocketIiRecurringLogistics,
   defaultRocketIiRecurringLogistics,
@@ -61,12 +60,6 @@ describe("Space Station", () => {
   it("retains standard Station Parts after this save reached orbital research", () => {
     expect(getStationPartsKind(1, 2)).toBe("basic");
     expect(getStationPartsKind(1, 4)).toBe("standard");
-    expect(calculateSpaceStationConstruction(defaultSpaceStationConfig)).toEqual({
-      byKind: { basic: 0, standard: 440 },
-      currentLevel: 0,
-      targetLevel: 4,
-      totalParts: 440,
-    });
   });
 
   it("calculates the level-four operating point from the v0.8.7 formulas", () => {

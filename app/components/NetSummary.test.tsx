@@ -51,7 +51,6 @@ it("shows requested exports inline using planned colour and a tooltip", () => {
   expect(html).toContain("bg-highlight-muted");
   expect(html).toContain("text-highlight-foreground");
   expect(html).toContain("Planned export target:");
-  expect(html).toContain('data-data-source="planned"');
   expect(html).not.toContain("Requested exports");
 });
 
@@ -75,7 +74,6 @@ it("shows requested imports first using the planned colour", () => {
   expect(html).toContain("Planned import target: 384 Iron Ore Crushed per production cycle.");
   expect(html).toContain("bg-highlight-muted");
   expect(html).toContain("text-highlight-foreground");
-  expect(html).toContain('data-data-source="planned"');
   expect(dividers).toHaveLength(2);
   expect(html.indexOf(">Iron Ore Crushed<")).toBeLessThan(dividers[0] ?? -1);
   expect(dividers[0]).toBeLessThan(html.indexOf(">Acid<"));

@@ -4,7 +4,7 @@ import {
 } from "../../db/edicts";
 import { maintenanceStatue } from "../../db/maintenance-statue";
 
-export const calculateMaintenanceStatueEffect = (count: number) => {
+const calculateMaintenanceStatueEffect = (count: number) => {
   const normalizedCount = Math.max(0, Math.trunc(count));
   const multiplier = maintenanceStatue.additionalEffectMultiplier;
 

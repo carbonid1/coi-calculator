@@ -2,14 +2,12 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.30 exports the loaded save's physical vehicle total, assigned vehicle
-workers, vehicle categories, vehicle quota, and completed/running counts for
-the calculator's tracked entities to `coi-calculator-state.json` in the
-installed mod folder. It also exports up to 120 completed in-game months of
-actual Maintenance I/II/III consumption, Hydrogen fuel use by category, and
-average electricity generation by producer prototype. Train traffic health is
-derived from the game's explicit track-waiting states and reservation wait time.
-Running means completed and not manually paused.
+Version 0.32 exports assigned vehicle workers and completed/running counts for
+the calculator's tracked entities to `coi-calculator-state.json` in the installed
+mod folder. It also exports up to 120 completed in-game months of actual
+Maintenance I/II/III consumption, Hydrogen fuel use by category, and average
+electricity generation by producer prototype. Running means completed and not
+manually paused.
 
 The exporter also supplies completed levels for the calculator's 18 repeatable
 research categories and selected/active levels for its 19 modeled edicts. An
@@ -19,8 +17,7 @@ reason; calculator effects use only the active level.
 Schema 10 and newer export the actual Gold quantity in completed standalone storage;
 schema 13 adds Fuel Gas stored under the same eligibility rules, and schema 14
 adds Rocket Assembly Depot and Rocket Launch Pad completed/running counts.
-Schema 15 adds the current and highest achieved Space Station levels plus active
-station-construction state, read directly from the installed game's orbit manager.
+Schema 15 adds the current and highest achieved Space Station levels.
 Schema 16 adds completed/running Data Centers, installed Basic Server Racks and
 Water Chillers; Chicken Farm mode and population; and Greenhouse/Greenhouse II
 crop schedules with fertility targets. These configuration values are sampled
@@ -108,11 +105,10 @@ Storage connected to a train station and storage with an assigned incoming truck
 route are excluded, so dedicated import buffers are not treated as freely
 available reserves. Older cached snapshots remain valid but report reserves as
 unavailable rather than as a fabricated zero.
+Schema 32 keeps assigned vehicle workers and retires vehicle totals, categories,
+quota, Space Station construction state, and train traffic. Use Train Network
+Monitor for train capacity and jam alerts.
 
-A train counts as stuck after waiting for track clearance for at least one
-production cycle (one in-game month). The calculator shows a warning for any
-sustained wait and a red alert once the count reaches both three trains and 10%
-of the active train fleet. Brief signal waits do not trigger an alert.
 The calculator reads that file locally; the mod does not open a port or modify
 gameplay state. Captain of Industry may still record the enabled mod in save
 metadata; the manifest explicitly allows the mod to be removed again.

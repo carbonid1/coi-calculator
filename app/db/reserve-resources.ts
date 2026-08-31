@@ -25,7 +25,7 @@ export const reserveResourceCatalog = [
   },
 ] as const satisfies readonly ReserveResourceDefinition[];
 
-export type ReserveKey = (typeof reserveResourceCatalog)[number]["key"];
+type ReserveKey = (typeof reserveResourceCatalog)[number]["key"];
 export type ReserveValues<T> = Record<ReserveKey, T>;
 export type ReserveBalances = ReserveValues<number | null>;
 

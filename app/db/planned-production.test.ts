@@ -260,7 +260,6 @@ describe("planned advanced production", () => {
     );
 
     expect(quartzContract?.imported ?? 0).toBeGreaterThan(0);
-    expect(quartzContract?.uncoveredImported).toBeCloseTo(0, 6);
     expect(sandMine?.actualOutputs[0]?.quantity).toBeCloseTo(0, 6);
     expect(quartzCrusher?.actualOutputs.find(
       ({ resourceId }) => resourceId === "quartzCrushed",

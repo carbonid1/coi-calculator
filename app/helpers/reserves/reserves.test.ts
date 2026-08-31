@@ -7,7 +7,6 @@ describe("reserve runway", () => {
     expect(calculateReserveRunway(6_000, 5)).toEqual({
       balance: 6_000,
       drawPerProductionCycle: 5,
-      productionCyclesRemaining: 1_200,
       inGameYearsRemaining: 100,
       status: "draining",
     });
@@ -15,7 +14,6 @@ describe("reserve runway", () => {
 
   it("preserves a fractional production cycle instead of rounding it away", () => {
     expect(calculateReserveRunway(3, 6)).toMatchObject({
-      productionCyclesRemaining: 0.5,
       inGameYearsRemaining: 0.5 / 12,
       status: "draining",
     });

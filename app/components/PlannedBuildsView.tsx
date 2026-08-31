@@ -186,9 +186,6 @@ export const PlannedBuildsView: React.FC<Props> = ({
             {actionableMachineZones.map(zone => {
               const zoneLabel = zone.name?.trim() || `Vehicle zone ${zone.id}`;
               const zoneIdentifier = zone.id < 0 ? "Default zone" : `Zone ${zone.id}`;
-              const assignedClaim = machineZoneClaims.find(
-                claim => claim.id === zone.assignedClaimId,
-              );
 
               return (
                 <div
@@ -213,40 +210,33 @@ export const PlannedBuildsView: React.FC<Props> = ({
                       />
                     </span>
                   </span>
-                  {zone.needsAssignment && (
-                    <span
-                      aria-label={`Assign ${zoneLabel}`}
-                      className="flex shrink-0 flex-wrap gap-1"
-                      role="group"
-                    >
-                      {machineZoneClaims.map(claim => {
-                        const selected = zone.assignedClaimId === claim.id;
+                  <span
+                    aria-label={`Assign ${zoneLabel}`}
+                    className="flex shrink-0 flex-wrap gap-1"
+                    role="group"
+                  >
+                    {machineZoneClaims.map(claim => {
+                      const selected = zone.assignedClaimId === claim.id;
 
-                        return (
-                          <Button
-                            key={claim.id}
-                            type="button"
-                            variant="ghost"
-                            size="small"
-                            selected={selected}
-                            aria-pressed={selected}
-                            className="h-7 px-2"
-                            onClick={() => onAssignMachineZone(
-                              zone.id,
-                              selected ? null : claim.id,
-                            )}
-                          >
-                            {claim.moduleName}
-                          </Button>
-                        );
-                      })}
-                    </span>
-                  )}
-                  {!zone.needsAssignment && assignedClaim && (
-                    <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                      → {assignedClaim.moduleName}
-                    </span>
-                  )}
+                      return (
+                        <Button
+                          key={claim.id}
+                          type="button"
+                          variant="ghost"
+                          size="small"
+                          selected={selected}
+                          aria-pressed={selected}
+                          className="h-7 px-2"
+                          onClick={() => onAssignMachineZone(
+                            zone.id,
+                            selected ? null : claim.id,
+                          )}
+                        >
+                          {claim.moduleName}
+                        </Button>
+                      );
+                    })}
+                  </span>
                 </div>
               );
             })}
