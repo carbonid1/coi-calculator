@@ -107,14 +107,18 @@ it("provides two active Rubber Makers for the Ethanol route", () => {
   });
 });
 
-it("leaves Titanium crushing in its named mine and keeps the remaining chain in Default", () => {
+it("models one Titanium Crusher with the remaining chain in Default", () => {
   const preset = general.presets.find((candidate) => (
     candidate.id === general.defaultPresetId
   ));
   const lines = buildModuleLines(general, preset ?? null).lines;
 
   expect(lines.find((line) => line.recipe.id === "crusher-large-titanium"))
-    .toBeUndefined();
+    .toMatchObject({
+      activeBuildings: 1,
+      builtBuildings: 1,
+      dataSource: "modeled",
+    });
 
   for (const recipeId of [
     "arc-furnace-ii-titanium-ore",

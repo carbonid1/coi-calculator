@@ -88,13 +88,20 @@ describe("Factory Total contracts", () => {
     expect(hydrogen?.net).toBeCloseTo(0);
   });
 
-  it("keeps the Titanium Ore contract ready while current demand is zero", () => {
+  it("uses the Default Titanium Crusher to demand-balance the Titanium Ore contract", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, {
       ...baselineFactoryOptions,
       contracts: activeContracts,
     });
     const contractResult = result.contractResults.find(
       ({ contract }) => contract.id === "titanium-ore-for-construction-parts-iv",
+    );
+    const crusher = result.calculation.regularResults.find(
+      ({ recipe }) => recipe.id === "crusher-large-titanium",
+    );
+    const titaniumOre = result.flows.find(({ resourceId }) => resourceId === "titaniumOre");
+    const crushedTitaniumOre = result.flows.find(
+      ({ resourceId }) => resourceId === "titaniumOreCrushed",
     );
 
     expect(contractResult).toMatchObject({
@@ -104,11 +111,23 @@ describe("Factory Total contracts", () => {
           imported: { resourceId: "titaniumOre", quantity: 380 },
         },
       },
-      exported: 0,
-      imported: 0,
-      requiredImported: 0,
-      fuelPerProductionCycle: 0,
     });
+    expect(contractResult?.imported ?? 0).toBeGreaterThan(0);
+    expect(contractResult?.imported).toBeCloseTo(contractResult?.requestedImported ?? 0);
+    expect(contractResult?.imported).toBeCloseTo(contractResult?.requiredImported ?? 0);
+    expect(contractResult?.maxImportedPerProductionCycle ?? 0)
+      .toBeGreaterThan(contractResult?.imported ?? 0);
+    expect(contractResult?.exported ?? 0).toBeGreaterThan(0);
+    expect(contractResult?.fuelPerProductionCycle ?? 0).toBeGreaterThan(0);
+    expect(crusher).toMatchObject({
+      activeBuildings: 1,
+      builtBuildings: 1,
+      dataSource: "modeled",
+    });
+    expect(crusher?.actualInputs.find(({ resourceId }) => resourceId === "titaniumOre")?.quantity)
+      .toBeCloseTo(contractResult?.imported ?? 0);
+    expect(titaniumOre?.net).toBeCloseTo(0);
+    expect(crushedTitaniumOre?.net).toBeCloseTo(0);
     expect(result.contractResults.some(
       ({ contract }) => contract.id === "iron-ore-for-vehicle-parts-ii",
     )).toBe(false);
