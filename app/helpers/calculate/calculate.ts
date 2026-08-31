@@ -148,9 +148,17 @@ const orderSurplusConsumers = (lines: ProductionLine[]) => orderSharedCapacity(l
     - (b.recipe.surplusConsumptionPriority ?? 0)
   ));
 
-const orderInputPriorities = (lines: ProductionLine[]) => orderSharedCapacity(lines)
-  .toSorted((a, b) => {
-    const aInputIds = new Set(a.recipe.inputs.map((input) => input.resourceId));
+const orderInputPriorities = (lines: ProductionLine[]) => {
+  const sharedCapacityOrderedLines = orderSharedCapacity(lines);
+  const inputIdsByLine = new Map(sharedCapacityOrderedLines.map((line) => [
+    line,
+    new Set(line.recipe.inputs.map((input) => input.resourceId)),
+  ]));
+
+  return sharedCapacityOrderedLines.toSorted((a, b) => {
+    const aInputIds = inputIdsByLine.get(a);
+
+    if (!aInputIds) return 0;
 
     for (const input of b.recipe.inputs) {
       if (!aInputIds.has(input.resourceId)) continue;
@@ -168,6 +176,70 @@ const orderInputPriorities = (lines: ProductionLine[]) => orderSharedCapacity(li
 
     return 0;
   });
+};
+
+const indexLineResources = (
+  lines: readonly ProductionLine[],
+  getResourceIds: (line: ProductionLine) => readonly ResourceId[],
+) => {
+  const indexesByResourceId = new Map<ResourceId, number[]>();
+
+  for (const [index, line] of lines.entries()) {
+    for (const resourceId of new Set(getResourceIds(line))) {
+      const indexes = indexesByResourceId.get(resourceId) ?? [];
+
+      indexes.push(index);
+      indexesByResourceId.set(resourceId, indexes);
+    }
+  }
+
+  return indexesByResourceId;
+};
+
+const getRelatedLineIndexes = (
+  resourceIds: ReadonlySet<ResourceId>,
+  indexesByResourceId: ReadonlyMap<ResourceId, readonly number[]>,
+) => {
+  const indexes = new Set<number>();
+
+  for (const resourceId of resourceIds) {
+    for (const index of indexesByResourceId.get(resourceId) ?? []) indexes.add(index);
+  }
+
+  return [...indexes].toSorted((a, b) => a - b);
+};
+
+interface CachedLineOrder {
+  lines: readonly ProductionLine[];
+  ordered: ProductionLine[];
+}
+
+const demandLineOrderCache = new WeakMap<ProductionLine, CachedLineOrder>();
+const supplyLineOrderCache = new WeakMap<ProductionLine, CachedLineOrder>();
+
+const getCachedLineOrder = (
+  cache: WeakMap<ProductionLine, CachedLineOrder>,
+  lines: readonly ProductionLine[],
+  calculate: () => ProductionLine[],
+) => {
+  const firstLine = lines[0];
+
+  if (!firstLine) return [];
+
+  const cached = cache.get(firstLine);
+
+  if (
+    cached?.lines.length === lines.length
+    && lines.every((line, index) => cached.lines[index] === line)
+  ) {
+    return cached.ordered;
+  }
+
+  const ordered = calculate();
+
+  cache.set(firstLine, { lines: [...lines], ordered });
+  return ordered;
+};
 
 const createCapacityTracker = (lines: ProductionLine[]) => {
   const remainingByPool = new Map<string, number>();
@@ -216,74 +288,84 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
   return { availableRatio, restore, snapshot, use };
 };
 
-const orderDemandBalancedLines = (lines: ProductionLine[]) => {
-  const priorityOrderedLines = orderInputPriorities(lines).toSorted((a, b) => (
-    (a.recipe.demandPriority ?? 0) - (b.recipe.demandPriority ?? 0)
-  ));
-  const ordered: ProductionLine[] = [];
-  const visiting = new Set<ProductionLine>();
-  const visited = new Set<ProductionLine>();
+const orderDemandBalancedLines = (lines: ProductionLine[]) => getCachedLineOrder(
+  demandLineOrderCache,
+  lines,
+  () => {
+    const priorityOrderedLines = orderInputPriorities(lines).toSorted((a, b) => (
+      (a.recipe.demandPriority ?? 0) - (b.recipe.demandPriority ?? 0)
+    ));
+    const ordered: ProductionLine[] = [];
+    const visiting = new Set<ProductionLine>();
+    const visited = new Set<ProductionLine>();
+    const consumerIndexesByInputId = indexLineResources(
+      priorityOrderedLines,
+      (line) => line.recipe.inputs.map((input) => input.resourceId),
+    );
 
-  const visit = (line: ProductionLine) => {
-    if (visited.has(line) || visiting.has(line)) return;
+    const visit = (line: ProductionLine) => {
+      if (visited.has(line) || visiting.has(line)) return;
 
-    visiting.add(line);
-    const outputIds = new Set(line.recipe.outputs.map((output) => output.resourceId));
+      visiting.add(line);
+      const outputIds = new Set(line.recipe.outputs.map((output) => output.resourceId));
 
-    for (const possibleConsumer of priorityOrderedLines) {
-      if (
-        possibleConsumer !== line
-        && possibleConsumer.recipe.inputs.some((input) => outputIds.has(input.resourceId))
-      ) {
-        visit(possibleConsumer);
+      for (const index of getRelatedLineIndexes(outputIds, consumerIndexesByInputId)) {
+        const possibleConsumer = priorityOrderedLines[index];
+
+        if (possibleConsumer && possibleConsumer !== line) visit(possibleConsumer);
       }
-    }
 
-    visiting.delete(line);
-    visited.add(line);
-    ordered.push(line);
-  };
+      visiting.delete(line);
+      visited.add(line);
+      ordered.push(line);
+    };
 
-  for (const line of priorityOrderedLines) visit(line);
+    for (const line of priorityOrderedLines) visit(line);
 
-  return ordered;
-};
+    return ordered;
+  },
+);
 
-const orderSupplyBalancedLines = (lines: ProductionLine[]) => {
-  const priorityOrderedLines = orderInputPriorities(lines);
-  const ordered: ProductionLine[] = [];
-  const visiting = new Set<ProductionLine>();
-  const visited = new Set<ProductionLine>();
+const orderSupplyBalancedLines = (lines: ProductionLine[]) => getCachedLineOrder(
+  supplyLineOrderCache,
+  lines,
+  () => {
+    const priorityOrderedLines = orderInputPriorities(lines);
+    const ordered: ProductionLine[] = [];
+    const visiting = new Set<ProductionLine>();
+    const visited = new Set<ProductionLine>();
+    const producerIndexesByOutputId = indexLineResources(
+      priorityOrderedLines,
+      (line) => line.recipe.outputs.map((output) => output.resourceId),
+    );
 
-  const visit = (line: ProductionLine) => {
-    if (visited.has(line) || visiting.has(line)) return;
+    const visit = (line: ProductionLine) => {
+      if (visited.has(line) || visiting.has(line)) return;
 
-    visiting.add(line);
-    const balanceInputIds = line.recipe.balanceInputIds
-      ? new Set(line.recipe.balanceInputIds)
-      : null;
-    const inputIds = new Set(line.recipe.inputs
-      .filter((input) => !balanceInputIds || balanceInputIds.has(input.resourceId))
-      .map((input) => input.resourceId));
+      visiting.add(line);
+      const balanceInputIds = line.recipe.balanceInputIds
+        ? new Set(line.recipe.balanceInputIds)
+        : null;
+      const inputIds = new Set(line.recipe.inputs
+        .filter((input) => !balanceInputIds || balanceInputIds.has(input.resourceId))
+        .map((input) => input.resourceId));
 
-    for (const possibleProducer of priorityOrderedLines) {
-      if (
-        possibleProducer !== line
-        && possibleProducer.recipe.outputs.some((output) => inputIds.has(output.resourceId))
-      ) {
-        visit(possibleProducer);
+      for (const index of getRelatedLineIndexes(inputIds, producerIndexesByOutputId)) {
+        const possibleProducer = priorityOrderedLines[index];
+
+        if (possibleProducer && possibleProducer !== line) visit(possibleProducer);
       }
-    }
 
-    visiting.delete(line);
-    visited.add(line);
-    ordered.push(line);
-  };
+      visiting.delete(line);
+      visited.add(line);
+      ordered.push(line);
+    };
 
-  for (const line of priorityOrderedLines) visit(line);
+    for (const line of priorityOrderedLines) visit(line);
 
-  return ordered;
-};
+    return ordered;
+  },
+);
 
 /**
  * A requested module import can force an upstream recipe to run before its
@@ -495,6 +577,7 @@ export const calculateNet = (
   const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => (
     `${moduleId}:${resourceId}`
   );
+
   for (const line of lines) {
     if (line.recipe.balanceInputScope !== "module") continue;
 
