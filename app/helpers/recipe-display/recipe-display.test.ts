@@ -51,13 +51,13 @@ describe("recipe display names", () => {
     })).toBe("CO₂ → Graphite");
   });
 
-  it("shows an exported game recipe ID instead of calculator-authored labels", () => {
+  it("uses an explicit player-facing label for an exported game recipe", () => {
     expect(getRecipeDisplayName({
       building: "Arc furnace II",
       gameRecipeId: "CopperSmeltingArc",
       displayName: "Copper smelting",
       name: "Localized recipe name",
-    })).toBe("CopperSmeltingArc");
+    })).toBe("Copper smelting");
   });
 
   it("describes Copper Electrolysis by its full material transformation", () => {

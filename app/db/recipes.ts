@@ -55,7 +55,7 @@ export type OutputModifierId =
   | 'treeGrowthSpeed'
 type BalanceBy = 'input' | 'output'
 type RecipeAllocation = 'primary' | 'fallback' | 'surplus'
-export type SourceKind = 'groundwater' | 'map-mine' | 'virtual-provision' | 'world-mine'
+export type SourceKind = 'groundwater' | 'terrain-mine' | 'virtual-provision' | 'world-mine'
 export type SourceMode = 'demand' | 'module-demand' | 'demand-capped' | 'module-demand-capped'
 
 export const isUnboundedDemandSourceMode = (mode: SourceMode | undefined) => (
@@ -128,6 +128,8 @@ export interface Recipe {
   consumeSurplusInputScope?: 'module'
   /** Lower values receive a shared surplus resource first. */
   surplusConsumptionPriority?: number
+  /** Reserve supporting demand before fallback byproducts are allocated. */
+  surplusConsumptionPhase?: 'before-fallback'
   /** Input-balanced recipes can consume only net production from their own physical module. */
   balanceInputScope?: 'module'
   sharedCapacity?: SharedCapacity
@@ -289,46 +291,6 @@ export const recipes: Recipe[] = [
     sourceMode: 'module-demand-capped',
   },
   {
-    id: 'coal-map-mine',
-    name: 'Coal (Map Mine)',
-    building: 'Coal Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'coal', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
-    id: 'copper-map-mine',
-    name: 'Copper Ore (Map Mine)',
-    building: 'Copper Ore Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'copperOre', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
-    id: 'iron-map-mine',
-    name: 'Iron Ore (Map Mine)',
-    building: 'Iron Ore Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'ironOre', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
-    id: 'limestone-map-mine',
-    name: 'Limestone (Map Mine)',
-    building: 'Limestone Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'limestone', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
     id: 'sulfur-world-mine',
     name: 'Sulfur (World Mine)',
     building: 'Sulfur World Mine',
@@ -337,16 +299,6 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: 'sulfur', quantity: 0 }],
     sourceMode: 'demand',
     sourceKind: 'world-mine',
-  },
-  {
-    id: 'gold-map-mine',
-    name: 'Gold Ore (Map Mine)',
-    building: 'Gold Ore Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'goldOre', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
   },
   ...reserveResourceCatalog.map(
     ({ name, recipeId, resourceId }): Recipe => ({
@@ -360,56 +312,6 @@ export const recipes: Recipe[] = [
       sourceKind: 'virtual-provision',
     }),
   ),
-  {
-    id: 'bauxite-map-mine',
-    name: 'Bauxite (Map Mine)',
-    building: 'Bauxite Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'bauxite', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
-    id: 'titanium-map-mine',
-    name: 'Titanium Ore (Map Mine)',
-    building: 'Titanium Ore Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'titaniumOre', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
-    id: 'sand-map-mine',
-    name: 'Sand (Map Mine)',
-    building: 'Sand Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'sand', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
-    id: 'rock-map-mine',
-    name: 'Rock (Map Mine)',
-    building: 'Rock Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'rock', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
-  {
-    id: 'dirt-map-mine',
-    name: 'Dirt (Map Mine)',
-    building: 'Dirt Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'dirt', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'map-mine',
-  },
   {
     // Captain of Industry v0.8.7: 8 Water every 10 seconds.
     id: 'groundwater-pump',
@@ -794,6 +696,9 @@ export const recipes: Recipe[] = [
     ],
   },
   {
+    // Installed v0.8.7 Canola Milling binding, normalized from 30 to 60 seconds.
+    // Ordinary Cooking Oil demand runs first; only remaining Canola uses spare
+    // Mill capacity in the final surplus-consumption pass.
     id: 'mill-canola-cooking-oil',
     name: 'Mill (Canola → Cooking Oil)',
     building: 'Mill',
@@ -801,11 +706,35 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 60,
     balanceBy: 'output',
     balanceOutputIds: ['cookingOil'],
+    consumeSurplusInputIds: ['canola'],
+    surplusConsumptionPriority: 100,
+    surplusConsumptionPhase: 'before-fallback',
     inputs: [{ resourceId: 'canola', quantity: 16 }],
     outputs: [
       { resourceId: 'cookingOil', quantity: 12 },
       { resourceId: 'animalFeed', quantity: 4 },
     ],
+  },
+  {
+    // Installed v0.8.7 Ethanol Cooking Oil Reforming binding, normalized to
+    // one 60-second production cycle. An empty output-demand list prevents
+    // Diesel demand from starting this disposal route; Cooking Oil surplus is
+    // its only driver, with Ethanol demand-propagated as supporting production.
+    id: 'chemical-plant-ii-cooking-oil-diesel',
+    name: 'Chemical Plant II (Cooking Oil → Diesel)',
+    building: 'Chemical Plant II',
+    group: 'production',
+    cycleDurationSeconds: 60,
+    balanceBy: 'output',
+    balanceOutputIds: [],
+    consumeSurplusInputIds: ['cookingOil'],
+    surplusConsumptionPriority: 110,
+    surplusConsumptionPhase: 'before-fallback',
+    inputs: [
+      { resourceId: 'ethanol', quantity: 15 },
+      { resourceId: 'cookingOil', quantity: 30 },
+    ],
+    outputs: [{ resourceId: 'diesel', quantity: 54 }],
   },
   {
     id: 'baking-unit-bread',
@@ -916,6 +845,12 @@ export const recipes: Recipe[] = [
     group: 'production',
     cycleDurationSeconds: 60,
     balanceBy: 'output',
+    balanceInputIds: [],
+    balanceOutputIds: ['animalFeed'],
+    // Run only for Animal Feed demand left after Flour, Cooking Oil, and Tofu
+    // production have contributed their unavoidable Animal Feed co-products.
+    // Any remaining Corn shortage stays visible as the upstream deficit.
+    allocation: 'fallback',
     inputs: [{ resourceId: 'corn', quantity: 120 }],
     outputs: [{ resourceId: 'animalFeed', quantity: 144 }],
   },
@@ -2459,6 +2394,84 @@ export const recipes: Recipe[] = [
       },
     ],
     outputs: [],
+  },
+  {
+    // Installed v0.8.7 Assembly V Construction Parts bindings, normalized to 60 seconds.
+    id: 'assembly-v-construction-parts-i',
+    name: 'Assembly V (Construction Parts)',
+    building: 'Assembly V',
+    group: 'production',
+    cycleDurationSeconds: 10,
+    balanceBy: 'output',
+    balanceOutputIds: ['constructionPartsI'],
+    sharedCapacity: {
+      id: 'assembly-v-construction-parts',
+      label: 'Assembly V — Construction Parts',
+      priority: 1,
+    },
+    inputs: [
+      { resourceId: 'iron', quantity: 18 },
+      { resourceId: 'wood', quantity: 18 },
+      { resourceId: 'concreteSlab', quantity: 24 },
+    ],
+    outputs: [{ resourceId: 'constructionPartsI', quantity: 24 }],
+  },
+  {
+    id: 'assembly-v-construction-parts-ii',
+    name: 'Assembly V (Construction Parts II)',
+    building: 'Assembly V',
+    group: 'production',
+    cycleDurationSeconds: 10,
+    balanceBy: 'output',
+    balanceOutputIds: ['constructionPartsII'],
+    sharedCapacity: {
+      id: 'assembly-v-construction-parts',
+      label: 'Assembly V — Construction Parts',
+      priority: 2,
+    },
+    inputs: [
+      { resourceId: 'constructionPartsI', quantity: 48 },
+      { resourceId: 'electronicsI', quantity: 24 },
+    ],
+    outputs: [{ resourceId: 'constructionPartsII', quantity: 24 }],
+  },
+  {
+    id: 'assembly-v-construction-parts-iii',
+    name: 'Assembly V (Construction Parts III)',
+    building: 'Assembly V',
+    group: 'production',
+    cycleDurationSeconds: 10,
+    balanceBy: 'output',
+    balanceOutputIds: ['constructionPartsIII'],
+    sharedCapacity: {
+      id: 'assembly-v-construction-parts',
+      label: 'Assembly V — Construction Parts',
+      priority: 3,
+    },
+    inputs: [
+      { resourceId: 'constructionPartsII', quantity: 48 },
+      { resourceId: 'steel', quantity: 24 },
+    ],
+    outputs: [{ resourceId: 'constructionPartsIII', quantity: 24 }],
+  },
+  {
+    id: 'assembly-v-construction-parts-iv',
+    name: 'Assembly V (Construction Parts IV)',
+    building: 'Assembly V',
+    group: 'production',
+    cycleDurationSeconds: 20,
+    balanceBy: 'output',
+    balanceOutputIds: ['constructionPartsIV'],
+    sharedCapacity: {
+      id: 'assembly-v-construction-parts',
+      label: 'Assembly V — Construction Parts',
+      priority: 4,
+    },
+    inputs: [
+      { resourceId: 'constructionPartsIII', quantity: 24 },
+      { resourceId: 'electronicsII', quantity: 12 },
+    ],
+    outputs: [{ resourceId: 'constructionPartsIV', quantity: 12 }],
   },
   {
     id: 'assembly-v-lab-equipment-i',

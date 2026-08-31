@@ -33,27 +33,27 @@ describe("contract plans", () => {
     expect(flows.find((flow) => flow.resourceId === "hydrogen")).toBeUndefined();
   });
 
-  it("balances the four-module Iron Ore ship against current demand", () => {
+  it("balances the four-module Titanium Ore ship against current demand", () => {
     const { contractResults } = applyContracts([{
-      resourceId: "ironOre",
-      name: "Iron Ore",
-      consumed: 70,
+      resourceId: "titaniumOre",
+      name: "Titanium Ore",
+      consumed: 190,
       produced: 0,
-      net: -70,
+      net: -190,
     }], activeContracts);
-    const iron = contractResults.find(
-      (result) => result.contract.id === "iron-ore-for-vehicle-parts-ii",
+    const titanium = contractResults.find(
+      (result) => result.contract.id === "titanium-ore-for-construction-parts-iv",
     );
 
-    expect(iron).toMatchObject({
-      exported: 5,
-      imported: 70,
-      requiredImported: 70,
+    expect(titanium).toMatchObject({
+      exported: 2.5,
+      imported: 190,
+      requiredImported: 190,
     });
-    expect(iron?.maxImportedPerProductionCycle).toBeCloseTo(
+    expect(titanium?.maxImportedPerProductionCycle).toBeCloseTo(
       1_600 / (426 / 60),
     );
-    expect(iron?.fuelPerProductionCycle).toBeCloseTo(12.64375);
+    expect(titanium?.fuelPerProductionCycle).toBeCloseTo(34.31875);
   });
 
   it("balances the four-module Copper Ore ship against current demand", () => {

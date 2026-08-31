@@ -5,14 +5,8 @@ export const MINES_MODULE_ID = "mines";
 export const mines: Module = {
     id: MINES_MODULE_ID,
     name: "Mines",
-    description: "Map and world-mine supply plus terrain disposal.",
+    description: "World-mine supply and terrain disposal.",
     builtBuildings: {
-      "coal-map-mine": 1,
-      "copper-map-mine": 1,
-      "iron-map-mine": 1,
-      "limestone-map-mine": 1,
-      "gold-map-mine": 1,
-      "sand-map-mine": 1,
       "sulfur-world-mine": 1,
       "slag-terrain-dump": 1,
       "waste-terrain-dump": 1,
@@ -21,7 +15,7 @@ export const mines: Module = {
     presets: [{
       id: "current-mines-plan",
       name: "Current Mines Plan",
-      description: "Current map and world-mine sources",
+      description: "Current world-mine sources and terrain disposal",
       activeBuildings: {},
       fixed: [],
     }],

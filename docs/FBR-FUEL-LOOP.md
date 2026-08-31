@@ -1,13 +1,18 @@
-# Nuclear target
+# Optional Nuclear plan
 
-The Nuclear module models the two-reactor checkpoint used to expand and rewire
-the existing nuclear station.
+This document records the two-reactor checkpoint used to expand and rewire a
+nuclear station. It is plan intent, not the calculator's current state.
+
+Current buildings, recipes, pause state, reactor enrichment, reactor power, and
+area ownership come from the game snapshot. The same calculation applies when
+the owning area is named `Nuclear`, `Power West`, or anything else. Applying
+this plan projects changes over that synced inventory.
 
 All rates below are per production cycle (60 seconds, or one in-game month).
 Numerical recipe and building values target the installed Captain of Industry
 v0.8.7 game data.
 
-## Configuration
+## Template targets
 
 - 1 breeder at Power I / 3x breeding
 - 1 power reactor at Power IV / 0x breeding
@@ -67,7 +72,7 @@ Depleted-Steam recipes enabled and share their capacity between the remaining
 streams. Any other steam beyond the active capacity stays visible as excess in
 the calculator.
 
-## Building counts
+## Template building targets
 
 | Building | Target | Active at 159 MW |
 | --- | ---: | ---: |

@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
+import { calculateNet } from "../../helpers/calculate/calculate";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "../../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food-consumption";
@@ -25,6 +26,7 @@ import {
   GREENHOUSES_MODULE_ID,
 } from "./farms";
 import { factoryModelModules as modules } from "./modules";
+import { nuclear } from "./nuclear";
 import { processSteam } from "./process-steam";
 
 it("updates Rocket II material targets from the active capacity research level", () => {
@@ -199,6 +201,48 @@ it("models the completed Electronics IV and Composite Core recipes", () => {
 
     expect(line).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
     expect(line?.dataSource).toBe("modeled");
+  }
+});
+
+it("auto-balances one Assembly V across all Construction Parts recipes", () => {
+  const preset = general.presets.find((candidate) => (
+    candidate.id === general.defaultPresetId
+  ));
+  const lines = buildModuleLines(general, preset ?? null).lines.filter((line) => (
+    line.recipe.sharedCapacity?.id === "assembly-v-construction-parts"
+  ));
+
+  expect(lines).toHaveLength(4);
+  expect(new Set(lines.map((line) => line.capacityPoolId))).toEqual(new Set([
+    "general:assembly-v-construction-parts",
+  ]));
+  expect(lines.every((line) => (
+    line.activeBuildings === 1
+    && line.builtBuildings === 1
+    && line.capacityPoolActiveBuildings === 1
+    && line.capacityPoolBuiltBuildings === 1
+    && line.dataSource === "modeled"
+    && line.operatingMode === "balanced"
+  ))).toBe(true);
+
+  const result = calculateNet(lines, {}, undefined, {}, { constructionPartsIV: 1 });
+  const totalLoad = result.regularResults.reduce(
+    (total, line) => total + line.activeBuildings * line.supplyRatio,
+    0,
+  );
+
+  expect(totalLoad).toBeCloseTo(2 / 3);
+  expect(result.regularResults.find(
+    (line) => line.recipe.id === "assembly-v-construction-parts-iv",
+  )?.actualOutputs).toEqual([{ resourceId: "constructionPartsIV", quantity: 1 }]);
+  for (const resourceId of [
+    "constructionPartsI",
+    "constructionPartsII",
+    "constructionPartsIII",
+    "constructionPartsIV",
+  ] as const) {
+    expect(result.allResourceFlows.find((flow) => flow.resourceId === resourceId)?.net)
+      .toBeCloseTo(0);
   }
 });
 
@@ -657,7 +701,9 @@ it("keeps the completed advanced recipes current in their operating modules", ()
     ({ recipe }) => recipe.id === "distillation-stage-iii-titanium-purification",
   );
 
-  expect(Object.keys(plannedNewDefaultBuildings)).toHaveLength(0);
+  expect(plannedNewDefaultBuildings).toEqual({
+    "chemical-plant-ii-cooking-oil-diesel": 1,
+  });
   expect(modeledDefaultRecipeIds).toEqual(expect.arrayContaining([
     "assembly-v-composite-panel",
     "crusher-large-quartz",
@@ -687,7 +733,7 @@ it("keeps the completed advanced recipes current in their operating modules", ()
 
 it("demand-balances enough Yellowcake for the two-FBR target", () => {
   const result = calculateFactoryTotal(
-    modules,
+    [...modules, nuclear],
     {
       contracts: activeContracts,
       recyclingEfficiencyPercent:

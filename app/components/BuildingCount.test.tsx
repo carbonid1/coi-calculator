@@ -42,3 +42,24 @@ it("distinguishes active, paused, construction ghost, and unplaced plan states",
   expect(html).toContain("text-foreground");
   expect(html).toContain("text-highlight-foreground");
 });
+
+it("shows chicken population and projected farm capacity", () => {
+  const html = renderToStaticMarkup(
+    <BuildingCount
+      load={5}
+      active={5}
+      built={4}
+      planned={1}
+      animalPopulation={{
+        current: 2_350,
+        capacity: 2_500,
+        label: "chickens",
+        additionalBuildings: 0,
+      }}
+    />,
+  );
+
+  expect(html).toContain("Chickens");
+  expect(html).toContain("2350 / 2500");
+  expect(html).toContain("1 planned, not placed building");
+});

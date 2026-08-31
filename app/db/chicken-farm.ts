@@ -34,21 +34,18 @@ export const chickenFarm = {
   carcassPerSlaughteredChicken: 0.5,
 } as const;
 
-export const defaultChickenFarmSettings: ChickenFarmSettings = {
-  totalChickenCount: 1_950,
+export const emptyChickenFarmSettings: ChickenFarmSettings = {
+  totalChickenCount: 0,
   slaughtering: true,
 };
 
-const modeledChickenFarmSettings: ChickenFarmSettings | undefined = undefined;
-
 export const plannedChickenFarmSettings: ChickenFarmSettings = {
-  ...defaultChickenFarmSettings,
+  ...emptyChickenFarmSettings,
   totalChickenCount: 2_350,
 };
 
 const chickenFarmSettingsLayers: LayeredValue<ChickenFarmSettings> = {
-  default: defaultChickenFarmSettings,
-  modeled: modeledChickenFarmSettings,
+  default: emptyChickenFarmSettings,
   planned: plannedChickenFarmSettings,
 };
 

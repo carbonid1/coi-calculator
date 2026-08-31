@@ -32,6 +32,11 @@ const plannedBuildings = {
   ...plannedNewGeneralBuildings,
   ...plannedProcessSteamBuildings,
 };
+const plannedAdvancedBuildings = Object.fromEntries(
+  Object.entries(plannedBuildings).filter(
+    ([recipeId]) => recipeId !== "chemical-plant-ii-cooking-oil-diesel",
+  ),
+);
 
 const getRecipe = (id: string) => {
   const recipe = recipes.find((candidate) => candidate.id === id);
@@ -159,7 +164,7 @@ describe("planned advanced production", () => {
     );
 
     expect(modules.some(({ id }) => id === "space-points-expansion")).toBe(false);
-    expect(Object.keys(plannedBuildings)).toHaveLength(0);
+    expect(Object.keys(plannedAdvancedBuildings)).toHaveLength(0);
     expect(Object.values({
       ...plannedGeneralBuiltBuildings,
       ...plannedProcessSteamBuiltBuildings,
@@ -187,7 +192,7 @@ describe("planned advanced production", () => {
       recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
       outputModifiers,
     });
-    const plannedIds = new Set(Object.keys(plannedBuildings));
+    const plannedIds = new Set(Object.keys(plannedAdvancedBuildings));
     const lines = factory.allLines.filter(({ recipe }) => plannedIds.has(recipe.id));
     const results = factory.calculation.regularResults.filter(
       ({ recipe }) => plannedIds.has(recipe.id),
@@ -224,7 +229,7 @@ describe("planned advanced production", () => {
       .toBeCloseTo(0, 6);
     expect(factoryResult("settling-tank-red-mud-acid")?.actualOutputs.find(
       ({ resourceId }) => resourceId === "ironOreCrushed",
-    )?.quantity).toBeCloseTo(17.4065255732, 6);
+    )?.quantity).toBe(0);
     expect(factoryResult("aluminum-cell-electrolysis")).toMatchObject({
       activeBuildings: 3,
       builtBuildings: 3,
@@ -239,7 +244,7 @@ describe("planned advanced production", () => {
     expect(stats.computingTflops).toBe(0);
   });
 
-  it("replaces map-mined Sand with the demand-balanced Quartz contract", () => {
+  it("supplies Sand through the demand-balanced Quartz contract", () => {
     const factory = calculateFactoryTotal(modules, {
       contracts: activeContracts,
       contractsProfitMultiplier: 1.14,
@@ -249,9 +254,6 @@ describe("planned advanced production", () => {
     const quartzContract = factory.contractResults.find(
       ({ contract }) => contract.id === "quartz-for-coal",
     );
-    const sandMine = factory.calculation.sourceResults.find(
-      ({ recipe }) => recipe.id === "sand-map-mine",
-    );
     const quartzCrusher = factory.calculation.regularResults.find(
       ({ recipe }) => recipe.id === "crusher-large-quartz",
     );
@@ -260,7 +262,9 @@ describe("planned advanced production", () => {
     );
 
     expect(quartzContract?.imported ?? 0).toBeGreaterThan(0);
-    expect(sandMine?.actualOutputs[0]?.quantity).toBeCloseTo(0, 6);
+    expect(factory.calculation.sourceResults.some(({ recipe }) => (
+      recipe.outputs.some(({ resourceId }) => resourceId === "sand")
+    ))).toBe(false);
     expect(quartzCrusher?.actualOutputs.find(
       ({ resourceId }) => resourceId === "quartzCrushed",
     )?.quantity).toBeCloseTo(quartzContract?.imported ?? 0, 6);

@@ -16,10 +16,6 @@ const sections: {
   label: string;
 }[] = [
   {
-    kind: "map-mine",
-    label: "Map mines",
-  },
-  {
     kind: "world-mine",
     label: "World mines",
   },

@@ -796,7 +796,7 @@ it("keeps module-scoped source capacity out of other modules", () => {
     inputs: [],
     outputs: [{ resourceId: "titaniumOre", quantity: 100 }],
     sourceMode: "module-demand",
-    sourceKind: "map-mine",
+    sourceKind: "terrain-mine",
   };
   const mineCrusher: Recipe = {
     id: "test-mine-crusher",

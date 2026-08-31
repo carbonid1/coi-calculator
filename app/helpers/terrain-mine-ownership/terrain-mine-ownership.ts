@@ -1,5 +1,4 @@
 import { DEFAULT_MODULE_ID } from '../../db/modules/default'
-import { MINES_MODULE_ID } from '../../db/modules/mines'
 import { type Module, type Preset } from '../../db/modules/modules'
 import { recipes } from '../../db/recipes'
 import { type ResourceId } from '../../db/resources'
@@ -44,7 +43,7 @@ export const getClaimedTerrainResourceIds = (
   liveModules.flatMap(module => (
     module.recipes
       ?.filter(recipe => (
-        recipe.sourceKind === 'map-mine'
+        recipe.sourceKind === 'terrain-mine'
       ))
       .flatMap(recipe => recipe.outputs.map(output => output.resourceId))
       ?? []
@@ -53,8 +52,8 @@ export const getClaimedTerrainResourceIds = (
 
 /**
  * A linked synced sorter owns every configured terrain material, even while
- * paused. Retire matching modeled sources, but retire a Default crusher only
- * when an actual live-area crusher has selected the matching first-stage flow.
+ * paused. Retire a Default crusher only when an actual live-area crusher has
+ * selected the matching first-stage flow.
  */
 export const transferTerrainMineOwnership = (
   configuredModules: readonly Module[],
@@ -64,14 +63,6 @@ export const transferTerrainMineOwnership = (
 
   if (claimedResourceIds.size === 0) return [...configuredModules]
 
-  const legacySourceIds = new Set(
-    recipes
-      .filter(recipe => (
-        recipe.sourceKind === 'map-mine'
-        && recipe.outputs.some(output => claimedResourceIds.has(output.resourceId))
-      ))
-      .map(recipe => recipe.id),
-  )
   const liveCrusherInputIds = new Set(
     liveModules
       .filter(module => module.includedInFactoryTotals !== false)
@@ -94,10 +85,7 @@ export const transferTerrainMineOwnership = (
   )
 
   return configuredModules.map(module => {
-    let removedIds: ReadonlySet<string> | undefined
-
-    if (module.id === MINES_MODULE_ID) removedIds = legacySourceIds
-    if (module.id === DEFAULT_MODULE_ID) removedIds = legacyCrusherIds
+    const removedIds = module.id === DEFAULT_MODULE_ID ? legacyCrusherIds : undefined
 
     if (!removedIds || removedIds.size === 0) return module
 

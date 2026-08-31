@@ -10,7 +10,7 @@ Wiki login and submission workflow: to be decided.
 
 - Game version: 0.8.7
 - Wiki value: uncertain whether “efficiency” means increased output or bonus material without additional reserve use
-- Verified game behavior: each level adds 2% bonus output from world-map mines, oil rigs, and the world-map Groundwater well, up to level 50; the production timer is unchanged and finite deposits are depleted by the pre-bonus quantity
+- Verified game behavior: each level adds 2% bonus output from World Mines, oil rigs, and the Groundwater well, up to level 50; the production timer is unchanged and finite deposits are depleted by the pre-bonus quantity
 - Verification: installed game data (`IncrementalResearchData`) and runtime (`WorldMapMine.SimUpdateInternal`)
 - Status: ready for a future wiki clarification
 

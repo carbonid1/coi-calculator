@@ -38,20 +38,21 @@ target. The calculator uses these identities to layer planned configurations
 over existing buildings without counting both the live and planned versions.
 Schema 20 adds one record per completed Chicken Farm, including its stable
 save-local entity ID, pause state, slaughtering mode, chicken population, and
-vehicle-zone membership. The calculator assigns a farm to the `Chicken Farms`
-module only through an exact `Chicken Farms` zone-name match. Plans may reuse an
-unassigned physical farm, but keep the required zone assignment visible until
-the game snapshot confirms it.
+vehicle-zone membership. The calculator combines all Chicken Farms into one
+module regardless of their vehicle-area names. Plans reuse existing paused or
+differently configured farms before proposing construction.
 Schema 21 adds the loaded game's stable name so browser-owned vehicle-zone
 mappings are isolated per save instead of reusing save-local zone IDs across
 different games.
 Schema 22 adds stable, recipe-aware identities for the production buildings
-currently modeled by the Nuclear module. Each entity includes its pause state,
+used by the nuclear calculation. Each entity includes its pause state,
 assigned game recipe IDs, and vehicle-zone membership. Fast Breeder Reactors
-also include their enrichment step and configured target power. The calculator
-binds only entities inside the exact `Nuclear` area, so those physical buildings
-replace modeled current capacity without being counted a second time. The
-payload itself is module-neutral and can be extended to more building types.
+also include their enrichment step and configured target power. Earlier
+calculator versions bound those entities only through an exact `Nuclear` area
+name. The current calculator assigns them to their generated owning area by its
+stable zone ID, so a randomly named reactor area receives the same behavior and
+physical buildings are not counted twice. The payload itself remains
+module-neutral and can be extended to more building types.
 Schema 23 adds stable Data Center and Water Chiller identities, vehicle-zone
 membership, and each Data Center's installed Basic Server Rack count. The
 calculator binds these entities only through an exact `Computing` area-name
@@ -87,14 +88,17 @@ ghosts are projected as future capacity. A ghost with one available recipe is pr
 while a multi-recipe machine stays visible as needing configuration until the
 game exposes an assigned recipe. Removing the ghost removes that planned
 capacity on the next snapshot.
+Office I–III are recognized by prototype even though they expose no selectable
+production recipe. Their count and pause state belong to the generated owning
+area; Office computing boost remains a calculator plan until it is exported.
 Schema 29 adds each electrified train-station module's selected product and
 loading direction. The calculator uses those values to label and group station
 cards inside their assigned area; it does not yet treat stations as material
 producers or consumers.
 Schema 30 adds completed and running counts for Captain's Office I and II. The
-calculator assigns their workforce to an exact matching area, with unzoned or
-ambiguous offices remaining in Default. Schema 29 and older snapshots normalize
-these unavailable counts to zero.
+calculator assigns their workforce to the generated owning area by stable zone
+ID, with unzoned or ambiguous offices remaining in Default. Schema 29 and older
+snapshots normalize these unavailable counts to zero.
 Schema 31 adds mine-tower-to-sorter assignments plus each sorter's configured
 terrain products, effective focus-adjusted throughput, and conversion loss.
 The calculator shares sorter capacity across configured mineable resources. Dirt,

@@ -11,11 +11,26 @@ import { type Module } from "./modules";
 export const DEFAULT_MODULE_ID = "general";
 export const DEFAULT_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
-export const plannedNewDefaultBuildings = {} as const;
+export const plannedNewDefaultBuildings = {
+  "chemical-plant-ii-cooking-oil-diesel": 1,
+} as const;
 
 const plannedDefaultBuildingTargets = {} as const;
 
 export const unplacedPlannedDefaultBuildings = {} as const;
+
+const constructionGhostDefaultBuildings = {
+  "chemical-plant-ii-cooking-oil-diesel": 1,
+} as const;
+
+const modeledDefaultCapacityPools = {
+  "assembly-v-construction-parts": {
+    active: 1,
+    built: 1,
+    currentActive: 1,
+    constructionGhosts: 0,
+  },
+} as const;
 
 const plannedDefaultCapacityPools = {} as const;
 
@@ -30,6 +45,10 @@ export const modeledDefaultRecipeIds = [
   "assembly-v-composite-core",
   "assembly-v-composite-panel",
   "assembly-v-crew-supplies",
+  "assembly-v-construction-parts-i",
+  "assembly-v-construction-parts-ii",
+  "assembly-v-construction-parts-iii",
+  "assembly-v-construction-parts-iv",
   "assembly-v-electronics-i",
   "assembly-v-electronics-ii",
   "assembly-v-electronics-iii",
@@ -111,6 +130,10 @@ const defaultBase: Module = {
     "assembly-v-composite-core": 1,
     "assembly-v-crew-supplies": 1,
     "assembly-v-composite-panel": 2,
+    "assembly-v-construction-parts-i": 1,
+    "assembly-v-construction-parts-ii": 1,
+    "assembly-v-construction-parts-iii": 1,
+    "assembly-v-construction-parts-iv": 1,
     "lens-polisher": 2,
     "diamond-reactor-synthesis": 1,
     "chemical-plant-ii-diamond-paste-cooking-oil": 1,
@@ -237,6 +260,10 @@ const defaultBase: Module = {
         "assembly-v-composite-core": 1,
         "assembly-v-crew-supplies": 1,
         "assembly-v-composite-panel": 2,
+        "assembly-v-construction-parts-i": 1,
+        "assembly-v-construction-parts-ii": 1,
+        "assembly-v-construction-parts-iii": 1,
+        "assembly-v-construction-parts-iv": 1,
         "lens-polisher": 2,
         "diamond-reactor-synthesis": 1,
         "chemical-plant-ii-diamond-paste-cooking-oil": 1,
@@ -353,6 +380,10 @@ const defaultBase: Module = {
         "assembly-v-electronics-iv": 1,
         "assembly-v-composite-core": 1,
         "assembly-v-crew-supplies": 1,
+        "assembly-v-construction-parts-i": 1,
+        "assembly-v-construction-parts-ii": 1,
+        "assembly-v-construction-parts-iii": 1,
+        "assembly-v-construction-parts-iv": 1,
         "chemical-plant-ii-ethanol": 4,
         "chemical-plant-ii-graphite": 1,
         "diamond-reactor-synthesis": 1,
@@ -383,15 +414,15 @@ const defaultBase: Module = {
         "settling-tank": 2,
         "glass-maker-ii": 4,
         "mill-wheat": 4,
-        "anaerobic-digester-meat-trimmings": 2,
-        "anaerobic-digester-sugar-cane": 2,
-        "anaerobic-digester-potato": 2,
-        "anaerobic-digester-wheat": 2,
-        "anaerobic-digester-corn": 2,
-        "anaerobic-digester-fruit": 2,
-        "anaerobic-digester-soybean": 2,
-        "anaerobic-digester-vegetables": 2,
-        "anaerobic-digester-poppy": 2,
+        "anaerobic-digester-meat-trimmings": 3,
+        "anaerobic-digester-sugar-cane": 3,
+        "anaerobic-digester-potato": 3,
+        "anaerobic-digester-wheat": 3,
+        "anaerobic-digester-corn": 3,
+        "anaerobic-digester-fruit": 3,
+        "anaerobic-digester-soybean": 3,
+        "anaerobic-digester-vegetables": 3,
+        "anaerobic-digester-poppy": 3,
         "cracking-unit-fuel-gas-diesel": 2,
         "crusher-large-quartz": 1,
         "crusher-large-quartz-crushed": 2,
@@ -404,8 +435,12 @@ const defaultBase: Module = {
         ),
       },
       currentActiveBuildings: currentActiveDefaultBuildings,
+      constructionGhosts: constructionGhostDefaultBuildings,
       unplacedPlannedBuildings: unplacedPlannedDefaultBuildings,
-      capacityPools: plannedDefaultCapacityPools,
+      capacityPools: {
+        ...modeledDefaultCapacityPools,
+        ...plannedDefaultCapacityPools,
+      },
       fixed: [
         "general-evaporation-pond-heated-brine-surplus",
         "cracking-unit-fuel-gas-diesel",

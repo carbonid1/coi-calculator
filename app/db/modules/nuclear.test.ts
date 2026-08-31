@@ -174,8 +174,8 @@ it("keeps the middle-enrichment reactor in synced Nuclear capacity", () => {
   expect(preset?.builtBuildings.fbr).toBe(1);
   expect(preset?.activeBuildings.fbr).toBe(1);
   expect(preset?.speedLevels?.fbr).toBe(2);
-  expect(nuclearModule.description).toContain("1 FBR synced");
-  expect(nuclearModule.description).toContain("120 MW configured capacity");
+  expect(nuclearModule.description).toBe("");
+  expect(nuclearModule.gameSynced).toBe(true);
 });
 
 it("keeps the turbine dispatch plan above lower synced running counts", () => {
@@ -468,4 +468,109 @@ it("treats the baseline as nuclear generation in addition to solar", () => {
 
   expect(electricity?.produced).toBeCloseTo(120.77024, 6);
   expect(result.electricityDemandMw).toBeCloseTo(120.77024, 6);
+});
+
+it("keeps Factory Total identical when synced Nuclear moves to its generated module", () => {
+  let entityId = 0;
+  const makeMany = (
+    built: number,
+    running: number,
+    prototypeId: string,
+    recipeIds: string[] = [],
+  ) => Array.from(
+    { length: built },
+    (_, index) => syncedEntity(++entityId, prototypeId, recipeIds, index < running),
+  );
+  const entities: SyncedProductionEntity[] = [
+    {
+      ...syncedEntity(++entityId, "FastBreederReactor"),
+      nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 400 },
+    },
+    {
+      ...syncedEntity(++entityId, "FastBreederReactor"),
+      nuclearReactor: { enrichmentStep: 2, targetPowerPercent: 100 },
+    },
+    ...makeMany(1, 1, "NuclearReprocessingPlant", ["CoreFuelReprocessing"]),
+    ...makeMany(2, 2, "UraniumEnrichmentPlant", ["BlanketFuelReprocessing"]),
+    ...makeMany(2, 2, "ChemicalPlant2", ["BlanketFuelFromYellowcake"]),
+    ...makeMany(8, 6, "TurbineSuperPress"),
+    ...makeMany(8, 6, "TurbineHighPressT2"),
+    ...makeMany(8, 6, "TurbineLowPressT2"),
+    ...makeMany(16, 12, "PowerGeneratorT2"),
+    ...makeMany(8, 8, "HydrogenReformer", ["HydrogenProductionFromSteamSp"]),
+    ...makeMany(4, 4, "ThermalDesalinator", ["DesalinationFromDepleted"]),
+    ...makeMany(10, 9, "ThermalDesalinator", ["DesalinationFromSP"]),
+    ...makeMany(2, 2, "ElectrolyzerT2", ["BrineElectrolysis"]),
+    ...makeMany(2, 2, "EvaporationPondHeated", ["SaltMakingFromBrine"]),
+    ...makeMany(4, 4, "CoolingTowerT2", [
+      "SteamDepletedCondensationT2",
+      "SteamHpCondensationT2",
+      "SteamLpCondensationT2",
+      "SteamSpCondensationT2",
+    ]),
+    ...makeMany(2, 2, "WasteDump", ["OceanWaterDumping"]),
+    ...makeMany(1, 1, "WasteDump", ["BrineDumping"]),
+    ...makeMany(2, 2, "SmokeStackLarge", ["SmokeStackOxygen"]),
+    ...makeMany(1, 1, "NuclearWasteStorage"),
+    ...makeMany(1, 1, "Shredder", ["ShreddingRetiredWaste"]),
+    ...makeMany(6, 6, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
+  ];
+  const generatedArea: Module = {
+    id: "live-area-14",
+    name: "Nuclear",
+    description: "",
+    gameSynced: true,
+    builtBuildings: {},
+    presets: [{
+      id: "live",
+      name: "Live area",
+      description: "",
+      activeBuildings: {},
+      fixed: [],
+    }],
+    defaultPresetId: "live",
+    liveArea: {
+      zoneId: 14,
+      trackedBuildings: entities.length,
+      constructedBuildings: entities.length,
+      activeBuildings: entities.filter(({ running }) => running).length,
+      pausedBuildings: entities.filter(({ running }) => !running).length,
+      constructionGhosts: 0,
+      issues: [],
+    },
+  };
+  const baselines = {
+    averageGeneratorOutputMw: 77,
+    hydrogenFuelDemandPerCycle: 46.5,
+  };
+  const legacy = createNuclearModule(
+    defaultNuclearConfig,
+    baselines,
+    plannedNuclearOperation,
+    entities,
+  );
+  const migrated = createNuclearModule(
+    defaultNuclearConfig,
+    baselines,
+    plannedNuclearOperation,
+    entities,
+    generatedArea,
+  );
+  const snapshotFactoryTotal = (module: Module) => {
+    const result = calculateFactoryTotal(
+      [module],
+      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+    );
+    const stats = calculateBuildingStats(result.allLines, result.calculation);
+
+    return {
+      electricityDemandMw: result.electricityDemandMw,
+      flows: result.flows.toSorted((left, right) => (
+        left.resourceId.localeCompare(right.resourceId)
+      )),
+      stats,
+    };
+  };
+
+  expect(snapshotFactoryTotal(migrated)).toEqual(snapshotFactoryTotal(legacy));
 });

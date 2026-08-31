@@ -6,7 +6,7 @@ import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food
 import { calculateMaintenanceOutput } from "../../helpers/modifiers/calculate-maintenance-output";
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
 import {
-  defaultChickenFarmSettings,
+  emptyChickenFarmSettings,
   plannedChickenFarmSettings,
   resolvedChickenFarmSettings,
   resolvedCurrentChickenFarmSettings,
@@ -41,37 +41,55 @@ describe("active crop farm plan", () => {
     expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0);
   });
 
-  it("runs 1,950 chickens within the four existing farms", () => {
-    const chickenFarmsModule = createChickenFarmsModule(defaultChickenFarmSettings);
+  it("uses synced current settings instead of a modeled baseline", () => {
+    const current = {
+      totalChickenCount: 1_950,
+      slaughtering: true,
+    };
+    const chickenFarmsModule = createChickenFarmsModule(
+      current,
+      current,
+      "synced",
+      "synced",
+      [{
+        slaughtering: true,
+        built: 4,
+        running: 4,
+        chickens: 1_950,
+        runningChickens: 1_950,
+      }],
+    );
     const preset = chickenFarmsModule.presets.at(0);
 
-    expect(defaultChickenFarmSettings.totalChickenCount).toBe(1_950);
+    expect(emptyChickenFarmSettings.totalChickenCount).toBe(0);
     expect(chickenFarmsModule.builtBuildings["chicken-farm-slaughtering"]).toBe(4);
     expect(preset?.activeBuildings["chicken-farm-slaughtering"]).toBe(4);
     expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0.975);
+    expect(preset?.dataSources?.["chicken-farm-slaughtering"]).toBe("synced");
   });
 
-  it("keeps four chicken farms built and plans the fifth for 2,350 chickens", () => {
+  it("plans from an empty baseline when no game state is available", () => {
     const preset = chickenFarms.presets.at(0);
 
     expect(resolvedCurrentChickenFarmSettings).toEqual({
       source: "default",
-      value: defaultChickenFarmSettings,
+      value: emptyChickenFarmSettings,
     });
     expect(resolvedChickenFarmSettings).toEqual({
       source: "planned",
       value: plannedChickenFarmSettings,
     });
-    expect(chickenFarms.builtBuildings["chicken-farm-slaughtering"]).toBe(4);
+    expect(chickenFarms.builtBuildings["chicken-farm-slaughtering"]).toBe(0);
     expect(preset?.activeBuildings["chicken-farm-slaughtering"]).toBe(5);
     expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0.94);
     expect(preset?.dataSources?.["chicken-farm-slaughtering"]).toBe("planned");
+    expect(preset?.unplacedPlannedBuildings?.["chicken-farm-slaughtering"]).toBe(5);
   });
 
   it("separates missing chicken buildings from missing population", () => {
     const chickenFarmsModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
-      defaultChickenFarmSettings,
+      { totalChickenCount: 1_950, slaughtering: true },
       "planned",
       "synced",
       [{
@@ -209,7 +227,7 @@ describe("active crop farm plan", () => {
     }]);
   });
 
-  it("treats exact farms in the Chicken Farms area as synced regardless of chicken distribution", () => {
+  it("treats globally synced farms as current regardless of chicken distribution", () => {
     const chickenCounts = [500, 500, 500, 500, 350];
     const chickenFarmsModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
@@ -235,7 +253,7 @@ describe("active crop farm plan", () => {
     expect(preset.planMismatches).toBeUndefined();
   });
 
-  it("keeps surplus live farms outside the Chicken Farms area in Factory Total", () => {
+  it("aggregates farms across differently named areas", () => {
     const chickenFarmsModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
       plannedChickenFarmSettings,
@@ -266,18 +284,17 @@ describe("active crop farm plan", () => {
     expect(preset.activeBuildings["chicken-farm-slaughtering"]).toBe(6);
     expect(preset.speedLevels?.["chicken-farm-slaughtering"]).toBe(0.95);
     expect(preset.dataSources?.["chicken-farm-slaughtering"]).toBe("synced");
-    expect(preset.planMismatches).toMatchObject([{
-      current: 1,
-      target: 0,
-      direction: "at-most",
-      actions: [{
-        type: "assign",
-        label: "Assign 1 Chicken Farm to the Chicken Farms area or pause it",
-      }],
-    }]);
+    expect(preset.planMismatches).toBeUndefined();
   });
 
-  it("requires exact Chicken Farms area ownership instead of a fuzzy zone match", () => {
+  it("does not require a special Chicken Farms area", () => {
+    const areas = [
+      [],
+      [{ id: 9, name: "Gold Mine" }],
+      [{ id: 4, name: "Food" }, { id: 5, name: "North" }],
+      [{ id: 23, name: "Area 3" }],
+      [{ id: 24, name: "Area 4" }],
+    ];
     const chickenFarmsModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
       plannedChickenFarmSettings,
@@ -290,25 +307,45 @@ describe("active crop farm plan", () => {
         running: true,
         slaughtering: true,
         chickens,
-        zones: [{ id: 9, name: index === 0 ? "Chicken Farm" : "Gold Mine" }],
+        zones: areas[index] ?? [],
       })),
     );
     const preset = chickenFarmsModule.presets[0];
 
     expect(chickenFarmsModule.builtBuildings["chicken-farm-slaughtering"]).toBe(5);
     expect(preset.activeBuildings["chicken-farm-slaughtering"]).toBe(5);
-    expect(preset.dataSources?.["chicken-farm-slaughtering"]).toBe("planned");
-    expect(preset.planMismatches).toMatchObject([{
-      current: 0,
-      target: 2_350,
-      actions: [{
-        type: "assign",
-        label: "Assign 5 Chicken Farms to the Chicken Farms area",
-      }],
-    }]);
+    expect(preset.dataSources?.["chicken-farm-slaughtering"]).toBe("synced");
+    expect(preset.planMismatches).toBeUndefined();
   });
 
-  it("reuses a paused owned farm and its chickens before proposing construction", () => {
+  it("shows missing synced farm capacity as an unplaced plan", () => {
+    const chickenFarmsModule = createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      plannedChickenFarmSettings,
+      "planned",
+      "synced",
+      [],
+      undefined,
+      [500, 500, 500, 450].map((chickens, index) => ({
+        entityId: index + 1,
+        running: true,
+        slaughtering: true,
+        chickens,
+        zones: [{ id: 9, name: "Food" }],
+      })),
+    );
+    const preset = chickenFarmsModule.presets[0];
+
+    expect(chickenFarmsModule.builtBuildings["chicken-farm-slaughtering"]).toBe(4);
+    expect(preset.activeBuildings["chicken-farm-slaughtering"]).toBe(5);
+    expect(preset.unplacedPlannedBuildings?.["chicken-farm-slaughtering"]).toBe(1);
+    expect(preset.planMismatches?.[0].actions).toEqual([
+      { type: "build", label: "Build 1 Chicken Farm" },
+      { type: "add-animals", label: "Add 400 chickens" },
+    ]);
+  });
+
+  it("reuses a paused farm and its chickens before proposing construction", () => {
     const chickenFarmsModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
       plannedChickenFarmSettings,
@@ -344,7 +381,7 @@ describe("active crop farm plan", () => {
     }]);
   });
 
-  it("moves a wrong-mode owned farm into the plan without double-counting it", () => {
+  it("moves a wrong-mode farm into the plan without double-counting it", () => {
     const chickenFarmsModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
       plannedChickenFarmSettings,
@@ -731,7 +768,7 @@ describe("active crop farm plan", () => {
 
   it("connects five active Groundwater Pumps only to Greenhouses", () => {
     const greenhousePreset = greenhouses.presets.at(0);
-    const chickenFarmsModule = createChickenFarmsModule(defaultChickenFarmSettings);
+    const chickenFarmsModule = createChickenFarmsModule(emptyChickenFarmSettings);
 
     expect(greenhouses.builtBuildings["groundwater-pump"]).toBe(5);
     expect(greenhousePreset?.activeBuildings["groundwater-pump"]).toBe(5);
@@ -801,7 +838,7 @@ describe("active crop farm plan", () => {
       "food-processor-meat": 2,
       "food-processor-meat-trimmings": 1,
     });
-    expect(createChickenFarmsModule(defaultChickenFarmSettings).builtBuildings).not.toHaveProperty(
+    expect(createChickenFarmsModule(emptyChickenFarmSettings).builtBuildings).not.toHaveProperty(
       "food-processor-meat",
     );
   });
@@ -856,17 +893,20 @@ describe("active crop farm plan", () => {
     const cropFlows = new Map(
       result.calculation.allResourceFlows.map((flow) => [flow.resourceId, flow]),
     );
-    const fallbackConsumption = new Map<string, number>();
+    const surplusCropConsumption = new Map<string, number>();
 
     for (const line of result.calculation.regularResults) {
-      if (line.recipe.allocation !== "fallback" && line.recipe.allocation !== "surplus") {
+      if (
+        (line.recipe.allocation !== "fallback" && line.recipe.allocation !== "surplus")
+        || line.recipe.balanceBy !== "input"
+      ) {
         continue;
       }
 
       for (const input of line.actualInputs) {
-        fallbackConsumption.set(
+        surplusCropConsumption.set(
           input.resourceId,
-          (fallbackConsumption.get(input.resourceId) ?? 0) + input.quantity,
+          (surplusCropConsumption.get(input.resourceId) ?? 0) + input.quantity,
         );
       }
     }
@@ -874,7 +914,6 @@ describe("active crop farm plan", () => {
     expect(activeCropFarmGroups.reduce((total, group) => total + group.farmCount, 0)).toBe(9);
     const rotationLimitedCrops = new Set(["poppy", "sugarCane"]);
     const expectedDeficits = new Map([
-      ["corn", -0.2786045404310755],
       ["fruit", -1.2767999999999944],
       ["potato", -1.1285999999999916],
       ["vegetables", -2.0348999999999933],
@@ -888,7 +927,7 @@ describe("active crop farm plan", () => {
       if (!flow || flow.produced <= 0) continue;
 
       const primarySurplus = Math.max(0, flow.net)
-        + (fallbackConsumption.get(crop.productId) ?? 0);
+        + (surplusCropConsumption.get(crop.productId) ?? 0);
 
       const maximumSurplus = rotationLimitedCrops.has(crop.productId) ? 10.001 : 5.001;
 

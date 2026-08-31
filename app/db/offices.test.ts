@@ -60,10 +60,10 @@ describe("offices and focuses", () => {
     });
   });
 
-  it("models one maximally boosted Office III around contracts", () => {
+  it("plans one maximally boosted Office III around contracts", () => {
     const result = calculateOfficePlan(resolvedOfficePlan.value, 5);
 
-    expect(resolvedOfficePlan.source).toBe("modeled");
+    expect(resolvedOfficePlan.source).toBe("planned");
     expect(result).toMatchObject({
       computingTflops: 192,
       electricityKw: 600,

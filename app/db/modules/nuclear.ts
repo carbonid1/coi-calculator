@@ -1,5 +1,8 @@
 import { type SyncedProductionEntity } from "../../game-state";
-import { resolveNuclearEntityInventory } from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
+import {
+  nuclearHandledPrototypeIds,
+  resolveNuclearEntityInventory,
+} from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
 import { resolveDirectionalPlan } from "../../helpers/resolve-layered-value/resolve-directional-plan";
 import {
   emptyPlanningBaselines,
@@ -69,6 +72,7 @@ export const createNuclearModule = (
   baselines: PlanningBaselines = emptyPlanningBaselines,
   plan?: NuclearOperationPlan,
   syncedEntities?: readonly SyncedProductionEntity[],
+  generatedArea?: Module,
 ): Module => {
   const breederReactors = Math.max(0, Math.trunc(config.breederReactors));
   const nonBreederReactors = Math.max(0, Math.trunc(config.nonBreederReactors));
@@ -148,7 +152,7 @@ export const createNuclearModule = (
     "shredder-retired-waste": shredderCount,
   };
   const syncedInventory = syncedEntities
-    ? resolveNuclearEntityInventory(syncedEntities)
+    ? resolveNuclearEntityInventory(syncedEntities, generatedArea?.liveArea?.zoneId)
     : null;
   const recipeIds = new Set([
     ...Object.keys(modeledBuiltBuildings),
@@ -338,35 +342,34 @@ export const createNuclearModule = (
     dataSources["power-generator-ii-nuclear"] = "planned";
   }
 
-  const syncedGenerationCapacityMw = (
-    (builtBuildings["fbr-0x"] ?? 0) * (speedLevels["fbr-0x"] ?? 1) * 96
-    + (builtBuildings.fbr ?? 0) * (speedLevels.fbr ?? 1) * 96
-    + (builtBuildings["fbr-3x"] ?? 0) * (speedLevels["fbr-3x"] ?? 1) * 24
-  ) * (15 + 10 + 5) / 48;
-  const generationCapacityMw = syncedInventory
-    ? syncedGenerationCapacityMw
-    : modeledGenerationCapacityMw;
-  const syncedReactorCount = (builtBuildings["fbr-0x"] ?? 0)
-    + (builtBuildings.fbr ?? 0)
-    + (builtBuildings["fbr-3x"] ?? 0);
-  const description = syncedInventory
-    ? `${syncedReactorCount} ${syncedReactorCount === 1 ? "FBR" : "FBRs"} synced from the Nuclear area; ${generationCapacityMw} MW configured capacity`
-    : `${breederReactors + nonBreederReactors} FBR build: ${breederReactors} breeder at Power ${breederPowerLevel} / 3x + ${nonBreederReactors} power reactor at Power ${nonBreederPowerLevel} / 0x; ${generationCapacityMw} MW capacity`;
+  const liveArea = generatedArea?.liveArea
+    ? {
+        ...generatedArea.liveArea,
+        issues: generatedArea.liveArea.issues.filter(issue => (
+          ![...nuclearHandledPrototypeIds].some(prototypeId => (
+            issue.id.startsWith(`${prototypeId}:`)
+          ))
+        )),
+      }
+    : undefined;
 
   return {
-    id: NUCLEAR_MODULE_ID,
-    name: "Nuclear",
-    description,
+    id: generatedArea?.id ?? NUCLEAR_MODULE_ID,
+    name: generatedArea?.name ?? "Nuclear",
+    description: "",
+    gameSynced: syncedInventory ? true : undefined,
+    includedInFactoryTotals: generatedArea ? true : undefined,
     builtBuildings,
     presets: [
       {
         id: "configured-target",
         name: "Configured target",
         description: syncedInventory
-          ? "Current Nuclear-area inventory with pending operation targets layered on top"
+          ? "Synced inventory with pending operation targets"
           : `${breederReactors} breeder at Power ${breederPowerLevel} / 3x and ${nonBreederReactors} power reactor at Power ${nonBreederPowerLevel} / 0x`,
         builtBuildings,
         activeBuildings,
+        currentActiveBuildings,
         dataSources: Object.keys(dataSources).length > 0 ? dataSources : undefined,
         planMismatches: planMismatches.length > 0 ? planMismatches : undefined,
         fixed: [
@@ -384,6 +387,7 @@ export const createNuclearModule = (
       },
     ],
     defaultPresetId: "configured-target",
+    liveArea,
   };
 };
 

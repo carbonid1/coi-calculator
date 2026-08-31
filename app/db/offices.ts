@@ -1,6 +1,5 @@
 import {
   type LayeredValue,
-  resolveCurrentLayeredValue,
   resolveLayeredValue,
 } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { focusPointsResearch } from "./research";
@@ -132,7 +131,7 @@ export const defaultOfficePlan: OfficePlan = {
   focusSteps: { ...emptyFocusSteps },
 };
 
-const modeledOfficePlan: OfficePlan = {
+const configuredOfficePlan: OfficePlan = {
   ...defaultOfficePlan,
   officeSuppliesAssemblyVCount: 1,
   offices: {
@@ -147,20 +146,11 @@ const modeledOfficePlan: OfficePlan = {
   },
 };
 
-/**
- * Calculator-owned target. Set this to an OfficePlan when a future target is
- * requested. It remains authoritative over future synced data until changed
- * here explicitly; there is intentionally no automatic plan clearing.
- */
-const plannedOfficePlan: OfficePlan | undefined = undefined;
-
 const officePlanLayers: LayeredValue<OfficePlan> = {
   default: defaultOfficePlan,
-  modeled: modeledOfficePlan,
-  planned: plannedOfficePlan,
+  planned: configuredOfficePlan,
 };
 
-export const resolvedCurrentOfficePlan = resolveCurrentLayeredValue(officePlanLayers);
 export const resolvedOfficePlan = resolveLayeredValue(officePlanLayers);
 
 const clampBoostStep = (step: number): OfficeBoostStep => {

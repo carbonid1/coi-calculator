@@ -544,8 +544,17 @@ export const calculateNet = (
   const demandBalancedLines = orderDemandBalancedLines(
     primaryBalancedLines.filter((line) => line.recipe.balanceBy === "output"),
   );
-  const surplusConsumerLines = orderSurplusConsumers(
-    balancedLines.filter((line) => (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0),
+  const beforeFallbackSurplusConsumerLines = orderSurplusConsumers(
+    balancedLines.filter((line) => (
+      (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
+      && line.recipe.surplusConsumptionPhase === "before-fallback"
+    )),
+  );
+  const finalSurplusConsumerLines = orderSurplusConsumers(
+    balancedLines.filter((line) => (
+      (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
+      && line.recipe.surplusConsumptionPhase !== "before-fallback"
+    )),
   );
   const drivenInputLines = orderAllocatedLines(
     balancedLines.filter((line) => (line.drivingInputIds?.length ?? 0) > 0),
@@ -647,7 +656,7 @@ export const calculateNet = (
     );
     if (
       isModuleScopedSourceMode(line.recipe.sourceMode)
-      && line.recipe.sourceKind === "map-mine"
+      && line.recipe.sourceKind === "terrain-mine"
     ) {
       addOwnedModuleSupplyCapacity(line.moduleId, resourceId, quantity);
     }
@@ -1321,6 +1330,10 @@ export const calculateNet = (
 
     return false;
   };
+  const isModuleRestrictedKey = (key: string) => (
+    [...ownedModuleSupplyKeysByResource.values()].some(keys => keys.has(key))
+    || [...moduleScopedInputKeysByResource.values()].some(keys => keys.has(key))
+  );
   const getDeficitIncrease = (
     before: { consumed: number; produced: number } | undefined,
     after: { consumed: number; produced: number } | undefined,
@@ -1338,7 +1351,13 @@ export const calculateNet = (
   };
   const allocationIntroducedDeficit = (
     baseline: ReturnType<typeof snapshotAllocationState>,
+    line: ProductionLine,
   ) => {
+    // Planned surplus routes expose their supporting resource pressure. Direct
+    // external inputs are still limited before this check; only demand that
+    // propagates through modeled internal production may add a projected deficit.
+    if (line.dataSource === "planned") return false;
+
     const resourceIds = new Set([...baseline.flows.keys(), ...flows.keys()]);
 
     for (const resourceId of resourceIds) {
@@ -1369,12 +1388,13 @@ export const calculateNet = (
       baseline.actualModuleFlows,
       actualModuleFlows,
       key => (
-        plannedSupportingModuleKeys.has(key)
+        !isModuleRestrictedKey(key)
+        || plannedSupportingModuleKeys.has(key)
         || [...suppliedIds].some(resourceId => key.endsWith(`:${resourceId}`))
       ),
     );
   };
-  const applyAdditionalSurplusConsumption = () => {
+  const applyAdditionalSurplusConsumption = (surplusConsumerLines: ProductionLine[]) => {
     for (const line of surplusConsumerLines) {
       const currentRatio = allocationRatios.get(line) ?? 0;
       const remainingLineRatio = Math.max(0, 1 - currentRatio);
@@ -1422,11 +1442,14 @@ export const calculateNet = (
       if (ratio <= 1e-9) continue;
 
       const baseline = snapshotAllocationState();
+      const hasSupportingInputs = line.recipe.inputs.some(
+        input => !surplusInputIds.has(input.resourceId),
+      );
 
       applyRegularLine(line, ratio, true);
-      propagateAdditionalDemand();
+      if (hasSupportingInputs) propagateAdditionalDemand();
 
-      if (!allocationIntroducedDeficit(baseline)) continue;
+      if (!allocationIntroducedDeficit(baseline, line)) continue;
 
       let feasibleRatio = 0;
       let infeasibleRatio = ratio;
@@ -1436,9 +1459,9 @@ export const calculateNet = (
 
         restoreAllocationState(baseline);
         applyRegularLine(line, candidateRatio, true);
-        propagateAdditionalDemand();
+        if (hasSupportingInputs) propagateAdditionalDemand();
 
-        if (allocationIntroducedDeficit(baseline)) {
+        if (allocationIntroducedDeficit(baseline, line)) {
           infeasibleRatio = candidateRatio;
         } else {
           feasibleRatio = candidateRatio;
@@ -1449,7 +1472,7 @@ export const calculateNet = (
 
       if (feasibleRatio > 1e-9) {
         applyRegularLine(line, feasibleRatio, true);
-        propagateAdditionalDemand();
+        if (hasSupportingInputs) propagateAdditionalDemand();
       }
     }
   };
@@ -1640,13 +1663,18 @@ export const calculateNet = (
     }
   };
 
+  // Some last-priority material routes need to reserve ordinary supporting
+  // inputs before fallback byproducts consume them. Their declared surplus
+  // inputs still ensure that primary demand is satisfied first.
+  applyAdditionalSurplusConsumption(beforeFallbackSurplusConsumerLines);
+
   // Fallbacks may create supporting demand (for example Sour Water recovery
   // needs Steam). Resolve that demand before final surplus converters run.
   settleFallbackDemand();
   reservePlannedSourceInputs();
   applyLowerPriorityLines(surplusLines);
   propagateAdditionalDemand();
-  applyAdditionalSurplusConsumption();
+  applyAdditionalSurplusConsumption(finalSurplusConsumerLines);
   propagateAdditionalDemand();
 
   // Regular results

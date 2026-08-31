@@ -121,7 +121,10 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
             recipe.animalPopulationCapacity
               ? {
                   current: recipe.animalPopulationCapacity * activeBuildings * speedLevel,
-                  capacity: recipe.animalPopulationCapacity * builtBuildings,
+                  capacity: recipe.animalPopulationCapacity * Math.max(
+                    builtBuildings,
+                    activeBuildings,
+                  ),
                   label: recipe.animalPopulationLabel ?? "animals",
                   additionalBuildings: 0,
                 }

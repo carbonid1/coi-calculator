@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/building-diagnostics";
+import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
+import { baseConfig } from "./config";
 import { defaultArea as general } from "./modules/default";
+import { factoryModelModules } from "./modules/modules";
 import { recipes } from "./recipes";
 
 const digestionRecipeIds = [
@@ -16,7 +20,7 @@ const digestionRecipeIds = [
 ] as const;
 
 describe("surplus-organics digestion", () => {
-  it("shares two active digesters across every configured surplus recipe", () => {
+  it("shares three active digesters across every configured surplus recipe", () => {
     const digestionRecipes = digestionRecipeIds.map((id) => (
       recipes.find((recipe) => recipe.id === id)
     ));
@@ -28,7 +32,7 @@ describe("surplus-organics digestion", () => {
       && recipe.allocation === "fallback"
     ))).toBe(true);
     expect(digestionRecipeIds.every((id) => general.builtBuildings[id] === 3)).toBe(true);
-    expect(digestionRecipeIds.every((id) => preset?.activeBuildings[id] === 2)).toBe(true);
+    expect(digestionRecipeIds.every((id) => preset?.activeBuildings[id] === 3)).toBe(true);
     expect(digestionRecipeIds.every((id) => preset?.dataSources?.[id] === "modeled")).toBe(true);
     expect(digestionRecipes.map((recipe) => ({
       input: recipe?.inputs[0],
@@ -98,5 +102,25 @@ describe("surplus-organics digestion", () => {
         ],
       },
     ]);
+  });
+
+  it("uses all built digesters before recommending another build", () => {
+    const result = calculateFactoryTotal(factoryModelModules, {
+      recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+    });
+    const diagnostic = calculateBuildingDiagnostics(
+      factoryModelModules,
+      result.flows,
+      result.calculation.regularResults,
+      result.calculation.sourceResults,
+      result.calculation.sinkResults,
+    ).find(({ key }) => key === "general:anaerobic-digester-surplus-organics");
+
+    expect(diagnostic).toMatchObject({
+      active: 3,
+      built: 3,
+      attention: "build",
+      attentionCount: 1,
+    });
   });
 });

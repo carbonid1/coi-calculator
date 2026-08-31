@@ -224,7 +224,7 @@ export const activeContracts: ActiveContract[] = [
       roundTripDurationProductionCycles: 427 / 60,
     },
   }),
-  defineActiveContract("iron-ore-for-vehicle-parts-ii", {
+  defineActiveContract("titanium-ore-for-construction-parts-iv", {
     importedPerProductionCycle: null,
     infrastructure: {
       cargoDepotSize: 4,
@@ -234,14 +234,14 @@ export const activeContracts: ActiveContract[] = [
           buildingName: "Unit Module (L)",
           count: 2,
           direction: "export",
-          resourceId: "vehiclePartsII",
+          resourceId: "constructionPartsIV",
           workersPerModule: 5,
         },
         {
           buildingName: "Loose Module (L)",
           count: 2,
           direction: "import",
-          resourceId: "ironOre",
+          resourceId: "titaniumOre",
           workersPerModule: 5,
         },
       ],

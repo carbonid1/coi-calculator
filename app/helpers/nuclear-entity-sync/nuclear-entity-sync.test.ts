@@ -29,7 +29,7 @@ it("maps only exact Nuclear-area entities and preserves paused counts", () => {
       zones: [{ id: 15, name: "Nuclear Backup" }],
     }),
     entity(4, "CoolingTowerT2"),
-  ]);
+  ], 14);
 
   expect(inventory.counts).toMatchObject({
     "hydrogen-reformer-super": { built: 2, running: 1 },
@@ -46,7 +46,7 @@ it("uses assigned recipes to bind only configurations owned by Nuclear", () => {
     entity(3, "ThermalDesalinator", ["DesalinationFromDepleted"]),
     entity(4, "WasteDump", ["BrineDumping"]),
     entity(5, "ThermalDesalinator", ["DesalinationFromLP"]),
-  ]);
+  ], 14);
 
   expect(inventory.counts).toEqual({
     "nuclear-reprocessing": { built: 1, running: 1 },
@@ -62,7 +62,7 @@ it("recognizes both fast seawater pump tiers by their exact game recipes", () =>
     entity(1, "OceanWaterPumpLarge", ["OceanWaterPumping2xT2"]),
     entity(2, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
     entity(3, "OceanWaterPumpT1", ["OceanWaterPumping"]),
-  ]);
+  ], 14);
 
   expect(inventory.counts).toMatchObject({
     "seawater-pump": { built: 1, running: 1 },
@@ -89,7 +89,7 @@ it("groups reactor enrichment modes and averages their configured power", () => 
     entity(4, "FastBreederReactor", [], {
       nuclearReactor: { enrichmentStep: 1, targetPowerPercent: 200 },
     }),
-  ]);
+  ], 14);
 
   expect(inventory.counts).toMatchObject({
     "fbr-0x": { built: 1, running: 1 },

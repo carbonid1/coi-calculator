@@ -19,14 +19,20 @@ import { factoryModelModules as modules } from "./modules";
 import {
   createNuclearModule,
   defaultNuclearConfig,
-  NUCLEAR_MODULE_ID,
 } from "./nuclear";
 
-it("keeps process waste and graphite balanced with the Copper #1 boundary", () => {
+it("keeps graphite balanced and leaves missing terrain supply visible", () => {
   const cropFarming = calculateCropFarmingModifiers(
     defaultInfiniteResearchLevels.cropYield,
     defaultActiveEdicts.farmingBoost,
   );
+  const modulesWithNuclear = [
+    ...modules,
+    createNuclearModule(defaultNuclearConfig, {
+      averageGeneratorOutputMw: 77,
+      hydrogenFuelDemandPerCycle: 46.5,
+    }),
+  ];
   const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
     defaultModuleId: DEFAULT_MODULE_ID,
     demand: {
@@ -34,20 +40,13 @@ it("keeps process waste and graphite balanced with the Copper #1 boundary", () =
       maintenanceII: 194.22,
       maintenanceIII: 236.55,
     },
-    modules,
+    modules: modulesWithNuclear,
   });
-  const configuredModules = modules.map(module => {
+  const configuredModules = modulesWithNuclear.map(module => {
     const maintenanceAssignment = maintenanceAssignments[module.id];
 
     if (maintenanceAssignment) {
       module = attachMaintenanceDepotsToModule(module, maintenanceAssignment, "modeled");
-    }
-
-    if (module.id === NUCLEAR_MODULE_ID) {
-      return createNuclearModule(defaultNuclearConfig, {
-        averageGeneratorOutputMw: 77,
-        hydrogenFuelDemandPerCycle: 46.5,
-      });
     }
 
     return module;
@@ -91,10 +90,13 @@ it("keeps process waste and graphite balanced with the Copper #1 boundary", () =
   const carbonDioxide = result.calculation.allResourceFlows.find(
     (flow) => flow.resourceId === "carbonDioxide",
   )!;
-  const processWaste = ["carbonDioxide", "redMud", "exhaust", "wasteWater"]
+  const balancedProcessWaste = ["carbonDioxide", "exhaust", "wasteWater"]
     .map((resourceId) => result.calculation.allResourceFlows.find(
       (flow) => flow.resourceId === resourceId,
     ));
+  const redMud = result.calculation.allResourceFlows.find(
+    (flow) => flow.resourceId === "redMud",
+  )!;
   const graphiteResults = result.calculation.regularResults.filter(
     (candidate) => candidate.recipe.id.startsWith("chemical-plant-ii-graphite"),
   );
@@ -121,6 +123,7 @@ it("keeps process waste and graphite balanced with the Copper #1 boundary", () =
   expect(carbonDioxide.net).toBeCloseTo(0, 6);
   expect(graphite.produced).toBeCloseTo(graphite.consumed, 6);
   expect(graphite.net).toBeCloseTo(0, 6);
-  expect(processWaste.every((flow) => flow != null)).toBe(true);
-  expect(processWaste.every((flow) => Math.abs(flow?.net ?? 1) < 1e-6)).toBe(true);
+  expect(balancedProcessWaste.every((flow) => flow != null)).toBe(true);
+  expect(balancedProcessWaste.every((flow) => Math.abs(flow?.net ?? 1) < 1e-6)).toBe(true);
+  expect(redMud.net).toBeGreaterThan(0);
 });

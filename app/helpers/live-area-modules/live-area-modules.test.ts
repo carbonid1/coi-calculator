@@ -481,7 +481,7 @@ describe('createLiveAreaModules', () => {
       rock: 80,
     })
     const sorterResults = result.regularResults.filter(candidate => (
-      candidate.recipe.sourceKind === 'map-mine'
+      candidate.recipe.sourceKind === 'terrain-mine'
     ))
 
     expect(module.includedInFactoryTotals).toBe(true)
@@ -675,7 +675,7 @@ describe('createLiveAreaModules', () => {
     const { lines } = buildModuleLines(module, module.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { bauxitePowder: 96 })
     const sorterResult = result.regularResults.find(candidate => (
-      candidate.recipe.sourceKind === 'map-mine'
+      candidate.recipe.sourceKind === 'terrain-mine'
     ))
     const crusherResult = result.regularResults.find(candidate => (
       candidate.recipe.gameRecipeId === 'BauxiteMilling'
@@ -1481,6 +1481,111 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [shredder], [])
 
     expect(module?.recipes?.[0]?.appliesRecyclingEfficiency).toBe(false)
+  })
+
+  it('applies Nuclear balance and priority rules in any generated module', () => {
+    const configured = (
+      entityId: number,
+      prototypeId: string,
+      prototypeName: string,
+      recipes: SyncedAreaEntity['recipes'],
+    ): SyncedAreaEntity => ({
+      ...entity(entityId, true, true, recipes),
+      prototypeId,
+      prototypeName,
+    })
+    const hydrogen = {
+      id: 'HydrogenProductionFromSteamSp',
+      name: 'Hydrogen from Super Steam',
+      durationSeconds: 15,
+      assigned: true,
+      inputs: [
+        { productId: 'Product_Water', name: 'Water', quantity: 4 },
+        { productId: 'Product_SteamSuper', name: 'Steam (Super)', quantity: 3 },
+      ],
+      outputs: [
+        { productId: 'Product_Hydrogen', name: 'Hydrogen', quantity: 8 },
+        { productId: 'Product_Oxygen', name: 'Oxygen', quantity: 8 },
+        { productId: 'Product_SteamDepleted', name: 'Steam (Depleted)', quantity: 3 },
+      ],
+    }
+    const chlorine = {
+      id: 'BrineElectrolysis',
+      name: 'Brine Electrolysis',
+      durationSeconds: 10,
+      assigned: true,
+      inputs: [{ productId: 'Product_Brine', name: 'Brine', quantity: 12 }],
+      outputs: [{ productId: 'Product_Chlorine', name: 'Chlorine', quantity: 8 }],
+    }
+    const coolingRecipe = (
+      id: string,
+      steamName: string,
+      steamProductId: string,
+    ) => ({
+      id,
+      name: id,
+      durationSeconds: 10,
+      assigned: true,
+      inputs: [{ productId: steamProductId, name: steamName, quantity: 16 }],
+      outputs: [{ productId: 'Product_Water', name: 'Water', quantity: 12 }],
+    })
+    const cooling = [
+      coolingRecipe(
+        'SteamDepletedCondensationT2',
+        'Steam (Depleted)',
+        'Product_SteamDepleted',
+      ),
+      coolingRecipe('SteamSpCondensationT2', 'Steam (Super)', 'Product_SteamSuper'),
+    ]
+    const brineDump = {
+      id: 'BrineDumping',
+      name: 'Brine Dumping',
+      durationSeconds: 3,
+      assigned: true,
+      inputs: [{ productId: 'Product_Brine', name: 'Brine', quantity: 10 }],
+      outputs: [],
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Power West' }],
+      [
+        configured(1, 'HydrogenReformer', 'Hydrogen reformer', [hydrogen]),
+        configured(2, 'ElectrolyzerT2', 'Electrolyzer II', [chlorine]),
+        configured(3, 'CoolingTowerT2', 'Cooling tower (large)', cooling),
+        configured(4, 'WasteDump', 'Liquid dump', [brineDump]),
+      ],
+      [],
+    )
+    const byGameRecipe = (id: string) => module?.recipes?.find(recipe => (
+      recipe.gameRecipeId === id
+    ))
+
+    expect(module?.gameSynced).toBe(true)
+    expect(byGameRecipe('HydrogenProductionFromSteamSp')).toMatchObject({
+      balanceBy: 'output',
+      balanceOutputIds: ['hydrogen'],
+    })
+    expect(byGameRecipe('BrineElectrolysis')).toMatchObject({
+      balanceBy: 'output',
+      balanceInputIds: ['brine'],
+      balanceOutputIds: ['chlorine'],
+      inputPriorities: { brine: 2 },
+    })
+    const depletedCooling = byGameRecipe('SteamDepletedCondensationT2')
+    const superCooling = byGameRecipe('SteamSpCondensationT2')
+
+    expect(depletedCooling).toMatchObject({
+      group: 'sink',
+      sharedCapacity: { priority: 0 },
+    })
+    expect(superCooling).toMatchObject({
+      group: 'sink',
+    })
+    expect(superCooling?.sharedCapacity?.priority)
+      .toBeGreaterThan(depletedCooling?.sharedCapacity?.priority ?? -1)
+    expect(byGameRecipe('BrineDumping')).toMatchObject({
+      group: 'sink',
+      sinkScope: 'module',
+    })
   })
 
   it('uses the CO2 graphite recipe as a local surplus catcher', () => {

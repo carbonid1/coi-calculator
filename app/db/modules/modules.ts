@@ -6,8 +6,6 @@ import { defaultArea } from "./default";
 import { chickenFarms, greenhouses } from "./farms";
 import { forestry } from "./forestry";
 import { mines } from "./mines";
-import { nuclear } from "./nuclear";
-import { offices } from "./offices";
 import { modeledPopulation } from "./population";
 import { processSteam } from "./process-steam";
 import { research } from "./research";
@@ -113,6 +111,8 @@ export interface Module {
   id: string;
   name: string;
   description: string;
+  /** This module's physical inventory is sourced from the game snapshot. */
+  gameSynced?: true;
   /** Modules calculated outside the global pool; their boundary flows may be added separately. */
   includedInFactoryTotals?: boolean;
   /** Physical buildings present in the factory, including paused buildings. */
@@ -132,12 +132,10 @@ export const modules: [Module, ...Module[]] = [
   forestry,
   processSteam,
   research,
-  offices,
   greenhouses,
   chickenFarms,
   mines,
   reserves,
-  nuclear,
 ];
 
 /** Includes calculator-owned assumptions needed when no game snapshot is available. */
@@ -146,12 +144,10 @@ export const factoryModelModules: [Module, ...Module[]] = [
   forestry,
   processSteam,
   research,
-  offices,
   spaceStation,
   greenhouses,
   chickenFarms,
   modeledPopulation,
   mines,
   reserves,
-  nuclear,
 ];

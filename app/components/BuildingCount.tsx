@@ -60,7 +60,7 @@ export const BuildingCount: React.FC<Props> = ({
     <div className="shrink-0 text-right tabular-nums">
       <Tooltip
         label={animalPopulation
-          ? `Planned ${animalPopulation.label} / capacity in built farms.`
+          ? `${animalPopulation.label} / farm capacity.`
           : "Average load / active buildings. Paused buildings are shown separately."}
         maxWidth={280}
       >

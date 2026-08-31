@@ -70,7 +70,7 @@ surplus until the physical layout is revised.
 Greenhouses and Chicken Farms are separate calculator modules because they are
 separate physical water networks. Five Groundwater Pumps are installed for the
 Greenhouses, with all five active. Chicken Farm water is imported
-from Factory Total and can never increase those pumps' modeled output.
+from Factory Total and can never increase those pumps' Water output.
 
 Schema 17 treats Groundwater Pumps as a shared physical inventory because the
 same building also supplies Default's factory-water reserve. Schema 18 exports
@@ -90,13 +90,12 @@ live configurations stay visible. Cards group entities only after applying
 these overlays, so identical effective configurations share one card while
 workers, inputs, and outputs count every physical greenhouse exactly once.
 
-Schema 20 applies the same entity overlay to Chicken Farms. Exact membership in
-the `Chicken Farms` vehicle area establishes module ownership; no singular,
-partial, or fuzzy zone-name match is accepted. Farm identity, pause state, and
-slaughtering mode are matched per entity, while chicken population remains a
-pooled target across the active matching farms. This permits any valid
-per-farm chicken distribution without losing accurate assign, unpause,
-configure, build, or population actions.
+Schema 20 applies the same entity overlay to Chicken Farms. Every completed
+Chicken Farm belongs to the single Chicken Farms calculator module, regardless
+of vehicle-area membership. Farm identity, pause state, and slaughtering mode
+are matched per entity, while chicken population remains a pooled target across
+the active matching farms. Plans reuse paused or differently configured farms
+before proposing construction, without requiring an area assignment.
 
 | Farms | Rotation | Fertilizer II target |
 | ---: | --- | ---: |

@@ -633,7 +633,7 @@ export const calculateFactoryTotal = (
     withoutContracts.calculation,
   );
 
-  // Demand sources (map mines, world mines, and forestry) backfill deficits in
+  // Demand sources (terrain extraction, world mines, and forestry) backfill deficits in
   // calculateNet. Hide that fallback production while sizing enabled contracts
   // so an import can replace extraction, then let the final calculation reduce
   // the source to whatever demand remains after the contract input is applied.

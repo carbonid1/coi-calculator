@@ -3,12 +3,16 @@ import { isMaintenanceDepotPrototype } from '../../db/modules/area-maintenance'
 import { isSolarPanelPrototype } from '../../db/modules/area-solar'
 import { isAreaAssignableStaticInfrastructurePrototype } from '../../db/modules/area-static-infrastructure'
 import { type Module, type LiveAreaIssue } from '../../db/modules/modules'
-import { recipes, type Ingredient, type Recipe } from '../../db/recipes'
+import { type Ingredient, type Recipe } from '../../db/recipes'
 import {
   getLinkedOnlyLiveModuleInputIds,
   getSurplusConsumptionSettings,
 } from '../../db/resource-disposition'
 import { resources, type ResourceId } from '../../db/resources'
+import {
+  runtimeRecipeBehaviors,
+  runtimeRecipePriorities,
+} from '../../db/runtime-recipe-behaviors'
 import {
   type SyncedAreaEntity,
   type SyncedAreaRecipe,
@@ -35,6 +39,17 @@ const incidentalTerrainResourceIds = new Set<ResourceId>([
   'slag',
   'waste',
 ])
+const terrainMineResourceIds = new Set<ResourceId>([
+  'bauxite',
+  'coal',
+  'copperOre',
+  'goldOre',
+  'ironOre',
+  'limestone',
+  'rock',
+  'sand',
+  'titaniumOre',
+])
 
 const normalizeResourceKey = (value: string) => value
   .normalize('NFKD')
@@ -44,125 +59,10 @@ const normalizeResourceKey = (value: string) => value
 
 const resourceIdByKey = new Map<string, ResourceId>()
 
-const runtimeRecipeBehaviors: Record<
-  string,
-  Pick<
-    Recipe,
-    | 'appliesRecyclingEfficiency'
-    | 'allocation'
-    | 'allocationPriority'
-    | 'balanceBy'
-    | 'balanceInputIds'
-    | 'balanceInputScope'
-    | 'balanceOutputIds'
-    | 'consumeSurplusInputIds'
-    | 'consumeSurplusInputScope'
-    | 'electricityMultiplier'
-    | 'surplusConsumptionPriority'
-  >
-> = {
-  'AnaerobicDigester:SludgeDigestion': {
-    balanceBy: 'input',
-    balanceInputIds: ['sludge'],
-  },
-  'ArcFurnace2:CopperSmeltingArc': {
-    balanceBy: 'output',
-    balanceOutputIds: ['moltenCopper'],
-  },
-  'ArcFurnace2:CopperSmeltingArcScrap': {
-    balanceBy: 'input',
-    balanceInputIds: ['copperScrap'],
-    electricityMultiplier: 0.6,
-  },
-  'ArcFurnace2:IronSmeltingArc': {
-    allocation: 'fallback',
-    allocationPriority: 50,
-    balanceBy: 'output',
-    balanceInputIds: [],
-    balanceOutputIds: ['moltenIron'],
-  },
-  'ArcFurnace2:IronSmeltingArcScrap': {
-    balanceBy: 'input',
-    balanceInputIds: ['ironScrap'],
-    electricityMultiplier: 0.6,
-  },
-  'CasterCooledT2:SteelCastingCooled': {
-    allocation: 'fallback',
-    allocationPriority: 30,
-    balanceBy: 'output',
-    balanceInputIds: [],
-    balanceOutputIds: ['steel'],
-  },
-  'ChemicalPlant2:GraphiteProductionCo2': {
-    consumeSurplusInputIds: ['carbonDioxide'],
-    consumeSurplusInputScope: 'module',
-    surplusConsumptionPriority: 10,
-  },
-  'IndustrialMixerT2:BiomassCompost': {
-    balanceBy: 'input',
-    balanceInputIds: ['biomass'],
-    balanceInputScope: 'module',
-  },
-  'OxygenFurnaceT2:SteelSmeltingT2': {
-    allocation: 'fallback',
-    allocationPriority: 40,
-    balanceBy: 'output',
-    balanceInputIds: [],
-    balanceOutputIds: ['moltenSteel'],
-    consumeSurplusInputIds: [],
-  },
-  'SmokeStack:SmokeStackCarbonDioxide': {
-    consumeSurplusInputIds: ['carbonDioxide'],
-    consumeSurplusInputScope: 'module',
-    surplusConsumptionPriority: 100,
-  },
-  'SmokeStack:SmokeStackExhaust': {
-    consumeSurplusInputIds: ['exhaust'],
-    consumeSurplusInputScope: 'module',
-    surplusConsumptionPriority: 100,
-  },
-  'SmokeStackLarge:SmokeStackCarbonDioxide': {
-    consumeSurplusInputIds: ['carbonDioxide'],
-    consumeSurplusInputScope: 'module',
-    surplusConsumptionPriority: 100,
-  },
-  'SmokeStackLarge:SmokeStackExhaust': {
-    consumeSurplusInputIds: ['exhaust'],
-    consumeSurplusInputScope: 'module',
-    surplusConsumptionPriority: 100,
-  },
-  'Shredder:ShreddingRetiredWaste': { appliesRecyclingEfficiency: false },
-  'WaterTreatmentPlant:WaterTreatmentT2': {
-    balanceBy: 'input',
-    balanceInputIds: ['wasteWater'],
-  },
-}
-
-/** Explicit game UI order for selectable recipes whose prototype list is not display-ordered. */
-const runtimeRecipePriorities: Readonly<Record<string, number>> = {
-  'ArcFurnace2:CopperSmeltingArcScrap': 0,
-  'ArcFurnace2:CopperSmeltingArc': 1,
-  'ArcFurnace2:IronSmeltingArcScrap': 0,
-  'ArcFurnace2:IronSmeltingArc': 1,
-}
-
 for (const resource of Object.values(resources)) {
   resourceIdByKey.set(normalizeResourceKey(resource.id), resource.id)
   resourceIdByKey.set(normalizeResourceKey(resource.name), resource.id)
 }
-
-const terrainSourceRecipeByResourceId = new Map(
-  recipes.flatMap(recipe => {
-    const [output] = recipe.outputs
-
-    return recipe.sourceKind === 'map-mine'
-      && recipe.outputs.length === 1
-      && recipe.inputs.length === 0
-      && output
-      ? [[output.resourceId, recipe] as const]
-      : []
-  }),
-)
 
 const resolveResourceId = (product: { productId: string; name: string }) => (
   resourceIdByKey.get(normalizeResourceKey(product.name))
@@ -557,7 +457,7 @@ export const createLiveAreaModules = (
             quantity: configuration.throughputPerCycle * outputYield,
           }],
           cycleDurationSeconds: 60,
-          sourceKind: 'map-mine',
+          sourceKind: 'terrain-mine',
           sharedCapacity: {
             id: capacityPoolId,
             label: sorter.prototypeName,
@@ -582,7 +482,7 @@ export const createLiveAreaModules = (
       const terrainInputIds = !mineTowers && terrainCrusherRecipeIds.has(recipe.id)
         ? recipe.inputs
             .map(input => input.resourceId)
-            .filter(resourceId => terrainSourceRecipeByResourceId.has(resourceId))
+            .filter(resourceId => terrainMineResourceIds.has(resourceId))
         : []
       const surplusConsumption = getSurplusConsumptionSettings(
         recipe.inputs.map(input => input.resourceId),
@@ -640,16 +540,13 @@ export const createLiveAreaModules = (
 
       return recipe
     })
-    const terrainSourceTemplates = [...new Map(
+    const terrainSourceResourceIds = [...new Set(
       balancedLiveRecipes
         .filter(recipe => terrainCrusherRecipeIds.has(recipe.id))
         .flatMap(recipe => recipe.inputs)
-        .flatMap(input => {
-          const source = terrainSourceRecipeByResourceId.get(input.resourceId)
-
-          return source ? [[input.resourceId, source] as const] : []
-        }),
-    ).values()]
+        .map(input => input.resourceId)
+        .filter(resourceId => terrainMineResourceIds.has(resourceId)),
+    )]
     const hasOreSortingPlant = zoneEntities.some(entity => (
       oreSortingPlantPrototypeIds.has(entity.prototypeId)
     ))
@@ -659,12 +556,8 @@ export const createLiveAreaModules = (
       && entity.running
     ))
     const implicitSourceRecipes: Recipe[] = !mineTowers && hasOperatingOreSortingPlant
-      ? terrainSourceTemplates.map(source => {
-          const [output] = source.outputs
-
-          if (!output) throw new Error(`Terrain source ${source.id} has no output`)
-
-          const recipeId = `${moduleIdForZone(zone.id)}:terrain-source:${output.resourceId}`
+      ? terrainSourceResourceIds.map(resourceId => {
+          const recipeId = `${moduleIdForZone(zone.id)}:terrain-source:${resourceId}`
 
           builtBuildings[recipeId] = 1
           activeBuildings[recipeId] = 1
@@ -672,11 +565,14 @@ export const createLiveAreaModules = (
           dataSources[recipeId] = 'synced'
 
           return {
-            ...source,
             id: recipeId,
-            name: `${resources[output.resourceId].name} terrain extraction`,
+            name: `${resources[resourceId].name} terrain extraction`,
             building: 'Terrain extraction',
+            group: 'source',
+            inputs: [],
+            outputs: [{ resourceId, quantity: 0 }],
             sourceMode: 'module-demand',
+            sourceKind: 'terrain-mine',
             hiddenFromModuleView: true,
           }
         })
@@ -686,12 +582,13 @@ export const createLiveAreaModules = (
     const usesFactoryPool = plan?.resourcePool === 'factory'
       || (mineTowers
         ? terrainSorterSourceCount > 0
-        : hasOreSortingPlant && terrainSourceTemplates.length > 0)
+        : hasOreSortingPlant && terrainSourceResourceIds.length > 0)
 
     const liveModule: Module = {
       id: moduleIdForZone(zone.id),
       name: zone.name,
       description: '',
+      gameSynced: true,
       includedInFactoryTotals: usesFactoryPool,
       builtBuildings,
       recipes: [...balancedLiveRecipes, ...implicitSourceRecipes],

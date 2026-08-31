@@ -81,7 +81,7 @@ from the installed `OrbitManager`, `OrbitManager.SpaceStation`, and
 value remains effective in Factory Total; once reached, the synced value and
 source replace the plan.
 
-## World-map mines and oil rigs
+## World mines and oil rigs
 
 The dormant world-mine database contains every installed `WorldMapMineProto`.
 The three oil-rig prototype IDs have identical production data and share one
@@ -183,27 +183,28 @@ Unmeasured routes remain uncapped unless an explicit conservative planning
 estimate is documented; the calculator does not infer save-specific map travel
 times.
 
-The active Iron Ore plan uses a size-4 ship with two Unit Modules (L) for
-Vehicle Parts II export and two Loose Modules (L) for Iron Ore import.
+The active Construction Parts IV -> Titanium Ore plan uses a size-4 ship with
+two Unit Modules (L) for Construction Parts IV export and two Loose Modules (L)
+for Titanium Ore import. Its base exchange is 5 Construction Parts IV for 380
+Titanium Ore.
 
-The supporting Vehicle Parts chain uses one active Assembly V for each tier.
-Installed v0.8.7 data gives these full-load rates per production cycle:
+One Default-area Assembly V shares capacity across all four Construction Parts
+recipes. Installed v0.8.7 data gives these full-load rates per production cycle:
 
-- Vehicle Parts I: 96 Mechanical Parts + 32 Electronics I -> 64 Vehicle Parts I.
-- Vehicle Parts II: 32 Vehicle Parts I + 16 Steel + 8 Glass -> 16 Vehicle Parts II.
+- Construction Parts: 18 Iron + 18 Wood + 24 Concrete Slabs -> 24.
+- Construction Parts II: 48 Construction Parts + 24 Electronics I -> 24.
+- Construction Parts III: 48 Construction Parts II + 24 Steel -> 24.
+- Construction Parts IV: 24 Construction Parts III + 12 Electronics II -> 12.
 
 - Cargo Ship size 4: 22 workers; the four large modules add 20 workers.
-- Two import sections carry 1,600 Iron Ore per trip.
+- Two import sections carry 1,600 Titanium Ore per trip.
 - The current save reports a 426-second round trip with Save Fuel enabled,
-  capping the route at `1,600 / (426 / 60) = 225.3521 Iron Ore` per cycle
+  capping the route at `1,600 / (426 / 60) = 225.3521 Titanium Ore` per cycle
   before loading, unloading, or cargo-waiting delays.
 - Save Fuel costs 289 Hydrogen per trip at level zero.
-- Its shipment rate is demand-balanced. The calculator iterates the import and
-  corresponding Vehicle Parts II export demand until the remaining map-mine
-  requirement and Iron Ore surplus both reach zero.
-- With the audit's base modifiers, 92.971225 Iron Ore per cycle requires 6.6408
-  Vehicle Parts II and averages 16.7929 Hydrogen per cycle. Active recycling
-  and other runtime modifiers can reduce that rate.
+- Its shipment rate is demand-balanced against raw Titanium Ore demand. The
+  corresponding Construction Parts IV export is produced only when the contract
+  runs.
 
 The active Food Pack -> Ammonia plan uses the same size-4 layout: two Unit
 Module (L) exports and two Fluid Module (L) imports. It is demand-balanced, and
@@ -214,10 +215,10 @@ route at 224.8244 Ammonia per cycle.
 
 The active Medical Supplies III -> Copper Ore plan uses the same size-4 layout:
 two Unit Module (L) exports and two Loose Module (L) imports. Its shipment rate
-is demand-balanced, so the Copper Ore map mine is paused once the contract
-covers current consumption. Until this route is measured in the current save,
-its throughput limit uses the measured 426-second Iron Ore trip as a conservative
-proxy, capping the route at 225.3521 Copper Ore per cycle. With the audit's
+is demand-balanced and replaces raw Copper Ore supply when a synced Copper-area
+boundary exposes current demand. Until this route is measured in the current
+save, its throughput limit uses the measured 426-second settlement-5 route as a
+conservative proxy, capping the route at 225.3521 Copper Ore per cycle. With the audit's
 synced factory history, current demand is 154.9652 Copper Ore per cycle. That
 requires 23.8408 Medical Supplies III and averages 27.9906 Hydrogen per cycle.
 
@@ -234,8 +235,8 @@ Unity cost (0.2 rather than 0.3).
   Ethanol, 38.4615 Sugar, 28.8462 Ammonia, 76.9231 Oxygen, 38.4615 Hydrogen
   Fluoride, 38.4615 Poppy, 19.2308 Acid, and 19.2308 Glass.
 
-The active Coal -> Quartz plan replaces the Sand map mine through the two-stage
-Quartz crushing chain. It uses a size-4 ship with one Loose Module (L) export
+The active Coal -> Quartz plan supplies Sand through the two-stage Quartz
+crushing chain. It uses a size-4 ship with one Loose Module (L) export
 and three Loose Module (L) imports. The 30 August 2026 synced plan imports
 137.848 Quartz per production cycle and exports 59.934 Coal. Contracts
 Profitability step 7 rounds the base 20-Quartz bundle to 23 Quartz for each 10
@@ -258,8 +259,8 @@ Verified in `CargoShipsData`, `TrucksData`, `CargoShipV1`, `CargoShipV2`,
 
 ## Ore sorting plants
 
-Area modules track the island's ore sorting plants, not world-map mines.
-Unzoned plants belong to Default. Installed v0.8.7 worker values are:
+Area modules track the island's ore sorting plants. Unzoned plants belong to
+Default. Installed v0.8.7 worker values are:
 
 | Building                  | Workers |
 | ------------------------- | ------: |
@@ -270,7 +271,7 @@ Verified in `OreSortingPlantData` and `Costs.Buildings`. The calculator represen
 the plant itself as a no-flow static load because material sorting is not a
 production recipe. An operating sorter also identifies a named area as a terrain
 mine: assigned Crusher recipes in that same area receive module-local terrain
-inputs when the input has an installed map-mine source. Area names and resource
+inputs when the input is a supported terrain resource. Area names and resource
 IDs are not configured manually, and two areas mining the same material retain
 separate extraction flows. A crusher without an operating sorter receives no
 implicit terrain supply; contract-delivered mine inputs remain future work.
@@ -478,8 +479,8 @@ global Mines module, and no named or rendered virtual mine is created.
 
 ## Offices and Focuses
 
-The Offices module models all three installed v0.8.7 tiers. Rates are per
-production cycle (60 seconds):
+Generated area modules support all three installed v0.8.7 Office tiers. Rates
+are per production cycle (60 seconds):
 
 | Building   | Workers | Electricity | Office Supplies | Recyclables | Computing base |
 | ---------- | ------: | ----------: | --------------: | ----------: | -------------: |
@@ -505,14 +506,23 @@ Assembly V produces 6 Office Supplies from 3 Paper, 2 Household Goods, and 1
 Electronics II every 7.5 seconds. The calculator stores the equivalent
 per-production-cycle rates of 48, 24, 16, and 8 respectively.
 
-Office configuration resolves in `default ≤ modeled ≤ synced ≤ planned` order.
-The default remains empty. The current modeled configuration has one Office III at
-computing boost step 2, one supporting Assembly V, and 1,695 of its 1,700 Focus
-Points allocated to Contracts Profitability step 7 (+14%), Maintenance
-Production step 5 (+5%), and Recycling Efficiency step 2 (+2%). Computing supply
-is modeled separately, so the Office III's 192 TFLOPS demand remains visible.
-The supporting Assembly V and boosted Office III are modeled as physically
-built and running. Their Focus allocation is also modeled as current.
+Office buildings and their owning areas come from the named-area snapshot. An
+area can have any name; its Office I–III buildings are attached by prototype and
+stable zone ID. The selected Office Supplies recipe on Assembly V is synced
+directly. Office computing boost and Focus allocation are not present in the
+current snapshot, so they remain explicit planned settings.
+
+If no generated area can own the Office inventory, the same explicit plan is
+kept as an `Office plan` preset. This preserves its projected workers, power,
+computing, and recurring material pressure without restoring a modeled current
+state. An Office that overlaps multiple generated areas is assigned to one
+stable area so its physical load is never counted twice.
+
+The current plan uses computing boost step 2 and allocates 1,695 Focus Points to
+Contracts Profitability step 7 (+14%), Maintenance Production step 5 (+5%), and
+Recycling Efficiency step 2 (+2%). The Focus view calculates generated capacity
+from running synced Offices, then shows allocated and available points. Office
+III's 192 TFLOPS demand remains visible in its owning area and Factory Total.
 The supporting Housing III configuration models all 15 blocks as physically
 built and exposes their full-population settlement demand.
 

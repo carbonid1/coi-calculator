@@ -14,7 +14,6 @@ import {
 import {
   createNuclearModule,
   defaultNuclearConfig,
-  NUCLEAR_MODULE_ID,
 } from "../../db/modules/nuclear";
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
@@ -30,23 +29,23 @@ const maintenanceDemand = {
   maintenanceII: 194.22,
   maintenanceIII: 236.55,
 };
+const modulesWithNuclear = [
+  ...modules,
+  createNuclearModule(defaultNuclearConfig, {
+    averageGeneratorOutputMw: 77,
+    hydrogenFuelDemandPerCycle: 46.5,
+  }),
+];
 const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
   defaultModuleId: DEFAULT_MODULE_ID,
   demand: maintenanceDemand,
-  modules,
+  modules: modulesWithNuclear,
 });
-const modulesWithSyncedHistory = modules.map(module => {
+const modulesWithSyncedHistory = modulesWithNuclear.map(module => {
   const maintenanceAssignment = maintenanceAssignments[module.id];
 
   if (maintenanceAssignment) {
     module = attachMaintenanceDepotsToModule(module, maintenanceAssignment, "modeled");
-  }
-
-  if (module.id === NUCLEAR_MODULE_ID) {
-    return createNuclearModule(defaultNuclearConfig, {
-      averageGeneratorOutputMw: 77,
-      hydrogenFuelDemandPerCycle: 46.5,
-    });
   }
 
   return module;
@@ -89,54 +88,30 @@ describe("Factory Total contracts", () => {
     expect(hydrogen?.net).toBeCloseTo(0);
   });
 
-  it("leaves the Iron Ore contract idle without a synced Steel-area boundary", () => {
+  it("keeps the Titanium Ore contract ready while current demand is zero", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, {
       ...baselineFactoryOptions,
       contracts: activeContracts,
     });
     const contractResult = result.contractResults.find(
-      ({ contract }) => contract.id === "iron-ore-for-vehicle-parts-ii",
-    );
-    const ironOre = result.flows.find((flow) => flow.resourceId === "ironOre");
-    const ironOreCrushed = result.flows.find(
-      (flow) => flow.resourceId === "ironOreCrushed",
-    );
-    const ironMine = result.calculation.sourceResults.find(
-      ({ recipe }) => recipe.id === "iron-map-mine",
-    );
-    const crusher = result.calculation.regularResults.find(
-      ({ recipe }) => recipe.id === "crusher-large-iron",
-    );
-    const redMudRecovery = result.calculation.regularResults.find(
-      ({ recipe }) => recipe.id === "settling-tank-red-mud-acid",
+      ({ contract }) => contract.id === "titanium-ore-for-construction-parts-iv",
     );
 
-    expect(contractResult?.exported).toBe(0);
-    expect(contractResult?.imported).toBe(0);
-    expect(contractResult?.requiredImported).toBe(0);
-    expect(contractResult?.fuelPerProductionCycle).toBe(0);
-    expect(ironOre?.consumed).toBe(0);
-    expect(ironOre?.produced).toBe(0);
-    expect(ironOre?.net).toBeCloseTo(0, 5);
-    const recoveredCrushedOre = redMudRecovery?.actualOutputs.find(
-      ({ resourceId }) => resourceId === "ironOreCrushed",
-    )?.quantity ?? 0;
-    const crushedOreFromCrusher = crusher?.actualOutputs.find(
-      ({ resourceId }) => resourceId === "ironOreCrushed",
-    )?.quantity ?? 0;
-
-    expect(recoveredCrushedOre).toBeGreaterThan(0);
-    expect(crushedOreFromCrusher).toBe(0);
-    expect(ironOreCrushed).toMatchObject({
-      consumed: 0,
-      produced: recoveredCrushedOre,
-      net: recoveredCrushedOre,
+    expect(contractResult).toMatchObject({
+      contract: {
+        exchange: {
+          exported: { resourceId: "constructionPartsIV", quantity: 5 },
+          imported: { resourceId: "titaniumOre", quantity: 380 },
+        },
+      },
+      exported: 0,
+      imported: 0,
+      requiredImported: 0,
+      fuelPerProductionCycle: 0,
     });
-    const ironMineOutput = ironMine?.actualOutputs.find(
-      (output) => output.resourceId === "ironOre",
-    );
-
-    expect(ironMineOutput?.quantity).toBeCloseTo(0, 5);
+    expect(result.contractResults.some(
+      ({ contract }) => contract.id === "iron-ore-for-vehicle-parts-ii",
+    )).toBe(false);
   });
 
   it("leaves the Copper Ore contract idle without a synced Copper-area boundary", () => {
@@ -148,9 +123,6 @@ describe("Factory Total contracts", () => {
       ({ contract }) => contract.id === "copper-ore-for-medical-supplies-iii",
     );
     const copperOre = result.flows.find((flow) => flow.resourceId === "copperOre");
-    const copperMine = result.calculation.sourceResults.find(
-      ({ recipe }) => recipe.id === "copper-map-mine",
-    );
 
     expect(contractResult?.exported).toBe(0);
     expect(contractResult?.imported).toBe(0);
@@ -159,11 +131,9 @@ describe("Factory Total contracts", () => {
     expect(copperOre?.consumed).toBeCloseTo(0, 5);
     expect(copperOre?.produced).toBeCloseTo(0, 5);
     expect(copperOre?.net).toBeCloseTo(0, 5);
-    const copperMineOutput = copperMine?.actualOutputs.find(
-      (output) => output.resourceId === "copperOre",
-    );
-
-    expect(copperMineOutput?.quantity).toBeCloseTo(0, 5);
+    expect(result.calculation.sourceResults.some(({ recipe }) => (
+      recipe.outputs.some(({ resourceId }) => resourceId === "copperOre")
+    ))).toBe(false);
   });
 
   it("replaces local Ammonia production with the demand-balanced contract", () => {
@@ -186,7 +156,7 @@ describe("Factory Total contracts", () => {
     expect(localNitrogen).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
   });
 
-  it("mines Coal on demand while every local Coal Maker is paused", () => {
+  it("leaves Coal demand uncovered while every local Coal Maker is paused", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, {
       ...baselineFactoryOptions,
       contracts: activeContracts,
@@ -194,18 +164,12 @@ describe("Factory Total contracts", () => {
     const coalMaker = result.calculation.regularResults.find(
       ({ recipe }) => recipe.id === "coal-maker-wood",
     );
-    const coalMine = result.calculation.sourceResults.find(
-      ({ recipe }) => recipe.id === "coal-map-mine",
-    );
     const coal = result.flows.find((flow) => flow.resourceId === "coal");
-    const minedCoal = coalMine?.actualOutputs.find(
-      ({ resourceId }) => resourceId === "coal",
-    )?.quantity ?? 0;
 
     expect(coalMaker).toMatchObject({ activeBuildings: 0, builtBuildings: 3 });
-    expect(minedCoal).toBeGreaterThan(0);
-    expect(coal).toMatchObject({ net: 0 });
-    expect(minedCoal).toBeCloseTo(coal?.consumed ?? 0, 5);
+    expect(coal?.consumed ?? 0).toBeGreaterThan(0);
+    expect(coal?.produced).toBe(0);
+    expect(coal?.net).toBeCloseTo(-(coal?.consumed ?? 0), 5);
   });
 
   it("keeps uncovered Uranium demand visible instead of resizing the contract", () => {
@@ -333,9 +297,9 @@ describe("Factory Total contracts", () => {
       quantity: 4,
     });
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
-    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.6810277778);
-    expect(recyclables?.consumed).toBeCloseTo(196.136);
-    expect(recyclables?.produced).toBeCloseTo(196.136);
+    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.65325);
+    expect(recyclables?.consumed).toBeCloseTo(188.136);
+    expect(recyclables?.produced).toBeCloseTo(188.136);
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });

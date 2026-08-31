@@ -1,7 +1,5 @@
 import { type SyncedProductionEntity } from "../../game-state";
 
-const NUCLEAR_ZONE_NAME = "Nuclear";
-
 interface SyncedRecipeBuildingCount {
   built: number;
   running: number;
@@ -104,6 +102,11 @@ const matchers: readonly RecipeMatcher[] = [
   },
 ];
 
+export const nuclearHandledPrototypeIds = new Set([
+  "FastBreederReactor",
+  ...matchers.flatMap(({ prototypeId }) => prototypeId ? [prototypeId] : []),
+]);
+
 const matches = (entity: SyncedProductionEntity, matcher: RecipeMatcher) => (
   (matcher.prototypeId == null || entity.prototypeId === matcher.prototypeId) &&
   (matcher.gameRecipeId == null || entity.recipeIds.includes(matcher.gameRecipeId))
@@ -123,10 +126,13 @@ const addCount = (
 
 export const resolveNuclearEntityInventory = (
   productionEntities: readonly SyncedProductionEntity[],
+  zoneId?: number,
 ): ResolvedNuclearEntityInventory => {
-  const entities = productionEntities.filter(entity => (
-    entity.zones.some(zone => zone.name === NUCLEAR_ZONE_NAME)
-  ));
+  const entities = zoneId == null
+    ? [...productionEntities]
+    : productionEntities.filter(entity => (
+        entity.zones.some(zone => zone.id === zoneId)
+      ));
   const counts: ResolvedNuclearEntityInventory["counts"] = {};
   const speedLevels: ResolvedNuclearEntityInventory["speedLevels"] = {};
   const matchedEntityIds = new Set<number>();

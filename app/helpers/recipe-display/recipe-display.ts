@@ -7,12 +7,12 @@ type DisplayableRecipe = Pick<
 
 /**
  * Returns the concise, user-facing recipe label used next to a building name.
- * Exact exported game IDs win. Calculator labels remain a fallback for
- * modeled recipes that do not have a game recipe identity yet.
+ * An explicit concise label wins. Exact exported game IDs remain the fallback
+ * for synced recipes that do not have a player-facing label yet.
  */
 export const getRecipeDisplayName = (recipe: DisplayableRecipe) => {
-  if (recipe.gameRecipeId) return recipe.gameRecipeId;
   if (recipe.displayName) return recipe.displayName;
+  if (recipe.gameRecipeId) return recipe.gameRecipeId;
   if (recipe.name === recipe.building) return recipe.building;
 
   const configuration = recipe.name.match(/\(([^()]*)\)$/)?.[1];

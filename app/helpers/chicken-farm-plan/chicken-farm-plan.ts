@@ -32,10 +32,6 @@ interface EffectiveEntity extends CurrentChickenFarmEntity {
 
 const pluralize = (name: string, count: number) => `${name}${count === 1 ? "" : "s"}`;
 
-const isOwnedBy = (entity: CurrentChickenFarmEntity, moduleName: string) => (
-  entity.zones.some(zone => zone.name === moduleName)
-);
-
 const higherSource = (left: ValueSource, right: ValueSource): ValueSource => {
   const priority: Record<ValueSource, number> = {
     default: 0,
@@ -124,41 +120,15 @@ const createMismatch = (
   actions,
 });
 
-const createOwnershipMismatch = (
-  settings: ChickenFarmSettings,
-  currentSource: CurrentValueSource,
-  entities: readonly CurrentChickenFarmEntity[],
-  moduleName: string,
-): PlanMismatch => ({
-  recipeId: settings.slaughtering
-    ? "chicken-farm-slaughtering"
-    : "chicken-farm-eggs-only",
-  current: entities.length,
-  currentSource,
-  target: 0,
-  direction: "at-most",
-  format: "count",
-  currentLabel: `${entities.length} live Chicken ${pluralize("Farm", entities.length)} outside the ${moduleName} area`,
-  targetLabel: `0 Chicken Farms outside the ${moduleName} area`,
-  actions: [{
-    type: "assign",
-    label: `Assign ${entities.length} Chicken ${pluralize("Farm", entities.length)} to the ${moduleName} area or pause ${entities.length === 1 ? "it" : "them"}`,
-  }],
-});
-
 export const resolveChickenFarmEntityPlan = (
   settings: ChickenFarmSettings,
   currentEntities: readonly CurrentChickenFarmEntity[],
   currentSource: CurrentValueSource,
   direction: PlanDirection,
-  moduleName: string,
 ): ResolvedChickenFarmEntityPlan => {
   const targetLayout = getChickenFarmLayout(settings.totalChickenCount);
   const entities = [...currentEntities].toSorted((left, right) => left.entityId - right.entityId);
-  const owned = entities.filter(entity => isOwnedBy(entity, moduleName));
-  const unowned = entities.filter(entity => !isOwnedBy(entity, moduleName));
-  const unownedRunning = unowned.filter(entity => entity.running);
-  const matchingRunning = owned.filter(entity => (
+  const matchingRunning = entities.filter(entity => (
     entity.running && entity.slaughtering === settings.slaughtering
   ));
   const currentFarms = matchingRunning.length;
@@ -177,13 +147,11 @@ export const resolveChickenFarmEntityPlan = (
         null,
         settings.slaughtering,
       ),
-      planMismatches: unownedRunning.length > 0
-        ? [createOwnershipMismatch(settings, currentSource, unownedRunning, moduleName)]
-        : [],
+      planMismatches: [],
     };
   }
 
-  const effective: EffectiveEntity[] = owned.map(entity => ({
+  const effective: EffectiveEntity[] = entities.map(entity => ({
     ...entity,
     source: currentSource,
   }));
@@ -209,9 +177,6 @@ export const resolveChickenFarmEntityPlan = (
       entity.running && entity.slaughtering === settings.slaughtering
     )).reduce((total, entity) => total + entity.chickens, 0);
     const removeCount = Math.max(0, chickensAfterPause - targetLayout.totalChickenCount);
-    const unownedPlannedModeChickens = unowned.filter(entity => (
-      entity.running && entity.slaughtering === settings.slaughtering
-    )).reduce((total, entity) => total + entity.chickens, 0);
     const actions: PlanMismatchAction[] = [
       ...(pauseCount > 0
         ? [{
@@ -227,13 +192,10 @@ export const resolveChickenFarmEntityPlan = (
         : []),
     ];
 
-    effective.push(...unowned.map(entity => ({ ...entity, source: currentSource })));
-
     return {
       modes: aggregateModes(
         effective,
-        Math.min(chickensAfterPause, targetLayout.totalChickenCount)
-          + unownedPlannedModeChickens,
+        Math.min(chickensAfterPause, targetLayout.totalChickenCount),
         settings.slaughtering,
       ),
       planMismatches: [
@@ -246,56 +208,24 @@ export const resolveChickenFarmEntityPlan = (
           targetLayout.farmCount,
           actions,
         ),
-        ...(unownedRunning.length > 0
-          ? [createOwnershipMismatch(settings, currentSource, unownedRunning, moduleName)]
-          : []),
       ],
     };
   }
 
   const missingFarmCount = Math.max(0, targetLayout.farmCount - currentFarms);
-  const ownedIds = new Set(owned.map(entity => entity.entityId));
   const candidateGroups = [
-    owned.filter(entity => !entity.running && entity.slaughtering === settings.slaughtering),
-    owned.filter(entity => entity.running && entity.slaughtering !== settings.slaughtering),
-    owned.filter(entity => !entity.running && entity.slaughtering !== settings.slaughtering),
-    entities.filter(entity => (
-      !ownedIds.has(entity.entityId)
-      && entity.running
-      && entity.slaughtering === settings.slaughtering
-    )),
-    entities.filter(entity => (
-      !ownedIds.has(entity.entityId)
-      && !entity.running
-      && entity.slaughtering === settings.slaughtering
-    )),
-    entities.filter(entity => (
-      !ownedIds.has(entity.entityId)
-      && entity.running
-      && entity.slaughtering !== settings.slaughtering
-    )),
-    entities.filter(entity => (
-      !ownedIds.has(entity.entityId)
-      && !entity.running
-      && entity.slaughtering !== settings.slaughtering
-    )),
+    entities.filter(entity => !entity.running && entity.slaughtering === settings.slaughtering),
+    entities.filter(entity => entity.running && entity.slaughtering !== settings.slaughtering),
+    entities.filter(entity => !entity.running && entity.slaughtering !== settings.slaughtering),
   ];
   const candidates = candidateGroups.flat().slice(0, missingFarmCount);
-  let assignCount = 0;
   let unpauseCount = 0;
   let configureCount = 0;
-  const selectedUnownedIds = new Set<number>();
 
   for (const candidate of candidates) {
-    const ownedCandidate = ownedIds.has(candidate.entityId);
-    const effectiveCandidate = effective.find(entity => entity.entityId === candidate.entityId)
-      ?? { ...candidate, source: "planned" as const };
+    const effectiveCandidate = effective.find(entity => entity.entityId === candidate.entityId);
 
-    if (!ownedCandidate) {
-      assignCount++;
-      selectedUnownedIds.add(candidate.entityId);
-      effective.push(effectiveCandidate);
-    }
+    if (!effectiveCandidate) continue;
     if (!candidate.running) unpauseCount++;
     if (candidate.slaughtering !== settings.slaughtering) configureCount++;
 
@@ -310,20 +240,7 @@ export const resolveChickenFarmEntityPlan = (
   )).reduce((total, entity) => total + entity.chickens, 0);
   const plannedChickenCount = Math.max(availableChickens, targetLayout.totalChickenCount);
   const addChickenCount = Math.max(0, targetLayout.totalChickenCount - availableChickens);
-  const remainingUnowned = unowned.filter(entity => !selectedUnownedIds.has(entity.entityId));
-  const remainingUnownedRunning = remainingUnowned.filter(entity => entity.running);
-  const remainingPlannedModeChickens = remainingUnowned.filter(entity => (
-    entity.running && entity.slaughtering === settings.slaughtering
-  )).reduce((total, entity) => total + entity.chickens, 0);
-
-  effective.push(...remainingUnowned.map(entity => ({ ...entity, source: currentSource })));
   const actions: PlanMismatchAction[] = [
-    ...(assignCount > 0
-      ? [{
-          type: "assign" as const,
-          label: `Assign ${assignCount} Chicken ${pluralize("Farm", assignCount)} to the ${moduleName} area`,
-        }]
-      : []),
     ...(unpauseCount > 0
       ? [{
           type: "unpause" as const,
@@ -353,7 +270,7 @@ export const resolveChickenFarmEntityPlan = (
   return {
     modes: aggregateModes(
       effective,
-      plannedChickenCount + remainingPlannedModeChickens,
+      plannedChickenCount,
       settings.slaughtering,
       buildCount,
     ),
@@ -367,9 +284,6 @@ export const resolveChickenFarmEntityPlan = (
         targetLayout.farmCount,
         actions,
       ),
-      ...(remainingUnownedRunning.length > 0
-        ? [createOwnershipMismatch(settings, currentSource, remainingUnownedRunning, moduleName)]
-        : []),
     ],
   };
 };

@@ -464,9 +464,9 @@ export const greenhouses = createGreenhousesModule();
 
 export const createChickenFarmsModule = (
   settings: ChickenFarmSettings,
-  builtSettings: ChickenFarmSettings = settings,
-  dataSource: ValueSource = "modeled",
-  builtDataSource: ValueSource = dataSource,
+  builtSettings: ChickenFarmSettings = resolvedCurrentChickenFarmSettings.value,
+  dataSource: ValueSource = "planned",
+  builtDataSource: CurrentValueSource = resolvedCurrentChickenFarmSettings.source,
   currentConfigurations?: readonly CurrentChickenFarmConfiguration[],
   planDirection: PlanDirection = plannedChickenFarmDirection,
   currentEntities?: readonly CurrentChickenFarmEntity[],
@@ -474,9 +474,7 @@ export const createChickenFarmsModule = (
   const farmRecipeId = settings.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
   const chickenLayout = getChickenFarmLayout(settings.totalChickenCount);
   const builtChickenLayout = getChickenFarmLayout(builtSettings.totalChickenCount);
-  const currentSource: CurrentValueSource = builtDataSource === "planned"
-    ? "modeled"
-    : builtDataSource;
+  const currentSource = builtDataSource;
 
   if (currentEntities) {
     const resolved = resolveChickenFarmEntityPlan(
@@ -484,12 +482,12 @@ export const createChickenFarmsModule = (
       currentEntities,
       currentSource,
       planDirection,
-      "Chicken Farms",
     );
     const builtBuildings: Record<string, number> = {};
     const activeBuildings: Record<string, number> = {};
     const dataSources: Record<string, ValueSource> = {};
     const speedLevels: Record<string, number> = {};
+    const unplacedPlannedBuildings: Record<string, number> = {};
 
     for (const mode of resolved.modes) {
       const recipeId = mode.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
@@ -500,19 +498,26 @@ export const createChickenFarmsModule = (
       speedLevels[recipeId] = mode.active > 0
         ? mode.chickens / (mode.active * chickenFarm.capacity)
         : 0;
+      const unplaced = Math.max(0, mode.active - mode.built);
+
+      if (unplaced > 0) unplacedPlannedBuildings[recipeId] = unplaced;
     }
 
     return {
       id: CHICKEN_FARMS_MODULE_ID,
       name: "Chicken Farms",
-      description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens. Their Water is imported from Factory Total; they are not connected to the Greenhouse groundwater network.`,
+      description: "",
+      gameSynced: true,
       builtBuildings,
       presets: [{
         id: "current-chicken-farm-plan",
-        name: "Current Chicken Farm Plan",
-        description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens`,
+        name: "Chicken Farms",
+        description: "",
         activeBuildings,
         dataSources,
+        unplacedPlannedBuildings: Object.keys(unplacedPlannedBuildings).length > 0
+          ? unplacedPlannedBuildings
+          : undefined,
         planMismatches: resolved.planMismatches.length > 0
           ? resolved.planMismatches
           : undefined,
@@ -588,6 +593,13 @@ export const createChickenFarmsModule = (
       ? effectiveChickenCount / (effectiveFarmCount * chickenFarm.capacity)
       : 0,
   };
+  const unplacedPlannedBuildings: Record<string, number> = {};
+
+  for (const [recipeId, active] of Object.entries(activeBuildings)) {
+    const unplaced = Math.max(0, active - (builtBuildings[recipeId] ?? 0));
+
+    if (unplaced > 0) unplacedPlannedBuildings[recipeId] = unplaced;
+  }
 
   if (preserveOtherConfigurations && otherRunning > 0) {
     builtBuildings[otherRecipeId] = otherBuilt;
@@ -660,15 +672,19 @@ export const createChickenFarmsModule = (
   return {
     id: CHICKEN_FARMS_MODULE_ID,
     name: "Chicken Farms",
-    description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens. Their Water is imported from Factory Total; they are not connected to the Greenhouse groundwater network.`,
+    description: "",
+    gameSynced: true,
     builtBuildings,
     presets: [
       {
         id: "current-chicken-farm-plan",
-        name: "Current Chicken Farm Plan",
-        description: `${chickenLayout.farmCount} Chicken Farms with ${chickenLayout.totalChickenCount} chickens`,
+        name: "Chicken Farms",
+        description: "",
         activeBuildings,
         dataSources,
+        unplacedPlannedBuildings: Object.keys(unplacedPlannedBuildings).length > 0
+          ? unplacedPlannedBuildings
+          : undefined,
         planMismatches: isPlanned && !satisfied
           ? [{
               recipeId: farmRecipeId,
