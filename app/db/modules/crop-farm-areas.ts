@@ -154,7 +154,6 @@ const attachCropFarms = (
     fertilizerLimit: 0,
     overlappingAreas: 0,
     unidentifiedFertilizer: 0,
-    unconfigured: 0,
     unsupportedCrop: 0,
   }
 
@@ -188,7 +187,6 @@ const attachCropFarms = (
       continue
     }
     if (isUnconfiguredSchedule(schedule)) {
-      issueCounts.unconfigured++
       recordStatus(entity, 'unconfigured')
       continue
     }
@@ -291,12 +289,6 @@ const attachCropFarms = (
   })
   const issues = liveArea ? [
     ...liveArea.issues,
-    ...(issueCounts.unconfigured > 0 ? [{
-      id: 'crop-farms:unconfigured',
-      building: 'Crop farms',
-      count: issueCounts.unconfigured,
-      message: 'No crop rotation is configured.',
-    }] : []),
     ...(issueCounts.unsupportedCrop > 0 ? [{
       id: 'crop-farms:unsupported-crop',
       building: 'Crop farms',

@@ -159,7 +159,7 @@ describe('synced crop-farm areas', () => {
     expect(withDefaultFarm.includedInFactoryTotals).toBe(true)
   })
 
-  it('reports unconfigured and unsupported farms without inventing production', () => {
+  it('ignores empty rotations and reports unsupported crops without inventing production', () => {
     const farmModule = createCropFarmAreaModule(area(17), [
       farm(1, {
         schedule: ['none', 'none', 'none', 'none'],
@@ -172,7 +172,6 @@ describe('synced crop-farm areas', () => {
 
     expect(farmModule.recipes).toEqual([])
     expect(farmModule.liveArea?.issues).toEqual([
-      expect.objectContaining({ id: 'crop-farms:unconfigured', count: 1 }),
       expect.objectContaining({ id: 'crop-farms:unsupported-crop', count: 1 }),
     ])
   })
