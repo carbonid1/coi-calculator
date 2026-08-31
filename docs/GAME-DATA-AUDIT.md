@@ -473,9 +473,19 @@ installed acid route for Red Mud recovery instead of dumping it.
 The synced Titanium area is likewise discovered from its operating Ore Sorting
 Plant and Large Crusher configured for Ilmenite Milling. It exports Crushed
 Titanium Ore into the factory pool. Default starts at Titanium Ore smelting;
-Process Steam owns chloride purification because its Distillation Stage III
-consumes High Steam. Bauxite and Titanium are no longer supplied by the legacy
-global Mines module, and no named or rendered virtual mine is created.
+Default also owns chloride purification, Paper, Sour Water Stripping, and its
+waste-fired Steam (High) supply. The Incineration Plant is demand-balanced only
+against Steam (High) consumption inside Default. Bauxite and Titanium are no
+longer supplied by the legacy global Mines module, and no named or rendered
+virtual mine is created.
+
+## Default steam recovery
+
+Verified from the installed v0.8.7 `CoolingTowerT2` recipe
+`SteamDepletedCondensationT2`: one Large Cooling Tower converts 16 Steam
+(Depleted) into 12 Water every 10 seconds, or 96 Steam (Depleted) into 72 Water
+per production cycle. Default has a dedicated tower for this route. It consumes
+only Default's Steam (Depleted) surplus after Titanium Purification.
 
 ## Offices and Focuses
 

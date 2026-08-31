@@ -27,7 +27,6 @@ import {
 } from "./farms";
 import { factoryModelModules as modules } from "./modules";
 import { nuclear } from "./nuclear";
-import { processSteam } from "./process-steam";
 
 it("updates Rocket II material targets from the active capacity research level", () => {
   const logistics = calculateRocketIiRecurringLogistics(defaultSpaceStationLevel, 2);
@@ -689,15 +688,12 @@ it("shreds the Tree Sapling surplus and exposes planned settlement Biomass surpl
     )?.quantity ?? 0);
 });
 
-it("keeps the completed advanced recipes current in their operating modules", () => {
+it("keeps the completed advanced recipes current in Default", () => {
   const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId) ?? null;
-  const processSteamPreset = processSteam.presets.find(
-    ({ id }) => id === processSteam.defaultPresetId,
-  ) ?? null;
   const generalLines = buildModuleLines(general, generalPreset).lines.filter(
     ({ recipe }) => ["assembly-v-composite-panel", "lens-polisher"].includes(recipe.id),
   );
-  const titaniumPurification = buildModuleLines(processSteam, processSteamPreset).lines.find(
+  const titaniumPurification = buildModuleLines(general, generalPreset).lines.find(
     ({ recipe }) => recipe.id === "distillation-stage-iii-titanium-purification",
   );
 
@@ -728,7 +724,7 @@ it("keeps the completed advanced recipes current in their operating modules", ()
       ],
     },
   });
-  expect(titaniumPurification?.dataSource).toBeUndefined();
+  expect(titaniumPurification?.dataSource).toBe("modeled");
 });
 
 it("demand-balances enough Yellowcake for the two-FBR target", () => {

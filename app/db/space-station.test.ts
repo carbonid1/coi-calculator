@@ -10,7 +10,6 @@ import {
 } from "../helpers/planned-builds/planned-builds";
 import { baseConfig } from "./config";
 import { defaultArea as general } from "./modules/default";
-import { processSteam } from "./modules/process-steam";
 import { createResearchModule } from "./modules/research";
 import {
   createLegacySpaceStationArea,
@@ -526,7 +525,6 @@ describe("Space Station", () => {
         createResearchModule({ activeResearchLabIvCount: 2, mode: "space" }),
         spaceStation,
         general,
-        processSteam,
       ],
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
     );

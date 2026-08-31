@@ -19,19 +19,11 @@ import {
   plannedNewDefaultBuildings as plannedNewGeneralBuildings,
 } from "./modules/default";
 import { factoryModelModules as modules } from "./modules/modules";
-import {
-  plannedProcessSteamBuildings,
-  plannedProcessSteamBuiltBuildings,
-  processSteam,
-} from "./modules/process-steam";
 import { recipes } from "./recipes";
 import { defaultInfiniteResearchLevels } from "./research";
 import { defaultRocketIiRecurringLogistics } from "./space-station";
 
-const plannedBuildings = {
-  ...plannedNewGeneralBuildings,
-  ...plannedProcessSteamBuildings,
-};
+const plannedBuildings = plannedNewGeneralBuildings;
 const plannedAdvancedBuildings = Object.fromEntries(
   Object.entries(plannedBuildings).filter(
     ([recipeId]) => recipeId !== "chemical-plant-ii-cooking-oil-diesel",
@@ -159,18 +151,11 @@ describe("planned advanced production", () => {
 
   it("has no remaining net-new advanced buildings", () => {
     const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId);
-    const processSteamPreset = processSteam.presets.find(
-      ({ id }) => id === processSteam.defaultPresetId,
-    );
 
     expect(modules.some(({ id }) => id === "space-points-expansion")).toBe(false);
     expect(Object.keys(plannedAdvancedBuildings)).toHaveLength(0);
-    expect(Object.values({
-      ...plannedGeneralBuiltBuildings,
-      ...plannedProcessSteamBuiltBuildings,
-    }).every((count) => count === 0)).toBe(true);
+    expect(Object.values(plannedGeneralBuiltBuildings).every((count) => count === 0)).toBe(true);
     expect(generalPreset?.activeBuildings).toMatchObject(plannedGeneralBuildings);
-    expect(processSteamPreset?.activeBuildings).toMatchObject(plannedProcessSteamBuildings);
     expect(generalPreset?.dataSources).toEqual({
       ...Object.fromEntries(
         modeledGeneralRecipeIds.map((recipeId) => [recipeId, "modeled"]),
@@ -180,7 +165,6 @@ describe("planned advanced production", () => {
       ),
       "groundwater-pump-factory-reserve": "modeled",
     });
-    expect(processSteamPreset?.dataSources).toBeUndefined();
     expect(generalPreset?.outputTargets).toEqual({
       compositePanel: defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4,
       titaniumAlloy: defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,

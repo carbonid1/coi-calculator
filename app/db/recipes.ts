@@ -116,6 +116,8 @@ export interface Recipe {
   inputPriorities?: Partial<Record<ResourceId, number>>
   /** Outputs that create demand for an output-balanced recipe; defaults to every output. */
   balanceOutputIds?: ResourceId[]
+  /** Output-balanced recipes can serve only demand created inside their physical module. */
+  balanceOutputScope?: 'module'
   /** Lower values allocate demand-balanced recipes first when planned outputs compete. */
   demandPriority?: number
   /** Fallback recipes run after ordinary production; surplus recipes run last. */
@@ -1275,7 +1277,7 @@ export const recipes: Recipe[] = [
     ],
   },
   {
-    // Captain of Industry v0.8.6c process-steam cluster, normalized to 60 seconds.
+    // Captain of Industry v0.8.6c paper recipe, normalized to 60 seconds.
     id: 'shredder-woodchips',
     name: 'Shredder (Woodchips)',
     building: 'Shredder',
@@ -1553,6 +1555,7 @@ export const recipes: Recipe[] = [
     balanceBy: 'output',
     balanceInputIds: ['waste'],
     balanceOutputIds: ['steamHigh'],
+    balanceOutputScope: 'module',
     inputs: [
       { resourceId: 'waste', quantity: 144 },
       { resourceId: 'fuelGas', quantity: 6 },
@@ -4048,6 +4051,7 @@ export const recipes: Recipe[] = [
       label: 'Cooling Tower (Large)',
       priority: 1,
     },
+    sinkScope: 'module',
     inputs: [{ resourceId: 'steamDepleted', quantity: 96 }],
     outputs: [{ resourceId: 'water', quantity: 72 }],
   },

@@ -30,6 +30,12 @@ const modeledDefaultCapacityPools = {
     currentActive: 1,
     constructionGhosts: 0,
   },
+  "cooling-tower-large-steam": {
+    active: 2,
+    built: 2,
+    currentActive: 2,
+    constructionGhosts: 0,
+  },
 } as const;
 
 const plannedDefaultCapacityPools = {} as const;
@@ -38,6 +44,14 @@ const currentActiveDefaultBuildings = {
   "crusher-large-copper": 1,
   "crusher-large-quartz": 1,
   "crusher-large-quartz-crushed": 2,
+} as const;
+
+const modeledProcessSteamDefaultBuildings = {
+  "chemical-plant-ii-paper": 2,
+  "sour-water-stripper": 1,
+  "incineration-plant-waste": 1,
+  "distillation-stage-iii-titanium-purification": 1,
+  "cooling-tower-large-depleted": 1,
 } as const;
 
 /** Current Default-area values manually confirmed from the game but not snapshot-synced yet. */
@@ -65,22 +79,26 @@ export const modeledDefaultRecipeIds = [
   "arc-furnace-ii-silicon",
   "baking-unit-bread",
   "chemical-plant-ii-chemical-fuel",
+  "chemical-plant-ii-paper",
   "chemical-plant-ii-diamond-paste-cooking-oil",
   "chemical-plant-ii-ethanol",
   "chemical-plant-ii-graphite",
   "cracking-unit-fuel-gas-diesel",
   "crystallizer-alumina",
   "crystallizer-silicon-wafer",
+  "cooling-tower-large-depleted",
   "crusher-large-copper",
   "crusher-large-gold-crushing",
   "crusher-large-gold-milling",
   "crusher-large-quartz",
   "crusher-large-quartz-crushed",
   "diamond-reactor-synthesis",
+  "distillation-stage-iii-titanium-purification",
   "exhaust-scrubber-limestone",
   "fermentation-tank-antibiotics",
   "gold-furnace-concentrate",
   "gold-furnace-scrap",
+  "incineration-plant-waste",
   "lens-polisher",
   "microchip-machine-ii-1a",
   "microchip-machine-ii-1b",
@@ -98,6 +116,7 @@ export const modeledDefaultRecipeIds = [
   "polymerization-plant-plastic-ethanol",
   "settling-tank-gold",
   "silicon-reactor-poly-silicon",
+  "sour-water-stripper",
 ] as const;
 
 export const plannedDefaultBuildings = {
@@ -112,7 +131,7 @@ export const plannedDefaultBuiltBuildings = Object.fromEntries(
 const defaultBase: Module = {
   id: DEFAULT_MODULE_ID,
   name: "Default",
-  description: "Production in the game's immutable Default area: metals, electronics, supporting materials, locally combined Biomass recovery, and Low Steam recovery",
+  description: "Production in the game's immutable Default area: metals, electronics, supporting materials, Biomass recovery, and steam recovery",
   builtBuildings: {
     "seawater-pump": 1,
     "thermal-desalinator-low": 3,
@@ -236,6 +255,7 @@ const defaultBase: Module = {
     "oxygen-furnace-steel": 1,
     "crusher-large-iron": 1,
     "wastewater-treatment-toxic-slurry": 1,
+    ...modeledProcessSteamDefaultBuildings,
     ...plannedDefaultBuiltBuildings,
   },
   presets: [
@@ -366,6 +386,7 @@ const defaultBase: Module = {
         "oxygen-furnace-steel": 1,
         "crusher-large-iron": 1,
         "wastewater-treatment-toxic-slurry": 1,
+        ...modeledProcessSteamDefaultBuildings,
         ...plannedDefaultBuiltBuildings,
       },
       activeBuildings: {

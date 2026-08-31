@@ -1,7 +1,6 @@
 import {
   Archive,
   Boxes,
-  Cloud,
   FlaskConical,
   MapPinned,
   Pickaxe,
@@ -18,7 +17,6 @@ export const syncedModuleIcon = MapPinned;
 export const moduleIcons: Partial<Record<string, LucideIcon>> = {
   general: defaultModuleIcon,
   forestry: TreePine,
-  "process-steam": Cloud,
   research: FlaskConical,
   greenhouses: Sprout,
   mines: Pickaxe,

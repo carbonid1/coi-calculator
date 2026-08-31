@@ -1013,10 +1013,6 @@ export const calculateNet = (
       0,
       getDrivingConsumption(resourceId) - globallyProduced,
     );
-    const moduleDemand = moduleFixedDemands.get(line.moduleId)?.[resourceId] ?? 0;
-
-    if (moduleDemand <= 0) return globalDemand / capacity;
-
     const key = moduleResourceKey(line.moduleId, resourceId);
     const moduleFlow = getActualModuleFlow(line.moduleId, resourceId);
     const moduleProduction = moduleFlow.produced
@@ -1025,6 +1021,14 @@ export const calculateNet = (
       0,
       getModuleDrivingConsumption(line.moduleId, resourceId) - moduleProduction,
     );
+
+    if (line.recipe.balanceOutputScope === "module") {
+      return selectedSourceDemand / capacity;
+    }
+
+    const moduleDemand = moduleFixedDemands.get(line.moduleId)?.[resourceId] ?? 0;
+
+    if (moduleDemand <= 0) return globalDemand / capacity;
 
     return Math.max(globalDemand, selectedSourceDemand) / capacity;
   };
