@@ -1,11 +1,12 @@
 import { type Module } from "./modules";
 
-const FORESTRY_MODULE_ID = "forestry";
+export const FORESTRY_MODULE_ID = "forestry";
 
 export const forestry: Module = {
   id: FORESTRY_MODULE_ID,
   name: "Forestry",
   description: "Wood processing for downstream production chains",
+  gameSynced: true,
   builtBuildings: {
     "forestry-trees-100-growth": 1,
     "shredder-woodchips": 1,

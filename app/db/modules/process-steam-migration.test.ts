@@ -134,6 +134,11 @@ describe("Process Steam migration", () => {
         [recipeId, "modeled"]
       )),
     ));
+    expect(defaultArea.builtBuildings).toMatchObject({
+      "cooling-tower-large-low": 1,
+      "cooling-tower-large-depleted": 1,
+    });
+    expect(defaultPreset?.capacityPools?.["cooling-tower-large-steam"]).toBeUndefined();
   });
 
   it("balances waste-fired Steam (High) only against demand inside Default", () => {
@@ -184,7 +189,7 @@ describe("Process Steam migration", () => {
     expect(flow(withExternalDemand, "steamHigh")?.net).toBeCloseTo(-5, 6);
   });
 
-  it("recovers Default's Steam (Depleted) through the added Large Cooling Tower", () => {
+  it("recovers Default's Steam (Depleted) through the existing Large Cooling Tower", () => {
     const beforeRecovery = calculate(migrationOnlyFactoryModules);
     const afterRecovery = calculate(factoryModelModules);
     const beforeDepleted = flow(beforeRecovery, "steamDepleted");

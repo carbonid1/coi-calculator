@@ -4,6 +4,7 @@ import { Button } from "@carbonid1/design-system";
 import {
   ChartPie,
   Factory,
+  FlaskConical,
   Handshake,
   Info,
   type LucideIcon,
@@ -21,6 +22,7 @@ interface Props {
   focusId: string;
   modifiersId: string;
   onChange: (id: string) => void;
+  researchId: string;
   viewModuleIds: readonly string[];
 }
 
@@ -61,6 +63,7 @@ export const ModuleSwitcher: React.FC<Props> = ({
   focusId,
   modifiersId,
   onChange,
+  researchId,
   viewModuleIds,
 }) => {
   const { presetModules, syncedModules, viewModules } = getModuleTabGroups(
@@ -112,6 +115,13 @@ export const ModuleSwitcher: React.FC<Props> = ({
           onClick={() => onChange(focusId)}
         >
           Focus
+        </SwitchButton>
+        <SwitchButton
+          active={active === researchId}
+          icon={FlaskConical}
+          onClick={() => onChange(researchId)}
+        >
+          Research
         </SwitchButton>
         {viewModules.map(renderModuleButton)}
         <SwitchButton

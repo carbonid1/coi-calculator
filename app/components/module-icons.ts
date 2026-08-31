@@ -1,11 +1,8 @@
 import {
   Archive,
   Boxes,
-  FlaskConical,
   MapPinned,
   Pickaxe,
-  Sprout,
-  TreePine,
   type LucideIcon,
 } from "lucide-react";
 
@@ -15,10 +12,6 @@ export const defaultModuleIcon = Boxes;
 export const syncedModuleIcon = MapPinned;
 
 export const moduleIcons: Partial<Record<string, LucideIcon>> = {
-  general: defaultModuleIcon,
-  forestry: TreePine,
-  research: FlaskConical,
-  greenhouses: Sprout,
   mines: Pickaxe,
   reserves: Archive,
 };

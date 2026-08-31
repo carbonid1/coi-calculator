@@ -11,6 +11,23 @@ import { type Module } from "./modules";
 export const DEFAULT_MODULE_ID = "general";
 export const DEFAULT_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
 
+export const defaultResearchProductionConfig = {
+  activeResearchLabIvCount: 2,
+  mode: "space",
+} as const;
+
+export const defaultResearchRecipeId = defaultResearchProductionConfig.mode === "space"
+  ? "research-lab-iv-space"
+  : "research-lab-iv";
+
+export const modeledDefaultResearchBuildings = {
+  [defaultResearchRecipeId]: defaultResearchProductionConfig.activeResearchLabIvCount,
+  "assembly-v-lab-equipment-i": 1,
+  "assembly-v-lab-equipment-ii": 2,
+  "assembly-v-lab-equipment-iii": 2,
+  "assembly-v-lab-equipment-iv": 3,
+} as const;
+
 export const plannedNewDefaultBuildings = {
   "chemical-plant-ii-cooking-oil-diesel": 1,
 } as const;
@@ -28,12 +45,6 @@ const modeledDefaultCapacityPools = {
     active: 1,
     built: 1,
     currentActive: 1,
-    constructionGhosts: 0,
-  },
-  "cooling-tower-large-steam": {
-    active: 2,
-    built: 2,
-    currentActive: 2,
     constructionGhosts: 0,
   },
 } as const;
@@ -67,6 +78,10 @@ export const modeledDefaultRecipeIds = [
   "assembly-v-electronics-ii",
   "assembly-v-electronics-iii",
   "assembly-v-electronics-iv",
+  "assembly-v-lab-equipment-i",
+  "assembly-v-lab-equipment-ii",
+  "assembly-v-lab-equipment-iii",
+  "assembly-v-lab-equipment-iv",
   "anaerobic-digester-corn",
   "anaerobic-digester-fruit",
   "anaerobic-digester-meat-trimmings",
@@ -117,6 +132,7 @@ export const modeledDefaultRecipeIds = [
   "settling-tank-gold",
   "silicon-reactor-poly-silicon",
   "sour-water-stripper",
+  defaultResearchRecipeId,
 ] as const;
 
 export const plannedDefaultBuildings = {
@@ -131,7 +147,8 @@ export const plannedDefaultBuiltBuildings = Object.fromEntries(
 const defaultBase: Module = {
   id: DEFAULT_MODULE_ID,
   name: "Default",
-  description: "Production in the game's immutable Default area: metals, electronics, supporting materials, Biomass recovery, and steam recovery",
+  description: "Production in the game's immutable Default area: metals, electronics, research, supporting materials, Biomass recovery, and steam recovery",
+  gameSynced: true,
   builtBuildings: {
     "seawater-pump": 1,
     "thermal-desalinator-low": 3,
@@ -255,6 +272,7 @@ const defaultBase: Module = {
     "oxygen-furnace-steel": 1,
     "crusher-large-iron": 1,
     "wastewater-treatment-toxic-slurry": 1,
+    ...modeledDefaultResearchBuildings,
     ...modeledProcessSteamDefaultBuildings,
     ...plannedDefaultBuiltBuildings,
   },
@@ -386,6 +404,7 @@ const defaultBase: Module = {
         "oxygen-furnace-steel": 1,
         "crusher-large-iron": 1,
         "wastewater-treatment-toxic-slurry": 1,
+        ...modeledDefaultResearchBuildings,
         ...modeledProcessSteamDefaultBuildings,
         ...plannedDefaultBuiltBuildings,
       },
@@ -447,6 +466,7 @@ const defaultBase: Module = {
         "cracking-unit-fuel-gas-diesel": 2,
         "crusher-large-quartz": 1,
         "crusher-large-quartz-crushed": 2,
+        ...modeledDefaultResearchBuildings,
         ...plannedDefaultBuildings,
       },
       dataSources: {
@@ -465,6 +485,7 @@ const defaultBase: Module = {
       fixed: [
         "general-evaporation-pond-heated-brine-surplus",
         "cracking-unit-fuel-gas-diesel",
+        defaultResearchRecipeId,
       ],
       outputTargets: {
         compositePanel:

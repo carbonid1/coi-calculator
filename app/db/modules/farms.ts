@@ -231,6 +231,7 @@ export const createGreenhousesModule = (
       id: GREENHOUSES_MODULE_ID,
       name: "Greenhouses",
       description: "",
+      gameSynced: true,
       recipes: [
         ...resolved.groups.map(({ group }) => createCropFarmRecipe(group)),
         ...(groundwaterConstraint
@@ -437,6 +438,7 @@ export const createGreenhousesModule = (
     id: GREENHOUSES_MODULE_ID,
     name: "Greenhouses",
     description: "",
+    gameSynced: true,
     recipes: groundwaterConstraint
       ? [createGroundwaterPumpRecipe("groundwater-pump", groundwaterConstraint)]
       : undefined,

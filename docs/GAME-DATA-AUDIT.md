@@ -484,8 +484,9 @@ virtual mine is created.
 Verified from the installed v0.8.7 `CoolingTowerT2` recipe
 `SteamDepletedCondensationT2`: one Large Cooling Tower converts 16 Steam
 (Depleted) into 12 Water every 10 seconds, or 96 Steam (Depleted) into 72 Water
-per production cycle. Default has a dedicated tower for this route. It consumes
-only Default's Steam (Depleted) surplus after Titanium Purification.
+per production cycle. Default's existing Large Cooling Tower runs this route
+and shares capacity with Low Steam recovery. It consumes only Default's Steam
+(Depleted) surplus after Titanium Purification.
 
 ## Offices and Focuses
 

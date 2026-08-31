@@ -3,7 +3,6 @@
 import { Card, SegmentedControl, Tooltip } from "@carbonid1/design-system";
 import { useState } from "react";
 
-import { type ResearchModuleConfig } from "../db/modules/research";
 import {
   calculateInfiniteResearchLevelCost,
   calculateInfiniteResearchRemainingCost,
@@ -18,7 +17,6 @@ import {
 } from "../helpers/research-progress/get-default-research-progress-mode";
 
 interface ResearchSettingsProps {
-  config: ResearchModuleConfig;
   efficiency: ResearchEfficiencyBreakdown;
 }
 
@@ -137,45 +135,33 @@ const EfficiencyMetric = ({ label, value }: { label: string; value: string }) =>
   </div>
 );
 
-export const ResearchSettings: React.FC<ResearchSettingsProps> = ({
-  config,
-  efficiency,
-}) => (
+export const ResearchSettings: React.FC<ResearchSettingsProps> = ({ efficiency }) => (
   <Card.Root className="max-w-3xl">
     <Card.Content>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
-        <div className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-          <p className="text-sm text-muted-foreground">Active Research Lab IV</p>
-          <p className="font-mono font-semibold text-foreground">
-            {config.activeResearchLabIvCount.toLocaleString()}
+      <div className="space-y-3 rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Combined research output</p>
+          <p className="font-mono font-semibold tabular-nums text-foreground">
+            {efficiency.totalOutputPercent.toLocaleString()}%
           </p>
         </div>
-
-        <div className="space-y-3 rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-sm text-muted-foreground">Combined research output</p>
-            <p className="font-mono font-semibold tabular-nums text-foreground">
-              {efficiency.totalOutputPercent.toLocaleString()}%
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <EfficiencyMetric
-              label="Edict"
-              value={`+${efficiency.edictBonusPercent}%`}
-            />
-            <EfficiencyMetric
-              label="Space station"
-              value={`+${efficiency.stationBonusPercent}%`}
-            />
-            <EfficiencyMetric
-              label="Focus"
-              value={`+${efficiency.focusBonusPercent}%`}
-            />
-            <EfficiencyMetric
-              label={`Population (${efficiency.population.toLocaleString()})`}
-              value={`+${efficiency.populationBonusPercent}%`}
-            />
-          </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <EfficiencyMetric
+            label="Edict"
+            value={`+${efficiency.edictBonusPercent}%`}
+          />
+          <EfficiencyMetric
+            label="Space station"
+            value={`+${efficiency.stationBonusPercent}%`}
+          />
+          <EfficiencyMetric
+            label="Focus"
+            value={`+${efficiency.focusBonusPercent}%`}
+          />
+          <EfficiencyMetric
+            label={`Population (${efficiency.population.toLocaleString()})`}
+            value={`+${efficiency.populationBonusPercent}%`}
+          />
         </div>
       </div>
     </Card.Content>

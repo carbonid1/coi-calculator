@@ -7,7 +7,6 @@ import { chickenFarms, greenhouses } from "./farms";
 import { forestry } from "./forestry";
 import { mines } from "./mines";
 import { modeledPopulation } from "./population";
-import { research } from "./research";
 import { reserves } from "./reserves";
 import { spaceStation } from "./space-station";
 
@@ -129,7 +128,6 @@ export interface Module {
 export const modules: [Module, ...Module[]] = [
   defaultArea,
   forestry,
-  research,
   greenhouses,
   chickenFarms,
   mines,
@@ -140,7 +138,6 @@ export const modules: [Module, ...Module[]] = [
 export const factoryModelModules: [Module, ...Module[]] = [
   defaultArea,
   forestry,
-  research,
   spaceStation,
   greenhouses,
   chickenFarms,

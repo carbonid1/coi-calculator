@@ -10,7 +10,6 @@ import {
 } from "../helpers/planned-builds/planned-builds";
 import { baseConfig } from "./config";
 import { defaultArea as general } from "./modules/default";
-import { createResearchModule } from "./modules/research";
 import {
   createLegacySpaceStationArea,
   createSpaceStationModule,
@@ -522,7 +521,6 @@ describe("Space Station", () => {
   it("retains a balanced space plan when the planning modules are inspected in isolation", () => {
     const result = calculateFactoryTotal(
       [
-        createResearchModule({ activeResearchLabIvCount: 2, mode: "space" }),
         spaceStation,
         general,
       ],

@@ -60,7 +60,11 @@ import {
   selectStaticInfrastructureLines,
 } from './db/modules/area-static-infrastructure'
 import { createComputingModule, createLegacyComputingArea } from './db/modules/computing'
-import { createDefaultModule, DEFAULT_MODULE_ID } from './db/modules/default'
+import {
+  createDefaultModule,
+  DEFAULT_MODULE_ID,
+  defaultResearchProductionConfig,
+} from './db/modules/default'
 import {
   createChickenFarmsModule,
   createGreenhousesModule,
@@ -87,7 +91,7 @@ import {
   createPopulationModule,
   resolvePopulationHousingPlanTargets,
 } from './db/modules/population'
-import { defaultResearchModuleConfig, RESEARCH_MODULE_ID } from './db/modules/research'
+import { RESEARCH_MODULE_ID } from './db/modules/research'
 import { createReservesModule, RESERVES_MODULE_ID } from './db/modules/reserves'
 import {
   createLegacySpaceStationArea,
@@ -216,7 +220,7 @@ const groupOrder: RecipeGroup[] = ['source', 'electricity', 'production', 'waste
 const FACTORY_TOTAL_ID = 'factory-total'
 const CONTRACTS_ID = 'contracts'
 const MODIFIERS_ID = 'modifiers'
-const VIEW_MODULE_IDS = [RESEARCH_MODULE_ID] as const
+const VIEW_MODULE_IDS = [MINES_MODULE_ID, RESERVES_MODULE_ID] as const
 const MACHINE_ZONE_ASSIGNMENTS_KEY = 'coi-machine-zone-assignments-v1'
 
 interface FactoryCalculation {
@@ -511,7 +515,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   )
   const edictSources = mapEdictValues(edictId => resolvedEdictLevels[edictId].source)
   const activeContractIds = defaultActiveContractIds
-  const researchModuleConfig = defaultResearchModuleConfig
+  const researchProductionConfig = defaultResearchProductionConfig
   const maintenanceStatueCount = staticInfrastructureRunningConfig.maintenanceStatue
   const maintenanceOutputLevel = researchLevels.maintenanceOutput
   const solarPowerLevel = researchLevels.solarPower
@@ -1058,8 +1062,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const isContracts = activeModuleId === CONTRACTS_ID
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID
   const isFocus = activeModuleId === FOCUS_DASHBOARD_ID
+  const isResearch = activeModuleId === RESEARCH_MODULE_ID
   const activeModule =
-    isModifiers || isContracts || isFactoryTotal || isFocus
+    isModifiers || isContracts || isFactoryTotal || isFocus || isResearch
       ? null
       : (configuredModules.find(m => m.id === activeModuleId) ?? configuredModules[0])
   const preset =
@@ -1082,13 +1087,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     unityCapacityMultiplier: unityCapacity.multiplier,
     edictLevels,
     buildingConsumption:
-      researchModuleConfig.activeResearchLabIvCount > 0
+      researchProductionConfig.activeResearchLabIvCount > 0
         ? [
             {
               id: 'research-lab-iv',
               name: 'Research Lab IV',
               amount:
-                researchModuleConfig.activeResearchLabIvCount *
+                researchProductionConfig.activeResearchLabIvCount *
                 (buildings['Research Lab IV']?.unityPerCycle ?? 0),
             },
           ]
@@ -1328,6 +1333,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         factoryTotalId={FACTORY_TOTAL_ID}
         focusId={FOCUS_DASHBOARD_ID}
         onChange={setActiveModuleId}
+        researchId={RESEARCH_MODULE_ID}
         viewModuleIds={VIEW_MODULE_IDS}
       />
 
@@ -1403,8 +1409,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         />
       )}
 
-      {activeModule?.id === RESEARCH_MODULE_ID && (
-        <ResearchSettings config={researchModuleConfig} efficiency={researchEfficiency} />
+      {isResearch && (
+        <ResearchSettings efficiency={researchEfficiency} />
       )}
 
       {isFocus && (
@@ -1662,7 +1668,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         </>
       )}
 
-      {activeModule?.id === RESEARCH_MODULE_ID && (
+      {isResearch && (
         <InfiniteResearchSettings levels={researchLevels} synced={Boolean(syncedResearchLevels)} />
       )}
     </div>
