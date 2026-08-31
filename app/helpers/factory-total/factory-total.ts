@@ -50,7 +50,10 @@ interface ElectricityDispatchGroup {
 const MAX_DISPATCH_ITERATIONS = 32;
 const DISPATCH_TOLERANCE = 0.000001;
 const MAX_CONTRACT_BALANCE_ITERATIONS = 32;
-const CONTRACT_BALANCE_TOLERANCE = 0.000001;
+// Contract plans are displayed and acted on at hundredth-unit precision. Stop
+// once every import changes by less than a thousandth of a unit per cycle so a
+// stable geometric tail does not trigger several more full factory solves.
+const CONTRACT_BALANCE_TOLERANCE = 0.001;
 
 const getDemandSourceProduction = (
   calculation: ReturnType<typeof calculateNet>,
