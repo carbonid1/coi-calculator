@@ -131,6 +131,29 @@ const isPlannedEntity = (entity: SyncedAreaEntity) => (
   !entity.constructed && plannedConstructionStates.has(entity.constructionState)
 )
 
+const formatSyncedRate = (quantity: number) => (
+  parseFloat(quantity.toFixed(2)).toLocaleString('en-US')
+)
+
+const getForestryDisplayName = (entity: SyncedAreaEntity) => {
+  const forestry = entity.forestry
+
+  if (!forestry) return entity.prototypeName
+
+  const treeCount = forestry.treeCount.toLocaleString('en-US')
+
+  if (!forestry.cuttingEnabled) return `${treeCount} trees · Cutting off`
+
+  const outputSummary = forestry.outputs
+    .filter(output => output.quantityPerCycle > 0)
+    .map(output => `${formatSyncedRate(output.quantityPerCycle)} ${output.name}`)
+    .join(' + ')
+
+  return `${treeCount} trees · Harvest at ${forestry.targetHarvestPercent}%${
+    outputSummary ? ` · Max ${outputSummary} / cycle` : ''
+  }`
+}
+
 const selectedRecipes = (entity: SyncedAreaEntity) => {
   const assigned = entity.recipes.filter(recipe => recipe.assigned)
 
@@ -199,7 +222,8 @@ export const createLiveAreaModules = (
         ))
       : []
     const productionEntities = zoneEntities.filter(entity => (
-      !isAreaAssignableStaticInfrastructurePrototype(entity.prototypeId)
+      !entity.forestry
+      && !isAreaAssignableStaticInfrastructurePrototype(entity.prototypeId)
       && !isMaintenanceDepotPrototype(entity.prototypeId)
       && !isSolarPanelPrototype(entity.prototypeId)
     ))
@@ -315,6 +339,7 @@ export const createLiveAreaModules = (
     const dataSources: NonNullable<Module['presets'][number]['dataSources']> = {}
     const presetCapacityPools: NonNullable<Module['presets'][number]['capacityPools']> = {}
     let terrainSorterSourceCount = 0
+    let forestrySourceCount = 0
 
     for (const [prototypeId, pool] of capacityPools) {
       presetCapacityPools[prototypeId] = {
@@ -403,6 +428,59 @@ export const createLiveAreaModules = (
       currentActiveBuildings[recipeId] = group.running
       constructionGhosts[recipeId] = group.planned
       dataSources[recipeId] = 'synced'
+    }
+
+    for (const entity of zoneEntities.filter(candidate => candidate.forestry)) {
+      const forestry = entity.forestry
+
+      if (!forestry) continue
+
+      const outputs = forestry.outputs.flatMap(output => {
+        const resourceId = resolveResourceId(output)
+
+        if (!resourceId) {
+          addIssue(
+            issues,
+            `${entity.prototypeId}:${entity.entityId}:${output.productId}`,
+            entity.prototypeName,
+            `Forestry output “${output.name}” is not supported.`,
+          )
+          return []
+        }
+
+        return output.quantityPerCycle > 0
+          ? [{ resourceId, quantity: output.quantityPerCycle }]
+          : []
+      })
+      const recipeId = `${moduleIdForZone(zone.id)}:forestry:${entity.entityId}`
+      const built = Number(entity.constructed)
+      const running = Number(
+        entity.constructed
+        && entity.running
+        && forestry.cuttingEnabled
+        && outputs.length > 0,
+      )
+      const planned = Number(isPlannedEntity(entity))
+
+      liveRecipes.push({
+        id: recipeId,
+        name: 'Sustainable forestry',
+        displayName: getForestryDisplayName(entity),
+        building: entity.prototypeName,
+        group: 'source',
+        inputs: forestry.harvestsPerCycle > 0
+          ? [{ resourceId: 'treeSapling', quantity: forestry.harvestsPerCycle }]
+          : [],
+        outputs,
+        cycleDurationSeconds: 60,
+        sourceMode: 'demand-capped',
+      })
+      builtBuildings[recipeId] = built
+      activeBuildings[recipeId] = running + planned
+      currentActiveBuildings[recipeId] = running
+      constructionGhosts[recipeId] = planned
+      dataSources[recipeId] = 'synced'
+      forestrySourceCount++
     }
 
     for (const sorter of terrainSorterEntities) {
@@ -580,6 +658,7 @@ export const createLiveAreaModules = (
     const requestedImports = plan?.requestedImports
     const requestedExports = plan?.requestedExports
     const usesFactoryPool = plan?.resourcePool === 'factory'
+      || forestrySourceCount > 0
       || (mineTowers
         ? terrainSorterSourceCount > 0
         : hasOreSortingPlant && terrainSourceResourceIds.length > 0)

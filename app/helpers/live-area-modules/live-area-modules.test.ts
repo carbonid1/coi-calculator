@@ -93,6 +93,126 @@ describe('createLiveAreaModules', () => {
     })
   })
 
+  it('turns a Forestry tower in any named area into a synced sustainable source', () => {
+    const forestryTower: SyncedAreaEntity = {
+      ...entity(90, true, true, []),
+      prototypeId: 'ForestryTower',
+      prototypeName: 'Forestry control tower',
+      zones: [{ id: 16, name: 'North woods' }],
+      forestry: {
+        treeCount: 1_015,
+        cuttingEnabled: true,
+        targetHarvestPercent: 100,
+        harvestsPerCycle: 7.384,
+        harvestDurationMonths: 137.46,
+        outputs: [{
+          productId: 'Product_Wood',
+          name: 'Wood',
+          quantityPerCycle: 147.68,
+        }],
+      },
+    }
+    const shreddingWood = {
+      id: 'ShreddingWood',
+      name: 'Wood shredding',
+      durationSeconds: 10,
+      assigned: true,
+      inputs: [{ productId: 'Product_Wood', name: 'Wood', quantity: 4 }],
+      outputs: [{ productId: 'Product_WoodChips', name: 'Woodchips', quantity: 4 }],
+    }
+    const shredders = Array.from({ length: 10 }, (_, index): SyncedAreaEntity => ({
+      ...entity(100 + index, true, true, [shreddingWood]),
+      prototypeId: 'Shredder',
+      prototypeName: 'Shredder',
+      zones: [{ id: 16, name: 'North woods' }],
+    }))
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'North woods' }],
+      [forestryTower, ...shredders],
+      [],
+    )
+
+    if (!module) throw new Error('Forestry module was not created')
+
+    const forestryRecipe = module.recipes?.find(candidate => (
+      candidate.id === 'live-area-16:forestry:90'
+    ))
+    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const cappedResult = calculateNet(lines, {}, undefined, {}, { woodchips: 200 })
+    const factoryDemandResult = calculateNet(
+      lines,
+      {},
+      undefined,
+      {},
+      { wood: 28.55, woodchips: 18 },
+    )
+    const forestryResult = cappedResult.sourceResults.find(candidate => (
+      candidate.recipe.id === forestryRecipe?.id
+    ))
+    const factoryForestryResult = factoryDemandResult.sourceResults.find(candidate => (
+      candidate.recipe.id === forestryRecipe?.id
+    ))
+
+    expect(module).toMatchObject({
+      name: 'North woods',
+      includedInFactoryTotals: true,
+      liveArea: { issues: [] },
+    })
+    expect(forestryRecipe).toMatchObject({
+      building: 'Forestry control tower',
+      displayName: '1,015 trees · Harvest at 100% · Max 147.68 Wood / cycle',
+      group: 'source',
+      sourceMode: 'demand-capped',
+      inputs: [{ resourceId: 'treeSapling', quantity: 7.384 }],
+      outputs: [{ resourceId: 'wood', quantity: 147.68 }],
+    })
+    expect(module.presets[0]).toMatchObject({
+      activeBuildings: { 'live-area-16:forestry:90': 1 },
+      currentActiveBuildings: { 'live-area-16:forestry:90': 1 },
+      builtBuildings: { 'live-area-16:forestry:90': 1 },
+      dataSources: { 'live-area-16:forestry:90': 'synced' },
+    })
+    expect(forestryResult?.actualOutputs[0]?.quantity).toBeCloseTo(147.68)
+    expect(forestryResult?.actualInputs[0]?.quantity).toBeCloseTo(7.384)
+    expect(factoryForestryResult?.actualOutputs[0]?.quantity).toBeCloseTo(46.55)
+  })
+
+  it('keeps a Forestry tower visible without inventing supply when cutting is off', () => {
+    const forestryTower: SyncedAreaEntity = {
+      ...entity(90, true, true, []),
+      prototypeId: 'ForestryTower',
+      prototypeName: 'Forestry control tower',
+      forestry: {
+        treeCount: 1_015,
+        cuttingEnabled: false,
+        targetHarvestPercent: 200,
+        harvestsPerCycle: 0,
+        harvestDurationMonths: null,
+        outputs: [],
+      },
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [forestryTower],
+      [],
+    )
+
+    expect(module).toMatchObject({
+      includedInFactoryTotals: true,
+      recipes: [{
+        displayName: '1,015 trees · Cutting off',
+        inputs: [],
+        outputs: [],
+      }],
+      presets: [{
+        activeBuildings: { 'live-area-16:forestry:90': 0 },
+        currentActiveBuildings: { 'live-area-16:forestry:90': 0 },
+        builtBuildings: { 'live-area-16:forestry:90': 1 },
+      }],
+      liveArea: { issues: [] },
+    })
+  })
+
   it('leaves station infrastructure to the dedicated station groups', () => {
     const station = {
       ...entity(3, true, true, []),

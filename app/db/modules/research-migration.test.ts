@@ -51,9 +51,12 @@ const legacyResearch: Module = {
   defaultPresetId: "planning-baseline",
 };
 
-const legacyFactoryModules = factoryModelModules
-  .map((module) => module.id === DEFAULT_MODULE_ID ? legacyDefault : module)
-  .flatMap((module) => module.id === "forestry" ? [module, legacyResearch] : [module]);
+const legacyFactoryModules = [
+  ...factoryModelModules.map((module) => (
+    module.id === DEFAULT_MODULE_ID ? legacyDefault : module
+  )),
+  legacyResearch,
+];
 
 const factorySnapshot = (factoryModules: Module[]) => {
   const result = calculateFactoryTotal(factoryModules, {

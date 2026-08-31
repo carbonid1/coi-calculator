@@ -4,7 +4,6 @@ import { type Recipe } from "../recipes";
 import { type ResourceId } from "../resources";
 import { defaultArea } from "./default";
 import { chickenFarms, greenhouses } from "./farms";
-import { forestry } from "./forestry";
 import { mines } from "./mines";
 import { modeledPopulation } from "./population";
 import { reserves } from "./reserves";
@@ -127,7 +126,6 @@ export interface Module {
 
 export const modules: [Module, ...Module[]] = [
   defaultArea,
-  forestry,
   chickenFarms,
   mines,
   reserves,
@@ -136,7 +134,6 @@ export const modules: [Module, ...Module[]] = [
 /** Includes calculator-owned assumptions needed when no game snapshot is available. */
 export const factoryModelModules: [Module, ...Module[]] = [
   defaultArea,
-  forestry,
   spaceStation,
   greenhouses,
   chickenFarms,

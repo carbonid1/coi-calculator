@@ -322,8 +322,6 @@ export const calculateInfiniteResearchRemainingCost = (
   return total;
 };
 
-export const TREE_FULL_GROWTH_CYCLES = 12 * 12;
-
 export const defaultInfiniteResearchLevels = {
   vehiclesPollution: 0,
   shipsPollution: 0,

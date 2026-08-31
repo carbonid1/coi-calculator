@@ -71,9 +71,7 @@ const legacyProcessSteam: Module = {
 const replaceDefault = (replacement: Module) => factoryModelModules.map((mod) => (
   mod.id === DEFAULT_MODULE_ID ? replacement : mod
 ));
-const legacyFactoryModules = replaceDefault(legacyDefault).flatMap((mod) => (
-  mod.id === "forestry" ? [mod, legacyProcessSteam] : [mod]
-));
+const legacyFactoryModules = [...replaceDefault(legacyDefault), legacyProcessSteam];
 const migrationOnlyFactoryModules = replaceDefault(withoutRecipes(
   defaultArea,
   [depletedRecoveryRecipeId],

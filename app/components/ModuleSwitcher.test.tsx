@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { FORESTRY_MODULE_ID } from "../db/modules/forestry";
 import { MINES_MODULE_ID } from "../db/modules/mines";
 import { modules, type Module } from "../db/modules/modules";
 import { RESERVES_MODULE_ID } from "../db/modules/reserves";
@@ -102,9 +101,9 @@ describe("ModuleSwitcher", () => {
     expect(presetModules).toEqual([]);
     expect(syncedModules.map(({ id }) => id)).toEqual(expect.arrayContaining([
       "general",
-      FORESTRY_MODULE_ID,
       "chicken-farms",
     ]));
+    expect(syncedModules.map(({ id }) => id)).not.toContain("forestry");
     expect(syncedModules.map(({ id }) => id)).not.toContain("greenhouses");
   });
 });

@@ -169,6 +169,22 @@ interface SyncedOreSorterConfiguration {
   products: SyncedOreSorterProduct[]
 }
 
+interface SyncedForestryProduct extends SyncedProductRef {
+  /** Sustainable output from the currently managed trees per production cycle. */
+  quantityPerCycle: number
+}
+
+export interface SyncedForestryConfiguration {
+  treeCount: number
+  cuttingEnabled: boolean
+  targetHarvestPercent: number
+  /** Sustainable tree replacements required per production cycle. */
+  harvestsPerCycle: number
+  /** Equivalent configured growth time. Null when the tower has no sustainable output. */
+  harvestDurationMonths: number | null
+  outputs: SyncedForestryProduct[]
+}
+
 /** Mine-tower inventory is provenance only; vehicles do not determine throughput. */
 export interface SyncedMineTower {
   entityId: number
@@ -237,6 +253,8 @@ export interface SyncedAreaEntity {
   oreSorter?: SyncedOreSorterConfiguration | null
   /** Present in schema 29 and newer. */
   trainStation?: SyncedTrainStationConfiguration | null
+  /** Present for Forestry control towers in schema 34 and newer. */
+  forestry?: SyncedForestryConfiguration | null
 }
 
 export interface SyncedLogisticsZoneRef {
@@ -301,8 +319,9 @@ const CAPTAIN_OFFICE_SCHEMA_VERSION = 30 as const
 
 export const TERRAIN_SORTER_SCHEMA_VERSION = 31 as const
 const FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION = 33 as const
+const FORESTRY_CONFIGURATION_SCHEMA_VERSION = 34 as const
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 33 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 34 as const
 type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -331,6 +350,7 @@ type SupportedGameStateSchemaVersion =
   | 30
   | 31
   | 32
+  | 33
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -872,6 +892,41 @@ const isOreSorterConfiguration = (
     new Set(products.map(product => product.productId)).size === products.length
 }
 
+const isForestryProduct = (value: unknown): value is SyncedForestryProduct => (
+  isUnknownRecord(value) &&
+  typeof value.productId === 'string' &&
+  value.productId.length > 0 &&
+  typeof value.name === 'string' &&
+  value.name.length > 0 &&
+  isNonNegativeFiniteNumber(value.quantityPerCycle)
+)
+
+const isForestryConfiguration = (
+  value: unknown,
+): value is SyncedForestryConfiguration => {
+  if (
+    !isUnknownRecord(value) ||
+    !isNonNegativeInteger(value.treeCount) ||
+    typeof value.cuttingEnabled !== 'boolean' ||
+    !isNonNegativeInteger(value.targetHarvestPercent) ||
+    value.targetHarvestPercent > 200 ||
+    value.cuttingEnabled !== (value.targetHarvestPercent < 200) ||
+    !isNonNegativeFiniteNumber(value.harvestsPerCycle) ||
+    !(
+      value.harvestDurationMonths === null ||
+      (isNonNegativeFiniteNumber(value.harvestDurationMonths) &&
+        value.harvestDurationMonths > 0)
+    ) ||
+    (value.harvestsPerCycle === 0) !== (value.harvestDurationMonths === null) ||
+    !Array.isArray(value.outputs)
+  ) return false
+
+  const outputs = value.outputs.filter(isForestryProduct)
+
+  return outputs.length === value.outputs.length &&
+    new Set(outputs.map(output => output.productId)).size === outputs.length
+}
+
 const isAreaEntity = (
   value: unknown,
   schemaVersion: SupportedGameStateSchemaVersion,
@@ -910,7 +965,13 @@ const isAreaEntity = (
         ? isOreSorterConfiguration(value.oreSorter)
         : value.oreSorter === null)
     ) &&
-    hasValidTrainStationConfiguration(value, schemaVersion)
+    hasValidTrainStationConfiguration(value, schemaVersion) &&
+    (
+      schemaVersion < FORESTRY_CONFIGURATION_SCHEMA_VERSION ||
+      (value.prototypeId === 'ForestryTower'
+        ? isForestryConfiguration(value.forestry)
+        : value.forestry === null)
+    )
 }
 
 const normalizeAreaEntities = (
@@ -1156,6 +1217,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 30 &&
     schemaVersion !== TERRAIN_SORTER_SCHEMA_VERSION &&
     schemaVersion !== 32 &&
+    schemaVersion !== 33 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null

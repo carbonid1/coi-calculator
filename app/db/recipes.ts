@@ -11,7 +11,6 @@ import {
 import { activeHousingType, housingTypes } from './housing'
 import { maintenanceStatue } from './maintenance-statue'
 import { getOfficeRecipeId, officeCatalog, type OfficeBoostStep } from './offices'
-import { TREE_FULL_GROWTH_CYCLES } from './research'
 import { reserveResourceCatalog } from './reserve-resources'
 import { type ResourceId } from './resources'
 import { calculateSettlementPopulationFlows, settlementRecipeIds } from './settlement'
@@ -247,31 +246,6 @@ const cropFarmRecipes: Recipe[] = cropFarmGroups.map(createCropFarmRecipe)
 
 export const recipes: Recipe[] = [
   // Sources
-  {
-    // Captain of Industry v0.8.6c: one sapling becomes 20 Wood when harvested
-    // at 100% growth after 12 in-game years. Forest area is intentionally
-    // unbounded, so this demand source scales the number of growing trees.
-    id: 'forestry-trees-100-growth',
-    name: 'Forestry Control Tower (Mature tree harvesting)',
-    building: 'Forestry Control Tower',
-    group: 'source',
-    cycleDurationSeconds: TREE_FULL_GROWTH_CYCLES * 60,
-    inputs: [
-      {
-        resourceId: 'treeSapling',
-        quantity: 1 / TREE_FULL_GROWTH_CYCLES,
-        inputModifierId: 'treeGrowthSpeed',
-      },
-    ],
-    outputs: [
-      {
-        resourceId: 'wood',
-        quantity: 20 / TREE_FULL_GROWTH_CYCLES,
-        outputModifierId: 'treeGrowthSpeed',
-      },
-    ],
-    sourceMode: 'demand',
-  },
   {
     id: 'seawater-pump',
     name: 'Seawater Pump (Fast)',

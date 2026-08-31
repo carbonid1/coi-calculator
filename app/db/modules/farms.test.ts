@@ -920,7 +920,7 @@ describe("active crop farm plan", () => {
     ]);
 
     for (const crop of Object.values(crops)) {
-      if (!crop.productId) continue;
+      if (!crop.productId || crop.productId === 'treeSapling') continue;
 
       const flow = cropFlows.get(crop.productId);
 

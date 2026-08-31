@@ -9,6 +9,7 @@ using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
 using Mafi.Core.Buildings.Farms;
+using Mafi.Core.Buildings.Forestry;
 using Mafi.Core.Buildings.Mine;
 using Mafi.Core.Buildings.OreSorting;
 using Mafi.Core.Buildings.Storages;
@@ -38,7 +39,9 @@ using Mafi.Core.Simulation;
 using Mafi.Core.SpaceProgram;
 using Mafi.Core.Stats;
 using Mafi.Core.Terrain;
+using Mafi.Core.Terrain.Designation;
 using Mafi.Core.Terrain.Generation;
+using Mafi.Core.Terrain.Trees;
 using Mafi.Core.Trains;
 using Mafi.Core.Vehicles;
 
@@ -197,6 +200,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private IProductsManager m_productsManager;
     private IPropertiesDb m_propertiesDb;
     private IVirtualResourceManager m_virtualResourceManager;
+    private ITreesManager m_treesManager;
     private ElectricityManager m_electricityManager;
     private FuelStatsCollector m_fuelStatsCollector;
     private MaintenanceManager m_maintenanceManager;
@@ -222,7 +226,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 23; } }
+    public int Version { get { return 24; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -260,6 +264,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_productsManager = resolver.Resolve<IProductsManager>();
         m_propertiesDb = resolver.Resolve<IPropertiesDb>();
         m_virtualResourceManager = resolver.Resolve<IVirtualResourceManager>();
+        m_treesManager = resolver.Resolve<ITreesManager>();
         m_electricityManager = resolver.Resolve<ElectricityManager>();
         m_fuelStatsCollector = resolver.Resolve<FuelStatsCollector>();
         m_maintenanceManager = resolver.Resolve<MaintenanceManager>();
@@ -360,6 +365,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_constructionManager = null;
         m_propertiesDb = null;
         m_virtualResourceManager = null;
+        m_treesManager = null;
         m_electricityManager = null;
         m_fuelStatsCollector = null;
         m_maintenanceManager = null;
@@ -412,7 +418,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":33,");
+            json.Append("\"schemaVersion\":34,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -799,6 +805,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 appendOreSorterConfiguration(json, entity.OreSorter);
                 json.Append(",\"trainStation\":");
                 appendTrainStationConfiguration(json, entity.TrainStation);
+                json.Append(",\"forestry\":");
+                appendForestryConfiguration(json, entity.Forestry);
                 json.Append('}');
                 if (i < production.AreaEntities.Count - 1)
                 {
@@ -984,7 +992,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     entityZones,
                     getAreaRecipes(entity, staticEntity),
                     getOreSorterConfiguration(entity),
-                    getTrainStationConfiguration(entity)));
+                    getTrainStationConfiguration(entity),
+                    getForestryConfiguration(entity as ForestryTower)));
             }
 
             if (staticEntity != null && !staticEntity.IsConstructed)
@@ -1407,6 +1416,170 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             selectedProduct);
     }
 
+    private ForestryConfigurationSnapshot getForestryConfiguration(ForestryTower tower)
+    {
+        if (tower == null)
+        {
+            return null;
+        }
+
+        int treeCount = countManagedForestryTrees(tower);
+        int targetHarvestPercent = (int)Math.Round(
+            tower.TargetHarvestPercent.ToFloat() * 100.0);
+        bool cuttingEnabled = tower.TargetHarvestPercent < ForestryTower.NO_CUT_AT;
+        List<ForestryProductSnapshot> outputs = new List<ForestryProductSnapshot>();
+
+        if (!cuttingEnabled || treeCount <= 0)
+        {
+            return new ForestryConfigurationSnapshot(
+                treeCount,
+                cuttingEnabled,
+                targetHarvestPercent,
+                0,
+                null,
+                outputs);
+        }
+
+        double targetGrowth = Math.Max(0.01, tower.TargetHarvestPercent.ToFloat());
+        double totalWeight = 0;
+        double harvestsPerTreePerCycleWeighted = 0;
+        Dictionary<string, ForestryProductAccumulator> outputByProduct =
+            new Dictionary<string, ForestryProductAccumulator>(StringComparer.Ordinal);
+
+        for (int i = 0; i < tower.TreeTypes.Count; i++)
+        {
+            KeyValuePair<TreePlantingGroupProto, int> configuredGroup = tower.TreeTypes[i];
+            if (configuredGroup.Value <= 0 || configuredGroup.Key.Trees.Length == 0)
+            {
+                continue;
+            }
+
+            double treeWeight = (double)configuredGroup.Value / configuredGroup.Key.Trees.Length;
+            foreach (TreeProto treeProto in configuredGroup.Key.Trees)
+            {
+                accumulateForestryYield(
+                    treeProto,
+                    treeWeight,
+                    targetGrowth,
+                    tower.TargetHarvestPercent,
+                    outputByProduct,
+                    ref harvestsPerTreePerCycleWeighted);
+                totalWeight += treeWeight;
+            }
+        }
+
+        if (totalWeight <= 0 && m_treesManager != null)
+        {
+            foreach (TreeId treeId in tower.Trees)
+            {
+                if (!isManagedForestryTree(tower, treeId))
+                {
+                    continue;
+                }
+
+                TreeData treeData;
+                if (!m_treesManager.Trees.TryGetValue(treeId, out treeData))
+                {
+                    continue;
+                }
+
+                accumulateForestryYield(
+                    treeData.Proto,
+                    1,
+                    targetGrowth,
+                    tower.TargetHarvestPercent,
+                    outputByProduct,
+                    ref harvestsPerTreePerCycleWeighted);
+                totalWeight += 1;
+            }
+        }
+
+        if (totalWeight <= 0)
+        {
+            return new ForestryConfigurationSnapshot(
+                treeCount,
+                cuttingEnabled,
+                targetHarvestPercent,
+                0,
+                null,
+                outputs);
+        }
+
+        double harvestsPerTreePerCycle = harvestsPerTreePerCycleWeighted / totalWeight;
+        double harvestsPerCycle = treeCount * harvestsPerTreePerCycle;
+        foreach (ForestryProductAccumulator accumulator in outputByProduct.Values)
+        {
+            outputs.Add(new ForestryProductSnapshot(
+                accumulator.ProductId,
+                accumulator.Name,
+                treeCount * accumulator.QuantityPerTreePerCycleWeighted / totalWeight));
+        }
+        outputs.Sort(delegate(ForestryProductSnapshot left, ForestryProductSnapshot right)
+        {
+            return String.CompareOrdinal(left.ProductId, right.ProductId);
+        });
+
+        return new ForestryConfigurationSnapshot(
+            treeCount,
+            cuttingEnabled,
+            targetHarvestPercent,
+            harvestsPerCycle,
+            harvestsPerTreePerCycle > 0 ? (double?)(1 / harvestsPerTreePerCycle) : null,
+            outputs);
+    }
+
+    private static void accumulateForestryYield(
+        TreeProto treeProto,
+        double weight,
+        double targetGrowth,
+        Percent harvestPercent,
+        Dictionary<string, ForestryProductAccumulator> outputByProduct,
+        ref double harvestsPerTreePerCycleWeighted)
+    {
+        double durationMonths = Math.Max(
+            0.01,
+            treeProto.GetTreeMaxAge().Years.ToFloat() * 12.0 * targetGrowth);
+        double harvestRate = 1 / durationMonths;
+        ProductProto product = treeProto.ProductWhenHarvested.Product;
+        string productId = product.Id.ToString();
+        ForestryProductAccumulator accumulator;
+        if (!outputByProduct.TryGetValue(productId, out accumulator))
+        {
+            accumulator = new ForestryProductAccumulator(productId, getProtoName(product));
+            outputByProduct.Add(productId, accumulator);
+        }
+
+        harvestsPerTreePerCycleWeighted += weight * harvestRate;
+        accumulator.QuantityPerTreePerCycleWeighted +=
+            weight * harvestRate * treeProto.GetHarvestedQuantity(harvestPercent).Value;
+    }
+
+    private int countManagedForestryTrees(ForestryTower tower)
+    {
+        int count = 0;
+        foreach (TreeId treeId in tower.Trees)
+        {
+            if (isManagedForestryTree(tower, treeId)
+                && (m_treesManager == null || m_treesManager.Trees.ContainsKey(treeId)))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static bool isManagedForestryTree(ForestryTower tower, TreeId treeId)
+    {
+        foreach (TerrainDesignation designation in tower.ManagedDesignations)
+        {
+            if (designation.IsForestry && designation.Area.ContainsTile(treeId.Position))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static string getProtoName(Proto proto)
     {
         string name = proto.Strings.Name.TranslatedString;
@@ -1503,7 +1676,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
         string entityNamespace = entity.GetType().Namespace;
         IStaticEntity staticEntity = entity as IStaticEntity;
-        return (staticEntity != null && staticEntity.Prototype is MachineProto)
+        return entity is ForestryTower
+            || (staticEntity != null && staticEntity.Prototype is MachineProto)
             || entity is IEntityWithAssignedRecipes
             || entity is IEntityWithWorkers
             || (!String.IsNullOrWhiteSpace(entityNamespace)
@@ -2079,6 +2253,51 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         json.Append('}');
     }
 
+    private static void appendForestryConfiguration(
+        StringBuilder json,
+        ForestryConfigurationSnapshot forestry)
+    {
+        if (forestry == null)
+        {
+            json.Append("null");
+            return;
+        }
+
+        json.Append('{');
+        appendNumber(json, "treeCount", forestry.TreeCount, true);
+        json.Append("\"cuttingEnabled\":");
+        json.Append(forestry.CuttingEnabled ? "true" : "false");
+        json.Append(',');
+        appendNumber(json, "targetHarvestPercent", forestry.TargetHarvestPercent, true);
+        appendDecimal(json, "harvestsPerCycle", forestry.HarvestsPerCycle, true);
+        json.Append("\"harvestDurationMonths\":");
+        if (forestry.HarvestDurationMonths.HasValue)
+        {
+            json.Append(forestry.HarvestDurationMonths.Value.ToString(
+                "0.######",
+                CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            json.Append("null");
+        }
+        json.Append(",\"outputs\":[");
+        for (int i = 0; i < forestry.Outputs.Count; i++)
+        {
+            ForestryProductSnapshot product = forestry.Outputs[i];
+            json.Append('{');
+            appendString(json, "productId", product.ProductId, true);
+            appendString(json, "name", product.Name, true);
+            appendDecimal(json, "quantityPerCycle", product.QuantityPerCycle, false);
+            json.Append('}');
+            if (i < forestry.Outputs.Count - 1)
+            {
+                json.Append(',');
+            }
+        }
+        json.Append("]}");
+    }
+
     private static void appendOreSorterConfiguration(
         StringBuilder json,
         OreSorterConfigurationSnapshot sorter)
@@ -2519,6 +2738,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly List<AreaRecipeSnapshot> Recipes;
         public readonly OreSorterConfigurationSnapshot OreSorter;
         public readonly TrainStationConfigurationSnapshot TrainStation;
+        public readonly ForestryConfigurationSnapshot Forestry;
 
         public AreaEntitySnapshot(
             int entityId,
@@ -2532,7 +2752,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             List<LogisticsZoneSnapshot> zones,
             List<AreaRecipeSnapshot> recipes,
             OreSorterConfigurationSnapshot oreSorter,
-            TrainStationConfigurationSnapshot trainStation)
+            TrainStationConfigurationSnapshot trainStation,
+            ForestryConfigurationSnapshot forestry)
         {
             EntityId = entityId;
             PrototypeId = prototypeId;
@@ -2546,6 +2767,63 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             Recipes = recipes;
             OreSorter = oreSorter;
             TrainStation = trainStation;
+            Forestry = forestry;
+        }
+    }
+
+    private sealed class ForestryConfigurationSnapshot
+    {
+        public readonly int TreeCount;
+        public readonly bool CuttingEnabled;
+        public readonly int TargetHarvestPercent;
+        public readonly double HarvestsPerCycle;
+        public readonly double? HarvestDurationMonths;
+        public readonly List<ForestryProductSnapshot> Outputs;
+
+        public ForestryConfigurationSnapshot(
+            int treeCount,
+            bool cuttingEnabled,
+            int targetHarvestPercent,
+            double harvestsPerCycle,
+            double? harvestDurationMonths,
+            List<ForestryProductSnapshot> outputs)
+        {
+            TreeCount = treeCount;
+            CuttingEnabled = cuttingEnabled;
+            TargetHarvestPercent = targetHarvestPercent;
+            HarvestsPerCycle = harvestsPerCycle;
+            HarvestDurationMonths = harvestDurationMonths;
+            Outputs = outputs;
+        }
+    }
+
+    private sealed class ForestryProductSnapshot
+    {
+        public readonly string ProductId;
+        public readonly string Name;
+        public readonly double QuantityPerCycle;
+
+        public ForestryProductSnapshot(
+            string productId,
+            string name,
+            double quantityPerCycle)
+        {
+            ProductId = productId;
+            Name = name;
+            QuantityPerCycle = quantityPerCycle;
+        }
+    }
+
+    private sealed class ForestryProductAccumulator
+    {
+        public readonly string ProductId;
+        public readonly string Name;
+        public double QuantityPerTreePerCycleWeighted;
+
+        public ForestryProductAccumulator(string productId, string name)
+        {
+            ProductId = productId;
+            Name = name;
         }
     }
 

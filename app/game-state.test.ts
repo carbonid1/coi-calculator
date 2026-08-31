@@ -512,6 +512,40 @@ const schema33Snapshot = {
     })),
   },
 }
+const forestry = {
+  treeCount: 1_015,
+  cuttingEnabled: true,
+  targetHarvestPercent: 100,
+  harvestsPerCycle: 7.384,
+  harvestDurationMonths: 137.46,
+  outputs: [{
+    productId: 'Product_Wood',
+    name: 'Wood',
+    quantityPerCycle: 147.68,
+  }],
+}
+const schema34Snapshot = {
+  ...schema33Snapshot,
+  schemaVersion: 34,
+  logisticsZones: [...schema33Snapshot.logisticsZones, { id: 34, name: 'Forestry' }],
+  areaEntities: [
+    ...schema33Snapshot.areaEntities.map(entity => ({ ...entity, forestry: null })),
+    {
+      entityId: 903,
+      prototypeId: 'ForestryTower',
+      prototypeName: 'Forestry control tower',
+      constructionState: 'Constructed',
+      constructed: true,
+      running: true,
+      tile: { x: 520, y: 620 },
+      zones: [{ id: 34, name: 'Forestry' }],
+      recipes: [],
+      oreSorter: null,
+      trainStation: null,
+      forestry,
+    },
+  ],
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -700,6 +734,54 @@ describe('game-state snapshot validation', () => {
         })],
       },
     })
+    expect(normalizeGameStateSnapshot(schema34Snapshot)).toMatchObject({
+      schemaVersion: 34,
+      areaEntities: expect.arrayContaining([
+        expect.objectContaining({
+          prototypeId: 'ForestryTower',
+          forestry,
+        }),
+      ]),
+    })
+  })
+
+  it('requires exact Forestry configuration in schema 34', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema34Snapshot,
+      areaEntities: schema34Snapshot.areaEntities.map(entity => (
+        entity.prototypeId === 'ForestryTower'
+          ? { ...entity, forestry: null }
+          : entity
+      )),
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema34Snapshot,
+      areaEntities: schema34Snapshot.areaEntities.map(entity => (
+        entity.prototypeId === 'ForestryTower'
+          ? {
+              ...entity,
+              forestry: {
+                ...forestry,
+                cuttingEnabled: false,
+              },
+            }
+          : entity
+      )),
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema34Snapshot,
+      areaEntities: schema34Snapshot.areaEntities.map(entity => (
+        entity.prototypeId === 'ForestryTower'
+          ? {
+              ...entity,
+              forestry: {
+                ...forestry,
+                harvestDurationMonths: null,
+              },
+            }
+          : entity
+      )),
+    })).toBeNull()
   })
 
   it('requires the supplied crop-farm fertilizer product in schema 33', () => {

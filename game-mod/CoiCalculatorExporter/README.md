@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.33 exports assigned vehicle workers and completed/running counts for
+Version 0.34 exports assigned vehicle workers and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the installed
 mod folder. It also exports up to 120 completed in-game months of actual
 Maintenance I/II/III consumption, Hydrogen fuel use by category, and average
@@ -118,6 +118,11 @@ so a lower target can still use Fertilizer II. The exporter reads the product
 from the connected fertilizer pipe. If the pipe has no known product, it falls
 back only when the farm has a non-empty, unambiguous fertilizer buffer;
 otherwise the product remains unknown.
+Schema 34 adds Forestry control towers inside named vehicle areas. Each tower
+exports its managed tree count, cutting setting, harvest target, replacement
+saplings, and sustainable product ceiling per production cycle. The ceiling
+uses the configured tree mix and current game-adjusted growth duration. It does
+not assume extra trees from unfilled designation space or vehicle throughput.
 
 The calculator reads that file locally; the mod does not open a port or modify
 gameplay state. Captain of Industry may still record the enabled mod in save
