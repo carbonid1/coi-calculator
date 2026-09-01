@@ -4,10 +4,7 @@ import {
   resolveNuclearEntityInventory,
 } from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
 import { resolveDirectionalPlan } from "../../helpers/resolve-layered-value/resolve-directional-plan";
-import {
-  emptyPlanningBaselines,
-  type PlanningBaselines,
-} from "../planning-baselines";
+import { type PlanningBaselines } from "../planning-baselines";
 import {
   type Module,
   type PlanMismatch,
@@ -16,23 +13,6 @@ import {
 import { createAtLeastBuildingActions } from "./plan-mismatch";
 
 export const NUCLEAR_MODULE_ID = "nuclear";
-const BUILT_HYDROGEN_REFORMER_COUNT = 8;
-const ACTIVE_HYDROGEN_REFORMER_COUNT = 8;
-const SEAWATER_PUMP_COUNT = 4;
-const DEPLETED_DESALINATOR_COUNT = 4;
-const SUPER_DESALINATOR_COUNT = 6;
-const BUILT_BRINE_PROCESSING_COUNT = 2;
-const ACTIVE_CHLORINE_PROCESSING_COUNT = 1;
-const ACTIVE_SALT_PROCESSING_COUNT = 1;
-const BUILT_COOLING_TOWER_COUNT = 4;
-const ACTIVE_COOLING_TOWER_COUNT = 4;
-
-export interface NuclearConfig {
-  breederReactors: number;
-  breederPowerLevel: 1 | 2 | 3 | 4;
-  nonBreederReactors: number;
-  nonBreederPowerLevel: 1 | 2 | 3 | 4;
-}
 
 export interface NuclearOperationPlan {
   generationTargetMw: number;
@@ -50,13 +30,6 @@ interface NuclearOperationTarget {
   target: number;
 }
 
-export const defaultNuclearConfig: NuclearConfig = {
-  breederReactors: 1,
-  breederPowerLevel: 1,
-  nonBreederReactors: 1,
-  nonBreederPowerLevel: 4,
-};
-
 export const plannedNuclearOperation: NuclearOperationPlan = {
   // Use the installed turbine trains before adding another generator build.
   generationTargetMw: 159,
@@ -68,22 +41,19 @@ export const plannedNuclearOperation: NuclearOperationPlan = {
 };
 
 export const createNuclearModule = (
-  config: NuclearConfig,
-  baselines: PlanningBaselines = emptyPlanningBaselines,
-  plan?: NuclearOperationPlan,
-  syncedEntities?: readonly SyncedProductionEntity[],
+  baselines: PlanningBaselines,
+  plan: NuclearOperationPlan | undefined,
+  syncedEntities: readonly SyncedProductionEntity[],
   generatedArea?: Module,
 ): Module => {
-  const breederReactors = Math.max(0, Math.trunc(config.breederReactors));
-  const nonBreederReactors = Math.max(0, Math.trunc(config.nonBreederReactors));
-  const breederPowerLevel = config.breederPowerLevel;
-  const nonBreederPowerLevel = config.nonBreederPowerLevel;
-  const spentCoreFuel = breederReactors * 4 * breederPowerLevel
-    + nonBreederReactors * 2 * nonBreederPowerLevel;
-  const enrichedBlanketFuel = breederReactors * 12 * breederPowerLevel;
+  const syncedInventory = resolveNuclearEntityInventory(
+    syncedEntities,
+    generatedArea?.liveArea?.zoneId,
+  );
+  const nonBreederReactors = syncedInventory.counts["fbr-0x"]?.running ?? 0;
+  const nonBreederPowerLevel = syncedInventory.speedLevels["fbr-0x"] ?? 0;
   const powerReactorSuperSteam = nonBreederReactors * 96 * nonBreederPowerLevel;
-  const fissionProducts = spentCoreFuel / 8;
-  const modeledGenerationCapacityMw = powerReactorSuperSteam
+  const syncedGenerationCapacityMw = powerReactorSuperSteam
     * (15 + 10 + 5)
     / 48;
   const generationTargetMw = Math.max(
@@ -91,99 +61,26 @@ export const createNuclearModule = (
     plan?.generationTargetMw ?? baselines.averageGeneratorOutputMw,
   );
   const dispatchedGenerationMw = Math.min(
-    modeledGenerationCapacityMw,
+    syncedGenerationCapacityMw,
     generationTargetMw,
   );
   const turbineSteamPerCycle = dispatchedGenerationMw * 48 / (15 + 10 + 5);
   const hydrogenDemandPerCycle = Math.max(0, baselines.hydrogenFuelDemandPerCycle);
   const activeTurbineCount = Math.ceil(turbineSteamPerCycle / 48);
-  const builtTurbineCount = Math.ceil(powerReactorSuperSteam / 48);
-  const reprocessingCount = Math.ceil(spentCoreFuel / 16);
-  const enrichmentCount = Math.ceil(enrichedBlanketFuel / 8);
-  const wasteStorageCount = Math.ceil(fissionProducts / 2);
-  const shredderCount = Math.ceil(fissionProducts / 6);
-
-  const modeledBuiltBuildings: Record<string, number> = {
-    "fbr-0x": nonBreederReactors,
-    "fbr-3x": breederReactors,
-    "seawater-pump": SEAWATER_PUMP_COUNT,
-    "nuclear-reprocessing": reprocessingCount,
-    "enrichment-plant": enrichmentCount,
-    "chemical-plant-yellowcake": enrichmentCount,
-    "turbine-super": builtTurbineCount,
-    "turbine-high": builtTurbineCount,
-    "turbine-low": builtTurbineCount,
-    "power-generator-ii-nuclear": builtTurbineCount * 2,
-    "hydrogen-reformer-super": BUILT_HYDROGEN_REFORMER_COUNT,
-    "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
-    "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
-    "electrolyzer-ii-chlorine": BUILT_BRINE_PROCESSING_COUNT,
-    "evaporation-pond-heated-salt-brine": BUILT_BRINE_PROCESSING_COUNT,
-    "cooling-tower-large-super": BUILT_COOLING_TOWER_COUNT,
-    "cooling-tower-large-depleted": BUILT_COOLING_TOWER_COUNT,
-    "nuclear-liquid-dump-water": 1,
-    "nuclear-liquid-dump-brine": 1,
-    "nuclear-smoke-stack-large-oxygen": 1,
-    "radioactive-waste-storage": wasteStorageCount,
-    "shredder-retired-waste": shredderCount,
-  };
-  const modeledActiveBuildings: Record<string, number> = {
-    "fbr-0x": nonBreederReactors,
-    "fbr-3x": breederReactors,
-    "seawater-pump": SEAWATER_PUMP_COUNT,
-    "nuclear-reprocessing": reprocessingCount,
-    "enrichment-plant": enrichmentCount,
-    "chemical-plant-yellowcake": enrichmentCount,
-    "turbine-super": activeTurbineCount,
-    "turbine-high": activeTurbineCount,
-    "turbine-low": activeTurbineCount,
-    "power-generator-ii-nuclear": activeTurbineCount * 2,
-    "hydrogen-reformer-super": ACTIVE_HYDROGEN_REFORMER_COUNT,
-    "thermal-desalinator-depleted": DEPLETED_DESALINATOR_COUNT,
-    "thermal-desalinator-super": SUPER_DESALINATOR_COUNT,
-    "electrolyzer-ii-chlorine": ACTIVE_CHLORINE_PROCESSING_COUNT,
-    "evaporation-pond-heated-salt-brine": ACTIVE_SALT_PROCESSING_COUNT,
-    "cooling-tower-large-super": ACTIVE_COOLING_TOWER_COUNT,
-    "cooling-tower-large-depleted": ACTIVE_COOLING_TOWER_COUNT,
-    "nuclear-liquid-dump-water": 1,
-    "nuclear-liquid-dump-brine": 1,
-    "nuclear-smoke-stack-large-oxygen": 1,
-    "radioactive-waste-storage": wasteStorageCount,
-    "shredder-retired-waste": shredderCount,
-  };
-  const syncedInventory = syncedEntities
-    ? resolveNuclearEntityInventory(syncedEntities, generatedArea?.liveArea?.zoneId)
-    : null;
-  const recipeIds = new Set([
-    ...Object.keys(modeledBuiltBuildings),
-    ...Object.keys(syncedInventory?.counts ?? {}),
-  ]);
-  const builtBuildings = syncedInventory
-    ? Object.fromEntries([...recipeIds].map(recipeId => [
-        recipeId,
-        syncedInventory.counts[recipeId]?.built ?? 0,
-      ]))
-    : modeledBuiltBuildings;
-  const currentActiveBuildings = syncedInventory
-    ? Object.fromEntries([...recipeIds].map(recipeId => [
-        recipeId,
-        syncedInventory.counts[recipeId]?.running ?? 0,
-      ]))
-    : modeledActiveBuildings;
+  const recipeIds = Object.keys(syncedInventory.counts);
+  const builtBuildings = Object.fromEntries(recipeIds.map(recipeId => [
+    recipeId,
+    syncedInventory.counts[recipeId]?.built ?? 0,
+  ]));
+  const currentActiveBuildings = Object.fromEntries(recipeIds.map(recipeId => [
+    recipeId,
+    syncedInventory.counts[recipeId]?.running ?? 0,
+  ]));
   const activeBuildings = { ...currentActiveBuildings };
-  const speedLevels: Record<string, number> = syncedInventory
-    ? {
-        ...syncedInventory.speedLevels,
-        "fbr-0x": syncedInventory.speedLevels["fbr-0x"] ?? nonBreederPowerLevel,
-        "fbr-3x": syncedInventory.speedLevels["fbr-3x"] ?? breederPowerLevel,
-      }
-    : {
-        "fbr-0x": nonBreederPowerLevel,
-        "fbr-3x": breederPowerLevel,
-      };
-  const dataSources: NonNullable<Preset["dataSources"]> = syncedInventory
-    ? Object.fromEntries([...recipeIds].map(recipeId => [recipeId, "synced" as const]))
-    : {};
+  const speedLevels: Record<string, number> = { ...syncedInventory.speedLevels };
+  const dataSources: NonNullable<Preset["dataSources"]> = Object.fromEntries(
+    recipeIds.map(recipeId => [recipeId, "synced" as const]),
+  );
   const planMismatches: PlanMismatch[] = [];
   const operationTargets: NuclearOperationTarget[] = plan
     ? [
@@ -238,7 +135,7 @@ export const createNuclearModule = (
   for (const target of operationTargets) {
     const current = currentActiveBuildings[target.recipeId] ?? 0;
     const resolved = resolveDirectionalPlan(
-      syncedInventory ? { default: 0, synced: current } : { default: current },
+      { default: 0, synced: current },
       { direction: "at-least", target: target.target },
     );
 
@@ -272,7 +169,7 @@ export const createNuclearModule = (
     const tallRunning = currentActiveBuildings[tallRecipeId] ?? 0;
     const current = standardRunning + tallRunning;
     const resolved = resolveDirectionalPlan(
-      syncedInventory ? { default: 0, synced: current } : { default: current },
+      { default: 0, synced: current },
       { direction: "at-least", target: plan.seawaterPumpCount },
     );
 
@@ -335,13 +232,6 @@ export const createNuclearModule = (
     }
   }
 
-  if (plan && !syncedInventory) {
-    dataSources["turbine-super"] = "planned";
-    dataSources["turbine-high"] = "planned";
-    dataSources["turbine-low"] = "planned";
-    dataSources["power-generator-ii-nuclear"] = "planned";
-  }
-
   const liveArea = generatedArea?.liveArea
     ? {
         ...generatedArea.liveArea,
@@ -357,16 +247,14 @@ export const createNuclearModule = (
     id: generatedArea?.id ?? NUCLEAR_MODULE_ID,
     name: generatedArea?.name ?? "Nuclear",
     description: "",
-    gameSynced: syncedInventory ? true : undefined,
+    gameSynced: true,
     includedInFactoryTotals: generatedArea ? true : undefined,
     builtBuildings,
     presets: [
       {
         id: "configured-target",
         name: "Configured target",
-        description: syncedInventory
-          ? "Synced inventory with pending operation targets"
-          : `${breederReactors} breeder at Power ${breederPowerLevel} / 3x and ${nonBreederReactors} power reactor at Power ${nonBreederPowerLevel} / 0x`,
+        description: "",
         builtBuildings,
         activeBuildings,
         currentActiveBuildings,
@@ -390,8 +278,3 @@ export const createNuclearModule = (
     liveArea,
   };
 };
-
-export const nuclear = createNuclearModule(
-  defaultNuclearConfig,
-  emptyPlanningBaselines,
-);

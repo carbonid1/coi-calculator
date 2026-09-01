@@ -23,7 +23,6 @@ import {
   resolvedChickenFarmSettings,
   resolvedCurrentChickenFarmSettings,
 } from './db/chicken-farm'
-import { resolvedCurrentComputingConfig } from './db/computing'
 import { activeContracts, contracts, defaultActiveContractIds } from './db/contracts'
 import {
   getEdict,
@@ -79,7 +78,6 @@ import { MINES_MODULE_ID } from './db/modules/mines'
 import { modules, type Module } from './db/modules/modules'
 import {
   createNuclearModule,
-  defaultNuclearConfig,
   plannedNuclearOperation,
 } from './db/modules/nuclear'
 import {
@@ -101,7 +99,6 @@ import {
   createLegacySpaceStationArea,
   createSpaceStationModule,
   selectSpaceStationZone,
-  shouldUseSpaceStationFallback,
   SPACE_STATION_ZONE_NAME,
 } from './db/modules/space-station'
 import { calculateOfficePlan, defaultOfficePlan, resolvedOfficePlan } from './db/offices'
@@ -124,8 +121,8 @@ import { plannedSolarPanelTargets } from './db/solar'
 import {
   calculateRocketIiRecurringLogistics,
   defaultRocketIiRecurringLogistics,
-  defaultSpaceStationConfig,
   defaultSpaceStationLevel,
+  plannedSpaceStationLevel,
 } from './db/space-station'
 import {
   emptyStaticInfrastructureConfig,
@@ -452,11 +449,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const syncedSpaceStation = gameState.snapshot?.spaceStation
   const spaceStationConfig = syncedSpaceStation
     ? {
-        ...defaultSpaceStationConfig,
         currentLevel: syncedSpaceStation.currentLevel,
         highestLevelAchieved: syncedSpaceStation.highestLevelAchieved,
+        targetLevel: plannedSpaceStationLevel,
       }
-    : defaultSpaceStationConfig
+    : null
   const planningBaselines = resolvePlanningBaselines(gameState.snapshot)
   const syncedHistory = gameState.snapshot?.history
   const syncedMaintenance = syncedHistory?.maintenance
@@ -520,12 +517,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     hasComputingEntityInventory
       ? resolveComputingEntityInventory(productionEntities)
       : globalSyncedComputingConfigs
-  const computingBuiltConfig = syncedComputingConfigs?.built ?? resolvedCurrentComputingConfig.value
-  const computingRunningConfig =
-    syncedComputingConfigs?.running ?? resolvedCurrentComputingConfig.value
-  const computingCurrentSource = syncedComputingConfigs
-    ? ('synced' as const)
-    : resolvedCurrentComputingConfig.source
   const currentChickenConfigurations = gameState.snapshot?.chickenFarms
     ? getSyncedChickenFarmConfigurations(gameState.snapshot.chickenFarms)
     : null
@@ -538,25 +529,28 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     gameState.snapshot.productionEntities,
   )
 
-  const createConfiguredSpaceStationModule = (generatedArea?: Module) => (
-    createSpaceStationModule(
+  const createConfiguredSpaceStationModule = (generatedArea: Module) => {
+    if (
+      !spaceStationConfig
+      || (gameState.snapshot?.schemaVersion ?? 0) < NAMED_AREA_ENTITY_SCHEMA_VERSION
+    ) return generatedArea
+
+    return createSpaceStationModule(
       spaceStationConfig,
       rocketInfrastructureBuiltConfig,
       plannedRocketInfrastructureConfig,
       {
         rocketRunningConfig: rocketInfrastructureRunningConfig,
-        rocketSource:
-          (gameState.snapshot?.schemaVersion ?? 0) >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION
-            ? 'synced'
-            : 'modeled',
-        stationPartsAssembly: stationPartsAssemblyCount
-          ? { ...stationPartsAssemblyCount, source: 'synced' }
-          : undefined,
-        stationSource: syncedSpaceStation ? 'synced' : 'modeled',
+        rocketSource: 'synced',
+        stationPartsAssembly: {
+          ...(stationPartsAssemblyCount ?? { built: 0, running: 0 }),
+          source: 'synced',
+        },
+        stationSource: 'synced',
       },
       generatedArea,
     )
-  )
+  }
 
   const configureModules = () =>
     modules.map(module => {
@@ -589,12 +583,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       return module
     })
-  const configuredAreaModules = [
-    ...configureModules(),
-    ...(shouldUseSpaceStationFallback(gameState.snapshot?.schemaVersion)
-      ? [createConfiguredSpaceStationModule()]
-      : []),
-  ]
+  const configuredAreaModules = configureModules()
   const generatedLiveAreaModules =
     (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
       ? createLiveAreaModules(
@@ -672,7 +661,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       const appliesPlan = module.liveArea.zoneId === plannedNuclearZoneId
 
       configuredModule = createNuclearModule(
-        defaultNuclearConfig,
         appliesPlan ? planningBaselines : emptyPlanningBaselines,
         appliesPlan ? plannedNuclearOperation : undefined,
         productionEntities,
@@ -703,12 +691,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             )
           : syncedComputingConfigs
 
-      configuredModule = createComputingModule(
-        areaComputingConfigs?.built ?? computingBuiltConfig,
-        areaComputingConfigs?.running ?? computingRunningConfig,
-        areaComputingConfigs ? 'synced' : computingCurrentSource,
-        module,
-      )
+      if (areaComputingConfigs) {
+        configuredModule = createComputingModule(
+          areaComputingConfigs.built,
+          areaComputingConfigs.running,
+          'synced',
+          module,
+        )
+      }
     }
 
     if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId)) {
@@ -1309,7 +1299,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       {isModifiers && (
         <ModifiersView
           computingCapacityTflops={computingCapacityTflops}
-          computingConfig={configuredComputingModules.length > 0 ? computingRunningConfig : undefined}
+          computingConfig={configuredComputingModules.length > 0
+            ? syncedComputingConfigs?.running
+            : undefined}
           populationCapacity={configuredPopulationModules.length > 0 ? populationCapacity : undefined}
           spaceStation={configuredSpaceStationModules.length > 0
             ? {

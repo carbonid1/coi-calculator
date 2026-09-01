@@ -3,7 +3,6 @@ import { chickenFarm } from './chicken-farm'
 import { computingRecipeIds, dataCenter } from './computing'
 import {
   calculateCropFarmGroupRates,
-  cropFarmGroups,
   cropFarmTiers,
   fertilizers,
   type CropFarmGroup,
@@ -241,8 +240,6 @@ export const createCropFarmRecipe = (group: CropFarmGroup): Recipe => {
     })),
   }
 }
-
-const cropFarmRecipes: Recipe[] = cropFarmGroups.map(createCropFarmRecipe)
 
 export const recipes: Recipe[] = [
   // Sources
@@ -1934,7 +1931,6 @@ export const recipes: Recipe[] = [
   },
 
   // Fixed crop rotations and livestock
-  ...cropFarmRecipes,
   {
     id: 'chicken-farm-slaughtering',
     displayName: 'Slaughtering enabled',

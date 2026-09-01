@@ -4,57 +4,25 @@ import { type SyncedProductionEntity } from "../../game-state";
 import {
   computingRecipeIds,
   dataCenter,
-  defaultComputingConfig,
   getRackAllocation,
-  resolvedCurrentComputingConfig,
 } from "../computing";
 import { createComputingModule, createLegacyComputingArea } from "./computing";
 import { type Module } from "./modules";
 
-it("models the current two full data centers", () => {
-  const computing = createComputingModule(defaultComputingConfig);
+it("calculates a synced two-data-center configuration", () => {
+  const config = { dataCenterCount: 2, rackCount: 96, waterChillers: 2 };
+  const computing = createComputingModule(config, config, "synced");
   const preset = computing.presets.at(0);
 
-  expect(getRackAllocation(defaultComputingConfig.rackCount)).toEqual([48, 48]);
-  expect(defaultComputingConfig.waterChillers).toBe(2);
+  expect(getRackAllocation(config.rackCount)).toEqual([48, 48]);
   expect(computing.builtBuildings).toMatchObject({
     [computingRecipeIds.dataCenter]: 2,
     [computingRecipeIds.basicRack]: 96,
     [computingRecipeIds.waterChiller]: 2,
   });
   expect(preset?.activeBuildings).toEqual(computing.builtBuildings);
-  expect(
-    defaultComputingConfig.rackCount * dataCenter.computingTflopsPerRack,
-  ).toBe(384);
-});
-
-it("keeps the modeled Computing fallback on current values", () => {
-  const computing = createComputingModule(
-    resolvedCurrentComputingConfig.value,
-    resolvedCurrentComputingConfig.value,
-    resolvedCurrentComputingConfig.source,
-  );
-  const preset = computing.presets.at(0);
-
-  expect(resolvedCurrentComputingConfig).toEqual({
-    source: "default",
-    value: defaultComputingConfig,
-  });
-  expect(computing.builtBuildings).toEqual({
-    [computingRecipeIds.dataCenter]: 2,
-    [computingRecipeIds.basicRack]: 96,
-    [computingRecipeIds.waterChiller]: 2,
-  });
-  expect(preset?.activeBuildings).toEqual({
-    [computingRecipeIds.dataCenter]: 2,
-    [computingRecipeIds.basicRack]: 96,
-    [computingRecipeIds.waterChiller]: 2,
-  });
-  expect(preset?.dataSources).toEqual({
-    [computingRecipeIds.dataCenter]: "default",
-    [computingRecipeIds.basicRack]: "default",
-    [computingRecipeIds.waterChiller]: "default",
-  });
+  expect(config.rackCount * dataCenter.computingTflopsPerRack).toBe(384);
+  expect(preset?.dataSources?.[computingRecipeIds.basicRack]).toBe("synced");
 });
 
 it("keeps built and running synced computing inventory separate", () => {

@@ -2,13 +2,26 @@ import { describe, expect, it } from 'vitest'
 
 import { type Module } from '../../db/modules/modules'
 import { createSpaceStationModule } from '../../db/modules/space-station'
-import { defaultSpaceStationConfig } from '../../db/space-station'
+import {
+  emptyRocketInfrastructureConfig,
+  plannedRocketInfrastructureConfig,
+} from '../../db/rocket-infrastructure'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateProductionCardLoad, groupProductionCardLines } from './production-card-groups'
 
 describe('production card groups', () => {
   it('shows the two station operations as one physical card', () => {
-    const station = createSpaceStationModule(defaultSpaceStationConfig)
+    const station = createSpaceStationModule(
+      { currentLevel: 0, highestLevelAchieved: 4, targetLevel: 4 },
+      emptyRocketInfrastructureConfig,
+      plannedRocketInfrastructureConfig,
+      {
+        rocketRunningConfig: emptyRocketInfrastructureConfig,
+        rocketSource: 'synced',
+        stationPartsAssembly: { built: 1, running: 1, source: 'synced' },
+        stationSource: 'synced',
+      },
+    )
     const { lines } = buildModuleLines(station, station.presets[0] ?? null)
     const groups = groupProductionCardLines(lines)
     const stationGroup = groups.find(({ key }) => key === 'space-station:display:space-station')

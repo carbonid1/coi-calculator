@@ -1,11 +1,9 @@
 import { expect, it } from "vitest";
 
 import {
-  getCropFarmConfigurationsFromEntities,
   getSyncedChickenFarmConfigurations,
   getSyncedChickenFarmEntities,
   getSyncedComputingConfigs,
-  getSyncedCropFarmConfigurations,
   getSyncedCropFarmEntities,
 } from "./synced-production-config";
 
@@ -20,9 +18,8 @@ it("maps computing built and running capacity independently", () => {
   });
 });
 
-it("preserves chicken modes and population", () => {
-  expect(getSyncedChickenFarmConfigurations({
-    entities: [],
+it("preserves chicken modes, population, identities, and areas", () => {
+  const state = {
     configurations: [{
       slaughtering: true,
       built: 5,
@@ -30,27 +27,18 @@ it("preserves chicken modes and population", () => {
       chickens: 2_350,
       runningChickens: 500,
     }],
-  })).toEqual([{
-    slaughtering: true,
-    built: 5,
-    running: 1,
-    chickens: 2_350,
-    runningChickens: 500,
-  }]);
-});
-
-it("preserves chicken farm IDs and exact vehicle-area membership", () => {
-  expect(getSyncedChickenFarmEntities({
-    configurations: [],
     entities: [{
       entityId: 84,
-      prototypeId: "ChickenFarm",
+      prototypeId: "ChickenFarm" as const,
       running: false,
       slaughtering: true,
       chickens: 350,
       zones: [{ id: 12, name: "Chicken Farms" }],
     }],
-  })).toEqual([{
+  };
+
+  expect(getSyncedChickenFarmConfigurations(state)).toEqual(state.configurations);
+  expect(getSyncedChickenFarmEntities(state)).toEqual([{
     entityId: 84,
     running: false,
     slaughtering: true,
@@ -59,145 +47,52 @@ it("preserves chicken farm IDs and exact vehicle-area membership", () => {
   }]);
 });
 
-it("maps installed greenhouse prototype and crop IDs to calculator IDs", () => {
-  expect(getSyncedCropFarmConfigurations({
-    entities: [],
-    configurations: [{
-      prototypeId: "FarmT4",
-      built: 1,
-      running: 1,
-      fertilityTargetPercent: 140,
-      schedule: ["Crop_Potato", "Crop_Fruits", null, "Crop_Wheat"],
-    }],
-  })).toEqual([{
-    tierId: "greenhouseII",
-    built: 1,
-    running: 1,
-    fertilityTargetPercent: 140,
-    schedule: ["potato", "fruit", "none", "wheat"],
-  }]);
-});
-
-it("groups greenhouses only when tier, schedule, and fertility configuration are identical", () => {
-  expect(getSyncedCropFarmConfigurations({
-    entities: [],
-    configurations: [
-      {
-        prototypeId: "FarmT4",
-        built: 1,
-        running: 1,
-        fertilityTargetPercent: 140,
-        schedule: ["Crop_Corn", "Crop_Wheat", null, null],
-      },
-      {
-        prototypeId: "FarmT4",
-        built: 2,
-        running: 0,
-        fertilityTargetPercent: 140,
-        schedule: ["Crop_Corn", "Crop_Wheat", null, null],
-      },
-      {
-        prototypeId: "FarmT4",
-        built: 1,
-        running: 0,
-        fertilityTargetPercent: 0,
-        schedule: ["Crop_Corn", "Crop_Wheat", null, null],
-      },
-    ],
-  })).toEqual([
-    {
-      tierId: "greenhouseII",
-      built: 3,
-      running: 1,
-      fertilityTargetPercent: 140,
-      schedule: ["corn", "wheat", "none", "none"],
-    },
-    {
-      tierId: "greenhouseII",
-      built: 1,
-      running: 0,
-      fertilityTargetPercent: 0,
-      schedule: ["corn", "wheat", "none", "none"],
-    },
-  ]);
-});
-
-it("preserves stable greenhouse entity IDs for plan binding", () => {
+it("maps exact crop-farm configuration and supplied fertilizer", () => {
   expect(getSyncedCropFarmEntities({
     configurations: [],
     entities: [{
       entityId: 42,
       prototypeId: "FarmT4",
       running: false,
-      fertilityTargetPercent: 140,
+      fertilityTargetPercent: 110,
+      fertilizerProductId: "Product_Fertilizer2",
       schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+      zones: [{ id: 10, name: "Any farming area" }],
     }],
   })).toEqual([{
     entityId: 42,
     tierId: "greenhouseII",
     running: false,
-    fertilityTargetPercent: 140,
-    fertilizerId: null,
+    fertilityTargetPercent: 110,
+    fertilizerId: "fertilizerII",
     schedule: ["corn", "wheat", "none", "none"],
-    zones: [],
+    zones: [{ id: 10, name: "Any farming area" }],
   }]);
 });
 
-it("does not infer a legacy fertilizer product from the fertility target", () => {
+it("creates entity-shaped synced farms for older aggregate snapshots", () => {
   expect(getSyncedCropFarmEntities({
-    configurations: [],
-    entities: [{
-      entityId: 42,
+    entities: [],
+    configurations: [{
       prototypeId: "FarmT4",
-      running: true,
-      fertilityTargetPercent: 110,
-      schedule: ["Crop_Corn", "Crop_Wheat", null, null],
+      built: 2,
+      running: 1,
+      fertilityTargetPercent: 140,
+      fertilizerProductId: "Product_Fertilizer2",
+      schedule: ["Crop_Potato", "Crop_Fruits", null, "Crop_Wheat"],
     }],
-  })[0]).toMatchObject({
-    fertilizerId: null,
-    fertilityTargetPercent: 110,
-  });
-});
-
-it("groups only the greenhouse entities selected for an area", () => {
-  expect(getCropFarmConfigurationsFromEntities([
-    {
-      entityId: 42,
+  })).toEqual([
+    expect.objectContaining({
       tierId: "greenhouseII",
       running: true,
-      fertilityTargetPercent: 140,
-      schedule: ["corn", "wheat", "none", "none"],
-    },
-    {
-      entityId: 43,
+      fertilizerId: "fertilizerII",
+      schedule: ["potato", "fruit", "none", "wheat"],
+    }),
+    expect.objectContaining({
       tierId: "greenhouseII",
       running: false,
-      fertilityTargetPercent: 140,
-      schedule: ["corn", "wheat", "none", "none"],
-    },
-  ])).toEqual([{
-    tierId: "greenhouseII",
-    built: 2,
-    running: 1,
-    fertilityTargetPercent: 140,
-    schedule: ["corn", "wheat", "none", "none"],
-  }]);
-});
-
-it("uses the supplied fertilizer product independently of the target", () => {
-  expect(getSyncedCropFarmEntities({
-    configurations: [],
-    entities: [{
-      entityId: 42,
-      prototypeId: "FarmT4",
-      running: true,
-      fertilityTargetPercent: 100,
-      fertilizerProductId: "Product_Fertilizer2",
-      schedule: ["Crop_Corn", "Crop_Wheat", null, null],
-      zones: [{ id: 7, name: "Anything" }],
-    }],
-  })[0]).toMatchObject({
-    fertilizerId: "fertilizerII",
-    fertilityTargetPercent: 100,
-  });
+      fertilizerId: "fertilizerII",
+      schedule: ["potato", "fruit", "none", "wheat"],
+    }),
+  ]);
 });

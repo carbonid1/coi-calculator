@@ -27,6 +27,7 @@ const inventory = (
   },
   unmappedEntities: [],
 });
+const syncedHousingCapacityLevel = defaultInfiniteResearchLevels.housingCapacity;
 
 const generatedPopulationArea = (zoneId = 14): Module => {
   const waterTreatmentRecipeId = `live-area-${zoneId}:WaterTreatmentPlant:WaterTreatmentT2`;
@@ -133,6 +134,7 @@ it("preserves the generated area while supplying recipe-less settlement calculat
       [settlementRecipeIds.wastewaterTreatment]: { built: 2, running: 2 },
     }),
     generatedPopulationArea(),
+    syncedHousingCapacityLevel,
   );
   const preset = population.presets[0];
   const waterTreatmentRecipeId = "live-area-14:WaterTreatmentPlant:WaterTreatmentT2";
@@ -219,6 +221,7 @@ it("projects recipe-less housing construction ghosts without inventing plan narr
       [settlementRecipeIds.internetModule]: { built: 1, running: 1 },
     }),
     area,
+    syncedHousingCapacityLevel,
   );
 
   expect(population.presets[0]).toMatchObject({
@@ -238,6 +241,7 @@ it("replaces an in-progress Housing II promotion instead of counting both tiers"
       [settlementRecipeIds.internetModule]: { built: 1, running: 1 },
     }),
     generatedPopulationArea(),
+    syncedHousingCapacityLevel,
   );
 
   expect(population.presets[0]).toMatchObject({
@@ -274,13 +278,13 @@ it("allocates the global housing target to only one Population area", () => {
   const westPopulation = createPopulationModule(
     westInventory,
     west,
-    undefined,
+    syncedHousingCapacityLevel,
     targets.get(14) ?? null,
   );
   const eastPopulation = createPopulationModule(
     eastInventory,
     east,
-    undefined,
+    syncedHousingCapacityLevel,
     targets.get(27) ?? null,
   );
   const westPreset = westPopulation.presets[0];
@@ -329,7 +333,11 @@ it("preserves configuration issues for configurable machine ghosts", () => {
     message: "Choose a recipe after construction completes.",
   }];
 
-  const population = createPopulationModule(inventory({}), area);
+  const population = createPopulationModule(
+    inventory({}),
+    area,
+    syncedHousingCapacityLevel,
+  );
   const populationPreset = population.presets[0];
 
   expect(populationPreset.activeBuildings).not.toHaveProperty(
@@ -377,6 +385,7 @@ it("falls back to known waste recipes for supported pre-ghost Population snapsho
       [settlementRecipeIds.wastewaterTreatment]: { built: 1, running: 1 },
     }),
     area,
+    syncedHousingCapacityLevel,
   );
 
   expect(population).toMatchObject({

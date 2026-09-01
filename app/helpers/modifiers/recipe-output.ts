@@ -1,4 +1,3 @@
-import { cropFarmGroups } from "../../db/crop-farming";
 import {
   type Ingredient,
   type InputModifierId,
@@ -16,17 +15,8 @@ const GAME_PERCENT_SCALE = 100_000;
 
 const getWeatherAdjustedFarm = (input: Ingredient) => {
   if (input.weatherAdjustedFarm) return input.weatherAdjustedFarm;
-  if (!input.weatherAdjustedFarmId) return null;
 
-  const farmGroup = cropFarmGroups.find(
-    (group) => group.id === input.weatherAdjustedFarmId,
-  );
-
-  if (!farmGroup) {
-    throw new Error(`Unknown weather-adjusted farm: ${input.weatherAdjustedFarmId}`);
-  }
-
-  return farmGroup;
+  return null;
 };
 
 const scaleGameQuantity = (quantity: number, multiplier: number) => {

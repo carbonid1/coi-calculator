@@ -14,27 +14,38 @@ import {
   createLegacySpaceStationArea,
   createSpaceStationModule,
   selectSpaceStationZone,
-  shouldUseSpaceStationFallback,
-  spaceStation,
 } from "./modules/space-station";
 import { recipes } from "./recipes";
+import {
+  emptyRocketInfrastructureConfig,
+  plannedRocketInfrastructureConfig,
+} from "./rocket-infrastructure";
 import {
   calculateSpaceStationLevel,
   calculateRocketIiRecurringLogistics,
   defaultRocketIiRecurringLogistics,
-  defaultSpaceStationConfig,
   getStationPartsKind,
 } from "./space-station";
 
-describe("Space Station", () => {
-  it("keeps the station fallback only for snapshots without area inventory", () => {
-    expect(shouldUseSpaceStationFallback()).toBe(true);
-    expect(shouldUseSpaceStationFallback(15)).toBe(true);
-    expect(shouldUseSpaceStationFallback(23)).toBe(true);
-    expect(shouldUseSpaceStationFallback(24)).toBe(false);
-    expect(shouldUseSpaceStationFallback(29)).toBe(false);
-  });
+const testSpaceStationConfig = {
+  currentLevel: 0,
+  highestLevelAchieved: 4,
+  targetLevel: 4,
+};
+const createTestSpaceStationModule = () => createSpaceStationModule(
+  testSpaceStationConfig,
+  emptyRocketInfrastructureConfig,
+  plannedRocketInfrastructureConfig,
+  {
+    rocketRunningConfig: emptyRocketInfrastructureConfig,
+    rocketSource: "synced",
+    stationPartsAssembly: { built: 1, running: 1, source: "synced" },
+    stationSource: "synced",
+  },
+);
+const spaceStation = createTestSpaceStationModule();
 
+describe("Space Station", () => {
   it("selects one Space Station area and prefers the one containing station infrastructure", () => {
     const zones = [
       { id: 9, name: "Space Station" },
@@ -143,7 +154,7 @@ describe("Space Station", () => {
   });
 
   it("adds the complete planned station to Factory Total over an empty baseline", () => {
-    const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
+    const stationModule = createTestSpaceStationModule();
     const result = calculateFactoryTotal(
       [stationModule],
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
@@ -169,7 +180,7 @@ describe("Space Station", () => {
       "assembly-v-station-parts": 1,
     });
     expect(preset?.dataSources).toMatchObject({
-      "assembly-v-station-parts": "modeled",
+      "assembly-v-station-parts": "synced",
     });
     expect(stationModule.builtBuildings).toMatchObject({
       "rocket-ii-assembly": 0,
@@ -268,7 +279,7 @@ describe("Space Station", () => {
     if (!generatedArea) throw new Error("Missing generated Space Station area");
 
     const liveStation = createSpaceStationModule(
-      defaultSpaceStationConfig,
+      testSpaceStationConfig,
       { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
@@ -413,7 +424,7 @@ describe("Space Station", () => {
   });
 
   it("exposes the station plan through standard module flows and building pressure", () => {
-    const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
+    const stationModule = createTestSpaceStationModule();
     const result = calculateFactoryTotal(
       [stationModule],
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
@@ -434,7 +445,7 @@ describe("Space Station", () => {
       .every((line) => line.dataSource === "planned")).toBe(true);
     expect(planLines.find(
       (line) => line.recipe.id === "assembly-v-station-parts",
-    )?.dataSource).toBe("modeled");
+    )?.dataSource).toBe("synced");
     expect(planLines.some((line) => line.recipe.id === "assembly-v-composite-panel"))
       .toBe(false);
     expect(stats.workers).toBe(196);
@@ -457,7 +468,7 @@ describe("Space Station", () => {
   });
 
   it("does not expose orbital research mode as a physical planned build", () => {
-    const stationModule = createSpaceStationModule(defaultSpaceStationConfig);
+    const stationModule = createTestSpaceStationModule();
     const result = calculateFactoryTotal(
       [stationModule],
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },

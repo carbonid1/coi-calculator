@@ -3,11 +3,9 @@ import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-la
 import { type Recipe } from "../recipes";
 import { type ResourceId } from "../resources";
 import { defaultArea } from "./default";
-import { chickenFarms, greenhouses } from "./farms";
+import { chickenFarms } from "./farms";
 import { mines } from "./mines";
-import { modeledPopulation } from "./population";
 import { reserves } from "./reserves";
-import { spaceStation } from "./space-station";
 
 export interface Preset {
   id: string;
@@ -127,17 +125,6 @@ export interface Module {
 export const modules: [Module, ...Module[]] = [
   defaultArea,
   chickenFarms,
-  mines,
-  reserves,
-];
-
-/** Includes calculator-owned assumptions needed when no game snapshot is available. */
-export const factoryModelModules: [Module, ...Module[]] = [
-  defaultArea,
-  spaceStation,
-  greenhouses,
-  chickenFarms,
-  modeledPopulation,
   mines,
   reserves,
 ];

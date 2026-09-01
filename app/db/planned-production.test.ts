@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateBuildingStats } from "../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-consumption";
@@ -11,14 +10,13 @@ import { baseConfig } from "./config";
 import { activeContracts } from "./contracts";
 import { defaultActiveEdicts } from "./edicts";
 import {
-  DEFAULT_MODULE_ID,
   defaultArea as general,
   modeledDefaultRecipeIds as modeledGeneralRecipeIds,
   plannedDefaultBuildings as plannedGeneralBuildings,
   plannedDefaultBuiltBuildings as plannedGeneralBuiltBuildings,
   plannedNewDefaultBuildings as plannedNewGeneralBuildings,
 } from "./modules/default";
-import { factoryModelModules as modules } from "./modules/modules";
+import { modules } from "./modules/modules";
 import { recipes } from "./recipes";
 import { defaultInfiniteResearchLevels } from "./research";
 import { defaultRocketIiRecurringLogistics } from "./space-station";
@@ -169,63 +167,6 @@ describe("planned advanced production", () => {
       compositePanel: defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4,
       titaniumAlloy: defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,
     });
-  });
-
-  it("runs the completed advanced chain through Default", () => {
-    const factory = calculateFactoryTotal(modules, {
-      recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
-      outputModifiers,
-    });
-    const plannedIds = new Set(Object.keys(plannedAdvancedBuildings));
-    const lines = factory.allLines.filter(({ recipe }) => plannedIds.has(recipe.id));
-    const results = factory.calculation.regularResults.filter(
-      ({ recipe }) => plannedIds.has(recipe.id),
-    );
-    const factoryResult = (recipeId: string) => factory.calculation.regularResults.find(
-      ({ recipe }) => recipe.id === recipeId,
-    );
-    const stats = calculateBuildingStats(lines, {
-      regularResults: results,
-      sourceResults: [],
-      sinkResults: [],
-    }, outputModifiers);
-
-    expect(lines).toHaveLength(plannedIds.size);
-    expect(lines.every(({ dataSource }) => dataSource === "planned")).toBe(true);
-    expect(plannedIds.size).toBe(0);
-    expect(plannedIds.has("distillation-stage-iii-titanium-purification")).toBe(false);
-    expect(lines.every(({ moduleId }) => moduleId === DEFAULT_MODULE_ID)).toBe(true);
-    expect(factoryResult("assembly-v-electronics-iv")?.actualOutputs).toContainEqual({
-      resourceId: "electronicsIv",
-      quantity: 4,
-    });
-    expect(factoryResult("assembly-v-composite-panel")).toMatchObject({
-      activeBuildings: 2,
-      builtBuildings: 2,
-    });
-    expect(factoryResult("assembly-v-composite-panel")?.actualOutputs.find(
-      ({ resourceId }) => resourceId === "compositePanel",
-    )?.quantity).toBeCloseTo(defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4, 6);
-    expect(factoryResult("cooled-caster-ii-titanium-alloy")?.actualOutputs.find(
-      ({ resourceId }) => resourceId === "titaniumAlloy",
-    )?.quantity).toBeCloseTo(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2, 6);
-    expect(factory.flows.find(({ resourceId }) => resourceId === "moltenIron")?.net ?? 0)
-      .toBeCloseTo(0, 6);
-    expect(factoryResult("settling-tank-red-mud-acid")?.actualOutputs.find(
-      ({ resourceId }) => resourceId === "ironOreCrushed",
-    )?.quantity).toBe(0);
-    expect(factoryResult("aluminum-cell-electrolysis")).toMatchObject({
-      activeBuildings: 3,
-      builtBuildings: 3,
-    });
-    expect(factoryResult("metal-caster-ii-aluminum")).toMatchObject({
-      activeBuildings: 3,
-      builtBuildings: 3,
-    });
-    expect(3 * (factoryResult("metal-caster-ii-aluminum")?.supplyRatio ?? 0))
-      .toBeGreaterThan(2);
-    expect(stats.workers).toBe(0);
-    expect(stats.computingTflops).toBe(0);
   });
 
   it("supplies Sand through the demand-balanced Quartz contract", () => {

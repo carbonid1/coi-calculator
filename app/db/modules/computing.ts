@@ -67,7 +67,7 @@ const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
 export const createComputingModule = (
   builtConfig: ComputingConfig,
   runningConfig: ComputingConfig = builtConfig,
-  currentSource: CurrentValueSource = "modeled",
+  currentSource: CurrentValueSource = "synced",
   generatedArea?: Module,
 ): Module => {
   const built = normalizeComputingConfig(builtConfig);

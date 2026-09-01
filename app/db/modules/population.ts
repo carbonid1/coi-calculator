@@ -14,17 +14,10 @@ import {
   calculatePopulationCapacity,
   housingTypes,
 } from "../housing";
-import { defaultInfiniteResearchLevels } from "../research";
-import { settlementRecipeIds, settlementServiceBuildings } from "../settlement";
+import { settlementRecipeIds } from "../settlement";
 import { type Module, type PlanMismatchAction } from "./modules";
 
-const MODELED_POPULATION_MODULE_ID = "modeled-population";
-
-const modeledHousingCount = 15;
-
 const plannedHousingCount = 18;
-const plannedWastewaterTreatmentCount = 2;
-const plannedAnaerobicDigesterCount = 3;
 
 interface PopulationHousingPlanArea {
   generatedArea: Module;
@@ -79,71 +72,6 @@ export const resolvePopulationHousingPlanTargets = (
     : new Map();
 };
 
-/**
- * Non-UI fallback used by calculations that do not have a game snapshot.
- * Synced calculator tabs replace this with one generated module per Population area.
- */
-export const modeledPopulation: Module = (() => {
-  const capacityMultiplier = calculateHousingCapacity(
-    defaultInfiniteResearchLevels.housingCapacity,
-  ).multiplier;
-  const builtBuildings = {
-    [settlementRecipeIds.residents]: modeledHousingCount,
-    [settlementRecipeIds.foodMarket]: settlementServiceBuildings.foodMarket,
-    [settlementRecipeIds.foodMarketII]: settlementServiceBuildings.foodMarketII,
-    [settlementRecipeIds.transformer]: settlementServiceBuildings.transformer,
-    [settlementRecipeIds.waterFacility]: settlementServiceBuildings.waterFacility,
-    [settlementRecipeIds.householdGoodsModule]: settlementServiceBuildings.householdGoodsModule,
-    [settlementRecipeIds.wasteCollection]: settlementServiceBuildings.wasteCollection,
-    [settlementRecipeIds.recyclablesCollection]: settlementServiceBuildings.recyclablesCollection,
-    [settlementRecipeIds.biomassCollection]: settlementServiceBuildings.biomassCollection,
-    [settlementRecipeIds.clinic]: settlementServiceBuildings.clinic,
-    [settlementRecipeIds.internetModule]: settlementServiceBuildings.internetModule,
-    [settlementRecipeIds.wastewaterTreatment]: settlementServiceBuildings.wastewaterTreatment,
-    [settlementRecipeIds.anaerobicDigester]: settlementServiceBuildings.anaerobicDigester,
-    [settlementRecipeIds.biomassCompostMixer]: settlementServiceBuildings.biomassCompostMixer,
-  };
-  const activeBuildings = {
-    ...builtBuildings,
-    [settlementRecipeIds.residents]: plannedHousingCount,
-    [settlementRecipeIds.wastewaterTreatment]: plannedWastewaterTreatmentCount,
-    [settlementRecipeIds.anaerobicDigester]: plannedAnaerobicDigesterCount,
-  };
-  const populationCapacity = calculatePopulationCapacity(
-    activeHousingType,
-    plannedHousingCount,
-    capacityMultiplier,
-  );
-
-  return {
-    id: MODELED_POPULATION_MODULE_ID,
-    name: "Population",
-    description: "",
-    builtBuildings,
-    presets: [{
-      id: "modeled-population",
-      name: "Population",
-      description: "",
-      activeBuildings,
-      dataSources: {
-        [settlementRecipeIds.residents]: "planned",
-        [settlementRecipeIds.wastewaterTreatment]: "planned",
-        [settlementRecipeIds.anaerobicDigester]: "planned",
-      },
-      fixed: Object.keys(builtBuildings).filter(recipeId => (
-        recipeId !== settlementRecipeIds.wastewaterTreatment
-        && recipeId !== settlementRecipeIds.anaerobicDigester
-        && recipeId !== settlementRecipeIds.biomassCompostMixer
-      )),
-      speedLevels: {
-        [settlementRecipeIds.residents]: capacityMultiplier,
-        [settlementRecipeIds.internetModule]: populationCapacity / 100,
-      },
-    }],
-    defaultPresetId: "modeled-population",
-  };
-})();
-
 export const createLegacyPopulationArea = (
   zone: SyncedLogisticsZoneRef,
   productionEntities: readonly SyncedProductionEntity[],
@@ -186,7 +114,7 @@ export const createLegacyPopulationArea = (
 export const createPopulationModule = (
   syncedInventory: ResolvedPopulationEntityInventory,
   generatedArea: Module,
-  housingCapacityLevel: number = defaultInfiniteResearchLevels.housingCapacity,
+  housingCapacityLevel: number,
   plannedHousingTarget: number | null = plannedHousingCount,
 ): Module => {
   const rawGeneratedPreset = getDefaultPreset(generatedArea);

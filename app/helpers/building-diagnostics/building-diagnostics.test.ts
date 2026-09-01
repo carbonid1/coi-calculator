@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { type Module } from "../../db/modules/modules";
-import { recipes } from "../../db/recipes";
+import { createCropFarmRecipe, recipes } from "../../db/recipes";
 import { type ResourceId, resources } from "../../db/resources";
 import {
   type PassiveResult,
@@ -109,7 +109,24 @@ describe("chicken farm building diagnostics", () => {
 
 describe("crop farm building diagnostics", () => {
   it("consolidates crop capacity warnings into one rebalance action", () => {
-    const cropRecipes = recipes.filter((recipe) => recipe.farmFertilizer != null).slice(0, 2);
+    const cropRecipes = [
+      createCropFarmRecipe({
+        id: "test-potato-farm",
+        name: "Potato farm",
+        farmCount: 1,
+        tierId: "greenhouseII",
+        schedule: ["potato", "wheat", "potato", "wheat"],
+        fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
+      }),
+      createCropFarmRecipe({
+        id: "test-fruit-farm",
+        name: "Fruit farm",
+        farmCount: 1,
+        tierId: "greenhouseII",
+        schedule: ["fruit", "soybean", "fruit", "soybean"],
+        fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
+      }),
+    ];
     const cropModule: Module = {
       id: "farms",
       name: "Farms",

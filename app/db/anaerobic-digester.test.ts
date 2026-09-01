@@ -4,7 +4,7 @@ import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/bu
 import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
 import { baseConfig } from "./config";
 import { defaultArea as general } from "./modules/default";
-import { factoryModelModules } from "./modules/modules";
+import { modules } from "./modules/modules";
 import { recipes } from "./recipes";
 
 const digestionRecipeIds = [
@@ -105,11 +105,11 @@ describe("surplus-organics digestion", () => {
   });
 
   it("uses all built digesters before recommending another build", () => {
-    const result = calculateFactoryTotal(factoryModelModules, {
+    const result = calculateFactoryTotal(modules, {
       recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
     });
     const diagnostic = calculateBuildingDiagnostics(
-      factoryModelModules,
+      modules,
       result.flows,
       result.calculation.regularResults,
       result.calculation.sourceResults,

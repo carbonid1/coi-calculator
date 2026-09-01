@@ -6,7 +6,6 @@ import {
 } from "../../db/crop-farming";
 import {
   type CurrentChickenFarmConfiguration,
-  type CurrentCropFarmConfiguration,
 } from "../../db/modules/farms";
 import {
   type SyncedChickenFarmState,
@@ -73,45 +72,6 @@ export const getSyncedChickenFarmEntities = (
   zones: entity.zones,
 }));
 
-export const getSyncedCropFarmConfigurations = (
-  state: SyncedCropFarmState,
-): CurrentCropFarmConfiguration[] => {
-  const grouped = new Map<string, CurrentCropFarmConfiguration>();
-
-  for (const configuration of state.configurations) {
-    const tierId = configuration.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse";
-    const schedule = configuration.schedule.map(cropId => (
-      cropId === null ? "none" : (gameCropIds[cropId] ?? cropId)
-    ));
-    const fertilizerId = getSyncedFertilizerId(
-      configuration.fertilizerProductId,
-    );
-    const key = [
-      tierId,
-      schedule.join("/"),
-      configuration.fertilityTargetPercent,
-      fertilizerId,
-    ].join("|");
-    const existing = grouped.get(key);
-
-    if (existing) {
-      existing.built += configuration.built;
-      existing.running += configuration.running;
-      continue;
-    }
-
-    grouped.set(key, {
-      tierId,
-      schedule,
-      fertilityTargetPercent: configuration.fertilityTargetPercent,
-      built: configuration.built,
-      running: configuration.running,
-    });
-  }
-
-  return [...grouped.values()];
-};
-
 const mapCropSchedule = (schedule: readonly (string | null)[]) => schedule.map(cropId => (
   cropId === null ? "none" : (gameCropIds[cropId] ?? cropId)
 ));
@@ -148,37 +108,4 @@ export const getSyncedCropFarmEntities = (
       running: index < configuration.running,
     }),
   ));
-};
-
-export const getCropFarmConfigurationsFromEntities = (
-  entities: readonly CurrentCropFarmEntity[],
-): CurrentCropFarmConfiguration[] => {
-  const grouped = new Map<string, CurrentCropFarmConfiguration>();
-
-  for (const entity of entities) {
-    const fertilizerId = entity.fertilizerId ?? null;
-    const key = [
-      entity.tierId,
-      entity.schedule.join("/"),
-      entity.fertilityTargetPercent,
-      fertilizerId,
-    ].join("|");
-    const existing = grouped.get(key);
-
-    if (existing) {
-      existing.built++;
-      existing.running += Number(entity.running);
-      continue;
-    }
-
-    grouped.set(key, {
-      tierId: entity.tierId,
-      schedule: [...entity.schedule],
-      fertilityTargetPercent: entity.fertilityTargetPercent,
-      built: 1,
-      running: Number(entity.running),
-    });
-  }
-
-  return [...grouped.values()];
 };

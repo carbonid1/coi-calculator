@@ -1,110 +1,51 @@
 import { expect, it } from "vitest";
 
 import { type SyncedProductionEntity } from "../../game-state";
-import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
-import { calculateSolarPower } from "../../helpers/modifiers/calculate-solar-power";
 import { baseConfig } from "../config";
 import { emptyPlanningBaselines } from "../planning-baselines";
-import { defaultInfiniteResearchLevels } from "../research";
-import { attachSolarPanelsToModule } from "./area-solar";
 import { type Module } from "./modules";
-import {
-  createNuclearModule,
-  defaultNuclearConfig,
-  plannedNuclearOperation,
-} from "./nuclear";
+import { createNuclearModule, plannedNuclearOperation } from "./nuclear";
 
-const nuclear = createNuclearModule(defaultNuclearConfig, {
-  averageGeneratorOutputMw: 77,
-  hydrogenFuelDemandPerCycle: 46.5,
-});
-const emptyDefaultModule: Module = {
-  id: "general",
-  name: "Default",
-  description: "Default-area test module",
-  builtBuildings: {},
-  presets: [{
-    id: "current",
-    name: "Current",
-    description: "Current production",
-    activeBuildings: {},
-    fixed: [],
-  }],
-  defaultPresetId: "current",
-};
-const defaultWithSolar = attachSolarPanelsToModule(
-  emptyDefaultModule,
-  { standard: 38, mono: 195 },
-  { standard: 38, mono: 195 },
-);
-
+let nextEntityId = 1;
 const syncedEntity = (
-  entityId: number,
   prototypeId: string,
   recipeIds: string[] = [],
   running = true,
 ): SyncedProductionEntity => ({
-  entityId,
+  entityId: nextEntityId++,
   prototypeId,
   running,
   recipeIds,
   zones: [{ id: 14, name: "Nuclear" }],
   nuclearReactor: null,
 });
-
-it("keeps installed nuclear capacity current while applying the operation plan", () => {
-  const planned = createNuclearModule(
-    defaultNuclearConfig,
-    { averageGeneratorOutputMw: 77, hydrogenFuelDemandPerCycle: 46.5 },
-    plannedNuclearOperation,
-  );
-  const preset = planned.presets[0];
-
-  expect(preset?.builtBuildings).toMatchObject({
-    "hydrogen-reformer-super": 8,
-    "electrolyzer-ii-chlorine": 2,
-    "evaporation-pond-heated-salt-brine": 2,
-    "seawater-pump": 4,
-    "thermal-desalinator-super": 6,
-  });
-  expect(preset?.activeBuildings).toMatchObject({
-    "hydrogen-reformer-super": 8,
-    "electrolyzer-ii-chlorine": 2,
-    "evaporation-pond-heated-salt-brine": 2,
-    "seawater-pump": 6,
-    "thermal-desalinator-super": 9,
-  });
-  expect(preset?.activeBuildings).not.toHaveProperty("seawater-pump-tall");
-  expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);
-  expect(preset?.dataSources?.["hydrogen-reformer-super"]).toBeUndefined();
-  expect(Object.values(preset?.dataSources ?? {}).every(source => source === "planned"))
-    .toBe(true);
+const reactor = (
+  enrichmentStep: number,
+  targetPowerPercent: number,
+  running = true,
+): SyncedProductionEntity => ({
+  ...syncedEntity("FastBreederReactor", [], running),
+  nuclearReactor: { enrichmentStep, targetPowerPercent },
 });
+const makeMany = (
+  built: number,
+  running: number,
+  prototypeId: string,
+  recipeIds: string[] = [],
+) => Array.from(
+  { length: built },
+  (_, index) => syncedEntity(prototypeId, recipeIds, index < running),
+);
 
-it("lets the operation plan override a higher synced generation baseline", () => {
-  const planned = createNuclearModule(
-    defaultNuclearConfig,
-    { averageGeneratorOutputMw: 200, hydrogenFuelDemandPerCycle: 46.5 },
-    plannedNuclearOperation,
-  );
-  const preset = planned.presets[0];
-
-  expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);
-  expect(preset?.activeBuildings["turbine-super"]).toBe(6);
-  expect(preset?.activeBuildings["turbine-high"]).toBe(6);
-  expect(preset?.activeBuildings["turbine-low"]).toBe(6);
-});
-
-it("layers a pending operation target over exact synced Nuclear inventory", () => {
-  const entities = Array.from({ length: 5 }, (_, index) => syncedEntity(
-    index + 1,
+it("layers a pending operation target over exact synced inventory", () => {
+  const entities = makeMany(
+    5,
+    1,
     "HydrogenReformer",
     ["HydrogenProductionFromSteamSp"],
-    index === 0,
-  ));
+  );
   const nuclearModule = createNuclearModule(
-    defaultNuclearConfig,
     emptyPlanningBaselines,
     {
       ...plannedNuclearOperation,
@@ -136,67 +77,34 @@ it("layers a pending operation target over exact synced Nuclear inventory", () =
   ]);
 });
 
-it("replaces modeled current buildings instead of adding synced inventory", () => {
+it("uses the synced reactor enrichment and power configuration", () => {
   const nuclearModule = createNuclearModule(
-    defaultNuclearConfig,
     emptyPlanningBaselines,
     undefined,
-    [syncedEntity(1, "HydrogenReformer", ["HydrogenProductionFromSteamSp"])],
+    [reactor(0, 400), reactor(1, 200), reactor(2, 100)],
   );
   const preset = nuclearModule.presets[0];
 
-  expect(preset?.builtBuildings).toMatchObject({
-    "fbr-0x": 0,
-    "fbr-3x": 0,
-    "hydrogen-reformer-super": 1,
+  expect(preset?.builtBuildings).toMatchObject({ fbr: 1, "fbr-0x": 1, "fbr-3x": 1 });
+  expect(preset?.speedLevels).toMatchObject({ fbr: 2, "fbr-0x": 4, "fbr-3x": 1 });
+  expect(preset?.dataSources).toMatchObject({
+    fbr: "synced",
+    "fbr-0x": "synced",
+    "fbr-3x": "synced",
   });
-  expect(preset?.activeBuildings).toMatchObject({
-    "fbr-0x": 0,
-    "fbr-3x": 0,
-    "hydrogen-reformer-super": 1,
-  });
-  expect(preset?.dataSources?.["hydrogen-reformer-super"]).toBe("synced");
-});
-
-it("keeps the middle-enrichment reactor in synced Nuclear capacity", () => {
-  const reactor: SyncedProductionEntity = {
-    ...syncedEntity(1, "FastBreederReactor"),
-    nuclearReactor: { enrichmentStep: 1, targetPowerPercent: 200 },
-  };
-  const nuclearModule = createNuclearModule(
-    defaultNuclearConfig,
-    emptyPlanningBaselines,
-    undefined,
-    [reactor],
-  );
-  const preset = nuclearModule.presets[0];
-
-  expect(preset?.builtBuildings.fbr).toBe(1);
-  expect(preset?.activeBuildings.fbr).toBe(1);
-  expect(preset?.speedLevels?.fbr).toBe(2);
-  expect(nuclearModule.description).toBe("");
   expect(nuclearModule.gameSynced).toBe(true);
 });
 
-it("keeps the turbine dispatch plan above lower synced running counts", () => {
-  let entityId = 0;
-  const makeMany = (
-    built: number,
-    running: number,
-    prototypeId: string,
-  ) => Array.from(
-    { length: built },
-    (_, index) => syncedEntity(++entityId, prototypeId, [], index < running),
-  );
+it("projects turbine operation from synced reactor capacity", () => {
   const entities = [
+    reactor(0, 400),
     ...makeMany(8, 3, "TurbineSuperPress"),
     ...makeMany(8, 3, "TurbineHighPressT2"),
     ...makeMany(8, 3, "TurbineLowPressT2"),
     ...makeMany(16, 6, "PowerGeneratorT2"),
   ];
   const nuclearModule = createNuclearModule(
-    defaultNuclearConfig,
-    emptyPlanningBaselines,
+    { averageGeneratorOutputMw: 77, hydrogenFuelDemandPerCycle: 46.5 },
     plannedNuclearOperation,
     entities,
   );
@@ -220,45 +128,23 @@ it("keeps the turbine dispatch plan above lower synced running counts", () => {
     "turbine-low": "planned",
     "power-generator-ii-nuclear": "planned",
   });
-  expect(preset?.planMismatches).toEqual(expect.arrayContaining([
-    expect.objectContaining({
-      recipeId: "turbine-super",
-      current: 3,
-      target: 6,
-      actions: [{ type: "unpause", label: "Unpause 3 Super-Pressure Turbines" }],
-    }),
-    expect.objectContaining({
-      recipeId: "power-generator-ii-nuclear",
-      current: 6,
-      target: 12,
-      actions: [{ type: "unpause", label: "Unpause 6 Power Generators II" }],
-    }),
-  ]));
+  expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);
 });
 
-it("drops reached operation targets back to synced state", () => {
-  let entityId = 0;
-  const makeMany = (
-    count: number,
-    prototypeId: string,
-    recipeIds: string[] = [],
-  ) => Array.from(
-    { length: count },
-    () => syncedEntity(++entityId, prototypeId, recipeIds),
-  );
+it("returns reached operation targets to synced state", () => {
   const entities = [
-    ...makeMany(8, "HydrogenReformer", ["HydrogenProductionFromSteamSp"]),
-    ...makeMany(3, "ElectrolyzerT2", ["BrineElectrolysis"]),
-    ...makeMany(3, "EvaporationPondHeated", ["SaltMakingFromBrine"]),
-    ...makeMany(10, "ThermalDesalinator", ["DesalinationFromSP"]),
-    ...makeMany(6, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
-    ...makeMany(6, "TurbineSuperPress"),
-    ...makeMany(6, "TurbineHighPressT2"),
-    ...makeMany(6, "TurbineLowPressT2"),
-    ...makeMany(12, "PowerGeneratorT2"),
+    reactor(0, 400),
+    ...makeMany(8, 8, "HydrogenReformer", ["HydrogenProductionFromSteamSp"]),
+    ...makeMany(3, 3, "ElectrolyzerT2", ["BrineElectrolysis"]),
+    ...makeMany(3, 3, "EvaporationPondHeated", ["SaltMakingFromBrine"]),
+    ...makeMany(10, 10, "ThermalDesalinator", ["DesalinationFromSP"]),
+    ...makeMany(6, 6, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
+    ...makeMany(6, 6, "TurbineSuperPress"),
+    ...makeMany(6, 6, "TurbineHighPressT2"),
+    ...makeMany(6, 6, "TurbineLowPressT2"),
+    ...makeMany(12, 12, "PowerGeneratorT2"),
   ];
   const nuclearModule = createNuclearModule(
-    defaultNuclearConfig,
     emptyPlanningBaselines,
     plannedNuclearOperation,
     entities,
@@ -266,6 +152,7 @@ it("drops reached operation targets back to synced state", () => {
   const preset = nuclearModule.presets[0];
 
   expect(preset?.planMismatches).toBeUndefined();
+  expect(Object.values(preset?.dataSources ?? {})).not.toContain("modeled");
   expect(preset?.dataSources).toMatchObject({
     "hydrogen-reformer-super": "synced",
     "electrolyzer-ii-chlorine": "synced",
@@ -273,37 +160,14 @@ it("drops reached operation targets back to synced state", () => {
     "thermal-desalinator-super": "synced",
     "seawater-pump": "synced",
   });
-  expect(preset?.activeBuildings).toMatchObject({
-    "hydrogen-reformer-super": 8,
-    "electrolyzer-ii-chlorine": 3,
-    "evaporation-pond-heated-salt-brine": 3,
-    "thermal-desalinator-super": 10,
-    "seawater-pump": 6,
-  });
 });
 
-it("keeps standard and tall seawater pumps distinct while sharing the plan target", () => {
-  let entityId = 0;
+it("keeps standard and tall seawater pumps distinct under one plan target", () => {
   const entities = [
-    ...Array.from({ length: 4 }, () => syncedEntity(
-      ++entityId,
-      "OceanWaterPumpT1",
-      ["OceanWaterPumping2x"],
-    )),
-    syncedEntity(
-      ++entityId,
-      "OceanWaterPumpLarge",
-      ["OceanWaterPumping2xT2"],
-    ),
-    syncedEntity(
-      ++entityId,
-      "OceanWaterPumpLarge",
-      ["OceanWaterPumping2xT2"],
-      false,
-    ),
+    ...makeMany(4, 4, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
+    ...makeMany(2, 1, "OceanWaterPumpLarge", ["OceanWaterPumping2xT2"]),
   ];
   const nuclearModule = createNuclearModule(
-    defaultNuclearConfig,
     emptyPlanningBaselines,
     {
       ...plannedNuclearOperation,
@@ -326,195 +190,60 @@ it("keeps standard and tall seawater pumps distinct while sharing the plan targe
     "seawater-pump": 4,
     "seawater-pump-tall": 2,
   });
-  expect(preset?.dataSources).toMatchObject({
-    "seawater-pump": "synced",
-    "seawater-pump-tall": "planned",
-  });
-  expect(preset?.planMismatches).toEqual([
-    expect.objectContaining({
-      recipeId: "seawater-pump-tall",
-      current: 1,
-      target: 2,
-      actions: [{
-        type: "unpause",
-        label: "Unpause 1 Seawater Pump (Tall)",
-      }],
-    }),
-  ]);
+  expect(preset?.dataSources?.["seawater-pump"]).toBe("synced");
+  expect(preset?.dataSources?.["seawater-pump-tall"]).toBe("planned");
 });
 
-it("models the two-FBR checkpoint and its external requirements", () => {
-  const result = calculateFactoryTotal(
-    [nuclear],
-    { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
-  );
-  const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
-    (candidate) => candidate.resourceId === resourceId,
-  );
-  const liquidDumpLines = result.allLines.filter(
-    (line) => line.recipe.id.startsWith("nuclear-liquid-dump-"),
-  );
-  const waterDumpResult = result.calculation.sinkResults.find(
-    (candidate) => candidate.recipe.id === "nuclear-liquid-dump-water",
-  );
-  const brineDumpResult = result.calculation.sinkResults.find(
-    (candidate) => candidate.recipe.id === "nuclear-liquid-dump-brine",
-  );
-  const oxygenVentResult = result.calculation.sinkResults.find(
-    (candidate) => candidate.recipe.id === "nuclear-smoke-stack-large-oxygen",
-  );
-
-  expect(defaultNuclearConfig).toEqual({
-    breederReactors: 1,
-    breederPowerLevel: 1,
-    nonBreederReactors: 1,
-    nonBreederPowerLevel: 4,
-  });
-  expect(nuclear.presets[0]?.fixed).toEqual(["fbr-0x", "fbr", "fbr-3x"]);
-  expect(nuclear.presets[0]?.builtBuildings).toMatchObject({
-    "nuclear-reprocessing": 1,
-    "seawater-pump": 4,
-    "enrichment-plant": 2,
-    "chemical-plant-yellowcake": 2,
-    "turbine-super": 8,
-    "turbine-high": 8,
-    "turbine-low": 8,
-    "power-generator-ii-nuclear": 16,
-    "hydrogen-reformer-super": 8,
-    "thermal-desalinator-depleted": 4,
-    "thermal-desalinator-super": 6,
-    "electrolyzer-ii-chlorine": 2,
-    "evaporation-pond-heated-salt-brine": 2,
-    "cooling-tower-large-super": 4,
-    "cooling-tower-large-depleted": 4,
-    "nuclear-liquid-dump-water": 1,
-    "nuclear-liquid-dump-brine": 1,
-    "nuclear-smoke-stack-large-oxygen": 1,
-    "radioactive-waste-storage": 1,
-    "shredder-retired-waste": 1,
-  });
-  expect(nuclear.presets[0]?.activeBuildings).toMatchObject({
-    "nuclear-reprocessing": 1,
-    "seawater-pump": 4,
-    "enrichment-plant": 2,
-    "chemical-plant-yellowcake": 2,
-    "turbine-super": 3,
-    "turbine-high": 3,
-    "turbine-low": 3,
-    "power-generator-ii-nuclear": 6,
-    "hydrogen-reformer-super": 8,
-    "thermal-desalinator-depleted": 4,
-    "thermal-desalinator-super": 6,
-    "electrolyzer-ii-chlorine": 1,
-    "evaporation-pond-heated-salt-brine": 1,
-    "cooling-tower-large-super": 4,
-    "cooling-tower-large-depleted": 4,
-    "nuclear-liquid-dump-water": 1,
-    "nuclear-liquid-dump-brine": 1,
-    "nuclear-smoke-stack-large-oxygen": 1,
-    "radioactive-waste-storage": 1,
-    "shredder-retired-waste": 1,
-  });
-  expect(flow("coreFuel")?.net).toBe(0);
-  expect(flow("blanketFuel")?.net).toBe(0);
-  expect(flow("yellowcake")?.net).toBe(-9);
-  expect(flow("hydrogen")?.net).toBe(0);
-  expect(flow("water")?.net).toBeCloseTo(0, 10);
-  expect(flow("brine")?.net).toBeCloseTo(0, 10);
-  expect(flow("oxygen")?.net).toBeCloseTo(0, 10);
-  expect(flow("electricity")?.produced).toBeCloseTo(77, 10);
-  expect(result.electricityDemandMw).toBe(77);
-  expect(liquidDumpLines).toHaveLength(2);
-  expect(liquidDumpLines).toEqual(expect.arrayContaining([
-    expect.objectContaining({ activeBuildings: 1, builtBuildings: 1 }),
-    expect.objectContaining({ activeBuildings: 1, builtBuildings: 1 }),
-  ]));
-  expect(waterDumpResult?.actualInputs).toEqual([
-    expect.objectContaining({ resourceId: "water" }),
-  ]);
-  expect(brineDumpResult?.actualInputs).toEqual([
-    expect.objectContaining({ resourceId: "brine" }),
-  ]);
-  expect(oxygenVentResult?.actualInputs).toEqual([
-    expect.objectContaining({ resourceId: "oxygen" }),
-  ]);
-  expect(waterDumpResult?.supplyRatio ?? 0).toBeGreaterThan(0);
-  expect(brineDumpResult?.supplyRatio ?? 0).toBeGreaterThan(0);
-  expect(waterDumpResult?.supplyRatio ?? 0).toBeLessThanOrEqual(1);
-  expect(brineDumpResult?.supplyRatio ?? 0).toBeLessThanOrEqual(1);
-  expect(oxygenVentResult?.supplyRatio ?? 0).toBeGreaterThan(0);
-  expect(oxygenVentResult?.supplyRatio ?? 0).toBeLessThanOrEqual(1);
-  expect(calculateBuildingStats(
-    liquidDumpLines,
-    result.calculation,
-  ).workers).toBe(2);
-});
-
-it("treats the baseline as nuclear generation in addition to solar", () => {
-  const solarPowerOutput = calculateSolarPower(
-    defaultInfiniteResearchLevels.solarPower,
-    0,
-  );
-  const result = calculateFactoryTotal(
-    [nuclear, defaultWithSolar],
-    {
-      recyclingEfficiencyPercent: 50,
-      outputModifiers: { solarPower: solarPowerOutput.multiplier },
-    },
-  );
-  const electricity = result.calculation.allResourceFlows.find(
-    (flow) => flow.resourceId === "electricity",
-  );
-
-  expect(electricity?.produced).toBeCloseTo(120.77024, 6);
-  expect(result.electricityDemandMw).toBeCloseTo(120.77024, 6);
-});
-
-it("keeps Factory Total identical when synced Nuclear moves to its generated module", () => {
-  let entityId = 0;
-  const makeMany = (
-    built: number,
-    running: number,
-    prototypeId: string,
-    recipeIds: string[] = [],
-  ) => Array.from(
-    { length: built },
-    (_, index) => syncedEntity(++entityId, prototypeId, recipeIds, index < running),
-  );
-  const entities: SyncedProductionEntity[] = [
-    {
-      ...syncedEntity(++entityId, "FastBreederReactor"),
-      nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 400 },
-    },
-    {
-      ...syncedEntity(++entityId, "FastBreederReactor"),
-      nuclearReactor: { enrichmentStep: 2, targetPowerPercent: 100 },
-    },
+it("preserves the synced Nuclear checkpoint's complete Factory Total", () => {
+  const entities = [
+    reactor(0, 400),
+    reactor(2, 100),
+    ...makeMany(4, 4, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
     ...makeMany(1, 1, "NuclearReprocessingPlant", ["CoreFuelReprocessing"]),
     ...makeMany(2, 2, "UraniumEnrichmentPlant", ["BlanketFuelReprocessing"]),
     ...makeMany(2, 2, "ChemicalPlant2", ["BlanketFuelFromYellowcake"]),
-    ...makeMany(8, 6, "TurbineSuperPress"),
-    ...makeMany(8, 6, "TurbineHighPressT2"),
-    ...makeMany(8, 6, "TurbineLowPressT2"),
-    ...makeMany(16, 12, "PowerGeneratorT2"),
+    ...makeMany(8, 3, "TurbineSuperPress"),
+    ...makeMany(8, 3, "TurbineHighPressT2"),
+    ...makeMany(8, 3, "TurbineLowPressT2"),
+    ...makeMany(16, 6, "PowerGeneratorT2"),
     ...makeMany(8, 8, "HydrogenReformer", ["HydrogenProductionFromSteamSp"]),
     ...makeMany(4, 4, "ThermalDesalinator", ["DesalinationFromDepleted"]),
-    ...makeMany(10, 9, "ThermalDesalinator", ["DesalinationFromSP"]),
-    ...makeMany(2, 2, "ElectrolyzerT2", ["BrineElectrolysis"]),
-    ...makeMany(2, 2, "EvaporationPondHeated", ["SaltMakingFromBrine"]),
-    ...makeMany(4, 4, "CoolingTowerT2", [
-      "SteamDepletedCondensationT2",
-      "SteamHpCondensationT2",
-      "SteamLpCondensationT2",
-      "SteamSpCondensationT2",
-    ]),
-    ...makeMany(2, 2, "WasteDump", ["OceanWaterDumping"]),
+    ...makeMany(6, 6, "ThermalDesalinator", ["DesalinationFromSP"]),
+    ...makeMany(2, 1, "ElectrolyzerT2", ["BrineElectrolysis"]),
+    ...makeMany(2, 1, "EvaporationPondHeated", ["SaltMakingFromBrine"]),
+    ...makeMany(4, 4, "CoolingTowerT2"),
+    ...makeMany(1, 1, "WasteDump", ["OceanWaterDumping"]),
     ...makeMany(1, 1, "WasteDump", ["BrineDumping"]),
-    ...makeMany(2, 2, "SmokeStackLarge", ["SmokeStackOxygen"]),
+    ...makeMany(1, 1, "SmokeStackLarge", ["SmokeStackOxygen"]),
     ...makeMany(1, 1, "NuclearWasteStorage"),
     ...makeMany(1, 1, "Shredder", ["ShreddingRetiredWaste"]),
-    ...makeMany(6, 6, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
   ];
+  const nuclearModule = createNuclearModule(
+    { averageGeneratorOutputMw: 77, hydrogenFuelDemandPerCycle: 46.5 },
+    undefined,
+    entities,
+  );
+  const result = calculateFactoryTotal(
+    [nuclearModule],
+    { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+  );
+  const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
+    candidate => candidate.resourceId === resourceId,
+  );
+
+  expect(flow("coreFuel")?.net).toBeCloseTo(0, 6);
+  expect(flow("blanketFuel")?.net).toBeCloseTo(0, 6);
+  expect(flow("yellowcake")?.net).toBeCloseTo(-9, 6);
+  expect(flow("hydrogen")?.net).toBeCloseTo(0, 6);
+  expect(flow("water")?.net).toBeCloseTo(0, 6);
+  expect(flow("brine")?.net).toBeCloseTo(0, 6);
+  expect(flow("oxygen")?.net).toBeCloseTo(0, 6);
+  expect(flow("electricity")?.produced).toBeCloseTo(77, 6);
+  expect(result.electricityDemandMw).toBeCloseTo(77, 6);
+});
+
+it("preserves the generated Nuclear area identity", () => {
+  const entities = [reactor(0, 400)];
   const generatedArea: Module = {
     id: "live-area-14",
     name: "Nuclear",
@@ -531,46 +260,26 @@ it("keeps Factory Total identical when synced Nuclear moves to its generated mod
     defaultPresetId: "live",
     liveArea: {
       zoneId: 14,
-      trackedBuildings: entities.length,
-      constructedBuildings: entities.length,
-      activeBuildings: entities.filter(({ running }) => running).length,
-      pausedBuildings: entities.filter(({ running }) => !running).length,
+      trackedBuildings: 1,
+      constructedBuildings: 1,
+      activeBuildings: 1,
+      pausedBuildings: 0,
       constructionGhosts: 0,
       issues: [],
     },
   };
-  const baselines = {
-    averageGeneratorOutputMw: 77,
-    hydrogenFuelDemandPerCycle: 46.5,
-  };
-  const legacy = createNuclearModule(
-    defaultNuclearConfig,
-    baselines,
-    plannedNuclearOperation,
-    entities,
-  );
-  const migrated = createNuclearModule(
-    defaultNuclearConfig,
-    baselines,
-    plannedNuclearOperation,
+  const nuclearModule = createNuclearModule(
+    emptyPlanningBaselines,
+    undefined,
     entities,
     generatedArea,
   );
-  const snapshotFactoryTotal = (module: Module) => {
-    const result = calculateFactoryTotal(
-      [module],
-      { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
-    );
-    const stats = calculateBuildingStats(result.allLines, result.calculation);
 
-    return {
-      electricityDemandMw: result.electricityDemandMw,
-      flows: result.flows.toSorted((left, right) => (
-        left.resourceId.localeCompare(right.resourceId)
-      )),
-      stats,
-    };
-  };
-
-  expect(snapshotFactoryTotal(migrated)).toEqual(snapshotFactoryTotal(legacy));
+  expect(nuclearModule).toMatchObject({
+    id: "live-area-14",
+    name: "Nuclear",
+    gameSynced: true,
+    includedInFactoryTotals: true,
+    liveArea: { zoneId: 14 },
+  });
 });

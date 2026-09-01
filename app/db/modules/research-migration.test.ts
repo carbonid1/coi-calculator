@@ -11,7 +11,7 @@ import {
   defaultArea,
   modeledDefaultResearchBuildings,
 } from "./default";
-import { factoryModelModules, modules, type Module } from "./modules";
+import { modules, type Module } from "./modules";
 import { RESEARCH_MODULE_ID } from "./research";
 
 const researchRecipeIds = Object.keys(modeledDefaultResearchBuildings);
@@ -52,8 +52,8 @@ const legacyResearch: Module = {
 };
 
 const legacyFactoryModules = [
-  ...factoryModelModules.map((module) => (
-    module.id === DEFAULT_MODULE_ID ? legacyDefault : module
+  ...modules.map((targetModule) => (
+    targetModule.id === DEFAULT_MODULE_ID ? legacyDefault : targetModule
   )),
   legacyResearch,
 ];
@@ -84,7 +84,7 @@ const factorySnapshot = (factoryModules: Module[]) => {
 
 describe("Research migration", () => {
   it("moves Research buildings into Default without changing Factory Total", () => {
-    expect(factorySnapshot(factoryModelModules)).toEqual(factorySnapshot(legacyFactoryModules));
+    expect(factorySnapshot(modules)).toEqual(factorySnapshot(legacyFactoryModules));
     expect(modules.some(({ id }) => id === RESEARCH_MODULE_ID)).toBe(false);
   });
 

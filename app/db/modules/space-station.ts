@@ -1,5 +1,4 @@
 import {
-  AREA_INVENTORY_SCHEMA_VERSION,
   type SyncedLogisticsZoneRef,
   type SyncedProductionEntity,
 } from "../../game-state";
@@ -19,7 +18,6 @@ import {
   type RocketInfrastructureId,
 } from "../rocket-infrastructure";
 import {
-  defaultSpaceStationConfig,
   type SpaceStationConfig,
 } from "../space-station";
 import { type Module } from "./modules";
@@ -59,10 +57,6 @@ export const selectSpaceStationZone = (
       - spaceStationZoneScore(left, productionEntities)
       || left.id - right.id
     ))[0]
-);
-
-export const shouldUseSpaceStationFallback = (schemaVersion?: number | null) => (
-  schemaVersion == null || schemaVersion < AREA_INVENTORY_SCHEMA_VERSION
 );
 
 const handledAreaRecipeMarkers = [...handledAreaPrototypeIds].map(id => `:${id}:`);
@@ -141,7 +135,6 @@ export interface SpaceStationCurrentState {
 
 const currentLayers = (value: number, source: CurrentValueSource) => {
   if (source === "synced") return { default: 0, synced: value };
-  if (source === "modeled") return { default: 0, modeled: value };
 
   return { default: value };
 };
@@ -162,12 +155,12 @@ export const createSpaceStationModule = (
     currentState.rocketRunningConfig ?? rocketBuilt,
   );
   const rocketPlan = normalizeRocketInfrastructureConfig(rocketPlanConfig);
-  const stationSource = currentState.stationSource ?? "modeled";
-  const rocketSource = currentState.rocketSource ?? "modeled";
+  const stationSource = currentState.stationSource ?? "synced";
+  const rocketSource = currentState.rocketSource ?? "synced";
   const stationPartsAssembly = currentState.stationPartsAssembly ?? {
-    built: 1,
-    running: 1,
-    source: "modeled" as const,
+    built: 0,
+    running: 0,
+    source: "synced" as const,
   };
   const stationPlan = resolveDirectionalPlan(
     currentLayers(config.currentLevel, stationSource),
@@ -404,5 +397,3 @@ export const createSpaceStationModule = (
       : undefined,
   };
 };
-
-export const spaceStation = createSpaceStationModule(defaultSpaceStationConfig);

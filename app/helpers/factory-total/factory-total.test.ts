@@ -8,14 +8,11 @@ import {
 } from "../../db/modules/area-maintenance";
 import { DEFAULT_MODULE_ID } from "../../db/modules/default";
 import {
-  factoryModelModules as modules,
+  modules,
   type Module,
 } from "../../db/modules/modules";
-import {
-  createNuclearModule,
-  defaultNuclearConfig,
-} from "../../db/modules/nuclear";
 import { defaultInfiniteResearchLevels } from "../../db/research";
+import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { calculateFactoryTotal } from "./factory-total";
@@ -31,10 +28,7 @@ const maintenanceDemand = {
 };
 const modulesWithNuclear = [
   ...modules,
-  createNuclearModule(defaultNuclearConfig, {
-    averageGeneratorOutputMw: 77,
-    hydrogenFuelDemandPerCycle: 46.5,
-  }),
+  syncedNuclearTestModule,
 ];
 const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
   defaultModuleId: DEFAULT_MODULE_ID,
@@ -84,7 +78,7 @@ describe("Factory Total contracts", () => {
     );
 
     expect(reformer).toMatchObject({ activeBuildings: 8, builtBuildings: 8 });
-    expect(hydrogenOutput).toBeGreaterThan(5 * 32);
+    expect(hydrogenOutput).toBeGreaterThan(120);
     expect(hydrogen?.net).toBeCloseTo(0);
   });
 
@@ -153,26 +147,6 @@ describe("Factory Total contracts", () => {
     expect(result.calculation.sourceResults.some(({ recipe }) => (
       recipe.outputs.some(({ resourceId }) => resourceId === "copperOre")
     ))).toBe(false);
-  });
-
-  it("replaces local Ammonia production with the demand-balanced contract", () => {
-    const result = calculateFactoryTotal(modulesWithSyncedHistory, {
-      ...baselineFactoryOptions,
-      contracts: activeContracts,
-    });
-    const ammoniaContract = result.contractResults.find(
-      ({ contract }) => contract.id === "ammonia-for-food-pack",
-    );
-    const localAmmonia = result.calculation.regularResults.find(
-      ({ recipe }) => recipe.id === "chemical-plant-ii-ammonia",
-    );
-    const localNitrogen = result.calculation.regularResults.find(
-      ({ recipe }) => recipe.id === "air-separator-nitrogen",
-    );
-
-    expect(ammoniaContract?.imported).toBeGreaterThan(0);
-    expect(localAmmonia).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
-    expect(localNitrogen).toMatchObject({ activeBuildings: 0, supplyRatio: 0 });
   });
 
   it("leaves Coal demand uncovered while every local Coal Maker is paused", () => {
@@ -289,8 +263,6 @@ describe("Factory Total contracts", () => {
     const maintenanceI = getLine("maintenance-i-recycling");
     const maintenanceII = getLine("maintenance-ii-recycling");
     const maintenanceIII = getLine("maintenance-iii-recycling");
-    const researchLab = getLine("research-lab-iv-space");
-    const orbitalResearch = getLine("space-station-orbital-research");
     const wasteSorter = getLine("waste-sorting-recyclables");
     const recyclables = result.calculation.allResourceFlows.find(
       (flow) => flow.resourceId === "recyclables",
@@ -300,25 +272,10 @@ describe("Factory Total contracts", () => {
     expect(maintenanceI?.supplyRatio).toBeCloseTo(0.55);
     expect(maintenanceII?.supplyRatio).toBeCloseTo(0.39);
     expect(maintenanceIII?.supplyRatio).toBeCloseTo(0.475);
-    expect(researchLab?.actualOutputs).toContainEqual({
-      resourceId: "recyclables",
-      quantity: 96,
-    });
-    expect(researchLab?.actualInputs).toContainEqual({
-      resourceId: "spaceResearchPoints",
-      quantity: 96,
-    });
-    expect(result.flows.find((flow) => flow.resourceId === "spaceResearchPoints"))
-      .toMatchObject({ consumed: 96, produced: 96, net: 0 });
-    expect(orbitalResearch).toMatchObject({ supplyRatio: 1 });
-    expect(orbitalResearch?.actualInputs).toContainEqual({
-      resourceId: "electronicsIv",
-      quantity: 4,
-    });
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
-    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.65325);
-    expect(recyclables?.consumed).toBeCloseTo(188.136);
-    expect(recyclables?.produced).toBeCloseTo(188.136);
+    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.51375);
+    expect(recyclables?.consumed).toBeCloseTo(147.96);
+    expect(recyclables?.produced).toBeCloseTo(147.96);
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });

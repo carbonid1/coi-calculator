@@ -3,13 +3,10 @@ import { expect, it } from "vitest";
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
-import { calculateCropFarmingModifiers } from "../../helpers/modifiers/calculate-crop-farming";
-import { calculateFoodConsumption } from "../../helpers/modifiers/calculate-food-consumption";
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
-import { calculateTreeGrowthSpeed } from "../../helpers/modifiers/calculate-tree-growth-speed";
+import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
 import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
-import { defaultInfiniteResearchLevels } from "../research";
 import {
   calculateRocketIiRecurringLogistics,
   defaultSpaceStationLevel,
@@ -21,12 +18,7 @@ import {
   unplacedPlannedDefaultBuildings,
   plannedNewDefaultBuildings,
 } from "./default";
-import {
-  CHICKEN_FARMS_MODULE_ID,
-  GREENHOUSES_MODULE_ID,
-} from "./farms";
-import { factoryModelModules as modules } from "./modules";
-import { nuclear } from "./nuclear";
+import { modules } from "./modules";
 
 it("updates Rocket II material targets from the active capacity research level", () => {
   const logistics = calculateRocketIiRecurringLogistics(defaultSpaceStationLevel, 2);
@@ -642,56 +634,6 @@ it("combines Tree Sapling and food-process Biomass in the local Default recovery
   expect(biomassMixer?.recipe.balanceInputScope).toBe("module");
 });
 
-it("shreds the Tree Sapling surplus and exposes planned settlement Biomass surplus", () => {
-  const cropFarming = calculateCropFarmingModifiers(
-    defaultInfiniteResearchLevels.cropYield,
-    defaultActiveEdicts.farmingBoost,
-  );
-  const result = calculateFactoryTotal(
-    modules,
-    {
-      contracts: activeContracts,
-      recyclingEfficiencyPercent:
-        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
-      outputModifiers: {
-        cropYield: cropFarming.yieldMultiplier,
-        cropWater: cropFarming.waterDemandMultiplier,
-        foodConsumption: calculateFoodConsumption(0, 2).multiplier,
-        treeGrowthSpeed: calculateTreeGrowthSpeed(
-          defaultInfiniteResearchLevels.treeGrowthSpeed,
-        ).multiplier,
-      },
-    },
-  );
-  const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
-    (candidate) => candidate.resourceId === resourceId,
-  );
-  const line = (recipeId: string) => result.calculation.regularResults.find(
-    (candidate) => candidate.recipe.id === recipeId,
-  );
-  const shredder = line("shredder-tree-saplings");
-  const generalMixer = line("mixer-ii-biomass-compost");
-  const housingMixer = line("housing-mixer-ii-biomass-compost");
-  const residents = line("housing-residents");
-  const generalBiomassProduced = result.calculation.regularResults.reduce((total, candidate) => (
-    candidate.moduleId === "general"
-      ? total + (candidate.actualOutputs.find(
-          (output) => output.resourceId === "biomass",
-        )?.quantity ?? 0)
-      : total
-  ), 0);
-
-  expect(flow("treeSapling")?.net).toBeCloseTo(0);
-  expect(flow("biomass")?.net).toBeCloseTo(0.15858327272725603);
-  expect(shredder?.actualInputs[0]?.quantity).toBeGreaterThan(0);
-  expect(generalMixer?.actualInputs[0]?.quantity).toBeCloseTo(generalBiomassProduced);
-  expect(housingMixer).toMatchObject({ activeBuildings: 2, builtBuildings: 2 });
-  expect((housingMixer?.actualInputs[0]?.quantity ?? 0) + (flow("biomass")?.net ?? 0))
-    .toBeCloseTo(residents?.actualOutputs.find(
-      (output) => output.resourceId === "biomass",
-    )?.quantity ?? 0);
-});
-
 it("keeps the completed advanced recipes current in Default", () => {
   const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId) ?? null;
   const generalLines = buildModuleLines(general, generalPreset).lines.filter(
@@ -733,7 +675,7 @@ it("keeps the completed advanced recipes current in Default", () => {
 
 it("demand-balances enough Yellowcake for the two-FBR target", () => {
   const result = calculateFactoryTotal(
-    [...modules, nuclear],
+    [...modules, syncedNuclearTestModule],
     {
       contracts: activeContracts,
       recyclingEfficiencyPercent:
@@ -761,45 +703,4 @@ it("demand-balances enough Yellowcake for the two-FBR target", () => {
       { resourceId: "toxicSlurry", quantity: 54 },
     ],
   });
-});
-
-it("keeps Greenhouse Groundwater Pumps local while Default supplies factory reserve", () => {
-  const result = calculateFactoryTotal(
-    modules,
-    {
-      contracts: activeContracts,
-      recyclingEfficiencyPercent:
-        calculateRecyclingEfficiency(defaultActiveEdicts.recyclingIncrease).effectivePercent,
-    },
-  );
-  const groundwater = result.calculation.sourceResults.find(
-    (candidate) => (
-      candidate.moduleId === GREENHOUSES_MODULE_ID
-      && candidate.recipe.id === "groundwater-pump"
-    ),
-  );
-  const pumped = groundwater?.actualOutputs[0]?.quantity ?? 0;
-  const generalGroundwater = result.calculation.sourceResults.find((candidate) => (
-    candidate.moduleId === "general"
-    && candidate.recipe.id === "groundwater-pump-factory-reserve"
-  ));
-  const greenhouseWaterConsumed = result.calculation.regularResults.reduce((total, line) => (
-    line.moduleId === GREENHOUSES_MODULE_ID
-      ? total + (line.actualInputs.find((input) => input.resourceId === "water")?.quantity ?? 0)
-      : total
-  ), 0);
-  const chickenWaterConsumed = result.calculation.regularResults.reduce((total, line) => (
-    line.moduleId === CHICKEN_FARMS_MODULE_ID
-      ? total + (line.actualInputs.find((input) => input.resourceId === "water")?.quantity ?? 0)
-      : total
-  ), 0);
-
-  expect(groundwater?.activeBuildings).toBe(5);
-  expect(pumped).toBeGreaterThan(0);
-  expect(pumped).toBeLessThanOrEqual(5 * 48);
-  expect(generalGroundwater).toMatchObject({ activeBuildings: 1, builtBuildings: 1 });
-  expect(generalGroundwater?.actualOutputs[0]?.quantity).toBeGreaterThan(0);
-  expect(generalGroundwater?.actualOutputs[0]?.quantity).toBeLessThanOrEqual(48);
-  expect(chickenWaterConsumed).toBeGreaterThan(0);
-  expect(pumped).toBeCloseTo(greenhouseWaterConsumed, 10);
 });

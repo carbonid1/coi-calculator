@@ -6,7 +6,7 @@ import { baseConfig } from "../config";
 import { activeContracts } from "../contracts";
 import { type ResourceId } from "../resources";
 import { DEFAULT_MODULE_ID, defaultArea } from "./default";
-import { factoryModelModules, modules, type Module } from "./modules";
+import { modules, type Module } from "./modules";
 
 const processRecipeIds = [
   "chemical-plant-ii-paper",
@@ -21,10 +21,10 @@ const withoutKeys = <T>(record: Record<string, T>, keys: readonly string[]) => (
   Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)))
 );
 
-const withoutRecipes = (mod: Module, recipeIds: readonly string[]): Module => ({
-  ...mod,
-  builtBuildings: withoutKeys(mod.builtBuildings, recipeIds),
-  presets: mod.presets.map((preset) => ({
+const withoutRecipes = (targetModule: Module, recipeIds: readonly string[]): Module => ({
+  ...targetModule,
+  builtBuildings: withoutKeys(targetModule.builtBuildings, recipeIds),
+  presets: targetModule.presets.map((preset) => ({
     ...preset,
     activeBuildings: withoutKeys(preset.activeBuildings, recipeIds),
     builtBuildings: preset.builtBuildings
@@ -68,8 +68,8 @@ const legacyProcessSteam: Module = {
   defaultPresetId: "current-and-planned-process-steam",
 };
 
-const replaceDefault = (replacement: Module) => factoryModelModules.map((mod) => (
-  mod.id === DEFAULT_MODULE_ID ? replacement : mod
+const replaceDefault = (replacement: Module) => modules.map((targetModule) => (
+  targetModule.id === DEFAULT_MODULE_ID ? replacement : targetModule
 ));
 const legacyFactoryModules = [...replaceDefault(legacyDefault), legacyProcessSteam];
 const migrationOnlyFactoryModules = replaceDefault(withoutRecipes(
@@ -78,13 +78,18 @@ const migrationOnlyFactoryModules = replaceDefault(withoutRecipes(
 ));
 
 const calculate = (factoryModules: Module[]) => calculateFactoryTotal(factoryModules, {
+  boundarySupplies: { waste: 100 },
   contracts: activeContracts,
   recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
 });
 
 const factorySnapshot = (factoryModules: Module[]) => {
   const result = calculate(factoryModules);
-  const round = (quantity: number) => Number(quantity.toFixed(9));
+  const round = (quantity: number) => {
+    const rounded = Number(quantity.toFixed(9));
+
+    return Object.is(rounded, -0) ? 0 : rounded;
+  };
   const stats = calculateBuildingStats(result.allLines, result.calculation);
 
   return {
@@ -140,7 +145,7 @@ describe("Process Steam migration", () => {
   });
 
   it("balances waste-fired Steam (High) only against demand inside Default", () => {
-    const baseline = calculate(factoryModelModules);
+    const baseline = calculate(modules);
     const externalDemand: Module = {
       id: "external-high-steam-demand",
       name: "External",
@@ -163,7 +168,7 @@ describe("Process Steam migration", () => {
       }],
       defaultPresetId: "active",
     };
-    const withExternalDemand = calculate([...factoryModelModules, externalDemand]);
+    const withExternalDemand = calculate([...modules, externalDemand]);
     const internalDemand = baseline.calculation.regularResults
       .filter(({ moduleId, recipe }) => (
         moduleId === DEFAULT_MODULE_ID
@@ -189,7 +194,7 @@ describe("Process Steam migration", () => {
 
   it("recovers Default's Steam (Depleted) through the existing Large Cooling Tower", () => {
     const beforeRecovery = calculate(migrationOnlyFactoryModules);
-    const afterRecovery = calculate(factoryModelModules);
+    const afterRecovery = calculate(modules);
     const beforeDepleted = flow(beforeRecovery, "steamDepleted");
     const afterDepleted = flow(afterRecovery, "steamDepleted");
     const beforeWater = flow(beforeRecovery, "water");

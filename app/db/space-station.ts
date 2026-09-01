@@ -72,16 +72,8 @@ export const rocketIiGameData = {
 /** The station replaces its entire crew every two in-game years. */
 const SPACE_STATION_CREW_ROTATION_CYCLES = 24;
 
-/**
- * The current save previously reached orbital research, so even a level-one
- * rebuild uses standard Station Parts. The factory plan targets level four,
- * which exactly supports two Research Lab IV buildings running space research.
- */
-export const defaultSpaceStationConfig: SpaceStationConfig = {
-  currentLevel: 0,
-  highestLevelAchieved: 4,
-  targetLevel: 4,
-};
+/** The projected factory targets a level-four station. */
+export const plannedSpaceStationLevel = 4;
 
 const normalizeLevel = (level: number) => Math.max(0, Math.trunc(level));
 const roundRate = (value: number) => parseFloat(value.toFixed(6));
@@ -192,8 +184,8 @@ export const calculateRocketIiRecurringLogistics = (
 };
 
 export const defaultSpaceStationLevel = calculateSpaceStationLevel(
-  defaultSpaceStationConfig.targetLevel,
-  defaultSpaceStationConfig.highestLevelAchieved,
+  plannedSpaceStationLevel,
+  plannedSpaceStationLevel,
 );
 
 export const defaultRocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
