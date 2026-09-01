@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { activeContracts } from "./contracts";
+import { activeContracts } from "../test-fixtures/active-contracts";
 import { defaultEdictLevels } from "./edicts";
 import { activeHousingType, housingTypes } from "./housing";
 import { calculateUnityBudget } from "./unity";
@@ -20,7 +20,7 @@ it("includes recurring Unity for every active contract", () => {
       ? [{
           id: contract.id,
           name: contract.name,
-          importedPerCycle: contract.plan.importedPerProductionCycle ?? 0,
+          importedPerCycle: contract.routes[0]?.importedPerProductionCycle ?? 0,
           fixedUnityPerCycle: contract.unity.perProductionCycle,
           unityPer100Imported: contract.unity.per100Imported,
         }]
@@ -60,7 +60,7 @@ it("applies Office Focuses to settlement generation and contract cost", () => {
       ? [{
           id: contract.id,
           name: contract.name,
-          importedPerCycle: contract.plan.importedPerProductionCycle ?? 0,
+          importedPerCycle: contract.routes[0]?.importedPerProductionCycle ?? 0,
           fixedUnityPerCycle: contract.unity.perProductionCycle,
           unityPer100Imported: contract.unity.per100Imported,
         }]

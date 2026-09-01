@@ -7,8 +7,8 @@ import { calculateMaintenanceOutput } from "../../helpers/modifiers/calculate-ma
 import { calculateRecyclingEfficiency } from "../../helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSolarPower } from "../../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../../helpers/modifiers/calculate-tree-growth-speed";
+import { activeContracts } from "../../test-fixtures/active-contracts";
 import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
-import { activeContracts } from "../contracts";
 import { defaultActiveEdicts } from "../edicts";
 import { defaultInfiniteResearchLevels } from "../research";
 import {

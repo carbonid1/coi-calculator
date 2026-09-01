@@ -546,6 +546,66 @@ const schema34Snapshot = {
     },
   ],
 }
+const contractState = {
+  established: [{
+    gameId: 'Contract_Product_UraniumOre_For_Product_FoodPack',
+    exportedProduct: { productId: 'Product_FoodPack', name: 'Food Pack' },
+    exportedQuantity: 40,
+    importedProduct: { productId: 'Product_UraniumOre', name: 'Uranium Ore' },
+    importedQuantity: 60,
+    unityPerCycle: 0.3,
+    unityPer100Imported: 0.1,
+    unityToEstablish: 18,
+    minimumReputation: 1,
+  }],
+  routes: [{
+    depotEntityId: 2_000,
+    depotPrototypeId: 'CargoDepotT2',
+    depotPrototypeName: 'Cargo Depot (4)',
+    depotCustomTitle: 'Uranium contract',
+    running: true,
+    slotCount: 4,
+    contractGameId: 'Contract_Product_UraniumOre_For_Product_FoodPack',
+    zones: [{ id: 30, name: 'Test' }],
+    modules: [{
+      entityId: 2_001,
+      slot: 0,
+      prototypeId: 'CargoDepotModuleUnitT3',
+      prototypeName: 'Unit Module (L)',
+      running: true,
+      workers: 5,
+      selectedProduct: { productId: 'Product_FoodPack', name: 'Food Pack' },
+      direction: 'export',
+      onboardCapacity: 800,
+    }, {
+      entityId: 2_002,
+      slot: 1,
+      prototypeId: 'CargoDepotModuleLooseT3',
+      prototypeName: 'Loose Module (L)',
+      running: true,
+      workers: 5,
+      selectedProduct: { productId: 'Product_UraniumOre', name: 'Uranium Ore' },
+      direction: 'import',
+      onboardCapacity: 800,
+    }],
+    ship: {
+      entityId: 3_000,
+      prototypeId: 'CargoShipT2',
+      prototypeName: 'Cargo Ship (4)',
+      running: true,
+      workers: 22,
+      fuelProduct: { productId: 'Product_Hydrogen', name: 'Hydrogen' },
+      saveFuel: true,
+      journeyDurationSeconds: 427,
+      fuelPerTrip: 289,
+    },
+  }],
+}
+const schema35Snapshot = {
+  ...schema34Snapshot,
+  schemaVersion: 35,
+  contracts: contractState,
+}
 
 describe('game-state snapshot validation', () => {
   it('accepts the vehicle and infrastructure exporter schema', () => {
@@ -736,6 +796,7 @@ describe('game-state snapshot validation', () => {
     })
     expect(normalizeGameStateSnapshot(schema34Snapshot)).toMatchObject({
       schemaVersion: 34,
+      contracts: null,
       areaEntities: expect.arrayContaining([
         expect.objectContaining({
           prototypeId: 'ForestryTower',
@@ -743,6 +804,43 @@ describe('game-state snapshot validation', () => {
         }),
       ]),
     })
+    expect(normalizeGameStateSnapshot(schema35Snapshot)).toMatchObject({
+      schemaVersion: 35,
+      contracts: contractState,
+    })
+  })
+
+  it('requires unique contract route ownership in schema 35', () => {
+    expect(normalizeGameStateSnapshot({
+      ...schema35Snapshot,
+      contracts: {
+        ...contractState,
+        routes: [contractState.routes[0], contractState.routes[0]],
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema35Snapshot,
+      contracts: {
+        ...contractState,
+        routes: [{
+          ...contractState.routes[0],
+          modules: [contractState.routes[0].modules[0], {
+            ...contractState.routes[0].modules[1],
+            entityId: contractState.routes[0].modules[0].entityId,
+          }],
+        }],
+      },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...schema35Snapshot,
+      contracts: {
+        ...contractState,
+        routes: [{
+          ...contractState.routes[0],
+          contractGameId: 'Contract_Missing',
+        }],
+      },
+    })).toBeNull()
   })
 
   it('requires exact Forestry configuration in schema 34', () => {

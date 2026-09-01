@@ -8,6 +8,9 @@ using System.Threading;
 using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
+using Mafi.Core.Buildings.Cargo;
+using Mafi.Core.Buildings.Cargo.Modules;
+using Mafi.Core.Buildings.Cargo.Ships;
 using Mafi.Core.Buildings.Farms;
 using Mafi.Core.Buildings.Forestry;
 using Mafi.Core.Buildings.Mine;
@@ -44,6 +47,7 @@ using Mafi.Core.Terrain.Generation;
 using Mafi.Core.Terrain.Trees;
 using Mafi.Core.Trains;
 using Mafi.Core.Vehicles;
+using Mafi.Core.World.Contracts;
 
 public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 {
@@ -207,6 +211,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private ResearchManager m_researchManager;
     private EdictsManager m_edictsManager;
     private OrbitManager m_orbitManager;
+    private ContractsManager m_contractsManager;
     private ICalendar m_calendar;
     private ISimLoopEvents m_simLoopEvents;
     private readonly int[] m_builtBuildings = new int[TrackedBuildingKeys.Length];
@@ -226,7 +231,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 24; } }
+    public int Version { get { return 25; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -271,6 +276,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_researchManager = resolver.Resolve<ResearchManager>();
         m_edictsManager = resolver.Resolve<EdictsManager>();
         m_orbitManager = resolver.Resolve<OrbitManager>();
+        m_contractsManager = resolver.Resolve<ContractsManager>();
         m_calendar = resolver.Resolve<ICalendar>();
         m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
         initializeTrackedBuildingCounts();
@@ -371,6 +377,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_maintenanceManager = null;
         m_researchManager = null;
         m_edictsManager = null;
+        m_contractsManager = null;
         m_calendar = null;
     }
 
@@ -398,7 +405,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             || m_fuelStatsCollector == null
             || m_maintenanceManager == null
             || m_researchManager == null
-            || m_edictsManager == null)
+            || m_edictsManager == null
+            || m_contractsManager == null)
         {
             return;
         }
@@ -410,6 +418,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             EdictState[] edictStates = getEdictStates();
             int[] reserves = getReserveQuantities();
             ProductionSnapshot production = getProductionSnapshot();
+            ContractStateSnapshot contracts = getContractStateSnapshot();
 
             foreach (var vehicle in m_vehiclesManager.AllVehicles)
             {
@@ -418,7 +427,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":34,");
+            json.Append("\"schemaVersion\":35,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -679,6 +688,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     .ToIntPercentRounded(),
                 false);
             json.Append("},");
+            appendContractState(json, contracts);
+            json.Append(',');
             json.Append("\"productionEntities\":[");
             for (int i = 0; i < production.ProductionEntities.Count; i++)
             {
@@ -930,6 +941,295 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
 
         return result;
+    }
+
+    private ContractStateSnapshot getContractStateSnapshot()
+    {
+        Dictionary<string, EstablishedContractSnapshot> establishedById =
+            new Dictionary<string, EstablishedContractSnapshot>(StringComparer.Ordinal);
+        for (int i = 0; i < m_contractsManager.ActiveContracts.Count; i++)
+        {
+            ContractProto contract = m_contractsManager.ActiveContracts[i];
+            EstablishedContractSnapshot snapshot = getEstablishedContractSnapshot(contract);
+            establishedById[snapshot.GameId] = snapshot;
+        }
+
+        List<ContractRouteSnapshot> routes = new List<ContractRouteSnapshot>();
+        foreach (IEntity entity in m_entitiesManager.Entities)
+        {
+            CargoDepot depot = entity as CargoDepot;
+            if (depot == null || depot.IsDestroyed || !depot.IsConstructed)
+            {
+                continue;
+            }
+
+            ContractProto contract = depot.ContractAssigned.ValueOrNull;
+            if (contract == null)
+            {
+                continue;
+            }
+
+            EstablishedContractSnapshot established;
+            if (!establishedById.TryGetValue(contract.Id.ToString(), out established))
+            {
+                established = getEstablishedContractSnapshot(contract);
+                establishedById.Add(established.GameId, established);
+            }
+
+            List<ContractModuleSnapshot> modules = new List<ContractModuleSnapshot>();
+            for (int slot = 0; slot < depot.Modules.Length; slot++)
+            {
+                CargoDepotModule module = depot.Modules[slot].ValueOrNull;
+                if (module == null || module.IsDestroyed || !module.IsConstructed)
+                {
+                    continue;
+                }
+
+                ProductProto product = module.StoredProduct.ValueOrNull;
+                Mafi.Core.Buildings.Cargo.Ships.Modules.CargoShipModule shipModule =
+                    module.GetShipModule().ValueOrNull;
+                modules.Add(new ContractModuleSnapshot(
+                    module.Id.Value,
+                    slot,
+                    module.Prototype.Id.ToString(),
+                    getPrototypeName(module.Prototype.Id.ToString(), module.Prototype.Strings.Name.TranslatedString),
+                    !module.IsPaused,
+                    EntityWithWorkersExtensions.WorkersAssigned(module),
+                    product == null ? null : getProductSnapshot(product),
+                    product == null ? null : (module.IsForImport() ? "import" : "export"),
+                    shipModule == null ? 0 : shipModule.Capacity.Value));
+            }
+
+            CargoShipV2 ship = depot.CargoShip.ValueOrNull;
+            ContractShipSnapshot shipSnapshot = null;
+            if (ship != null && !ship.IsDestroyed)
+            {
+                CargoShipAssignedToDockJobProviderBase jobProvider =
+                    ship.JobProvider as CargoShipAssignedToDockJobProviderBase;
+                shipSnapshot = new ContractShipSnapshot(
+                    ship.Id.Value,
+                    ship.Prototype.Id.ToString(),
+                    getPrototypeName(ship.Prototype.Id.ToString(), ship.Prototype.Strings.Name.TranslatedString),
+                    !ship.IsPaused,
+                    EntityWithWorkersExtensions.WorkersAssigned(ship),
+                    getProductSnapshot(ship.FuelProto),
+                    ship.IsFuelReductionEnabled,
+                    ship.JourneyDuration.HasValue
+                        ? (double?)ship.JourneyDuration.Value.Seconds.ToDouble()
+                        : null,
+                    jobProvider == null
+                        ? (int?)null
+                        : jobProvider.FuelPerJourneyNeeded().Value);
+            }
+
+            routes.Add(new ContractRouteSnapshot(
+                depot.Id.Value,
+                depot.Prototype.Id.ToString(),
+                getPrototypeName(depot.Prototype.Id.ToString(), depot.Prototype.Strings.Name.TranslatedString),
+                depot.CustomTitle.ValueOrNull,
+                !depot.IsPaused,
+                depot.SlotCount,
+                contract.Id.ToString(),
+                getLogisticsZones(depot),
+                modules,
+                shipSnapshot));
+        }
+
+        List<EstablishedContractSnapshot> establishedContracts =
+            new List<EstablishedContractSnapshot>(establishedById.Values);
+        establishedContracts.Sort(delegate(
+            EstablishedContractSnapshot left,
+            EstablishedContractSnapshot right)
+        {
+            return StringComparer.Ordinal.Compare(left.GameId, right.GameId);
+        });
+        routes.Sort(delegate(ContractRouteSnapshot left, ContractRouteSnapshot right)
+        {
+            return left.DepotEntityId.CompareTo(right.DepotEntityId);
+        });
+
+        return new ContractStateSnapshot(establishedContracts, routes);
+    }
+
+    private static EstablishedContractSnapshot getEstablishedContractSnapshot(
+        ContractProto contract)
+    {
+        return new EstablishedContractSnapshot(
+            contract.Id.ToString(),
+            getProductSnapshot(contract.ProductToPayWith),
+            contract.QuantityToPayWith.Value,
+            getProductSnapshot(contract.ProductToBuy),
+            contract.GetQuantityToBuy(Percent.Hundred).Value,
+            contract.UpointsPerMonthBase.Value.ToDouble(),
+            contract.UpointsPer100ProductsBoughtBase.Value.ToDouble(),
+            contract.UpointsToEstablish.Value.ToDouble(),
+            contract.MinReputationRequired);
+    }
+
+    private static ContractProductSnapshot getProductSnapshot(ProductProto product)
+    {
+        string productId = product.Id.ToString();
+        return new ContractProductSnapshot(
+            productId,
+            getPrototypeName(productId, product.Strings.Name.TranslatedString));
+    }
+
+    private static string getPrototypeName(string prototypeId, string translatedName)
+    {
+        return String.IsNullOrWhiteSpace(translatedName) ? prototypeId : translatedName;
+    }
+
+    private static void appendContractState(
+        StringBuilder json,
+        ContractStateSnapshot contracts)
+    {
+        json.Append("\"contracts\":{\"established\":[");
+        for (int i = 0; i < contracts.Established.Count; i++)
+        {
+            EstablishedContractSnapshot contract = contracts.Established[i];
+            json.Append('{');
+            appendString(json, "gameId", contract.GameId, true);
+            appendContractProduct(json, "exportedProduct", contract.ExportedProduct, true);
+            appendNumber(json, "exportedQuantity", contract.ExportedQuantity, true);
+            appendContractProduct(json, "importedProduct", contract.ImportedProduct, true);
+            appendNumber(json, "importedQuantity", contract.ImportedQuantity, true);
+            appendDecimal(json, "unityPerCycle", contract.UnityPerCycle, true);
+            appendDecimal(json, "unityPer100Imported", contract.UnityPer100Imported, true);
+            appendDecimal(json, "unityToEstablish", contract.UnityToEstablish, true);
+            appendNumber(json, "minimumReputation", contract.MinimumReputation, false);
+            json.Append('}');
+            if (i < contracts.Established.Count - 1)
+            {
+                json.Append(',');
+            }
+        }
+
+        json.Append("],\"routes\":[");
+        for (int i = 0; i < contracts.Routes.Count; i++)
+        {
+            ContractRouteSnapshot route = contracts.Routes[i];
+            json.Append('{');
+            appendNumber(json, "depotEntityId", route.DepotEntityId, true);
+            appendString(json, "depotPrototypeId", route.DepotPrototypeId, true);
+            appendString(json, "depotPrototypeName", route.DepotPrototypeName, true);
+            appendNullableString(json, "depotCustomTitle", route.DepotCustomTitle, true);
+            json.Append("\"running\":");
+            json.Append(route.Running ? "true" : "false");
+            json.Append(',');
+            appendNumber(json, "slotCount", route.SlotCount, true);
+            appendString(json, "contractGameId", route.ContractGameId, true);
+            json.Append("\"zones\":[");
+            for (int zoneIndex = 0; zoneIndex < route.Zones.Count; zoneIndex++)
+            {
+                LogisticsZoneSnapshot zone = route.Zones[zoneIndex];
+                json.Append('{');
+                appendNumber(json, "id", zone.Id, true);
+                appendNullableString(json, "name", zone.Name, false);
+                json.Append('}');
+                if (zoneIndex < route.Zones.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+
+            json.Append("],\"modules\":[");
+            for (int moduleIndex = 0; moduleIndex < route.Modules.Count; moduleIndex++)
+            {
+                ContractModuleSnapshot module = route.Modules[moduleIndex];
+                json.Append('{');
+                appendNumber(json, "entityId", module.EntityId, true);
+                appendNumber(json, "slot", module.Slot, true);
+                appendString(json, "prototypeId", module.PrototypeId, true);
+                appendString(json, "prototypeName", module.PrototypeName, true);
+                json.Append("\"running\":");
+                json.Append(module.Running ? "true" : "false");
+                json.Append(',');
+                appendNumber(json, "workers", module.Workers, true);
+                appendNullableContractProduct(json, "selectedProduct", module.SelectedProduct, true);
+                appendNullableString(json, "direction", module.Direction, true);
+                appendNumber(json, "onboardCapacity", module.OnboardCapacity, false);
+                json.Append('}');
+                if (moduleIndex < route.Modules.Count - 1)
+                {
+                    json.Append(',');
+                }
+            }
+
+            json.Append("],\"ship\":");
+            if (route.Ship == null)
+            {
+                json.Append("null");
+            }
+            else
+            {
+                ContractShipSnapshot ship = route.Ship;
+                json.Append('{');
+                appendNumber(json, "entityId", ship.EntityId, true);
+                appendString(json, "prototypeId", ship.PrototypeId, true);
+                appendString(json, "prototypeName", ship.PrototypeName, true);
+                json.Append("\"running\":");
+                json.Append(ship.Running ? "true" : "false");
+                json.Append(',');
+                appendNumber(json, "workers", ship.Workers, true);
+                appendContractProduct(json, "fuelProduct", ship.FuelProduct, true);
+                json.Append("\"saveFuel\":");
+                json.Append(ship.SaveFuel ? "true" : "false");
+                json.Append(',');
+                appendNullableDecimal(
+                    json,
+                    "journeyDurationSeconds",
+                    ship.JourneyDurationSeconds,
+                    true);
+                appendNullableNumber(json, "fuelPerTrip", ship.FuelPerTrip, false);
+                json.Append('}');
+            }
+
+            json.Append('}');
+            if (i < contracts.Routes.Count - 1)
+            {
+                json.Append(',');
+            }
+        }
+        json.Append("]}");
+    }
+
+    private static void appendContractProduct(
+        StringBuilder json,
+        string key,
+        ContractProductSnapshot product,
+        bool appendComma)
+    {
+        json.Append('"');
+        json.Append(key);
+        json.Append("\":{");
+        appendString(json, "productId", product.ProductId, true);
+        appendString(json, "name", product.Name, false);
+        json.Append('}');
+        if (appendComma)
+        {
+            json.Append(',');
+        }
+    }
+
+    private static void appendNullableContractProduct(
+        StringBuilder json,
+        string key,
+        ContractProductSnapshot product,
+        bool appendComma)
+    {
+        if (product == null)
+        {
+            json.Append('"');
+            json.Append(key);
+            json.Append("\":null");
+            if (appendComma)
+            {
+                json.Append(',');
+            }
+            return;
+        }
+
+        appendContractProduct(json, key, product, appendComma);
     }
 
     private ProductionSnapshot getProductionSnapshot()
@@ -2172,6 +2472,30 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
+    private static void appendNullableDecimal(
+        StringBuilder json,
+        string name,
+        double? value,
+        bool trailingComma)
+    {
+        json.Append('"');
+        json.Append(name);
+        json.Append("\":");
+        if (value.HasValue)
+        {
+            json.Append(value.Value.ToString("0.######", CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            json.Append("null");
+        }
+
+        if (trailingComma)
+        {
+            json.Append(',');
+        }
+    }
+
     private static void appendNullableNumber(
         StringBuilder json,
         string name,
@@ -2434,6 +2758,175 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     }
                     break;
             }
+        }
+    }
+
+    private sealed class ContractStateSnapshot
+    {
+        public readonly List<EstablishedContractSnapshot> Established;
+        public readonly List<ContractRouteSnapshot> Routes;
+
+        public ContractStateSnapshot(
+            List<EstablishedContractSnapshot> established,
+            List<ContractRouteSnapshot> routes)
+        {
+            Established = established;
+            Routes = routes;
+        }
+    }
+
+    private sealed class EstablishedContractSnapshot
+    {
+        public readonly string GameId;
+        public readonly ContractProductSnapshot ExportedProduct;
+        public readonly int ExportedQuantity;
+        public readonly ContractProductSnapshot ImportedProduct;
+        public readonly int ImportedQuantity;
+        public readonly double UnityPerCycle;
+        public readonly double UnityPer100Imported;
+        public readonly double UnityToEstablish;
+        public readonly int MinimumReputation;
+
+        public EstablishedContractSnapshot(
+            string gameId,
+            ContractProductSnapshot exportedProduct,
+            int exportedQuantity,
+            ContractProductSnapshot importedProduct,
+            int importedQuantity,
+            double unityPerCycle,
+            double unityPer100Imported,
+            double unityToEstablish,
+            int minimumReputation)
+        {
+            GameId = gameId;
+            ExportedProduct = exportedProduct;
+            ExportedQuantity = exportedQuantity;
+            ImportedProduct = importedProduct;
+            ImportedQuantity = importedQuantity;
+            UnityPerCycle = unityPerCycle;
+            UnityPer100Imported = unityPer100Imported;
+            UnityToEstablish = unityToEstablish;
+            MinimumReputation = minimumReputation;
+        }
+    }
+
+    private sealed class ContractProductSnapshot
+    {
+        public readonly string ProductId;
+        public readonly string Name;
+
+        public ContractProductSnapshot(string productId, string name)
+        {
+            ProductId = productId;
+            Name = name;
+        }
+    }
+
+    private sealed class ContractRouteSnapshot
+    {
+        public readonly int DepotEntityId;
+        public readonly string DepotPrototypeId;
+        public readonly string DepotPrototypeName;
+        public readonly string DepotCustomTitle;
+        public readonly bool Running;
+        public readonly int SlotCount;
+        public readonly string ContractGameId;
+        public readonly List<LogisticsZoneSnapshot> Zones;
+        public readonly List<ContractModuleSnapshot> Modules;
+        public readonly ContractShipSnapshot Ship;
+
+        public ContractRouteSnapshot(
+            int depotEntityId,
+            string depotPrototypeId,
+            string depotPrototypeName,
+            string depotCustomTitle,
+            bool running,
+            int slotCount,
+            string contractGameId,
+            List<LogisticsZoneSnapshot> zones,
+            List<ContractModuleSnapshot> modules,
+            ContractShipSnapshot ship)
+        {
+            DepotEntityId = depotEntityId;
+            DepotPrototypeId = depotPrototypeId;
+            DepotPrototypeName = depotPrototypeName;
+            DepotCustomTitle = depotCustomTitle;
+            Running = running;
+            SlotCount = slotCount;
+            ContractGameId = contractGameId;
+            Zones = zones;
+            Modules = modules;
+            Ship = ship;
+        }
+    }
+
+    private sealed class ContractModuleSnapshot
+    {
+        public readonly int EntityId;
+        public readonly int Slot;
+        public readonly string PrototypeId;
+        public readonly string PrototypeName;
+        public readonly bool Running;
+        public readonly int Workers;
+        public readonly ContractProductSnapshot SelectedProduct;
+        public readonly string Direction;
+        public readonly int OnboardCapacity;
+
+        public ContractModuleSnapshot(
+            int entityId,
+            int slot,
+            string prototypeId,
+            string prototypeName,
+            bool running,
+            int workers,
+            ContractProductSnapshot selectedProduct,
+            string direction,
+            int onboardCapacity)
+        {
+            EntityId = entityId;
+            Slot = slot;
+            PrototypeId = prototypeId;
+            PrototypeName = prototypeName;
+            Running = running;
+            Workers = workers;
+            SelectedProduct = selectedProduct;
+            Direction = direction;
+            OnboardCapacity = onboardCapacity;
+        }
+    }
+
+    private sealed class ContractShipSnapshot
+    {
+        public readonly int EntityId;
+        public readonly string PrototypeId;
+        public readonly string PrototypeName;
+        public readonly bool Running;
+        public readonly int Workers;
+        public readonly ContractProductSnapshot FuelProduct;
+        public readonly bool SaveFuel;
+        public readonly double? JourneyDurationSeconds;
+        public readonly int? FuelPerTrip;
+
+        public ContractShipSnapshot(
+            int entityId,
+            string prototypeId,
+            string prototypeName,
+            bool running,
+            int workers,
+            ContractProductSnapshot fuelProduct,
+            bool saveFuel,
+            double? journeyDurationSeconds,
+            int? fuelPerTrip)
+        {
+            EntityId = entityId;
+            PrototypeId = prototypeId;
+            PrototypeName = prototypeName;
+            Running = running;
+            Workers = workers;
+            FuelProduct = fuelProduct;
+            SaveFuel = saveFuel;
+            JourneyDurationSeconds = journeyDurationSeconds;
+            FuelPerTrip = fuelPerTrip;
         }
     }
 

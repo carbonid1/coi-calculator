@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { baseConfig } from "../../db/config";
-import { activeContracts } from "../../db/contracts";
 import {
   attachMaintenanceDepotsToModule,
   resolveMaintenanceDepotModuleAssignments,
@@ -12,6 +11,7 @@ import {
   type Module,
 } from "../../db/modules/modules";
 import { defaultInfiniteResearchLevels } from "../../db/research";
+import { activeContracts } from "../../test-fixtures/active-contracts";
 import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
@@ -177,10 +177,10 @@ describe("Factory Total contracts", () => {
         contracts: contract
           ? [{
               ...contract,
-              plan: {
-                ...contract.plan,
+              routes: contract.routes.map(route => ({
+                ...route,
                 importedPerProductionCycle: 36,
-              },
+              })),
             }]
           : [],
       },
@@ -206,14 +206,14 @@ describe("Factory Total contracts", () => {
         contracts: contract
           ? [{
               ...contract,
-              plan: {
-                ...contract.plan,
+              routes: contract.routes.map(route => ({
+                ...route,
                 importedPerProductionCycle: null,
                 shipping: {
-                  ...contract.plan.shipping,
+                  ...route.shipping,
                   roundTripDurationProductionCycles: 40,
                 },
-              },
+              })),
             }]
           : [],
       },

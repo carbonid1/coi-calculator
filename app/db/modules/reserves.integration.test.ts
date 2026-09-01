@@ -50,34 +50,56 @@ const activateContract = (
 
   return {
     ...contract,
-    plan: {
+    gameId: `test-${contract.id}`,
+    routes: [{
+      id: `test-${contract.id}`,
+      source: "planned",
+      depotEntityId: null,
+      depotPrototypeId: "CargoDepotT1",
+      depotName: "Cargo Depot (2)",
+      depotSize: 2,
+      enabled: true,
+      running: true,
+      zones: [],
       importedPerProductionCycle,
-      infrastructure: {
-        cargoDepotSize: 2,
-        cargoShipWorkers: 0,
-        cargoModules: [
-          {
-            buildingName: "Unit Module (L)",
-            count: 1,
-            direction: "export",
-            resourceId: contract.exchange.exported.resourceId,
-            workersPerModule: 0,
-          },
-          {
-            buildingName: "Unit Module (L)",
-            count: 1,
-            direction: "import",
-            resourceId: contract.exchange.imported.resourceId,
-            workersPerModule: 0,
-          },
-        ],
+      cargoModules: [
+        {
+          entityId: null,
+          slot: 0,
+          prototypeId: "CargoDepotModuleUnitT3",
+          buildingName: "Unit Module (L)",
+          direction: "export",
+          resourceId: contract.exchange.exported.resourceId,
+          workers: 0,
+          running: true,
+          onboardCapacity: 800,
+        },
+        {
+          entityId: null,
+          slot: 1,
+          prototypeId: "CargoDepotModuleUnitT3",
+          buildingName: "Unit Module (L)",
+          direction: "import",
+          resourceId: contract.exchange.imported.resourceId,
+          workers: 0,
+          running: true,
+          onboardCapacity: 800,
+        },
+      ],
+      ship: {
+        entityId: null,
+        prototypeId: "CargoShipT1",
+        name: "Cargo Ship (2)",
+        workers: 0,
+        running: true,
       },
       shipping: {
         fuelResourceId: "hydrogen",
         saveFuel: true,
         roundTripDurationProductionCycles: null,
+        fuelPerTrip: null,
       },
-    },
+    }],
   };
 };
 

@@ -578,7 +578,9 @@ export const calculateFactoryTotal = (
   // cannot start, so the contract incorrectly sees zero Iron Ore demand.
   const demandBalancedImportIds = new Set(
     contracts
-      .filter(contract => contract.plan.importedPerProductionCycle === null)
+      .filter(contract => contract.routes.some(
+        route => route.importedPerProductionCycle === null,
+      ))
       .map(contract => contract.exchange.imported.resourceId),
   );
   const contractPlanningSeeds: Partial<Record<ResourceId, number>> = {};
@@ -702,9 +704,16 @@ export const calculateFactoryTotal = (
       // Fixed imports are ordinary factory supply during planning. Dynamic
       // imports are represented by the temporary seed so their full demand can
       // be measured independently of the previous iteration's shipment.
-      if (result.contract.plan.importedPerProductionCycle !== null) {
+      const fixedImported = result.routes.reduce(
+        (total, route) => total + (
+          route.route.importedPerProductionCycle === null ? 0 : route.imported
+        ),
+        0,
+      );
+
+      if (fixedImported > 0) {
         planningSupplies[importedId] = (planningSupplies[importedId] ?? 0)
-          + result.imported;
+          + fixedImported;
       }
       planningDemands[exportedId] = (planningDemands[exportedId] ?? 0)
         + result.exported;
@@ -791,7 +800,9 @@ export const calculateFactoryTotal = (
     const importedId = result.contract.exchange.imported.resourceId;
     const finalNet = finalFlowsById.get(importedId)?.net ?? 0;
     const demandSourceRemainder = finalDemandSources.get(importedId) ?? 0;
-    const requiredImported = result.contract.plan.importedPerProductionCycle === null
+    const requiredImported = result.contract.routes.some(
+      route => route.importedPerProductionCycle === null,
+    )
       ? result.requiredImported
       : Math.max(
           0,

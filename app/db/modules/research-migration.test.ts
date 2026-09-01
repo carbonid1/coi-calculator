@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { activeContracts } from "../../test-fixtures/active-contracts";
 import { baseConfig } from "../config";
-import { activeContracts } from "../contracts";
 import {
   defaultResearchProductionConfig,
   defaultResearchRecipeId,

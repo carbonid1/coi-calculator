@@ -19,6 +19,7 @@ import {
   type SyncedLogisticsZoneRef,
   type SyncedMineTower,
 } from '../../game-state'
+import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
 
 const plannedConstructionStates = new Set([
   'NotStarted',
@@ -51,24 +52,6 @@ const terrainMineResourceIds = new Set<ResourceId>([
   'titaniumOre',
 ])
 
-const normalizeResourceKey = (value: string) => value
-  .normalize('NFKD')
-  .replace(/[^a-zA-Z0-9]/g, '')
-  .toLowerCase()
-  .replace(/^product(?:virtual)?/, '')
-
-const resourceIdByKey = new Map<string, ResourceId>()
-
-for (const resource of Object.values(resources)) {
-  resourceIdByKey.set(normalizeResourceKey(resource.id), resource.id)
-  resourceIdByKey.set(normalizeResourceKey(resource.name), resource.id)
-}
-
-const resolveResourceId = (product: { productId: string; name: string }) => (
-  resourceIdByKey.get(normalizeResourceKey(product.name))
-  ?? resourceIdByKey.get(normalizeResourceKey(product.productId))
-)
-
 type OreSorterProduct = NonNullable<SyncedAreaEntity['oreSorter']>['products'][number]
 
 interface ResolvedTerrainProduct {
@@ -79,7 +62,7 @@ interface ResolvedTerrainProduct {
 
 const resolveTerrainSourceProducts = (products: readonly OreSorterProduct[]) => {
   const resolved: ResolvedTerrainProduct[] = products.flatMap((product, priority) => {
-    const resourceId = resolveResourceId(product)
+    const resourceId = resolveSyncedResourceId(product)
 
     return resourceId ? [{ priority, product, resourceId }] : []
   })
@@ -120,7 +103,7 @@ const toIngredient = (
   product: SyncedAreaRecipe['inputs'][number],
   durationSeconds: number,
 ): Ingredient | null => {
-  const resourceId = resolveResourceId(product)
+  const resourceId = resolveSyncedResourceId(product)
 
   return resourceId
     ? { resourceId, quantity: product.quantity * 60 / durationSeconds }
@@ -436,7 +419,7 @@ export const createLiveAreaModules = (
       if (!forestry) continue
 
       const outputs = forestry.outputs.flatMap(output => {
-        const resourceId = resolveResourceId(output)
+        const resourceId = resolveSyncedResourceId(output)
 
         if (!resourceId) {
           addIssue(
@@ -491,7 +474,7 @@ export const createLiveAreaModules = (
       const sourceProducts = resolveTerrainSourceProducts(configuration.products)
 
       for (const product of configuration.products) {
-        if (!resolveResourceId(product)) {
+        if (!resolveSyncedResourceId(product)) {
           addIssue(
             issues,
             `${sorter.prototypeId}:${sorter.entityId}:${product.productId}`,

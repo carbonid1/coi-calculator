@@ -23,7 +23,8 @@ import {
   resolvedChickenFarmSettings,
   resolvedCurrentChickenFarmSettings,
 } from './db/chicken-farm'
-import { activeContracts, contracts, defaultActiveContractIds } from './db/contracts'
+import { contractRoutePlans } from './db/contract-plans'
+import { contracts } from './db/contracts'
 import {
   getEdict,
   mapEdictValues,
@@ -159,6 +160,7 @@ import {
   resolveComputingEntityInventory,
 } from './helpers/computing-entity-sync/computing-entity-sync'
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
+import { resolveSyncedContracts } from './helpers/contracts/resolve-synced-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
 import { calculateGroundwaterClaimLimits } from './helpers/groundwater/calculate-groundwater-production'
 import { createLatestRevisionCache } from './helpers/latest-revision-cache/latest-revision-cache'
@@ -379,8 +381,18 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const rocketInfrastructureRunningConfig: RocketInfrastructureConfig = {
     ...emptyRocketInfrastructureConfig,
   }
-  const productionEntities = gameState.snapshot?.productionEntities ?? []
-  const officeAreaZoneIds = getOfficeAreaZoneIds(gameState.snapshot?.areaEntities ?? [])
+  const contractResolution = resolveSyncedContracts(
+    gameState.snapshot?.contracts ?? null,
+    contractRoutePlans,
+  )
+  const enabledContracts = contractResolution.contracts
+  const productionEntities = (gameState.snapshot?.productionEntities ?? []).filter(
+    entity => !contractResolution.claimedEntityIds.has(entity.entityId),
+  )
+  const areaEntities = (gameState.snapshot?.areaEntities ?? []).filter(
+    entity => !contractResolution.claimedEntityIds.has(entity.entityId),
+  )
+  const officeAreaZoneIds = getOfficeAreaZoneIds(areaEntities)
   const nuclearReactorZoneIds = new Set(productionEntities.flatMap(entity => (
     entity.prototypeId === 'FastBreederReactor'
       ? entity.zones.map(zone => zone.id)
@@ -492,7 +504,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     edictId => resolvedEdictLevels[edictId].value,
   )
   const edictSources = mapEdictValues(edictId => resolvedEdictLevels[edictId].source)
-  const activeContractIds = defaultActiveContractIds
   const researchProductionConfig = defaultResearchProductionConfig
   const maintenanceStatueCount = staticInfrastructureRunningConfig.maintenanceStatue
   const maintenanceOutputLevel = researchLevels.maintenanceOutput
@@ -588,7 +599,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
       ? createLiveAreaModules(
           gameState.snapshot?.logisticsZones ?? [],
-          gameState.snapshot?.areaEntities ?? [],
+          areaEntities,
           configuredAreaModules,
           undefined,
           (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
@@ -599,7 +610,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const terrainSorterEntityIds =
     (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
       ? getModeledTerrainSorterEntityIds(
-          gameState.snapshot?.areaEntities ?? [],
+          areaEntities,
           gameState.snapshot?.mineTowers ?? [],
           generatedLiveAreaModules,
         )
@@ -712,7 +723,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     return officeAreaZoneIds.has(module.liveArea.zoneId)
       ? createOfficeAreaModule(
           configuredModule,
-          gameState.snapshot?.areaEntities ?? [],
+          areaEntities,
           officePlan,
           resolvedOfficePlan.source,
         )
@@ -788,7 +799,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const staticInfrastructureAssignments = resolveStaticInfrastructureModuleAssignments({
     areaEntities:
       (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
-        ? gameState.snapshot?.areaEntities
+        ? areaEntities
         : undefined,
     builtConfig: staticInfrastructureBuiltConfig,
     defaultModuleId: DEFAULT_MODULE_ID,
@@ -897,7 +908,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           defaultRocketIiRecurringLogistics.launchesPerCycle
         : 1,
   }
-  const enabledContracts = activeContracts
   const resolvedModuleResourceLinks = resolveModuleResourceLinks(
     configuredModules,
     moduleResourceLinkDefinitions,
@@ -1328,8 +1338,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       {isContracts && factoryResult && (
         <ContractsView
-          activeContractIds={activeContractIds}
           contracts={contracts}
+          issues={contractResolution.issues}
           results={factoryResult.contractResults}
         />
       )}

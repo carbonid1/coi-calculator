@@ -152,6 +152,60 @@ interface SyncedProductRef {
   name: string
 }
 
+export interface SyncedEstablishedContract {
+  gameId: string
+  exportedProduct: SyncedProductRef
+  exportedQuantity: number
+  importedProduct: SyncedProductRef
+  importedQuantity: number
+  unityPerCycle: number
+  unityPer100Imported: number
+  unityToEstablish: number
+  minimumReputation: number
+}
+
+export interface SyncedContractModule {
+  entityId: number
+  slot: number
+  prototypeId: string
+  prototypeName: string
+  running: boolean
+  workers: number
+  selectedProduct: SyncedProductRef | null
+  direction: 'import' | 'export' | null
+  onboardCapacity: number
+}
+
+export interface SyncedContractShip {
+  entityId: number
+  prototypeId: string
+  prototypeName: string
+  running: boolean
+  workers: number
+  fuelProduct: SyncedProductRef
+  saveFuel: boolean
+  journeyDurationSeconds: number | null
+  fuelPerTrip: number | null
+}
+
+export interface SyncedContractRoute {
+  depotEntityId: number
+  depotPrototypeId: string
+  depotPrototypeName: string
+  depotCustomTitle: string | null
+  running: boolean
+  slotCount: number
+  contractGameId: string
+  zones: SyncedLogisticsZoneRef[]
+  modules: SyncedContractModule[]
+  ship: SyncedContractShip | null
+}
+
+export interface SyncedContractState {
+  established: SyncedEstablishedContract[]
+  routes: SyncedContractRoute[]
+}
+
 export interface SyncedTrainStationConfiguration {
   isForLoading: boolean
   selectedProduct: SyncedProductRef | null
@@ -321,7 +375,9 @@ export const TERRAIN_SORTER_SCHEMA_VERSION = 31 as const
 const FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION = 33 as const
 const FORESTRY_CONFIGURATION_SCHEMA_VERSION = 34 as const
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 34 as const
+export const CONTRACT_STATE_SCHEMA_VERSION = 35 as const
+
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = CONTRACT_STATE_SCHEMA_VERSION
 type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -351,6 +407,7 @@ type SupportedGameStateSchemaVersion =
   | 31
   | 32
   | 33
+  | 34
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -365,6 +422,7 @@ export interface GameStateSnapshot {
   cropFarms: SyncedCropFarmState | null
   machines: SyncedMachineInventoryItem[]
   groundwater: SyncedGroundwaterState | null
+  contracts: SyncedContractState | null
   productionEntities: SyncedProductionEntity[] | null
   areaEntities: SyncedAreaEntity[]
   mineTowers: SyncedMineTower[]
@@ -403,6 +461,130 @@ const isLogisticsZoneRef = (value: unknown): value is SyncedLogisticsZoneRef =>
 
 const isNonNegativeFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0
+
+const isSyncedProductRef = (value: unknown): value is SyncedProductRef =>
+  isUnknownRecord(value) &&
+  typeof value.productId === 'string' &&
+  value.productId.length > 0 &&
+  typeof value.name === 'string' &&
+  value.name.length > 0
+
+const normalizeContractState = (
+  value: unknown,
+  schemaVersion: SupportedGameStateSchemaVersion,
+): SyncedContractState | null => {
+  if (schemaVersion < CONTRACT_STATE_SCHEMA_VERSION) return null
+  if (!isUnknownRecord(value)) return null
+
+  const established = Array.isArray(value.established) ? value.established : null
+  const routes = Array.isArray(value.routes) ? value.routes : null
+
+  if (!established || !routes) return null
+
+  const validEstablished = established.filter(
+    (contract): contract is SyncedEstablishedContract => (
+      isUnknownRecord(contract) &&
+      typeof contract.gameId === 'string' &&
+      contract.gameId.length > 0 &&
+      isSyncedProductRef(contract.exportedProduct) &&
+      isNonNegativeInteger(contract.exportedQuantity) &&
+      contract.exportedQuantity > 0 &&
+      isSyncedProductRef(contract.importedProduct) &&
+      isNonNegativeInteger(contract.importedQuantity) &&
+      contract.importedQuantity > 0 &&
+      isNonNegativeFiniteNumber(contract.unityPerCycle) &&
+      isNonNegativeFiniteNumber(contract.unityPer100Imported) &&
+      isNonNegativeFiniteNumber(contract.unityToEstablish) &&
+      isNonNegativeInteger(contract.minimumReputation)
+    ),
+  )
+  const establishedIds = new Set(validEstablished.map(contract => contract.gameId))
+
+  if (
+    validEstablished.length !== established.length ||
+    establishedIds.size !== validEstablished.length
+  ) return null
+
+  const ownedEntityIds = new Set<number>()
+  const validRoutes = routes.filter((route): route is SyncedContractRoute => {
+    if (
+      !isUnknownRecord(route) ||
+      !isNonNegativeInteger(route.depotEntityId) ||
+      ownedEntityIds.has(route.depotEntityId) ||
+      typeof route.depotPrototypeId !== 'string' ||
+      route.depotPrototypeId.length === 0 ||
+      typeof route.depotPrototypeName !== 'string' ||
+      route.depotPrototypeName.length === 0 ||
+      (route.depotCustomTitle !== null && typeof route.depotCustomTitle !== 'string') ||
+      typeof route.running !== 'boolean' ||
+      !isNonNegativeInteger(route.slotCount) ||
+      typeof route.contractGameId !== 'string' ||
+      !establishedIds.has(route.contractGameId) ||
+      !Array.isArray(route.zones) ||
+      !route.zones.every(isLogisticsZoneRef) ||
+      !Array.isArray(route.modules)
+    ) return false
+
+    ownedEntityIds.add(route.depotEntityId)
+
+    const slots = new Set<number>()
+
+    for (const cargoModule of route.modules) {
+      if (
+        !isUnknownRecord(cargoModule) ||
+        !isNonNegativeInteger(cargoModule.entityId) ||
+        ownedEntityIds.has(cargoModule.entityId) ||
+        !isNonNegativeInteger(cargoModule.slot) ||
+        cargoModule.slot >= route.slotCount ||
+        slots.has(cargoModule.slot) ||
+        typeof cargoModule.prototypeId !== 'string' ||
+        cargoModule.prototypeId.length === 0 ||
+        typeof cargoModule.prototypeName !== 'string' ||
+        cargoModule.prototypeName.length === 0 ||
+        typeof cargoModule.running !== 'boolean' ||
+        !isNonNegativeInteger(cargoModule.workers) ||
+        (cargoModule.selectedProduct !== null && !isSyncedProductRef(cargoModule.selectedProduct)) ||
+        (cargoModule.direction !== null && cargoModule.direction !== 'import' && cargoModule.direction !== 'export') ||
+        ((cargoModule.selectedProduct === null) !== (cargoModule.direction === null)) ||
+        !isNonNegativeInteger(cargoModule.onboardCapacity)
+      ) return false
+
+      slots.add(cargoModule.slot)
+      ownedEntityIds.add(cargoModule.entityId)
+    }
+
+    if (route.modules.length > route.slotCount) return false
+    if (route.ship === null) return true
+
+    const ship = route.ship
+
+    if (
+      !isUnknownRecord(ship) ||
+      !isNonNegativeInteger(ship.entityId) ||
+      ownedEntityIds.has(ship.entityId) ||
+      typeof ship.prototypeId !== 'string' ||
+      ship.prototypeId.length === 0 ||
+      typeof ship.prototypeName !== 'string' ||
+      ship.prototypeName.length === 0 ||
+      typeof ship.running !== 'boolean' ||
+      !isNonNegativeInteger(ship.workers) ||
+      !isSyncedProductRef(ship.fuelProduct) ||
+      typeof ship.saveFuel !== 'boolean' ||
+      (ship.journeyDurationSeconds !== null && (
+        !isNonNegativeFiniteNumber(ship.journeyDurationSeconds) ||
+        ship.journeyDurationSeconds === 0
+      )) ||
+      (ship.fuelPerTrip !== null && !isNonNegativeInteger(ship.fuelPerTrip))
+    ) return false
+
+    ownedEntityIds.add(ship.entityId)
+    return true
+  })
+
+  if (validRoutes.length !== routes.length) return null
+
+  return { established: validEstablished, routes: validRoutes }
+}
 
 const isBuildingCount = (value: unknown): value is SyncedBuildingCount =>
   isUnknownRecord(value) &&
@@ -1218,6 +1400,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== TERRAIN_SORTER_SCHEMA_VERSION &&
     schemaVersion !== 32 &&
     schemaVersion !== 33 &&
+    schemaVersion !== 34 &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null
@@ -1236,6 +1419,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const groundwater = isGroundwaterState(snapshot.groundwater)
     ? snapshot.groundwater
     : null
+  const contracts = normalizeContractState(snapshot.contracts, schemaVersion)
   const productionEntities = normalizeProductionEntities(
     snapshot.productionEntities,
     schemaVersion,
@@ -1260,6 +1444,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     !logisticsZones ||
     (schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION && !machines) ||
     (schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && !groundwater) ||
+    (schemaVersion >= CONTRACT_STATE_SCHEMA_VERSION && !contracts) ||
     (schemaVersion >= SAVE_ID_SCHEMA_VERSION && !saveId) ||
     (schemaVersion >= PRODUCTION_ENTITY_SCHEMA_VERSION && !productionEntities) ||
     (schemaVersion >= AREA_GHOST_SCHEMA_VERSION && !areaEntities) ||
@@ -1372,6 +1557,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     cropFarms: schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION ? cropFarms : null,
     machines: schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION ? (machines ?? []) : [],
     groundwater: schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION ? groundwater : null,
+    contracts: schemaVersion >= CONTRACT_STATE_SCHEMA_VERSION ? contracts : null,
     productionEntities,
     areaEntities: areaEntities ?? [],
     mineTowers: mineTowers ?? [],

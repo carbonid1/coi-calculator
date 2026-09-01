@@ -31,33 +31,51 @@ export interface Contract {
   gameVersion: string;
 }
 
-interface ContractCargoModulePlan {
-  buildingName: "Fluid Module (L)" | "Loose Module (L)" | "Unit Module (L)";
-  count: number;
-  direction: "export" | "import";
-  resourceId: ResourceId;
-  workersPerModule: number;
+export interface ContractCargoModule {
+  entityId: number | null;
+  slot: number;
+  prototypeId: string;
+  buildingName: string;
+  direction: "export" | "import" | null;
+  resourceId: ResourceId | null;
+  workers: number;
+  running: boolean;
+  onboardCapacity: number;
 }
 
-interface ActiveContractPlan {
-  /** Fixed shipment allocation, or null to balance imports against live demand. */
-  importedPerProductionCycle: number | null;
-  infrastructure: {
-    cargoDepotSize: 2 | 4 | 6 | 8;
-    cargoModules: readonly ContractCargoModulePlan[];
-    cargoShipWorkers: number;
-  };
-  /** Fuel selection and ship mode; rates are derived from installed game data. */
+export interface ContractRoute {
+  id: string;
+  source: 'synced' | 'planned';
+  depotEntityId: number | null;
+  depotPrototypeId: string;
+  depotName: string;
+  depotSize: number;
+  enabled: boolean;
+  running: boolean;
+  zones: readonly { id: number; name: string | null }[];
+  cargoModules: readonly ContractCargoModule[];
+  ship: {
+    entityId: number | null;
+    prototypeId: string;
+    name: string;
+    workers: number;
+    running: boolean;
+  } | null;
   shipping: {
     fuelResourceId: ResourceId;
     saveFuel: boolean;
-    /** Observed full round trip, or a conservative route estimate until measured in-game. */
+    /** Measured full round trip from the game, expressed in 60-second production cycles. */
     roundTripDurationProductionCycles: number | null;
+    /** Exact current ship fuel load from the game. Null for planned-only routes. */
+    fuelPerTrip: number | null;
   };
+  /** Fixed route allocation, or null to share the contract's demand-balanced remainder. */
+  importedPerProductionCycle: number | null;
 }
 
 export interface ActiveContract extends Contract {
-  plan: ActiveContractPlan;
+  gameId: string;
+  routes: readonly ContractRoute[];
 }
 
 const contractsGameVersion = "0.8.7";
@@ -179,166 +197,3 @@ export const contracts: Contract[] = [
   defineContract("ship-settlement", "ironOre", 1, "copperOre", 1, 0.08, 0.3, 1),
   defineContract("ship-settlement", "copperOre", 1, "ironOre", 1, 0.08, 0.3, 1),
 ];
-
-const defineActiveContract = (
-  contractId: string,
-  plan: ActiveContractPlan,
-): ActiveContract => {
-  const contract = contracts.find((candidate) => candidate.id === contractId);
-
-  if (!contract) throw new Error(`Unknown active contract: ${contractId}`);
-
-  return { ...contract, plan };
-};
-
-/**
- * Physical contract plans. Each allocation can remain fixed or follow the
- * factory's live demand while its ship and cargo-module layout stays locked.
- */
-export const activeContracts: ActiveContract[] = [
-  defineActiveContract("uranium-ore-for-food-pack", {
-    importedPerProductionCycle: 54,
-    infrastructure: {
-      cargoDepotSize: 4,
-      cargoShipWorkers: 22,
-      cargoModules: [
-        {
-          buildingName: "Unit Module (L)",
-          count: 2,
-          direction: "export",
-          resourceId: "foodPack",
-          workersPerModule: 5,
-        },
-        {
-          buildingName: "Loose Module (L)",
-          count: 2,
-          direction: "import",
-          resourceId: "uraniumOre",
-          workersPerModule: 5,
-        },
-      ],
-    },
-    shipping: {
-      fuelResourceId: "hydrogen",
-      saveFuel: true,
-      roundTripDurationProductionCycles: 427 / 60,
-    },
-  }),
-  defineActiveContract("titanium-ore-for-construction-parts-iv", {
-    importedPerProductionCycle: null,
-    infrastructure: {
-      cargoDepotSize: 4,
-      cargoShipWorkers: 22,
-      cargoModules: [
-        {
-          buildingName: "Unit Module (L)",
-          count: 2,
-          direction: "export",
-          resourceId: "constructionPartsIV",
-          workersPerModule: 5,
-        },
-        {
-          buildingName: "Loose Module (L)",
-          count: 2,
-          direction: "import",
-          resourceId: "titaniumOre",
-          workersPerModule: 5,
-        },
-      ],
-    },
-    shipping: {
-      fuelResourceId: "hydrogen",
-      saveFuel: true,
-      roundTripDurationProductionCycles: 426 / 60,
-    },
-  }),
-  defineActiveContract("copper-ore-for-medical-supplies-iii", {
-    importedPerProductionCycle: null,
-    infrastructure: {
-      cargoDepotSize: 4,
-      cargoShipWorkers: 22,
-      cargoModules: [
-        {
-          buildingName: "Unit Module (L)",
-          count: 2,
-          direction: "export",
-          resourceId: "medicalSuppliesIII",
-          workersPerModule: 5,
-        },
-        {
-          buildingName: "Loose Module (L)",
-          count: 2,
-          direction: "import",
-          resourceId: "copperOre",
-          workersPerModule: 5,
-        },
-      ],
-    },
-    shipping: {
-      fuelResourceId: "hydrogen",
-      saveFuel: true,
-      // Observed full Coal -> Quartz round trip.
-      roundTripDurationProductionCycles: 426 / 60,
-    },
-  }),
-  defineActiveContract("ammonia-for-food-pack", {
-    importedPerProductionCycle: null,
-    infrastructure: {
-      cargoDepotSize: 4,
-      cargoShipWorkers: 22,
-      cargoModules: [
-        {
-          buildingName: "Unit Module (L)",
-          count: 2,
-          direction: "export",
-          resourceId: "foodPack",
-          workersPerModule: 5,
-        },
-        {
-          buildingName: "Fluid Module (L)",
-          count: 2,
-          direction: "import",
-          resourceId: "ammonia",
-          workersPerModule: 5,
-        },
-      ],
-    },
-    shipping: {
-      fuelResourceId: "hydrogen",
-      saveFuel: true,
-      // Conservative proxy from the measured 427-second Uranium route.
-      roundTripDurationProductionCycles: 427 / 60,
-    },
-  }),
-  defineActiveContract("quartz-for-coal", {
-    importedPerProductionCycle: null,
-    infrastructure: {
-      cargoDepotSize: 4,
-      cargoShipWorkers: 22,
-      cargoModules: [
-        {
-          buildingName: "Loose Module (L)",
-          count: 1,
-          direction: "export",
-          resourceId: "coal",
-          workersPerModule: 5,
-        },
-        {
-          buildingName: "Loose Module (L)",
-          count: 3,
-          direction: "import",
-          resourceId: "quartz",
-          workersPerModule: 5,
-        },
-      ],
-    },
-    shipping: {
-      fuelResourceId: "hydrogen",
-      saveFuel: true,
-      // Conservative proxy from the measured 426-second Iron Ore route.
-      roundTripDurationProductionCycles: 426 / 60,
-    },
-  }),
-];
-
-export const defaultActiveContractIds = activeContracts.map((contract) => contract.id);

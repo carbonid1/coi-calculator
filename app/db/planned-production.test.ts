@@ -6,8 +6,8 @@ import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-co
 import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maintenance-output";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
+import { activeContracts } from "../test-fixtures/active-contracts";
 import { baseConfig } from "./config";
-import { activeContracts } from "./contracts";
 import { defaultActiveEdicts } from "./edicts";
 import {
   defaultArea as general,

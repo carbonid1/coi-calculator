@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeContracts } from "../../db/contracts";
+import { activeContracts } from "../../test-fixtures/active-contracts";
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { applyContracts, calculateContractWorkers } from "./calculate-contracts";
 
@@ -93,10 +93,10 @@ describe("contract plans", () => {
     }], uraniumContract
       ? [{
           ...uraniumContract,
-          plan: {
-            ...uraniumContract.plan,
+          routes: uraniumContract.routes.map(route => ({
+            ...route,
             importedPerProductionCycle: 300,
-          },
+          })),
         }]
       : []);
     const result = contractResults[0];
@@ -197,5 +197,96 @@ describe("contract plans", () => {
 
     // The fixed 54-unit plan costs 30 Food Packs at +20%, instead of 36.
     expect(contractResults[0]?.exported).toBeCloseTo(30);
+  });
+
+  it("shares one established contract across multiple Cargo Depots", () => {
+    const contract = activeContracts[1];
+
+    expect(contract).toBeDefined();
+    if (!contract) return;
+
+    const firstRoute = { ...contract.routes[0], importedPerProductionCycle: null };
+    const secondRoute = {
+      ...firstRoute,
+      id: `${firstRoute.id}-second`,
+      depotEntityId: 200,
+    };
+    const { contractResults } = applyContracts([{
+      resourceId: "titaniumOre",
+      name: "Titanium Ore",
+      consumed: 300,
+      produced: 0,
+      net: -300,
+    }], [{ ...contract, routes: [firstRoute, secondRoute] }]);
+
+    expect(contractResults).toHaveLength(1);
+    expect(contractResults[0]).toMatchObject({ imported: 300, requiredImported: 300 });
+    expect(contractResults[0]?.routes).toHaveLength(2);
+    expect(calculateContractWorkers([{ ...contract, routes: [firstRoute, secondRoute] }]))
+      .toBe(84);
+  });
+
+  it("keeps fixed Unity state when an established contract has no route", () => {
+    const contract = activeContracts[0];
+
+    expect(contract).toBeDefined();
+    if (!contract) return;
+
+    const { contractResults } = applyContracts([], [{ ...contract, routes: [] }]);
+
+    expect(contractResults).toMatchObject([{
+      imported: 0,
+      exported: 0,
+      maxImportedPerProductionCycle: 0,
+      routes: [],
+    }]);
+    expect(calculateContractWorkers([{ ...contract, routes: [] }])).toBe(0);
+  });
+
+  it("removes a paused ship from capacity and ship workers", () => {
+    const contract = activeContracts[0];
+
+    expect(contract).toBeDefined();
+    if (!contract) return;
+
+    const routes = contract.routes.map(route => ({
+      ...route,
+      importedPerProductionCycle: null,
+      ship: route.ship ? { ...route.ship, running: false } : null,
+    }));
+    const { contractResults } = applyContracts([{
+      resourceId: "uraniumOre",
+      name: "Uranium Ore",
+      consumed: 60,
+      produced: 0,
+      net: -60,
+    }], [{ ...contract, routes }]);
+
+    expect(contractResults[0]).toMatchObject({
+      imported: 0,
+      maxImportedPerProductionCycle: 0,
+    });
+    expect(calculateContractWorkers([{ ...contract, routes }])).toBe(20);
+  });
+
+  it("counts workers in attached modules that are not configured yet", () => {
+    const contract = activeContracts[0];
+
+    expect(contract).toBeDefined();
+    if (!contract) return;
+
+    const route = contract.routes[0];
+
+    expect(route).toBeDefined();
+    if (!route) return;
+
+    const cargoModules = route.cargoModules.map((module, index) => index === 0
+      ? { ...module, direction: null, resourceId: null }
+      : module);
+
+    expect(calculateContractWorkers([{
+      ...contract,
+      routes: [{ ...route, cargoModules }],
+    }])).toBe(42);
   });
 });
