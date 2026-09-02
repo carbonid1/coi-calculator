@@ -117,6 +117,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
           planned={unplacedPlannedBuildings}
           attention={diagnostic?.attention}
           attentionCount={diagnostic?.attentionCount}
+          level={diagnostic?.level}
           animalPopulation={diagnostic?.animalPopulation ?? (
             recipe.animalPopulationCapacity
               ? {

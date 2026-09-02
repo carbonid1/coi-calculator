@@ -469,3 +469,48 @@ describe("planned capacity diagnostics", () => {
     });
   });
 });
+
+describe("required running capacity diagnostics", () => {
+  const launchPad = recipes.find(recipe => recipe.id === "rocket-ii-launch-amortized");
+
+  if (!launchPad) throw new Error("Rocket Launch Pad recipe is missing");
+
+  const spaceStationModule: Module = {
+    id: "space-station",
+    name: "Space Station",
+    description: "",
+    builtBuildings: { [launchPad.id]: 1 },
+    presets: [],
+    defaultPresetId: null,
+  };
+  const result = (builtBuildings: number): RegularResult => ({
+    recipe: launchPad,
+    moduleId: spaceStationModule.id,
+    dataSource: "synced",
+    activeBuildings: 1,
+    currentActiveBuildings: 0,
+    builtBuildings,
+    operatingMode: "fixed",
+    supplyRatio: 1,
+    speedLevel: 1,
+    actualInputs: [],
+    actualOutputs: [],
+    recyclableSourceValueProduced: 0,
+  });
+
+  it("asks to unpause recurring rocket infrastructure that is already built", () => {
+    expect(calculateBuildingDiagnostics(
+      [spaceStationModule],
+      [],
+      [result(1)],
+    )[0]).toMatchObject({ attention: "unpause", attentionCount: 1 });
+  });
+
+  it("asks to build recurring rocket infrastructure only when none is present", () => {
+    expect(calculateBuildingDiagnostics(
+      [spaceStationModule],
+      [],
+      [result(0)],
+    )[0]).toMatchObject({ attention: "build", attentionCount: 1 });
+  });
+});

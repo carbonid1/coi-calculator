@@ -1,12 +1,12 @@
 import { DEFAULT_MODULE_ID } from '../../db/modules/default'
 import { type Module, type Preset } from '../../db/modules/modules'
-import { recipes } from '../../db/recipes'
+import { recipes, type Recipe } from '../../db/recipes'
 import { type ResourceId } from '../../db/resources'
 
-const crusherBuildings = new Set(['Crusher', 'Crusher (Large)'])
-const isCrusherBuilding = (building: string) => (
-  crusherBuildings.has(building)
-  || building.toLocaleLowerCase() === 'crusher (large)'
+const crusherPrototypeIds = new Set(['Crusher', 'CrusherLarge'])
+const isCrusherRecipe = (recipe: Recipe) => (
+  (recipe.gameBuildingId != null && crusherPrototypeIds.has(recipe.gameBuildingId))
+  || recipe.id.startsWith('crusher')
 )
 
 const withoutKeys = <T>(
@@ -68,7 +68,7 @@ export const transferTerrainMineOwnership = (
       .filter(module => module.includedInFactoryTotals !== false)
       .flatMap(module => (
         module.recipes
-        ?.filter(recipe => isCrusherBuilding(recipe.building))
+        ?.filter(isCrusherRecipe)
         .flatMap(recipe => recipe.inputs)
         .filter(input => claimedResourceIds.has(input.resourceId))
         .map(input => input.resourceId)
@@ -78,7 +78,7 @@ export const transferTerrainMineOwnership = (
   const legacyCrusherIds = new Set(
     recipes
       .filter(recipe => (
-        isCrusherBuilding(recipe.building)
+        isCrusherRecipe(recipe)
         && recipe.inputs.some(input => liveCrusherInputIds.has(input.resourceId))
       ))
       .map(recipe => recipe.id),

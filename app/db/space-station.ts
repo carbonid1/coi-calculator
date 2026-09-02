@@ -7,8 +7,6 @@ export interface SpaceStationConfig {
   currentLevel: number;
   /** Highest level ever reached in this save; the game retains this progression. */
   highestLevelAchieved: number;
-  /** Steady-state level represented by the factory plan. */
-  targetLevel: number;
 }
 
 export interface SpaceStationLevelData {
@@ -72,8 +70,8 @@ export const rocketIiGameData = {
 /** The station replaces its entire crew every two in-game years. */
 const SPACE_STATION_CREW_ROTATION_CYCLES = 24;
 
-/** The projected factory targets a level-four station. */
-export const plannedSpaceStationLevel = 4;
+/** Maximum Space Station level in Captain of Industry v0.8.7. */
+export const maximumSpaceStationLevel = 4;
 
 const normalizeLevel = (level: number) => Math.max(0, Math.trunc(level));
 const roundRate = (value: number) => parseFloat(value.toFixed(6));
@@ -116,6 +114,25 @@ export const calculateSpaceStationLevel = (
       ? 0
       : roundRate(0.15 + (normalizedLevel - 1) * 0.05),
   };
+};
+
+export const getMinimumSpaceStationLevelForResearchPoints = (
+  requiredPoints: number,
+) => {
+  if (requiredPoints <= 0) return 0;
+
+  const maximumOutput = calculateSpaceStationLevel(
+    maximumSpaceStationLevel,
+  ).spaceResearchPointsPerCycle;
+  const coveredTarget = Math.min(Math.max(0, requiredPoints), maximumOutput);
+
+  for (let level = 1; level <= maximumSpaceStationLevel; level += 1) {
+    if (calculateSpaceStationLevel(level).spaceResearchPointsPerCycle >= coveredTarget) {
+      return level;
+    }
+  }
+
+  return maximumSpaceStationLevel;
 };
 
 /**
@@ -184,8 +201,8 @@ export const calculateRocketIiRecurringLogistics = (
 };
 
 export const defaultSpaceStationLevel = calculateSpaceStationLevel(
-  plannedSpaceStationLevel,
-  plannedSpaceStationLevel,
+  maximumSpaceStationLevel,
+  maximumSpaceStationLevel,
 );
 
 export const defaultRocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(

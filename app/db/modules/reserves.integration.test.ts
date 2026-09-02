@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 
+import { calculateBuildingDiagnostics } from "../../helpers/building-diagnostics/building-diagnostics";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { getReserveDrawPerProductionCycle } from "../../helpers/reserves/reserves";
 import { baseConfig } from "../config";
@@ -7,6 +8,7 @@ import {
   type ActiveContract,
   contracts,
 } from "../contracts";
+import { recipes } from "../recipes";
 import { reserveResourceCatalog } from "../reserve-resources";
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
@@ -131,6 +133,65 @@ it("counts Gold exported to an active contract as reserve draw", () => {
     [createDemandModule({}), createReservesModule({ gold: 6_000, fuelGas: 0 })],
     [activateContract("bauxite-for-gold", 130)],
   )).toBeCloseTo(10);
+});
+
+it("uses synced Gold reserves before fresh Gold Ore production", () => {
+  const goldFurnace = recipes.find(
+    recipe => recipe.id === "gold-furnace-concentrate",
+  );
+  const settlingTank = recipes.find(
+    recipe => recipe.id === "settling-tank-gold",
+  );
+
+  if (!goldFurnace || !settlingTank) throw new Error("Gold production recipes are missing");
+
+  const goldProduction: Module = {
+    id: "gold-production",
+    name: "Gold production",
+    description: "",
+    builtBuildings: {
+      [goldFurnace.id]: 1,
+      [settlingTank.id]: 2,
+    },
+    presets: [{
+      id: "synced",
+      name: "Synced",
+      description: "",
+      activeBuildings: {
+        [goldFurnace.id]: 1,
+        [settlingTank.id]: 0,
+      },
+      fixed: [],
+      fixedDemands: { gold: 2.07 },
+    }],
+    defaultPresetId: "synced",
+  };
+  const reservesModule = createReservesModule({ gold: 6_000, fuelGas: 0 });
+  const modules = [goldProduction, reservesModule];
+  const result = calculateFactoryTotal(
+    modules,
+    { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
+  );
+  const getResult = (recipeId: string) => result.calculation.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+  const diagnostics = calculateBuildingDiagnostics(
+    modules,
+    result.flows,
+    result.calculation.regularResults,
+    result.calculation.sourceResults,
+    result.calculation.sinkResults,
+  );
+
+  expect(getGoldReserveDraw(modules, [])).toBeCloseTo(2.07);
+  expect(getResult(goldFurnace.id)?.supplyRatio).toBe(0);
+  expect(getResult(settlingTank.id)?.supplyRatio).toBe(0);
+  expect(result.calculation.allResourceFlows.find(
+    flow => flow.resourceId === "goldOreConcentrate",
+  )?.net ?? 0).toBe(0);
+  expect(diagnostics.find(
+    diagnostic => diagnostic.key === `${goldProduction.id}:${settlingTank.id}`,
+  )?.attention).toBeNull();
 });
 
 it("runs two fixed Cracking Units and draws their uncovered Fuel Gas from reserves", () => {

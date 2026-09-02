@@ -1,24 +1,30 @@
-import { liveAreaPlans, type LiveAreaPlans } from '../../db/live-area-plans'
+import { type LiveAreaPlans } from '../../db/live-area-plans'
 import { isMaintenanceDepotPrototype } from '../../db/modules/area-maintenance'
 import { isSolarPanelPrototype } from '../../db/modules/area-solar'
-import { isAreaAssignableStaticInfrastructurePrototype } from '../../db/modules/area-static-infrastructure'
+import {
+  isAreaAssignableStaticInfrastructurePrototype,
+  isNonProductionAreaInfrastructurePrototype,
+} from '../../db/modules/area-static-infrastructure'
 import { type Module, type LiveAreaIssue } from '../../db/modules/modules'
-import { type Ingredient, type Recipe } from '../../db/recipes'
+import {
+  getGameRecipeKey,
+  recipes as recipeCatalog,
+  type Ingredient,
+  type Recipe,
+} from '../../db/recipes'
 import {
   getLinkedOnlyLiveModuleInputIds,
   getSurplusConsumptionSettings,
 } from '../../db/resource-disposition'
 import { resources, type ResourceId } from '../../db/resources'
-import {
-  runtimeRecipeBehaviors,
-  runtimeRecipePriorities,
-} from '../../db/runtime-recipe-behaviors'
+import { runtimeRecipeBehaviors, runtimeRecipePriorities } from '../../db/runtime-recipe-behaviors'
 import {
   type SyncedAreaEntity,
   type SyncedAreaRecipe,
   type SyncedLogisticsZoneRef,
   type SyncedMineTower,
 } from '../../game-state'
+import { inferModuleCapabilities } from '../module-capabilities/module-capabilities'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
 
 const plannedConstructionStates = new Set([
@@ -32,14 +38,12 @@ const environmentalEmissionProductIds = new Set([
   'Product_Virtual_PollutedAir',
   'Product_Virtual_PollutedWater',
 ])
+const isNonMaterialOutput = (product: SyncedAreaRecipe['outputs'][number]) =>
+  environmentalEmissionProductIds.has(product.productId) ||
+  product.name.trim().toLocaleLowerCase() === 'research points'
 const crusherPrototypeIds = new Set(['Crusher', 'CrusherLarge'])
 const oreSortingPlantPrototypeIds = new Set(['OreSortingPlantT1', 'OreSortingPlantT2'])
-const incidentalTerrainResourceIds = new Set<ResourceId>([
-  'dirt',
-  'rock',
-  'slag',
-  'waste',
-])
+const incidentalTerrainResourceIds = new Set<ResourceId>(['dirt', 'rock', 'slag', 'waste'])
 const terrainMineResourceIds = new Set<ResourceId>([
   'bauxite',
   'coal',
@@ -51,6 +55,23 @@ const terrainMineResourceIds = new Set<ResourceId>([
   'sand',
   'titaniumOre',
 ])
+const fixedAreaRecipeByPrototypeId = new Map<string, Recipe>(
+  Object.entries({
+    ResearchLab4: 'research-lab-iv',
+    ResearchLab5: 'research-lab-iv',
+    WasteSortingPlant: 'waste-sorting-recyclables',
+  } as const).flatMap(([prototypeId, recipeId]) => {
+    const recipe = recipeCatalog.find(candidate => candidate.id === recipeId)
+
+    return recipe ? [[prototypeId, recipe] as const] : []
+  }),
+)
+
+export const DEFAULT_LIVE_AREA_ZONE_ID = -1
+export const DEFAULT_LIVE_AREA_MODULE_ID = 'general'
+
+const hasNamedZone = (entity: Pick<SyncedAreaEntity, 'zones'>) =>
+  entity.zones.some(zone => Boolean(zone.name))
 
 type OreSorterProduct = NonNullable<SyncedAreaEntity['oreSorter']>['products'][number]
 
@@ -66,15 +87,11 @@ const resolveTerrainSourceProducts = (products: readonly OreSorterProduct[]) => 
 
     return resourceId ? [{ priority, product, resourceId }] : []
   })
-  const primary = resolved.filter(({ resourceId }) => (
-    !incidentalTerrainResourceIds.has(resourceId)
-  ))
+  const primary = resolved.filter(({ resourceId }) => !incidentalTerrainResourceIds.has(resourceId))
 
   // Rock is reliable only for a dedicated rock pit. Dirt, Slag, and Waste are
   // incidental terrain/byproducts and never establish mine supply.
-  return primary.length > 0
-    ? primary
-    : resolved.filter(({ resourceId }) => resourceId === 'rock')
+  return primary.length > 0 ? primary : resolved.filter(({ resourceId }) => resourceId === 'rock')
 }
 
 export const getModeledTerrainSorterEntityIds = (
@@ -82,21 +99,23 @@ export const getModeledTerrainSorterEntityIds = (
   mineTowers: readonly SyncedMineTower[],
   liveModules: readonly Module[],
 ): ReadonlySet<number> => {
-  const assignedSorterIds = new Set(
-    mineTowers.flatMap(tower => tower.assignedOreSorterEntityIds),
+  const assignedSorterIds = new Set(mineTowers.flatMap(tower => tower.assignedOreSorterEntityIds))
+  const modeledZoneIds = new Set(
+    liveModules.flatMap(module => (module.liveArea ? [module.liveArea.zoneId] : [])),
   )
-  const modeledZoneIds = new Set(liveModules.flatMap(module => (
-    module.liveArea ? [module.liveArea.zoneId] : []
-  )))
+  const modelsDefaultArea = modeledZoneIds.has(DEFAULT_LIVE_AREA_ZONE_ID)
 
-  return new Set(entities.flatMap(entity => (
-    assignedSorterIds.has(entity.entityId)
-    && entity.oreSorter
-    && entity.zones.some(zone => modeledZoneIds.has(zone.id))
-    && resolveTerrainSourceProducts(entity.oreSorter.products).length > 0
-      ? [entity.entityId]
-      : []
-  )))
+  return new Set(
+    entities.flatMap(entity =>
+      assignedSorterIds.has(entity.entityId) &&
+      entity.oreSorter &&
+      (entity.zones.some(zone => modeledZoneIds.has(zone.id)) ||
+        (modelsDefaultArea && !hasNamedZone(entity))) &&
+      resolveTerrainSourceProducts(entity.oreSorter.products).length > 0
+        ? [entity.entityId]
+        : [],
+    ),
+  )
 }
 
 const toIngredient = (
@@ -105,18 +124,14 @@ const toIngredient = (
 ): Ingredient | null => {
   const resourceId = resolveSyncedResourceId(product)
 
-  return resourceId
-    ? { resourceId, quantity: product.quantity * 60 / durationSeconds }
-    : null
+  return resourceId ? { resourceId, quantity: (product.quantity * 60) / durationSeconds } : null
 }
 
-const isPlannedEntity = (entity: SyncedAreaEntity) => (
+const isPlannedEntity = (entity: SyncedAreaEntity) =>
   !entity.constructed && plannedConstructionStates.has(entity.constructionState)
-)
 
-const formatSyncedRate = (quantity: number) => (
+const formatSyncedRate = (quantity: number) =>
   parseFloat(quantity.toFixed(2)).toLocaleString('en-US')
-)
 
 const getForestryDisplayName = (entity: SyncedAreaEntity) => {
   const forestry = entity.forestry
@@ -146,12 +161,24 @@ const selectedRecipes = (entity: SyncedAreaEntity) => {
   return []
 }
 
+const availableRecipeCount = (entity: SyncedAreaEntity) =>
+  entity.availableRecipeCount ?? entity.recipes.length
+
 interface RecipeGroup {
   prototypeId: string
   prototypeName: string
   /** Exact physical-machine configuration shared by every recipe in this group. */
   capacityPoolId?: string
   recipe: SyncedAreaRecipe
+  built: number
+  running: number
+  planned: number
+}
+
+interface FixedRecipeGroup {
+  prototypeId: string
+  prototypeName: string
+  recipe: Recipe
   built: number
   running: number
   planned: number
@@ -174,48 +201,56 @@ const addIssue = (
   issues.set(id, { id, building, count, message })
 }
 
-const moduleIdForZone = (zoneId: number) => `live-area-${zoneId}`
+const moduleIdForZone = (zoneId: number) =>
+  zoneId === DEFAULT_LIVE_AREA_ZONE_ID ? DEFAULT_LIVE_AREA_MODULE_ID : `live-area-${zoneId}`
 
 /** Builds isolated calculator modules from unmatched named vehicle areas. */
 export const createLiveAreaModules = (
   zones: readonly SyncedLogisticsZoneRef[],
   entities: readonly SyncedAreaEntity[],
-  configuredModules: readonly Module[],
-  plans: LiveAreaPlans = liveAreaPlans,
+  _configuredModules: readonly Module[],
+  plans: LiveAreaPlans = {},
   mineTowers?: readonly SyncedMineTower[],
 ): Module[] => {
-  const existingNames = new Set(configuredModules.map(module => module.name))
   const assignedTerrainSorterIds = new Set(
     mineTowers?.flatMap(tower => tower.assignedOreSorterEntityIds) ?? [],
   )
 
   return zones.flatMap(zone => {
-    if (!zone.name || existingNames.has(zone.name)) return []
+    const isDefaultArea = zone.id === DEFAULT_LIVE_AREA_ZONE_ID
 
-    const plan = plans[zone.name]
-    const zoneEntities = entities.filter(entity => (
-      entity.zones.some(entityZone => entityZone.id === zone.id)
-      && (entity.constructed || isPlannedEntity(entity))
-    ))
+    if (!zone.name) return []
+
+    const plan = plans[zone.id]
+    const zoneEntities = entities.filter(
+      entity =>
+        (isDefaultArea
+          ? !hasNamedZone(entity)
+          : entity.zones.some(entityZone => entityZone.id === zone.id)) &&
+        (entity.constructed || isPlannedEntity(entity)),
+    )
+    const modeledZoneEntities = zoneEntities.filter(
+      entity => !isNonProductionAreaInfrastructurePrototype(entity.prototypeId),
+    )
     const terrainSorterEntities = mineTowers
-      ? zoneEntities.filter(entity => (
-          oreSortingPlantPrototypeIds.has(entity.prototypeId)
-          && entity.oreSorter
-          && assignedTerrainSorterIds.has(entity.entityId)
-        ))
+      ? zoneEntities.filter(
+          entity =>
+            oreSortingPlantPrototypeIds.has(entity.prototypeId) &&
+            entity.oreSorter &&
+            assignedTerrainSorterIds.has(entity.entityId),
+        )
       : []
-    const productionEntities = zoneEntities.filter(entity => (
-      !entity.forestry
-      && !isAreaAssignableStaticInfrastructurePrototype(entity.prototypeId)
-      && !isMaintenanceDepotPrototype(entity.prototypeId)
-      && !isSolarPanelPrototype(entity.prototypeId)
-    ))
+    const productionEntities = zoneEntities.filter(
+      entity =>
+        !entity.forestry &&
+        !isAreaAssignableStaticInfrastructurePrototype(entity.prototypeId) &&
+        !isMaintenanceDepotPrototype(entity.prototypeId) &&
+        !isSolarPanelPrototype(entity.prototypeId),
+    )
     const issues = new Map<string, LiveAreaIssue>()
     const groups = new Map<string, RecipeGroup>()
-    const capacityPools = new Map<
-      string,
-      { built: number; running: number; planned: number }
-    >()
+    const fixedGroups = new Map<string, FixedRecipeGroup>()
+    const capacityPools = new Map<string, { built: number; running: number; planned: number }>()
     const sharedCapacityPools = new Map<
       string,
       { built: number; running: number; planned: number }
@@ -234,12 +269,17 @@ export const createLiveAreaModules = (
       capacityPools.set(entity.prototypeId, capacityPool)
 
       const recipesForEntity = selectedRecipes(entity)
-      const sharedCapacityPoolId = recipesForEntity.length > 1
-        ? `${entity.prototypeId}:${recipesForEntity
-            .map(recipe => recipe.id)
-            .toSorted()
-            .join('+')}`
-        : undefined
+      const fixedRecipe =
+        recipesForEntity.length === 0
+          ? fixedAreaRecipeByPrototypeId.get(entity.prototypeId)
+          : undefined
+      const sharedCapacityPoolId =
+        recipesForEntity.length > 1
+          ? `${entity.prototypeId}:${recipesForEntity
+              .map(recipe => recipe.id)
+              .toSorted()
+              .join('+')}`
+          : undefined
 
       if (sharedCapacityPoolId) {
         const sharedCapacityPool = sharedCapacityPools.get(sharedCapacityPoolId) ?? {
@@ -255,16 +295,32 @@ export const createLiveAreaModules = (
       }
 
       if (recipesForEntity.length === 0) {
-        const message = entity.recipes.length > 1
-          ? `Choose one of ${entity.recipes.length} recipes in the game before its flows can be projected.`
-          : 'This building does not expose a production recipe.'
+        if (fixedRecipe) {
+          const group = fixedGroups.get(entity.prototypeId) ?? {
+            prototypeId: entity.prototypeId,
+            prototypeName: entity.prototypeName,
+            recipe: fixedRecipe,
+            built: 0,
+            running: 0,
+            planned: 0,
+          }
 
-        addIssue(
-          issues,
-          `${entity.prototypeId}:${entity.recipes.length > 1 ? 'recipe-choice' : 'no-recipe'}`,
-          entity.prototypeName,
-          message,
-        )
+          group.built += Number(entity.constructed)
+          group.running += Number(entity.running)
+          group.planned += Number(isPlannedEntity(entity))
+          fixedGroups.set(entity.prototypeId, group)
+          continue
+        }
+        const recipeCount = availableRecipeCount(entity)
+
+        if (recipeCount > 1) {
+          addIssue(
+            issues,
+            `${entity.prototypeId}:recipe-choice`,
+            entity.prototypeName,
+            `Choose one of ${recipeCount} recipes in the game before its flows can be projected.`,
+          )
+        }
         continue
       }
 
@@ -292,25 +348,26 @@ export const createLiveAreaModules = (
 
       if (prototypeOrder !== 0) return prototypeOrder
 
-      const leftPriority = runtimeRecipePriorities[`${left.prototypeId}:${left.recipe.id}`]
-        ?? Number.MAX_SAFE_INTEGER
-      const rightPriority = runtimeRecipePriorities[`${right.prototypeId}:${right.recipe.id}`]
-        ?? Number.MAX_SAFE_INTEGER
+      const leftPriority =
+        runtimeRecipePriorities[getGameRecipeKey(left.prototypeId, left.recipe.id)] ??
+        Number.MAX_SAFE_INTEGER
+      const rightPriority =
+        runtimeRecipePriorities[getGameRecipeKey(right.prototypeId, right.recipe.id)] ??
+        Number.MAX_SAFE_INTEGER
 
-      return leftPriority - rightPriority
-        || right.running - left.running
-        || right.built - left.built
-        || left.recipe.name.localeCompare(right.recipe.name)
+      return (
+        leftPriority - rightPriority ||
+        right.running - left.running ||
+        right.built - left.built ||
+        left.recipe.name.localeCompare(right.recipe.name)
+      )
     })
     const groupCountByPrototypeRecipe = new Map<string, number>()
 
     for (const group of orderedGroups) {
-      const key = `${group.prototypeId}:${group.recipe.id}`
+      const key = getGameRecipeKey(group.prototypeId, group.recipe.id)
 
-      groupCountByPrototypeRecipe.set(
-        key,
-        (groupCountByPrototypeRecipe.get(key) ?? 0) + 1,
-      )
+      groupCountByPrototypeRecipe.set(key, (groupCountByPrototypeRecipe.get(key) ?? 0) + 1)
     }
 
     const liveRecipes: Recipe[] = []
@@ -321,8 +378,30 @@ export const createLiveAreaModules = (
     const currentActiveBuildings: Record<string, number> = {}
     const dataSources: NonNullable<Module['presets'][number]['dataSources']> = {}
     const presetCapacityPools: NonNullable<Module['presets'][number]['capacityPools']> = {}
+    const fixedRecipeIds: string[] = []
     let terrainSorterSourceCount = 0
     let forestrySourceCount = 0
+
+    for (const group of fixedGroups.values()) {
+      const recipeId = `${moduleIdForZone(zone.id)}:${group.prototypeId}:${group.recipe.id}`
+
+      liveRecipes.push({
+        ...group.recipe,
+        id: recipeId,
+        gameBuildingId: group.prototypeId,
+        gameRecipeId: group.recipe.id,
+        name: group.recipe.name,
+        building: group.recipe.building,
+      })
+      builtBuildings[recipeId] = group.built
+      activeBuildings[recipeId] = group.running + group.planned
+      currentActiveBuildings[recipeId] = group.running
+      constructionGhosts[recipeId] = group.planned
+      dataSources[recipeId] = 'synced'
+      if (group.prototypeId.startsWith('ResearchLab')) {
+        fixedRecipeIds.push(recipeId)
+      }
+    }
 
     for (const [prototypeId, pool] of capacityPools) {
       presetCapacityPools[prototypeId] = {
@@ -342,15 +421,13 @@ export const createLiveAreaModules = (
     }
 
     for (const [priority, group] of orderedGroups.entries()) {
-      const materialOutputs = group.recipe.outputs.filter(product => (
-        !environmentalEmissionProductIds.has(product.productId)
-      ))
-      const inputs = group.recipe.inputs.map(product => (
-        toIngredient(product, group.recipe.durationSeconds)
-      ))
-      const outputs = materialOutputs.map(product => (
-        toIngredient(product, group.recipe.durationSeconds)
-      ))
+      const materialOutputs = group.recipe.outputs.filter(product => !isNonMaterialOutput(product))
+      const inputs = group.recipe.inputs.map(product =>
+        toIngredient(product, group.recipe.durationSeconds),
+      )
+      const outputs = materialOutputs.map(product =>
+        toIngredient(product, group.recipe.durationSeconds),
+      )
       const missingProducts = [
         ...group.recipe.inputs.filter((_, index) => !inputs[index]),
         ...materialOutputs.filter((_, index) => !outputs[index]),
@@ -370,22 +447,22 @@ export const createLiveAreaModules = (
       }
 
       const baseRecipeId = `${moduleIdForZone(zone.id)}:${group.prototypeId}:${group.recipe.id}`
-      const recipeId = (groupCountByPrototypeRecipe.get(
-        `${group.prototypeId}:${group.recipe.id}`,
-      ) ?? 0) > 1
-        ? `${baseRecipeId}:${group.capacityPoolId ?? 'dedicated'}`
-        : baseRecipeId
-      const runtimeBehavior = runtimeRecipeBehaviors[
-        `${group.prototypeId}:${group.recipe.id}`
-      ]
+      const recipeId =
+        (groupCountByPrototypeRecipe.get(`${group.prototypeId}:${group.recipe.id}`) ?? 0) > 1
+          ? `${baseRecipeId}:${group.capacityPoolId ?? 'dedicated'}`
+          : baseRecipeId
+      const runtimeBehavior =
+        runtimeRecipeBehaviors[getGameRecipeKey(group.prototypeId, group.recipe.id)]
       const normalizedInputs = inputs.filter((input): input is Ingredient => Boolean(input))
       const normalizedOutputs = outputs.filter((output): output is Ingredient => Boolean(output))
-      const isModuleSeaWaterPump = normalizedInputs.length === 0
-        && normalizedOutputs.length > 0
-        && normalizedOutputs.every(output => output.resourceId === 'seaWater')
+      const isModuleSeaWaterPump =
+        normalizedInputs.length === 0 &&
+        normalizedOutputs.length > 0 &&
+        normalizedOutputs.every(output => output.resourceId === 'seaWater')
 
       liveRecipes.push({
         id: recipeId,
+        gameBuildingId: group.prototypeId,
         gameRecipeId: group.recipe.id,
         name: group.recipe.name,
         building: group.prototypeName,
@@ -403,6 +480,9 @@ export const createLiveAreaModules = (
             }
           : undefined,
       })
+      if (group.prototypeId.startsWith('ResearchLab')) {
+        fixedRecipeIds.push(recipeId)
+      }
       if (crusherPrototypeIds.has(group.prototypeId)) {
         terrainCrusherRecipeIds.add(recipeId)
       }
@@ -438,22 +518,21 @@ export const createLiveAreaModules = (
       const recipeId = `${moduleIdForZone(zone.id)}:forestry:${entity.entityId}`
       const built = Number(entity.constructed)
       const running = Number(
-        entity.constructed
-        && entity.running
-        && forestry.cuttingEnabled
-        && outputs.length > 0,
+        entity.constructed && entity.running && forestry.cuttingEnabled && outputs.length > 0,
       )
       const planned = Number(isPlannedEntity(entity))
 
       liveRecipes.push({
         id: recipeId,
+        gameBuildingId: entity.prototypeId,
         name: 'Sustainable forestry',
         displayName: getForestryDisplayName(entity),
         building: entity.prototypeName,
         group: 'source',
-        inputs: forestry.harvestsPerCycle > 0
-          ? [{ resourceId: 'treeSapling', quantity: forestry.harvestsPerCycle }]
-          : [],
+        inputs:
+          forestry.harvestsPerCycle > 0
+            ? [{ resourceId: 'treeSapling', quantity: forestry.harvestsPerCycle }]
+            : [],
         outputs,
         cycleDurationSeconds: 60,
         sourceMode: 'demand-capped',
@@ -500,23 +579,24 @@ export const createLiveAreaModules = (
       }
 
       for (const { priority, product, resourceId } of sourceProducts) {
-        const outputYield = product.canBeWasted
-          ? 1 - configuration.conversionLossPercent / 100
-          : 1
+        const outputYield = product.canBeWasted ? 1 - configuration.conversionLossPercent / 100 : 1
         const recipeId = `${moduleIdForZone(zone.id)}:terrain-sorter:${sorter.entityId}:${resourceId}`
 
         liveRecipes.push({
           id: recipeId,
+          gameBuildingId: sorter.prototypeId,
           name: `${resources[resourceId].name} sorting`,
           building: sorter.prototypeName,
           group: 'production',
           balanceBy: 'output',
           balanceOutputIds: [resourceId],
           inputs: [],
-          outputs: [{
-            resourceId,
-            quantity: configuration.throughputPerCycle * outputYield,
-          }],
+          outputs: [
+            {
+              resourceId,
+              quantity: configuration.throughputPerCycle * outputYield,
+            },
+          ],
           cycleDurationSeconds: 60,
           sourceKind: 'terrain-mine',
           sharedCapacity: {
@@ -540,36 +620,62 @@ export const createLiveAreaModules = (
       const linkedOnlyInputIds = getLinkedOnlyLiveModuleInputIds(
         recipe.inputs.map(input => input.resourceId),
       )
-      const terrainInputIds = !mineTowers && terrainCrusherRecipeIds.has(recipe.id)
-        ? recipe.inputs
-            .map(input => input.resourceId)
-            .filter(resourceId => terrainMineResourceIds.has(resourceId))
-        : []
+      const terrainInputIds =
+        !mineTowers && terrainCrusherRecipeIds.has(recipe.id)
+          ? recipe.inputs
+              .map(input => input.resourceId)
+              .filter(resourceId => terrainMineResourceIds.has(resourceId))
+          : []
       const surplusConsumption = getSurplusConsumptionSettings(
         recipe.inputs.map(input => input.resourceId),
         recipe.gameRecipeId,
+        { isDefaultArea },
       )
-      const surplusConsumptionFields = surplusConsumption
-        && recipe.consumeSurplusInputIds == null
-        ? {
-            consumeSurplusInputIds: surplusConsumption.inputIds,
-            consumeSurplusInputScope: surplusConsumption.scope,
-            surplusConsumptionPriority: surplusConsumption.priority,
-          }
-        : {}
-      const moduleScopedInputIds = [...new Set([
-        ...linkedOnlyInputIds,
-        ...terrainInputIds,
-      ])]
-      const moduleScopedInputFields = moduleScopedInputIds.length > 0
-        ? {
-            balanceInputIds: [...new Set([
-              ...(recipe.balanceInputIds ?? []),
-              ...moduleScopedInputIds,
-            ])],
-            balanceInputScope: 'module' as const,
-          }
-        : {}
+      const appliesSurplusDisposition = surplusConsumption && recipe.consumeSurplusInputIds == null
+      const surplusConsumptionFields =
+        surplusConsumption && appliesSurplusDisposition && !surplusConsumption.surplusOnly
+          ? {
+              consumeSurplusInputIds: surplusConsumption.inputIds,
+              consumeSurplusInputScope: surplusConsumption.scope,
+              surplusConsumptionPriority: surplusConsumption.priority,
+            }
+          : {}
+      const moduleScopedSurplusInputIds =
+        surplusConsumption && appliesSurplusDisposition && surplusConsumption.scope === 'module'
+          ? surplusConsumption.inputIds
+          : []
+      const moduleScopedInputIds = [
+        ...new Set([...linkedOnlyInputIds, ...terrainInputIds, ...moduleScopedSurplusInputIds]),
+      ]
+      const moduleScopedInputFields =
+        moduleScopedInputIds.length > 0
+          ? {
+              balanceInputIds: [
+                ...new Set([...(recipe.balanceInputIds ?? []), ...moduleScopedInputIds]),
+              ],
+              balanceInputScope: 'module' as const,
+            }
+          : {}
+
+      if (surplusConsumption?.surplusOnly && appliesSurplusDisposition) {
+        return {
+          ...recipe,
+          ...moduleScopedInputFields,
+          allocation: recipe.allocation ?? 'fallback',
+          allocationPriority: recipe.allocationPriority ?? surplusConsumption.priority,
+          balanceBy: 'input' as const,
+          balanceOutputIds: undefined,
+          inputPriorities: {
+            ...recipe.inputPriorities,
+            ...Object.fromEntries(
+              surplusConsumption.inputIds.map(resourceId => [
+                resourceId,
+                surplusConsumption.priority,
+              ]),
+            ),
+          },
+        }
+      }
 
       if (recipe.balanceBy) {
         return {
@@ -601,48 +707,52 @@ export const createLiveAreaModules = (
 
       return recipe
     })
-    const terrainSourceResourceIds = [...new Set(
-      balancedLiveRecipes
-        .filter(recipe => terrainCrusherRecipeIds.has(recipe.id))
-        .flatMap(recipe => recipe.inputs)
-        .map(input => input.resourceId)
-        .filter(resourceId => terrainMineResourceIds.has(resourceId)),
-    )]
-    const hasOreSortingPlant = zoneEntities.some(entity => (
-      oreSortingPlantPrototypeIds.has(entity.prototypeId)
-    ))
-    const hasOperatingOreSortingPlant = zoneEntities.some(entity => (
-      oreSortingPlantPrototypeIds.has(entity.prototypeId)
-      && entity.constructed
-      && entity.running
-    ))
-    const implicitSourceRecipes: Recipe[] = !mineTowers && hasOperatingOreSortingPlant
-      ? terrainSourceResourceIds.map(resourceId => {
-          const recipeId = `${moduleIdForZone(zone.id)}:terrain-source:${resourceId}`
+    const terrainSourceResourceIds = [
+      ...new Set(
+        balancedLiveRecipes
+          .filter(recipe => terrainCrusherRecipeIds.has(recipe.id))
+          .flatMap(recipe => recipe.inputs)
+          .map(input => input.resourceId)
+          .filter(resourceId => terrainMineResourceIds.has(resourceId)),
+      ),
+    ]
+    const hasOreSortingPlant = zoneEntities.some(entity =>
+      oreSortingPlantPrototypeIds.has(entity.prototypeId),
+    )
+    const hasOperatingOreSortingPlant = zoneEntities.some(
+      entity =>
+        oreSortingPlantPrototypeIds.has(entity.prototypeId) && entity.constructed && entity.running,
+    )
+    const implicitSourceRecipes: Recipe[] =
+      !mineTowers && hasOperatingOreSortingPlant
+        ? terrainSourceResourceIds.map(resourceId => {
+            const recipeId = `${moduleIdForZone(zone.id)}:terrain-source:${resourceId}`
 
-          builtBuildings[recipeId] = 1
-          activeBuildings[recipeId] = 1
-          currentActiveBuildings[recipeId] = 1
-          dataSources[recipeId] = 'synced'
+            builtBuildings[recipeId] = 1
+            activeBuildings[recipeId] = 1
+            currentActiveBuildings[recipeId] = 1
+            dataSources[recipeId] = 'synced'
 
-          return {
-            id: recipeId,
-            name: `${resources[resourceId].name} terrain extraction`,
-            building: 'Terrain extraction',
-            group: 'source',
-            inputs: [],
-            outputs: [{ resourceId, quantity: 0 }],
-            sourceMode: 'module-demand',
-            sourceKind: 'terrain-mine',
-            hiddenFromModuleView: true,
-          }
-        })
-      : []
+            return {
+              id: recipeId,
+              name: `${resources[resourceId].name} terrain extraction`,
+              building: 'Terrain extraction',
+              group: 'source',
+              inputs: [],
+              outputs: [{ resourceId, quantity: 0 }],
+              sourceMode: 'module-demand',
+              sourceKind: 'terrain-mine',
+              hiddenFromModuleView: true,
+            }
+          })
+        : []
     const requestedImports = plan?.requestedImports
     const requestedExports = plan?.requestedExports
-    const usesFactoryPool = plan?.resourcePool === 'factory'
-      || forestrySourceCount > 0
-      || (mineTowers
+    const usesFactoryPool =
+      isDefaultArea ||
+      plan?.resourcePool === 'factory' ||
+      forestrySourceCount > 0 ||
+      (mineTowers
         ? terrainSorterSourceCount > 0
         : hasOreSortingPlant && terrainSourceResourceIds.length > 0)
 
@@ -651,32 +761,37 @@ export const createLiveAreaModules = (
       name: zone.name,
       description: '',
       gameSynced: true,
+      capabilities: inferModuleCapabilities(zoneEntities, { isDefault: isDefaultArea }),
       includedInFactoryTotals: usesFactoryPool,
       builtBuildings,
       recipes: [...balancedLiveRecipes, ...implicitSourceRecipes],
-      presets: [{
-        id: 'live',
-        name: 'Live area',
-        description: 'Synced completed buildings plus synced construction ghosts.',
-        activeBuildings,
-        currentActiveBuildings,
-        builtBuildings,
-        constructionGhosts,
-        capacityPools: presetCapacityPools,
-        dataSources,
-        fixed: [],
-        outputTargets: usesFactoryPool ? requestedExports : undefined,
-        requestedImports,
-        requestedExports,
-      }],
+      presets: [
+        {
+          id: 'live',
+          name: 'Live area',
+          description: 'Synced completed buildings plus synced construction ghosts.',
+          activeBuildings,
+          currentActiveBuildings,
+          builtBuildings,
+          constructionGhosts,
+          capacityPools: presetCapacityPools,
+          dataSources,
+          fixed: fixedRecipeIds,
+          outputTargets: usesFactoryPool ? requestedExports : undefined,
+          requestedImports,
+          requestedExports,
+        },
+      ],
       defaultPresetId: 'live',
       liveArea: {
         zoneId: zone.id,
-        trackedBuildings: zoneEntities.length,
-        constructedBuildings: zoneEntities.filter(entity => entity.constructed).length,
-        activeBuildings: zoneEntities.filter(entity => entity.constructed && entity.running).length,
-        pausedBuildings: zoneEntities.filter(entity => entity.constructed && !entity.running).length,
-        constructionGhosts: zoneEntities.filter(isPlannedEntity).length,
+        trackedBuildings: modeledZoneEntities.length,
+        constructedBuildings: modeledZoneEntities.filter(entity => entity.constructed).length,
+        activeBuildings: modeledZoneEntities.filter(entity => entity.constructed && entity.running)
+          .length,
+        pausedBuildings: modeledZoneEntities.filter(entity => entity.constructed && !entity.running)
+          .length,
+        constructionGhosts: modeledZoneEntities.filter(isPlannedEntity).length,
         issues: [...issues.values()],
       },
     }

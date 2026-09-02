@@ -2,7 +2,6 @@ import { expect, it } from "vitest";
 import { type ProductionLine, calculateNet } from "../../helpers/calculate/calculate";
 import { syncedNuclearTestModule as nuclear } from "../../test-fixtures/synced-nuclear-module";
 import { type Recipe, recipes } from "../recipes";
-import { defaultArea as general } from "./default";
 
 const recipeById = (id: string): Recipe => {
   const recipe = recipes.find((candidate) => candidate.id === id);
@@ -30,22 +29,11 @@ const fixedLine = (recipe: Recipe, moduleId: string): ProductionLine => ({
   operatingMode: "fixed",
 });
 
-it("prioritizes the Default pond before balanced synced Nuclear salt production", () => {
-  const generalPreset = general.presets.find(
-    (candidate) => candidate.id === general.defaultPresetId,
-  );
+it("keeps Nuclear salt and Chlorine capacity in its synced module", () => {
   const nuclearPreset = nuclear.presets.find(
     (candidate) => candidate.id === nuclear.defaultPresetId,
   );
 
-  expect(general.builtBuildings["electrolyzer-ii-chlorine"]).toBeUndefined();
-  expect(generalPreset?.builtBuildings?.["electrolyzer-ii-chlorine"]).toBeUndefined();
-  expect(generalPreset?.builtBuildings).toMatchObject({
-    "general-evaporation-pond-heated-brine-surplus": 1,
-  });
-  expect(generalPreset?.fixed).toContain(
-    "general-evaporation-pond-heated-brine-surplus",
-  );
   expect(nuclearPreset?.builtBuildings).toMatchObject({
     "electrolyzer-ii-chlorine": 2,
     "evaporation-pond-heated-salt-brine": 2,

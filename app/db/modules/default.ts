@@ -1,563 +1,345 @@
-import { type GroundwaterSourceConstraint } from "../../helpers/groundwater/calculate-groundwater-production";
-import { type SharedMachineClaimResolution } from "../../helpers/machine-allocation/machine-allocation";
-import { createGroundwaterPumpRecipe } from "../recipes";
+import { type GroundwaterSourceConstraint } from '../../helpers/groundwater/calculate-groundwater-production'
+import { type SharedMachineClaimResolution } from '../../helpers/machine-allocation/machine-allocation'
+import { baseConfig, type ResearchMode } from '../config'
 import {
-  defaultRocketIiRecurringLogistics,
-  type RocketIiRecurringLogistics,
-} from "../space-station";
-import { type Module } from "./modules";
+  createGroundwaterPumpRecipe,
+  matchesGameRecipe,
+  recipes,
+  type Recipe,
+} from '../recipes'
+import { type Module, type PlanMismatchAction } from './modules'
 
 /** Stable internal ID retained so existing deep links and saved UI state keep working. */
-export const DEFAULT_MODULE_ID = "general";
-export const DEFAULT_GROUNDWATER_RECIPE_ID = "groundwater-pump-factory-reserve";
+export const DEFAULT_MODULE_ID = 'general'
+export const DEFAULT_GROUNDWATER_RECIPE_ID = 'groundwater-pump-factory-reserve'
 
-export const defaultResearchProductionConfig = {
-  activeResearchLabIvCount: 2,
-  mode: "space",
-} as const;
+const cookingOilDieselRecipeId = 'chemical-plant-ii-cooking-oil-diesel'
+const cookingOilDieselGameBuildingId = 'ChemicalPlant2'
+const cookingOilDieselGameRecipeId = 'EthanolCookingOilReforming'
+const cookingOilDieselTarget = 1
+const railPartsGameBuildingId = 'AssemblyRoboticT2'
+const railPartsGameRecipeId = 'RailPartsAssembly'
 
-export const defaultResearchRecipeId = defaultResearchProductionConfig.mode === "space"
-  ? "research-lab-iv-space"
-  : "research-lab-iv";
+// Last 1,000 years: 7,618 produced and 7,366 consumed. Their rough midpoint is
+// 0.62 Rail Parts per production cycle, or about 0.01 Assembly V load.
+const modeledRailPartsDemandPerCycle = 0.62
 
-export const modeledDefaultResearchBuildings = {
-  [defaultResearchRecipeId]: defaultResearchProductionConfig.activeResearchLabIvCount,
-  "assembly-v-lab-equipment-i": 1,
-  "assembly-v-lab-equipment-ii": 2,
-  "assembly-v-lab-equipment-iii": 2,
-  "assembly-v-lab-equipment-iv": 3,
-} as const;
+export const plannedResearchLabTarget = 2
+
+export const spaceResearchPointsPerLab = 48
+
+const cookingOilDieselRecipe = recipes.find(recipe => recipe.id === cookingOilDieselRecipeId)
+
+if (!cookingOilDieselRecipe) {
+  throw new Error(`Missing Default plan recipe: ${cookingOilDieselRecipeId}`)
+}
 
 export const plannedNewDefaultBuildings = {
-  "chemical-plant-ii-cooking-oil-diesel": 1,
-} as const;
+  [cookingOilDieselRecipeId]: cookingOilDieselTarget,
+} as const
 
-const plannedDefaultBuildingTargets = {} as const;
+export const plannedDefaultBuildings = plannedNewDefaultBuildings
+export const plannedDefaultBuiltBuildings = {
+  [cookingOilDieselRecipeId]: 0,
+} as const
+export const unplacedPlannedDefaultBuildings = plannedNewDefaultBuildings
 
-export const unplacedPlannedDefaultBuildings = {} as const;
+const getDefaultPlanRecipe = (module: Module) => (
+  module.recipes?.find(recipe => matchesGameRecipe(
+    recipe,
+    cookingOilDieselGameBuildingId,
+    cookingOilDieselGameRecipeId,
+  ))
+  ?? cookingOilDieselRecipe
+)
 
-const constructionGhostDefaultBuildings = {
-  "chemical-plant-ii-cooking-oil-diesel": 1,
-} as const;
+const getPreset = (module: Module) => (
+  module.presets.find(preset => preset.id === module.defaultPresetId)
+  ?? module.presets[0]
+)
 
-const modeledDefaultCapacityPools = {
-  "assembly-v-construction-parts": {
-    active: 1,
-    built: 1,
-    currentActive: 1,
-    constructionGhosts: 0,
-  },
-} as const;
+const createPlanActions = ({
+  buildingName,
+  built,
+  running,
+  target,
+}: {
+  buildingName: string
+  built: number
+  running: number
+  target: number
+}): PlanMismatchAction[] => {
+  const unpause = Math.min(Math.max(0, built - running), Math.max(0, target - running))
+  const build = Math.max(0, target - running - unpause)
 
-const plannedDefaultCapacityPools = {} as const;
+  return [
+    ...(unpause > 0
+      ? [{ type: 'unpause' as const, label: `Unpause ${unpause} ${buildingName}` }]
+      : []),
+    ...(build > 0
+      ? [{ type: 'build' as const, label: `Build ${build} ${buildingName}` }]
+      : []),
+  ]
+}
 
-const currentActiveDefaultBuildings = {
-  "crusher-large-copper": 1,
-  "crusher-large-quartz": 1,
-  "crusher-large-quartz-crushed": 2,
-} as const;
+const applyCookingOilDieselPlan = (module: Module): Module => {
+  const sourcePreset = getPreset(module)
 
-const modeledProcessSteamDefaultBuildings = {
-  "chemical-plant-ii-paper": 2,
-  "sour-water-stripper": 1,
-  "incineration-plant-waste": 1,
-  "distillation-stage-iii-titanium-purification": 1,
-  "cooling-tower-large-depleted": 1,
-} as const;
+  if (!sourcePreset) return module
 
-/** Current Default-area values manually confirmed from the game but not snapshot-synced yet. */
-export const modeledDefaultRecipeIds = [
-  "assembly-v-composite-core",
-  "assembly-v-composite-panel",
-  "assembly-v-crew-supplies",
-  "assembly-v-construction-parts-i",
-  "assembly-v-construction-parts-ii",
-  "assembly-v-construction-parts-iii",
-  "assembly-v-construction-parts-iv",
-  "assembly-v-electronics-i",
-  "assembly-v-electronics-ii",
-  "assembly-v-electronics-iii",
-  "assembly-v-electronics-iv",
-  "assembly-v-lab-equipment-i",
-  "assembly-v-lab-equipment-ii",
-  "assembly-v-lab-equipment-iii",
-  "assembly-v-lab-equipment-iv",
-  "anaerobic-digester-corn",
-  "anaerobic-digester-fruit",
-  "anaerobic-digester-meat-trimmings",
-  "anaerobic-digester-poppy",
-  "anaerobic-digester-potato",
-  "anaerobic-digester-soybean",
-  "anaerobic-digester-sugar-cane",
-  "anaerobic-digester-vegetables",
-  "anaerobic-digester-wheat",
-  "arc-furnace-ii-silicon",
-  "baking-unit-bread",
-  "chemical-plant-ii-chemical-fuel",
-  "chemical-plant-ii-paper",
-  "chemical-plant-ii-diamond-paste-cooking-oil",
-  "chemical-plant-ii-ethanol",
-  "chemical-plant-ii-graphite",
-  "cracking-unit-fuel-gas-diesel",
-  "crystallizer-alumina",
-  "crystallizer-silicon-wafer",
-  "cooling-tower-large-depleted",
-  "crusher-large-copper",
-  "crusher-large-gold-crushing",
-  "crusher-large-gold-milling",
-  "crusher-large-quartz",
-  "crusher-large-quartz-crushed",
-  "crusher-large-titanium",
-  "diamond-reactor-synthesis",
-  "distillation-stage-iii-titanium-purification",
-  "exhaust-scrubber-limestone",
-  "fermentation-tank-antibiotics",
-  "gold-furnace-concentrate",
-  "gold-furnace-scrap",
-  "incineration-plant-waste",
-  "lens-polisher",
-  "microchip-machine-ii-1a",
-  "microchip-machine-ii-1b",
-  "microchip-machine-ii-1c",
-  "microchip-machine-ii-2a",
-  "microchip-machine-ii-2b",
-  "microchip-machine-ii-2c",
-  "microchip-machine-ii-3a",
-  "microchip-machine-ii-3b",
-  "microchip-machine-ii-3c",
-  "microchip-machine-ii-4a",
-  "microchip-machine-ii-4b",
-  "microchip-machine-ii-final",
-  "mixer-ii-acid",
-  "polymerization-plant-plastic-ethanol",
-  "settling-tank-gold",
-  "silicon-reactor-poly-silicon",
-  "sour-water-stripper",
-  defaultResearchRecipeId,
-] as const;
-
-export const plannedDefaultBuildings = {
-  ...plannedNewDefaultBuildings,
-  ...plannedDefaultBuildingTargets,
-} as const;
-
-export const plannedDefaultBuiltBuildings = Object.fromEntries(
-  Object.keys(plannedNewDefaultBuildings).map((recipeId) => [recipeId, 0]),
-);
-
-const defaultBase: Module = {
-  id: DEFAULT_MODULE_ID,
-  name: "Default",
-  description: "Production in the game's immutable Default area: metals, electronics, research, supporting materials, Biomass recovery, and steam recovery",
-  gameSynced: true,
-  builtBuildings: {
-    "seawater-pump": 1,
-    "thermal-desalinator-low": 3,
-    "cooling-tower-large-low": 1,
-    "general-evaporation-pond-heated-brine-surplus": 1,
-    "chemical-plant-ii-bauxite-digestion": 3,
-    "settling-tank-red-mud-acid": 5,
-    "rotary-kiln-alumina-fuel-gas": 4,
-    "aluminum-cell-electrolysis": 3,
-    "metal-caster-ii-aluminum": 3,
-    "assembly-v-solar-cell-mono": 1,
-    "crystallizer-alumina": 1,
-    "chemical-plant-ii-chemical-fuel": 1,
-    "assembly-v-electronics-iv": 1,
-    "assembly-v-composite-core": 1,
-    "assembly-v-crew-supplies": 1,
-    "assembly-v-composite-panel": 2,
-    "assembly-v-construction-parts-i": 1,
-    "assembly-v-construction-parts-ii": 1,
-    "assembly-v-construction-parts-iii": 1,
-    "assembly-v-construction-parts-iv": 1,
-    "lens-polisher": 2,
-    "diamond-reactor-synthesis": 1,
-    "chemical-plant-ii-diamond-paste-cooking-oil": 1,
-    "crusher-large-titanium": 1,
-    "arc-furnace-ii-titanium-ore": 1,
-    "chemical-plant-ii-titanium-chlorination": 1,
-    "chemical-plant-ii-titanium-reduction": 1,
-    "arc-furnace-ii-titanium-sponge": 1,
-    "alloy-mixer-titanium": 1,
-    "cooled-caster-ii-titanium-alloy": 1,
-    "crusher-large": 1,
-    "settling-tank": 2,
-    "mixer-ii-acid": 3,
-    "assembly-v-electronics-i": 3,
-    "assembly-v-electronics-ii": 4,
-    "assembly-v-pcb": 2,
-    "assembly-v-food-pack-eggs": 2,
-    "assembly-v-food-pack-meat": 2,
-    "arc-furnace-ii-silicon": 2,
-    "silicon-reactor-poly-silicon": 6,
-    "crystallizer-silicon-wafer": 2,
-    "microchip-machine-ii-1a": 3,
-    "microchip-machine-ii-1b": 3,
-    "microchip-machine-ii-1c": 3,
-    "microchip-machine-ii-2a": 3,
-    "microchip-machine-ii-2b": 3,
-    "microchip-machine-ii-2c": 3,
-    "microchip-machine-ii-3a": 3,
-    "microchip-machine-ii-3b": 3,
-    "microchip-machine-ii-3c": 3,
-    "microchip-machine-ii-4a": 3,
-    "microchip-machine-ii-4b": 3,
-    "microchip-machine-ii-final": 3,
-    "assembly-v-electronics-iii": 5,
-    "rubber-maker-ethanol": 2,
-    "chemical-plant-ii-ethanol": 4,
-    "chemical-plant-ii-graphite": 2,
-    "chemical-plant-ii-graphite-coal": 3,
-    "waste-sorting-recyclables": 2,
-    "exhaust-scrubber-limestone": 2,
-    "glass-maker-ii": 4,
-    "arc-furnace-ii-glass-broken": 2,
-    "arc-furnace-ii-glass-mix": 2,
-    "mixer-ii-glass-mix-acid": 1,
-    "crusher-large-copper": 1,
-    "crusher-large-quartz": 1,
-    "crusher-large-quartz-crushed": 2,
-    "gold-furnace-scrap": 1,
-    "gold-furnace-concentrate": 1,
-    "settling-tank-gold": 2,
-    "crusher-large-gold-crushing": 1,
-    "crusher-large-gold-milling": 1,
-    "assembly-v-medical-supplies-i": 1,
-    "assembly-v-medical-supplies-ii": 1,
-    "assembly-v-medical-supplies-iii": 1,
-    "fermentation-tank-antibiotics": 2,
-    "chemical-plant-ii-anesthetics": 1,
-    "settling-tank-hydrogen-fluoride": 1,
-    "chemical-plant-ii-morphine": 1,
-    "assembly-v-medical-equipment": 1,
-    "chemical-plant-ii-disinfectant": 1,
-    "mixer-ii-filter-media-manufactured-sand": 1,
-    "crusher-large-rock-to-gravel": 1,
-    "crusher-large-gravel-to-manufactured-sand": 1,
-    "coal-maker-wood": 3,
-    "mill-wheat": 4,
-    "mill-canola-cooking-oil": 1,
-    "baking-unit-bread": 3,
-    "baking-unit-cake": 2,
-    "food-processor-snack": 1,
-    "food-processor-sugar": 2,
-    "food-processor-sausage": 1,
-    "food-processor-tofu": 1,
-    "food-processor-meat": 2,
-    "food-processor-meat-trimmings": 1,
-    "mixer-ii-animal-feed-corn": 1,
-    "shredder-tree-saplings": 1,
-    "mixer-ii-biomass-compost": 1,
-    "air-separator-nitrogen": 1,
-    "chemical-plant-ii-ammonia": 1,
-    "anaerobic-digester-meat-trimmings": 3,
-    "anaerobic-digester-sugar-cane": 3,
-    "anaerobic-digester-potato": 3,
-    "anaerobic-digester-wheat": 3,
-    "anaerobic-digester-corn": 3,
-    "anaerobic-digester-fruit": 3,
-    "anaerobic-digester-soybean": 3,
-    "anaerobic-digester-vegetables": 3,
-    "anaerobic-digester-poppy": 3,
-    "cracking-unit-fuel-gas-diesel": 2,
-    "mixer-ii-organic-fertilizer-dirt": 1,
-    "chemical-plant-ii-fertilizer-i-organic": 1,
-    "mixer-ii-fertilizer-ii": 2,
-    "mixer-ii-dirt-from-compost": 1,
-    "polymerization-plant-plastic-ethanol": 3,
-    "assembly-v-household-goods": 1,
-    "assembly-v-mechanical-parts": 2,
-    "assembly-v-vehicle-parts-i": 1,
-    "assembly-v-vehicle-parts-ii": 1,
-    "cooled-caster-steel": 1,
-    "oxygen-furnace-steel": 1,
-    "crusher-large-iron": 1,
-    "wastewater-treatment-toxic-slurry": 1,
-    ...modeledDefaultResearchBuildings,
-    ...modeledProcessSteamDefaultBuildings,
-    ...plannedDefaultBuiltBuildings,
-  },
-  presets: [
-    {
-      id: "yellowcake",
-      name: "Yellowcake",
-      description: "Yellowcake production balanced against factory demand",
-      builtBuildings: {
-        "seawater-pump": 1,
-        "thermal-desalinator-low": 3,
-        "cooling-tower-large-low": 1,
-        "general-evaporation-pond-heated-brine-surplus": 1,
-        "chemical-plant-ii-bauxite-digestion": 3,
-        "settling-tank-red-mud-acid": 5,
-        "rotary-kiln-alumina-fuel-gas": 4,
-        "aluminum-cell-electrolysis": 3,
-        "metal-caster-ii-aluminum": 3,
-        "assembly-v-solar-cell-mono": 1,
-        "crystallizer-alumina": 1,
-        "chemical-plant-ii-chemical-fuel": 1,
-        "assembly-v-electronics-iv": 1,
-        "assembly-v-composite-core": 1,
-        "assembly-v-crew-supplies": 1,
-        "assembly-v-composite-panel": 2,
-        "assembly-v-construction-parts-i": 1,
-        "assembly-v-construction-parts-ii": 1,
-        "assembly-v-construction-parts-iii": 1,
-        "assembly-v-construction-parts-iv": 1,
-        "lens-polisher": 2,
-        "diamond-reactor-synthesis": 1,
-        "chemical-plant-ii-diamond-paste-cooking-oil": 1,
-        "crusher-large-titanium": 1,
-        "arc-furnace-ii-titanium-ore": 1,
-        "chemical-plant-ii-titanium-chlorination": 1,
-        "chemical-plant-ii-titanium-reduction": 1,
-        "arc-furnace-ii-titanium-sponge": 1,
-        "alloy-mixer-titanium": 1,
-        "cooled-caster-ii-titanium-alloy": 1,
-        "crusher-large": 1,
-        "settling-tank": 2,
-        "mixer-ii-acid": 3,
-        "assembly-v-electronics-i": 3,
-        "assembly-v-electronics-ii": 4,
-        "assembly-v-pcb": 2,
-        "assembly-v-food-pack-eggs": 2,
-        "assembly-v-food-pack-meat": 2,
-        "arc-furnace-ii-silicon": 2,
-        "silicon-reactor-poly-silicon": 6,
-        "crystallizer-silicon-wafer": 2,
-        "microchip-machine-ii-1a": 3,
-        "microchip-machine-ii-1b": 3,
-        "microchip-machine-ii-1c": 3,
-        "microchip-machine-ii-2a": 3,
-        "microchip-machine-ii-2b": 3,
-        "microchip-machine-ii-2c": 3,
-        "microchip-machine-ii-3a": 3,
-        "microchip-machine-ii-3b": 3,
-        "microchip-machine-ii-3c": 3,
-        "microchip-machine-ii-4a": 3,
-        "microchip-machine-ii-4b": 3,
-        "microchip-machine-ii-final": 3,
-        "assembly-v-electronics-iii": 5,
-        "rubber-maker-ethanol": 2,
-        "chemical-plant-ii-ethanol": 4,
-        "chemical-plant-ii-graphite": 2,
-        "chemical-plant-ii-graphite-coal": 3,
-        "waste-sorting-recyclables": 2,
-        "exhaust-scrubber-limestone": 2,
-        "glass-maker-ii": 4,
-        "arc-furnace-ii-glass-broken": 2,
-        "arc-furnace-ii-glass-mix": 2,
-        "mixer-ii-glass-mix-acid": 1,
-        "crusher-large-copper": 1,
-        "crusher-large-quartz": 1,
-        "crusher-large-quartz-crushed": 2,
-        "gold-furnace-scrap": 1,
-        "gold-furnace-concentrate": 1,
-        "settling-tank-gold": 2,
-        "crusher-large-gold-crushing": 1,
-        "crusher-large-gold-milling": 1,
-        "assembly-v-medical-supplies-i": 1,
-        "assembly-v-medical-supplies-ii": 1,
-        "assembly-v-medical-supplies-iii": 1,
-        "fermentation-tank-antibiotics": 2,
-        "chemical-plant-ii-anesthetics": 1,
-        "settling-tank-hydrogen-fluoride": 1,
-        "chemical-plant-ii-morphine": 1,
-        "assembly-v-medical-equipment": 1,
-        "chemical-plant-ii-disinfectant": 1,
-        "mixer-ii-filter-media-manufactured-sand": 1,
-        "crusher-large-rock-to-gravel": 1,
-        "crusher-large-gravel-to-manufactured-sand": 1,
-        "coal-maker-wood": 3,
-        "mill-wheat": 4,
-        "mill-canola-cooking-oil": 1,
-        "baking-unit-bread": 3,
-        "baking-unit-cake": 2,
-        "food-processor-snack": 1,
-        "food-processor-sugar": 2,
-        "food-processor-sausage": 1,
-        "food-processor-tofu": 1,
-        "food-processor-meat": 2,
-        "food-processor-meat-trimmings": 1,
-        "mixer-ii-animal-feed-corn": 1,
-        "shredder-tree-saplings": 1,
-        "mixer-ii-biomass-compost": 1,
-        "air-separator-nitrogen": 1,
-        "chemical-plant-ii-ammonia": 1,
-        "anaerobic-digester-meat-trimmings": 3,
-        "anaerobic-digester-sugar-cane": 3,
-        "anaerobic-digester-potato": 3,
-        "anaerobic-digester-wheat": 3,
-        "anaerobic-digester-corn": 3,
-        "anaerobic-digester-fruit": 3,
-        "anaerobic-digester-soybean": 3,
-        "anaerobic-digester-vegetables": 3,
-        "anaerobic-digester-poppy": 3,
-        "cracking-unit-fuel-gas-diesel": 2,
-        "mixer-ii-organic-fertilizer-dirt": 1,
-        "chemical-plant-ii-fertilizer-i-organic": 1,
-        "mixer-ii-fertilizer-ii": 2,
-        "mixer-ii-dirt-from-compost": 1,
-        "polymerization-plant-plastic-ethanol": 3,
-        "assembly-v-household-goods": 1,
-        "assembly-v-mechanical-parts": 2,
-        "assembly-v-vehicle-parts-i": 1,
-        "assembly-v-vehicle-parts-ii": 1,
-        "cooled-caster-steel": 1,
-        "oxygen-furnace-steel": 1,
-        "crusher-large-iron": 1,
-        "wastewater-treatment-toxic-slurry": 1,
-        ...modeledDefaultResearchBuildings,
-        ...modeledProcessSteamDefaultBuildings,
-        ...plannedDefaultBuiltBuildings,
-      },
-      activeBuildings: {
-        "chemical-plant-ii-bauxite-digestion": 3,
-        "settling-tank-red-mud-acid": 5,
-        "rotary-kiln-alumina-fuel-gas": 3,
-        "aluminum-cell-electrolysis": 3,
-        "metal-caster-ii-aluminum": 3,
-        "assembly-v-solar-cell-mono": 1,
-        "crystallizer-alumina": 1,
-        "chemical-plant-ii-chemical-fuel": 1,
-        "assembly-v-electronics-iv": 1,
-        "assembly-v-composite-core": 1,
-        "assembly-v-crew-supplies": 1,
-        "assembly-v-construction-parts-i": 1,
-        "assembly-v-construction-parts-ii": 1,
-        "assembly-v-construction-parts-iii": 1,
-        "assembly-v-construction-parts-iv": 1,
-        "chemical-plant-ii-ethanol": 4,
-        "chemical-plant-ii-graphite": 1,
-        "diamond-reactor-synthesis": 1,
-        "chemical-plant-ii-diamond-paste-cooking-oil": 1,
-        "crusher-large-titanium": 1,
-        "arc-furnace-ii-titanium-ore": 1,
-        "chemical-plant-ii-titanium-chlorination": 1,
-        "chemical-plant-ii-titanium-reduction": 1,
-        "arc-furnace-ii-titanium-sponge": 1,
-        "alloy-mixer-titanium": 1,
-        "cooled-caster-ii-titanium-alloy": 1,
-        "assembly-v-medical-supplies-ii": 1,
-        "assembly-v-medical-supplies-iii": 1,
-        "fermentation-tank-antibiotics": 1,
-        "exhaust-scrubber-limestone": 1,
-        "arc-furnace-ii-silicon": 2,
-        "silicon-reactor-poly-silicon": 6,
-        "chemical-plant-ii-anesthetics": 1,
-        "settling-tank-hydrogen-fluoride": 1,
-        "chemical-plant-ii-morphine": 1,
-        "air-separator-nitrogen": 0,
-        "chemical-plant-ii-ammonia": 0,
-        "coal-maker-wood": 0,
-        "gold-furnace-scrap": 1,
-        "gold-furnace-concentrate": 0,
-        "settling-tank-gold": 0,
-        "crusher-large-gold-crushing": 0,
-        "crusher-large-gold-milling": 0,
-        "settling-tank": 2,
-        "glass-maker-ii": 4,
-        "mill-wheat": 4,
-        "anaerobic-digester-meat-trimmings": 3,
-        "anaerobic-digester-sugar-cane": 3,
-        "anaerobic-digester-potato": 3,
-        "anaerobic-digester-wheat": 3,
-        "anaerobic-digester-corn": 3,
-        "anaerobic-digester-fruit": 3,
-        "anaerobic-digester-soybean": 3,
-        "anaerobic-digester-vegetables": 3,
-        "anaerobic-digester-poppy": 3,
-        "cracking-unit-fuel-gas-diesel": 2,
-        "crusher-large-quartz": 1,
-        "crusher-large-quartz-crushed": 2,
-        ...modeledDefaultResearchBuildings,
-        ...plannedDefaultBuildings,
-      },
-      dataSources: {
-        ...Object.fromEntries(modeledDefaultRecipeIds.map((recipeId) => [recipeId, "modeled"])),
-        ...Object.fromEntries(
-          Object.keys(plannedDefaultBuildings).map((recipeId) => [recipeId, "planned"]),
-        ),
-      },
-      currentActiveBuildings: currentActiveDefaultBuildings,
-      constructionGhosts: constructionGhostDefaultBuildings,
-      unplacedPlannedBuildings: unplacedPlannedDefaultBuildings,
-      capacityPools: {
-        ...modeledDefaultCapacityPools,
-        ...plannedDefaultCapacityPools,
-      },
-      fixed: [
-        "general-evaporation-pond-heated-brine-surplus",
-        "cracking-unit-fuel-gas-diesel",
-        defaultResearchRecipeId,
-      ],
-      outputTargets: {
-        compositePanel:
-          defaultRocketIiRecurringLogistics.compositePanelPerCycle + 4,
-        titaniumAlloy:
-          defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,
-      },
-    },
-  ],
-  defaultPresetId: "yellowcake",
-};
-
-const defaultFactoryReservePumpTarget = 1;
-const aluminumCasterCapacityPerCycle = 24;
-// Four Aluminum supports the two planned Composite Cores, while another 0.5
-// supports the planned Chemical Fuel. Rocket II adds the remaining panel load.
-const nonRocketAluminumDemandPerCycle = 4.5;
-
-export const createDefaultModule = (
-  groundwaterPumpResolution?: SharedMachineClaimResolution,
-  groundwaterConstraint?: GroundwaterSourceConstraint,
-  rocketIiRecurringLogistics: RocketIiRecurringLogistics = defaultRocketIiRecurringLogistics,
-): Module => {
-  const source = groundwaterPumpResolution ? "synced" as const : "modeled" as const;
-  const built = groundwaterPumpResolution?.built ?? defaultFactoryReservePumpTarget;
-  const running = groundwaterPumpResolution?.running ?? defaultFactoryReservePumpTarget;
-  const requiredAluminumCasters = Math.ceil((
-    rocketIiRecurringLogistics.compositePanelPerCycle
-    + nonRocketAluminumDemandPerCycle
-  ) / aluminumCasterCapacityPerCycle);
+  const planRecipe = getDefaultPlanRecipe(module)
+  const recipeId = planRecipe.id
+  const built = sourcePreset.builtBuildings?.[recipeId]
+    ?? module.builtBuildings[recipeId]
+    ?? 0
+  const running = sourcePreset.currentActiveBuildings?.[recipeId]
+    ?? sourcePreset.activeBuildings[recipeId]
+    ?? 0
+  const constructionGhosts = sourcePreset.constructionGhosts?.[recipeId] ?? 0
+  const projected = Math.max(
+    sourcePreset.activeBuildings[recipeId] ?? 0,
+    running + constructionGhosts,
+  )
+  const planSatisfied = projected >= cookingOilDieselTarget
+  const unplaced = planSatisfied
+    ? 0
+    : Math.max(0, cookingOilDieselTarget - built - constructionGhosts)
+  const plannedActive = planSatisfied
+    ? projected
+    : Math.max(projected, cookingOilDieselTarget)
+  const planMismatch = planSatisfied
+    ? []
+    : [{
+        recipeId,
+        current: running,
+        currentSource: 'synced' as const,
+        target: cookingOilDieselTarget,
+        direction: 'at-least' as const,
+        format: 'count' as const,
+        actions: createPlanActions({
+          buildingName: 'Chemical Plant II',
+          built: built + constructionGhosts,
+          running: projected,
+          target: cookingOilDieselTarget,
+        }),
+      }]
+  const planRecipeIsRuntime = module.recipes?.some(recipe => recipe.id === recipeId) ?? false
+  const recipesWithPlan = planRecipeIsRuntime
+    ? module.recipes
+    : [...(module.recipes ?? []), planRecipe]
 
   return {
-    ...defaultBase,
-    description: `${defaultBase.description}, plus the Default-area factory water reserve`,
-    recipes: groundwaterConstraint
-      ? [createGroundwaterPumpRecipe(DEFAULT_GROUNDWATER_RECIPE_ID, groundwaterConstraint)]
-      : defaultBase.recipes,
+    ...module,
+    recipes: recipesWithPlan,
     builtBuildings: {
-      ...defaultBase.builtBuildings,
-      [DEFAULT_GROUNDWATER_RECIPE_ID]: built,
+      ...module.builtBuildings,
+      [recipeId]: built,
     },
-    presets: defaultBase.presets.map(preset => ({
+    presets: module.presets.map(preset => ({
       ...preset,
-      outputTargets: {
-        ...preset.outputTargets,
-        compositePanel: rocketIiRecurringLogistics.compositePanelPerCycle + 4,
-        titaniumAlloy: rocketIiRecurringLogistics.titaniumAlloyPerCycle + 2,
-      },
       builtBuildings: {
         ...preset.builtBuildings,
-        [DEFAULT_GROUNDWATER_RECIPE_ID]: built,
+        [recipeId]: built,
       },
       activeBuildings: {
         ...preset.activeBuildings,
-        "metal-caster-ii-aluminum": Math.min(
-          preset.builtBuildings?.["metal-caster-ii-aluminum"]
-            ?? defaultBase.builtBuildings["metal-caster-ii-aluminum"]
-            ?? 0,
-          requiredAluminumCasters,
-        ),
-        [DEFAULT_GROUNDWATER_RECIPE_ID]: running,
+        [recipeId]: plannedActive,
       },
       dataSources: {
         ...preset.dataSources,
-        [DEFAULT_GROUNDWATER_RECIPE_ID]: source,
+        [recipeId]: planSatisfied ? 'synced' : 'planned',
+      },
+      unplacedPlannedBuildings: {
+        ...Object.fromEntries(
+          Object.entries(preset.unplacedPlannedBuildings ?? {})
+            .filter(([plannedRecipeId]) => plannedRecipeId !== recipeId),
+        ),
+        ...(unplaced > 0 ? { [recipeId]: unplaced } : {}),
+      },
+      planMismatches: [
+        ...(preset.planMismatches ?? []).filter(mismatch => mismatch.recipeId !== recipeId),
+        ...planMismatch,
+      ],
+    })),
+  }
+}
+
+const isResearchLabRecipe = (recipe: Recipe) => (
+  recipe.gameBuildingId?.startsWith('ResearchLab') ?? false
+)
+
+const applyResearchLabPlan = (
+  module: Module,
+  researchMode: ResearchMode,
+): Module => {
+  const sourcePreset = getPreset(module)
+  const recipe = module.recipes?.find(isResearchLabRecipe)
+
+  if (!sourcePreset || !recipe) return module
+
+  const recipeId = recipe.id
+  const built = sourcePreset.builtBuildings?.[recipeId]
+    ?? module.builtBuildings[recipeId]
+    ?? 0
+  const running = sourcePreset.currentActiveBuildings?.[recipeId]
+    ?? sourcePreset.activeBuildings[recipeId]
+    ?? 0
+  const constructionGhosts = sourcePreset.constructionGhosts?.[recipeId] ?? 0
+  const projected = Math.max(
+    sourcePreset.activeBuildings[recipeId] ?? 0,
+    running + constructionGhosts,
+  )
+  const planSatisfied = projected >= plannedResearchLabTarget
+  const unplaced = planSatisfied
+    ? 0
+    : Math.max(0, plannedResearchLabTarget - built - constructionGhosts)
+  const plannedActive = planSatisfied
+    ? projected
+    : Math.max(projected, plannedResearchLabTarget)
+  const planMismatch = planSatisfied
+    ? []
+    : [{
+        recipeId,
+        current: running,
+        currentSource: 'synced' as const,
+        target: plannedResearchLabTarget,
+        direction: 'at-least' as const,
+        format: 'count' as const,
+        actions: createPlanActions({
+          buildingName: 'Research Lab IV',
+          built: built + constructionGhosts,
+          running: projected,
+          target: plannedResearchLabTarget,
+        }),
+      }]
+  const plannedRecipe: Recipe = {
+    ...recipe,
+    inputs: [
+      ...recipe.inputs.filter(input => input.resourceId !== 'spaceResearchPoints'),
+      ...(researchMode === 'with-space'
+        ? [{ resourceId: 'spaceResearchPoints' as const, quantity: spaceResearchPointsPerLab }]
+        : []),
+    ],
+  }
+
+  return {
+    ...module,
+    recipes: module.recipes?.map(candidate => (
+      candidate.id === recipeId ? plannedRecipe : candidate
+    )),
+    presets: module.presets.map(preset => ({
+      ...preset,
+      builtBuildings: {
+        ...preset.builtBuildings,
+        [recipeId]: built,
+      },
+      activeBuildings: {
+        ...preset.activeBuildings,
+        [recipeId]: plannedActive,
+      },
+      dataSources: {
+        ...preset.dataSources,
+        [recipeId]: planSatisfied ? 'synced' : 'planned',
+      },
+      fixed: [...new Set([...preset.fixed, recipeId])],
+      unplacedPlannedBuildings: {
+        ...Object.fromEntries(
+          Object.entries(preset.unplacedPlannedBuildings ?? {})
+            .filter(([plannedRecipeId]) => plannedRecipeId !== recipeId),
+        ),
+        ...(unplaced > 0 ? { [recipeId]: unplaced } : {}),
+      },
+      planMismatches: [
+        ...(preset.planMismatches ?? []).filter(mismatch => mismatch.recipeId !== recipeId),
+        ...planMismatch,
+      ],
+    })),
+  }
+}
+
+const applyObservedRailPartsLoad = (module: Module): Module => {
+  const hasRailPartsRecipe = module.recipes?.some(recipe => matchesGameRecipe(
+    recipe,
+    railPartsGameBuildingId,
+    railPartsGameRecipeId,
+  )) ?? false
+
+  if (!hasRailPartsRecipe) return module
+
+  return {
+    ...module,
+    presets: module.presets.map(preset => ({
+      ...preset,
+      fixedDemands: {
+        railParts: modeledRailPartsDemandPerCycle,
+        ...preset.fixedDemands,
       },
     })),
-  };
-};
+  }
+}
 
-export const defaultArea = createDefaultModule();
+/** Applies calculator-owned Default plans over the current synced inventory. */
+export const applyDefaultAreaPlan = (
+  module: Module,
+  researchMode: ResearchMode = baseConfig.researchMode,
+) => applyResearchLabPlan(
+  applyCookingOilDieselPlan(applyObservedRailPartsLoad(module)),
+  researchMode,
+)
+
+const emptyDefaultModule = (): Module => ({
+  id: DEFAULT_MODULE_ID,
+  name: 'Default',
+  description: '',
+  capabilities: ['default'],
+  gameSynced: true,
+  includedInFactoryTotals: true,
+  builtBuildings: {},
+  recipes: [],
+  presets: [{
+    id: 'current',
+    name: 'Default',
+    description: '',
+    activeBuildings: {},
+    currentActiveBuildings: {},
+    builtBuildings: {},
+    dataSources: {},
+    fixed: [],
+  }],
+  defaultPresetId: 'current',
+})
+
+/** Empty compatibility shell used until the exporter provides Default entities. */
+export const createDefaultModule = (
+  groundwaterPumpResolution?: SharedMachineClaimResolution,
+  groundwaterConstraint?: GroundwaterSourceConstraint,
+  researchMode: ResearchMode = baseConfig.researchMode,
+): Module => {
+  const base = emptyDefaultModule()
+  const built = groundwaterPumpResolution?.built ?? 0
+  const running = groundwaterPumpResolution?.running ?? 0
+  const groundwaterRecipe = groundwaterPumpResolution && groundwaterConstraint
+    ? createGroundwaterPumpRecipe(DEFAULT_GROUNDWATER_RECIPE_ID, groundwaterConstraint)
+    : null
+  const withGroundwater: Module = groundwaterRecipe
+    ? {
+        ...base,
+        builtBuildings: { [groundwaterRecipe.id]: built },
+        recipes: [groundwaterRecipe],
+        presets: base.presets.map(preset => ({
+          ...preset,
+          activeBuildings: { [groundwaterRecipe.id]: running },
+          currentActiveBuildings: { [groundwaterRecipe.id]: running },
+          builtBuildings: { [groundwaterRecipe.id]: built },
+          dataSources: { [groundwaterRecipe.id]: 'synced' },
+        })),
+      }
+    : base
+
+  return applyDefaultAreaPlan(
+    withGroundwater,
+    researchMode,
+  )
+}
+
+export const defaultArea = createDefaultModule()

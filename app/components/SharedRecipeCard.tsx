@@ -83,6 +83,7 @@ export const SharedRecipeCard: React.FC<Props> = ({
           planned={unplacedPlannedBuildings}
           attention={diagnostic?.attention}
           attentionCount={diagnostic?.attentionCount}
+          level={diagnostic?.level}
         />
       </div>
 

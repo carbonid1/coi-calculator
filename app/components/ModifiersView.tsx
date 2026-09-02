@@ -123,7 +123,7 @@ export const SpaceStationPlanOverview = ({
   logistics: RocketIiRecurringLogistics;
 }) => (
   <div className="sm:col-span-2 lg:col-span-3">
-    <p className="text-sm text-muted-foreground">Space Station plan</p>
+    <p className="text-sm text-muted-foreground">Space Station</p>
     <p className="font-mono font-semibold text-foreground">
       {formatSpaceStationOverview(station, logistics)}
     </p>

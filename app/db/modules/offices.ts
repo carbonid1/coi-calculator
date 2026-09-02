@@ -8,6 +8,7 @@ import {
   getOfficeRecipeId,
   officeCatalog,
   type OfficeBoostStep,
+  type OfficeConfigurationCount,
   type OfficePlan,
   type OfficeTierId,
 } from '../offices'
@@ -15,6 +16,7 @@ import { recipes } from '../recipes'
 import { type Module, type Preset } from './modules'
 
 export const FOCUS_DASHBOARD_ID = 'focus'
+const defaultAreaZoneId = -1
 
 const officePrototypeIdByTier: Record<OfficeTierId, string> = {
   officeI: 'OfficeBuildingT1',
@@ -39,12 +41,22 @@ export const getOfficeAreaZoneIds = (
   entities: readonly SyncedAreaEntity[],
 ) => new Set(entities.flatMap(entity => (
   isOfficeBuildingPrototype(entity.prototypeId)
-    ? entity.zones.map(zone => zone.id)
+    ? (() => {
+        const namedZoneIds = entity.zones
+          .filter(zone => Boolean(zone.name))
+          .map(zone => zone.id)
+
+        return namedZoneIds.length > 0 ? namedZoneIds : [defaultAreaZoneId]
+      })()
     : []
 )))
 
 const getOfficeOwnerZoneId = (entity: SyncedAreaEntity) => (
-  entity.zones.map(zone => zone.id).toSorted((left, right) => left - right)[0]
+  entity.zones
+    .filter(zone => Boolean(zone.name))
+    .map(zone => zone.id)
+    .toSorted((left, right) => left - right)[0]
+  ?? defaultAreaZoneId
 )
 
 const withoutOfficeNoRecipeIssues = (module: Module) => (
@@ -100,6 +112,22 @@ export const applySyncedOfficeInventory = (
     },
   }
 }
+
+export const getSyncedOfficeConfigurations = (
+  entities: readonly SyncedAreaEntity[],
+  inventory: 'built' | 'running' = 'running',
+): OfficeConfigurationCount[] => officeTierIds.flatMap(tierId => (
+  officeBoostSteps.flatMap(computingBoostStep => {
+    const count = entities.filter(entity => (
+      entity.prototypeId === officePrototypeIdByTier[tierId]
+      && entity.constructed
+      && (inventory === 'built' || entity.running)
+      && entity.office?.computingBoostStep === computingBoostStep
+    )).length
+
+    return count > 0 ? [{ tierId, computingBoostStep, count }] : []
+  })
+))
 
 /** Planned fallback used when no generated area can own the Office inventory. */
 export const createPlannedOfficeModule = (
@@ -171,12 +199,10 @@ export const createOfficeAreaModule = (
   if (zoneId === undefined) return generatedArea
 
   const relatedZoneEntities = entities.filter(entity => (
-    entity.zones.some(zone => zone.id === zoneId)
+    getOfficeOwnerZoneId(entity) === zoneId
     && isOfficeBuildingPrototype(entity.prototypeId)
   ))
-  const zoneEntities = relatedZoneEntities.filter(entity => (
-    getOfficeOwnerZoneId(entity) === zoneId
-  ))
+  const zoneEntities = relatedZoneEntities
 
   if (zoneEntities.length === 0) {
     return {
@@ -192,31 +218,46 @@ export const createOfficeAreaModule = (
   const officeConstructionGhosts: Record<string, number> = {}
   const officeDataSources: NonNullable<Preset['dataSources']> = {}
   const officeRecipeIds: string[] = []
+  const fallbackOfficeSource = planSource === 'default' ? 'synced' : planSource
 
   for (const tierId of officeTierIds) {
     const prototypeId = officePrototypeIdByTier[tierId]
     const matchingEntities = zoneEntities.filter(entity => entity.prototypeId === prototypeId)
-    const built = matchingEntities.filter(entity => entity.constructed).length
-    const running = matchingEntities.filter(entity => entity.constructed && entity.running).length
-    const constructionGhosts = matchingEntities.filter(entity => !entity.constructed).length
+    const entitiesByBoostStep = new Map<OfficeBoostStep, SyncedAreaEntity[]>()
 
-    if (built + constructionGhosts === 0) continue
+    for (const entity of matchingEntities) {
+      const computingBoostStep = entity.office?.computingBoostStep
+        ?? plan.offices[tierId].computingBoostStep
+      const groupedEntities = entitiesByBoostStep.get(computingBoostStep) ?? []
 
-    const recipeId = getOfficeRecipeId(
-      tierId,
-      plan.offices[tierId].computingBoostStep,
-    )
-    const recipe = recipes.find(candidate => candidate.id === recipeId)
+      groupedEntities.push(entity)
+      entitiesByBoostStep.set(computingBoostStep, groupedEntities)
+    }
 
-    if (!recipe) throw new Error(`Missing Office recipe: ${recipeId}`)
+    for (const [computingBoostStep, configuredEntities] of entitiesByBoostStep) {
+      const built = configuredEntities.filter(entity => entity.constructed).length
+      const running = configuredEntities.filter(entity => (
+        entity.constructed && entity.running
+      )).length
+      const constructionGhosts = configuredEntities.filter(entity => !entity.constructed).length
 
-    officeRecipeIds.push(recipeId)
-    officeRecipes.push(recipe)
-    builtBuildings[recipeId] = built
-    officeActiveBuildings[recipeId] = running + constructionGhosts
-    officeCurrentActiveBuildings[recipeId] = running
-    officeConstructionGhosts[recipeId] = constructionGhosts
-    officeDataSources[recipeId] = planSource === 'default' ? 'synced' : planSource
+      if (built + constructionGhosts === 0) continue
+
+      const recipeId = getOfficeRecipeId(tierId, computingBoostStep)
+      const recipe = recipes.find(candidate => candidate.id === recipeId)
+
+      if (!recipe) throw new Error(`Missing Office recipe: ${recipeId}`)
+
+      officeRecipeIds.push(recipeId)
+      officeRecipes.push(recipe)
+      builtBuildings[recipeId] = built
+      officeActiveBuildings[recipeId] = running + constructionGhosts
+      officeCurrentActiveBuildings[recipeId] = running
+      officeConstructionGhosts[recipeId] = constructionGhosts
+      officeDataSources[recipeId] = configuredEntities.every(entity => entity.office)
+        ? 'synced'
+        : fallbackOfficeSource
+    }
   }
 
   return {

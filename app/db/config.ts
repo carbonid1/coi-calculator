@@ -1,3 +1,9 @@
+export type ResearchMode = 'before-space' | 'with-space'
+
 export const baseConfig = {
   recyclingEfficiencyPercent: 20,
-} as const;
+  researchMode: 'with-space',
+} satisfies {
+  recyclingEfficiencyPercent: number
+  researchMode: ResearchMode
+};

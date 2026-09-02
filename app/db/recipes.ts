@@ -88,6 +88,8 @@ export interface DecayStorage {
 
 export interface Recipe {
   id: string
+  /** Exact stable prototype ID exported by the game for an in-game building. */
+  gameBuildingId?: string
   /** Exact stable ID exported by the game for an in-game selectable recipe. */
   gameRecipeId?: string
   /** Placement section for a synced train-station module card. */
@@ -144,6 +146,8 @@ export interface Recipe {
   sortsRecyclableSources?: boolean
   /** Demand sources cover deficits; module variants remain owned by one physical area. */
   sourceMode?: SourceMode
+  /** Primary sources satisfy demand before ordinary production; sources default to fallback. */
+  sourceAllocation?: 'primary'
   sourceKind?: SourceKind
   /** Synced aquifer state and its weather-limited steady-state pump ceiling. */
   groundwaterConstraint?: GroundwaterSourceConstraint
@@ -183,7 +187,21 @@ export interface Recipe {
   }
   /** False for modes or capabilities that do not represent a separate physical building. */
   tracksPhysicalCapacity?: boolean
+  /** The projected operation requires this physical building to be unpaused. */
+  requiresRunningCapacity?: boolean
+  /** A fixed operation is shared across every active building instead of repeated by each one. */
+  fixedTotalOperation?: boolean
 }
+
+export const getGameRecipeKey = (buildingId: string, recipeId: string) => (
+  `${buildingId}:${recipeId}`
+)
+
+export const matchesGameRecipe = (
+  recipe: Pick<Recipe, 'gameBuildingId' | 'gameRecipeId'>,
+  buildingId: string,
+  recipeId: string,
+) => recipe.gameBuildingId === buildingId && recipe.gameRecipeId === recipeId
 
 const radioactiveWasteStorageCapacity = 2400
 const fissionProductDecayCycles = 100 * 12
@@ -274,7 +292,7 @@ export const recipes: Recipe[] = [
     sourceKind: 'world-mine',
   },
   ...reserveResourceCatalog.map(
-    ({ name, recipeId, resourceId }): Recipe => ({
+    ({ name, recipeId, resourceId, sourceAllocation }): Recipe => ({
       id: recipeId,
       name: `${name} (Synced Reserve)`,
       building: 'Eligible Storage',
@@ -282,6 +300,7 @@ export const recipes: Recipe[] = [
       inputs: [],
       outputs: [{ resourceId, quantity: 0 }],
       sourceMode: 'demand',
+      sourceAllocation: sourceAllocation === 'primary' ? 'primary' : undefined,
       sourceKind: 'virtual-provision',
     }),
   ),
@@ -340,6 +359,7 @@ export const recipes: Recipe[] = [
   // Electricity
   {
     id: 'fbr',
+    gameBuildingId: 'FastBreederReactor',
     name: 'Fast Breeder Reactor',
     building: 'Fast Breeder Reactor',
     group: 'electricity',
@@ -356,6 +376,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'fbr-0x',
+    gameBuildingId: 'FastBreederReactor',
     name: 'FBR (0x Enrichment)',
     building: 'Fast Breeder Reactor',
     group: 'electricity',
@@ -370,6 +391,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'fbr-3x',
+    gameBuildingId: 'FastBreederReactor',
     name: 'FBR (3x Enrichment)',
     building: 'Fast Breeder Reactor',
     group: 'electricity',
@@ -694,6 +716,8 @@ export const recipes: Recipe[] = [
     // Diesel demand from starting this disposal route; Cooking Oil surplus is
     // its only driver, with Ethanol demand-propagated as supporting production.
     id: 'chemical-plant-ii-cooking-oil-diesel',
+    gameBuildingId: 'ChemicalPlant2',
+    gameRecipeId: 'EthanolCookingOilReforming',
     name: 'Chemical Plant II (Cooking Oil → Diesel)',
     building: 'Chemical Plant II',
     group: 'production',
@@ -873,7 +897,7 @@ export const recipes: Recipe[] = [
     group: 'production',
     cycleDurationSeconds: 20,
     balanceBy: 'output',
-    balanceOutputIds: ['nitrogen'],
+    balanceOutputIds: ['oxygen', 'nitrogen'],
     inputs: [],
     outputs: [
       { resourceId: 'oxygen', quantity: 36 },
@@ -1234,6 +1258,7 @@ export const recipes: Recipe[] = [
     building: 'Wastewater Treatment',
     group: 'waste',
     cycleDurationSeconds: 20,
+    allocation: 'surplus',
     balanceBy: 'input',
     balanceInputIds: ['toxicSlurry', 'brine'],
     inputPriorities: { brine: 1 },
@@ -1317,7 +1342,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 1,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'meatTrimmings', quantity: 8 }],
     outputs: [
@@ -1340,7 +1365,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 2,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'sugarCane', quantity: 12 }],
     outputs: [
@@ -1361,7 +1386,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 3,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'potato', quantity: 14 }],
     outputs: [
@@ -1382,7 +1407,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 4,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'wheat', quantity: 12 }],
     outputs: [
@@ -1403,7 +1428,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 5,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'corn', quantity: 14 }],
     outputs: [
@@ -1424,7 +1449,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 6,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'fruit', quantity: 12 }],
     outputs: [
@@ -1445,7 +1470,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 7,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'soybean', quantity: 14 }],
     outputs: [
@@ -1466,7 +1491,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 8,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'vegetables', quantity: 14 }],
     outputs: [
@@ -1487,7 +1512,7 @@ export const recipes: Recipe[] = [
       label: 'Anaerobic Digester — Surplus organics',
       priority: 9,
     },
-    allocation: 'fallback',
+    allocation: 'surplus',
     allocationPriority: 15,
     inputs: [{ resourceId: 'poppy', quantity: 14 }],
     outputs: [
@@ -2125,14 +2150,17 @@ export const recipes: Recipe[] = [
   // Lab Equipment chain on Assembly V, normalized to 60 seconds from v0.8.6c.
   {
     id: 'research-lab-iv',
+    gameBuildingId: 'ResearchLab4',
     name: 'Research Lab IV',
     building: 'Research Lab IV',
+    showConfigurationSummary: false,
     group: 'production',
     inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
     outputs: [{ resourceId: 'recyclables', quantity: 48 }],
   },
   {
     id: 'research-lab-iv-space',
+    gameBuildingId: 'ResearchLab4',
     name: 'Research Lab IV (Space Research)',
     building: 'Research Lab IV',
     group: 'production',
@@ -2316,6 +2344,7 @@ export const recipes: Recipe[] = [
     name: 'Rocket Assembly Depot (Rocket II)',
     building: 'Rocket Assembly Depot',
     group: 'production',
+    requiresRunningCapacity: true,
     cycleDurationSeconds: 360,
     balanceBy: 'output',
     balanceOutputIds: ['rocketII'],
@@ -2344,6 +2373,8 @@ export const recipes: Recipe[] = [
     name: 'Rocket Launch Pad (Rocket II average)',
     building: 'Rocket Launch Pad',
     group: 'production',
+    requiresRunningCapacity: true,
+    fixedTotalOperation: true,
     inputs: [
       {
         resourceId: 'rocketII',
@@ -3930,10 +3961,11 @@ export const recipes: Recipe[] = [
       { resourceId: 'water', quantity: 16 },
       { resourceId: 'steamSuper', quantity: 12 },
     ],
-    // Produce the factory's requested Hydrogen, then leave remaining reactor
-    // steam for desalination instead of manufacturing an unused H2 surplus.
+    // Nuclear electrolysis is the factory's shared source for both products.
+    // Run for whichever requested product needs more throughput; the paired
+    // output remains visible as a real co-product surplus.
     balanceBy: 'output',
-    balanceOutputIds: ['hydrogen'],
+    balanceOutputIds: ['hydrogen', 'oxygen'],
     outputs: [
       { resourceId: 'hydrogen', quantity: 32 },
       { resourceId: 'oxygen', quantity: 32 },

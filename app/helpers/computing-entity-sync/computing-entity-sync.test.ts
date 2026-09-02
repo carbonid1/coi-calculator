@@ -21,7 +21,7 @@ const entity = (
   ...options,
 });
 
-it("counts only Data Centers and Water Chillers in the exact Computing area", () => {
+it("counts only Data Centers and Water Chillers in the selected area ID", () => {
   const inventory = resolveComputingEntityInventory([
     entity(1, "DataCenter", { dataCenterRacks: 48 }),
     entity(2, "DataCenter", { dataCenterRacks: 32, running: false }),
@@ -32,7 +32,7 @@ it("counts only Data Centers and Water Chillers in the exact Computing area", ()
       zones: [{ id: 16, name: "Computing Backup" }],
     }),
     entity(6, "HydrogenReformer"),
-  ]);
+  ], 15);
 
   expect(inventory.built).toEqual({
     dataCenterCount: 2,

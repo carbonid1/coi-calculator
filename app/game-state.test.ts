@@ -192,22 +192,22 @@ const schema17Snapshot = {
 }
 const zonedMachines = machines.map((machine, index) => ({
   ...machine,
-  zones: index === 0
-    ? [{ id: 7, name: 'Greenhouses' }]
-    : [{ id: 9, name: 'Gold Mine' }],
+  zones: index === 0 ? [{ id: 7, name: 'Greenhouses' }] : [{ id: 9, name: 'Gold Mine' }],
 }))
 const schema18Snapshot = {
   ...schema17Snapshot,
   schemaVersion: 18,
   machines: zonedMachines,
 }
-const cropFarmEntities = [{
-  entityId: 601,
-  prototypeId: 'FarmT4',
-  running: true,
-  fertilityTargetPercent: 140,
-  schedule: ['Crop_Potato', 'Crop_Fruits', 'Crop_Potato', 'Crop_Wheat'],
-}]
+const cropFarmEntities = [
+  {
+    entityId: 601,
+    prototypeId: 'FarmT4',
+    running: true,
+    fertilityTargetPercent: 140,
+    schedule: ['Crop_Potato', 'Crop_Fruits', 'Crop_Potato', 'Crop_Wheat'],
+  },
+]
 const schema19Snapshot = {
   ...schema18Snapshot,
   schemaVersion: 19,
@@ -391,17 +391,19 @@ const areaEntities = [
     running: false,
     tile: { x: 500, y: 600 },
     zones: [{ id: 30, name: 'Test' }],
-    recipes: [{
-      id: 'AirSeparation',
-      name: 'Air Separation',
-      durationSeconds: 7.5,
-      assigned: true,
-      inputs: [],
-      outputs: [
-        { productId: 'Product_Oxygen', name: 'Oxygen', quantity: 2 },
-        { productId: 'Product_Nitrogen', name: 'Nitrogen', quantity: 4 },
-      ],
-    }],
+    recipes: [
+      {
+        id: 'AirSeparation',
+        name: 'Air Separation',
+        durationSeconds: 7.5,
+        assigned: true,
+        inputs: [],
+        outputs: [
+          { productId: 'Product_Oxygen', name: 'Oxygen', quantity: 2 },
+          { productId: 'Product_Nitrogen', name: 'Nitrogen', quantity: 4 },
+        ],
+      },
+    ],
   },
 ]
 const schema28Snapshot = {
@@ -518,11 +520,13 @@ const forestry = {
   targetHarvestPercent: 100,
   harvestsPerCycle: 7.384,
   harvestDurationMonths: 137.46,
-  outputs: [{
-    productId: 'Product_Wood',
-    name: 'Wood',
-    quantityPerCycle: 147.68,
-  }],
+  outputs: [
+    {
+      productId: 'Product_Wood',
+      name: 'Wood',
+      quantityPerCycle: 147.68,
+    },
+  ],
 }
 const schema34Snapshot = {
   ...schema33Snapshot,
@@ -547,64 +551,116 @@ const schema34Snapshot = {
   ],
 }
 const contractState = {
-  established: [{
-    gameId: 'Contract_Product_UraniumOre_For_Product_FoodPack',
-    exportedProduct: { productId: 'Product_FoodPack', name: 'Food Pack' },
-    exportedQuantity: 40,
-    importedProduct: { productId: 'Product_UraniumOre', name: 'Uranium Ore' },
-    importedQuantity: 60,
-    unityPerCycle: 0.3,
-    unityPer100Imported: 0.1,
-    unityToEstablish: 18,
-    minimumReputation: 1,
-  }],
-  routes: [{
-    depotEntityId: 2_000,
-    depotPrototypeId: 'CargoDepotT2',
-    depotPrototypeName: 'Cargo Depot (4)',
-    depotCustomTitle: 'Uranium contract',
-    running: true,
-    slotCount: 4,
-    contractGameId: 'Contract_Product_UraniumOre_For_Product_FoodPack',
-    zones: [{ id: 30, name: 'Test' }],
-    modules: [{
-      entityId: 2_001,
-      slot: 0,
-      prototypeId: 'CargoDepotModuleUnitT3',
-      prototypeName: 'Unit Module (L)',
-      running: true,
-      workers: 5,
-      selectedProduct: { productId: 'Product_FoodPack', name: 'Food Pack' },
-      direction: 'export',
-      onboardCapacity: 800,
-    }, {
-      entityId: 2_002,
-      slot: 1,
-      prototypeId: 'CargoDepotModuleLooseT3',
-      prototypeName: 'Loose Module (L)',
-      running: true,
-      workers: 5,
-      selectedProduct: { productId: 'Product_UraniumOre', name: 'Uranium Ore' },
-      direction: 'import',
-      onboardCapacity: 800,
-    }],
-    ship: {
-      entityId: 3_000,
-      prototypeId: 'CargoShipT2',
-      prototypeName: 'Cargo Ship (4)',
-      running: true,
-      workers: 22,
-      fuelProduct: { productId: 'Product_Hydrogen', name: 'Hydrogen' },
-      saveFuel: true,
-      journeyDurationSeconds: 427,
-      fuelPerTrip: 289,
+  established: [
+    {
+      gameId: 'Contract_Product_UraniumOre_For_Product_FoodPack',
+      exportedProduct: { productId: 'Product_FoodPack', name: 'Food Pack' },
+      exportedQuantity: 40,
+      importedProduct: { productId: 'Product_UraniumOre', name: 'Uranium Ore' },
+      importedQuantity: 60,
+      unityPerCycle: 0.3,
+      unityPer100Imported: 0.1,
+      unityToEstablish: 18,
+      minimumReputation: 1,
     },
-  }],
+  ],
+  routes: [
+    {
+      depotEntityId: 2_000,
+      depotPrototypeId: 'CargoDepotT2',
+      depotPrototypeName: 'Cargo Depot (4)',
+      depotCustomTitle: 'Uranium contract',
+      running: true,
+      slotCount: 4,
+      contractGameId: 'Contract_Product_UraniumOre_For_Product_FoodPack',
+      zones: [{ id: 30, name: 'Test' }],
+      modules: [
+        {
+          entityId: 2_001,
+          slot: 0,
+          prototypeId: 'CargoDepotModuleUnitT3',
+          prototypeName: 'Unit Module (L)',
+          running: true,
+          workers: 5,
+          selectedProduct: { productId: 'Product_FoodPack', name: 'Food Pack' },
+          direction: 'export',
+          onboardCapacity: 800,
+        },
+        {
+          entityId: 2_002,
+          slot: 1,
+          prototypeId: 'CargoDepotModuleLooseT3',
+          prototypeName: 'Loose Module (L)',
+          running: true,
+          workers: 5,
+          selectedProduct: { productId: 'Product_UraniumOre', name: 'Uranium Ore' },
+          direction: 'import',
+          onboardCapacity: 800,
+        },
+      ],
+      ship: {
+        entityId: 3_000,
+        prototypeId: 'CargoShipT2',
+        prototypeName: 'Cargo Ship (4)',
+        running: true,
+        workers: 22,
+        fuelProduct: { productId: 'Product_Hydrogen', name: 'Hydrogen' },
+        saveFuel: true,
+        journeyDurationSeconds: 427,
+        fuelPerTrip: 289,
+      },
+    },
+  ],
 }
 const schema35Snapshot = {
   ...schema34Snapshot,
   schemaVersion: 35,
   contracts: contractState,
+}
+const schema36Snapshot = {
+  ...schema35Snapshot,
+  schemaVersion: 36,
+}
+const office = { computingBoostStep: 2 as const }
+const schema37Snapshot = {
+  ...schema36Snapshot,
+  schemaVersion: 37,
+  areaEntities: [
+    ...schema36Snapshot.areaEntities.map(entity => ({ ...entity, office: null })),
+    {
+      entityId: 904,
+      prototypeId: 'OfficeBuildingT3',
+      prototypeName: 'Office III',
+      constructionState: 'Constructed',
+      constructed: true,
+      running: true,
+      tile: { x: 530, y: 630 },
+      zones: [{ id: 30, name: 'Test' }],
+      recipes: [],
+      oreSorter: null,
+      trainStation: null,
+      forestry: null,
+      office,
+    },
+  ],
+}
+const schema38Snapshot = {
+  ...schema37Snapshot,
+  schemaVersion: 38,
+  areaEntities: schema37Snapshot.areaEntities.map(entity => {
+    const assignedRecipes = entity.recipes.filter(recipe => recipe.assigned)
+    let recipes = assignedRecipes
+
+    if (assignedRecipes.length === 0) {
+      recipes = entity.recipes.length === 1 ? entity.recipes : []
+    }
+
+    return {
+      ...entity,
+      availableRecipeCount: entity.recipes.length,
+      recipes,
+    }
+  }),
 }
 
 describe('game-state snapshot validation', () => {
@@ -727,9 +783,11 @@ describe('game-state snapshot validation', () => {
 
     expect(normalizedSchema25?.schemaVersion).toBe(25)
     expect(normalizedSchema25?.logisticsZones).toContainEqual({ id: 25, name: 'Population' })
-    expect(normalizedSchema25?.productionEntities).toContainEqual(expect.objectContaining({
-      prototypeId: 'HousingT3',
-    }))
+    expect(normalizedSchema25?.productionEntities).toContainEqual(
+      expect.objectContaining({
+        prototypeId: 'HousingT3',
+      }),
+    )
     expect(normalizeGameStateSnapshot(schema26Snapshot)).toMatchObject({
       schemaVersion: 26,
       groundwater: {
@@ -774,9 +832,7 @@ describe('game-state snapshot validation', () => {
     })
     expect(normalizeGameStateSnapshot(schema31Snapshot)).toMatchObject({
       schemaVersion: 31,
-      areaEntities: expect.arrayContaining([
-        expect.objectContaining({ entityId: 902, oreSorter }),
-      ]),
+      areaEntities: expect.arrayContaining([expect.objectContaining({ entityId: 902, oreSorter })]),
       mineTowers: [{ entityId: 1001, assignedOreSorterEntityIds: [902] }],
     })
     expect(normalizeGameStateSnapshot(schema32Snapshot)).toMatchObject({
@@ -786,12 +842,16 @@ describe('game-state snapshot validation', () => {
     expect(normalizeGameStateSnapshot(schema33Snapshot)).toMatchObject({
       schemaVersion: 33,
       cropFarms: {
-        configurations: [expect.objectContaining({
-          fertilizerProductId: 'Product_Fertilizer2',
-        })],
-        entities: [expect.objectContaining({
-          fertilizerProductId: 'Product_Fertilizer2',
-        })],
+        configurations: [
+          expect.objectContaining({
+            fertilizerProductId: 'Product_Fertilizer2',
+          }),
+        ],
+        entities: [
+          expect.objectContaining({
+            fertilizerProductId: 'Product_Fertilizer2',
+          }),
+        ],
       },
     })
     expect(normalizeGameStateSnapshot(schema34Snapshot)).toMatchObject({
@@ -808,282 +868,440 @@ describe('game-state snapshot validation', () => {
       schemaVersion: 35,
       contracts: contractState,
     })
+    expect(normalizeGameStateSnapshot(schema36Snapshot)).toMatchObject({
+      schemaVersion: 36,
+      contracts: contractState,
+      areaEntities: schema35Snapshot.areaEntities,
+    })
+    expect(normalizeGameStateSnapshot(schema37Snapshot)).toMatchObject({
+      schemaVersion: 37,
+      areaEntities: expect.arrayContaining([
+        expect.objectContaining({ prototypeId: 'OfficeBuildingT3', office }),
+      ]),
+    })
+    expect(normalizeGameStateSnapshot(schema38Snapshot)).toMatchObject({
+      schemaVersion: 38,
+      areaEntities: expect.arrayContaining([
+        expect.objectContaining({
+          prototypeId: 'OfficeBuildingT3',
+          availableRecipeCount: 0,
+        }),
+      ]),
+    })
+  })
+
+  it('requires exact Office computing boost configuration in schema 37', () => {
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema37Snapshot,
+        areaEntities: schema37Snapshot.areaEntities.map(entity =>
+          entity.prototypeId === 'OfficeBuildingT3' ? { ...entity, office: null } : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema37Snapshot,
+        areaEntities: schema37Snapshot.areaEntities.map(entity =>
+          entity.prototypeId === 'OfficeBuildingT3'
+            ? { ...entity, office: { computingBoostStep: 3 } }
+            : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema37Snapshot,
+        areaEntities: schema37Snapshot.areaEntities.map(entity =>
+          entity.prototypeId === 'ForestryTower' ? { ...entity, office } : entity,
+        ),
+      }),
+    ).toBeNull()
+  })
+
+  it('requires compact recipe counts in schema 38 while accepting schema 37 snapshots', () => {
+    expect(normalizeGameStateSnapshot(schema37Snapshot)).not.toBeNull()
+    expect(normalizeGameStateSnapshot(schema38Snapshot)).not.toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema38Snapshot,
+        areaEntities: schema38Snapshot.areaEntities.map(entity => ({
+          ...entity,
+          availableRecipeCount: undefined,
+        })),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema38Snapshot,
+        areaEntities: schema38Snapshot.areaEntities.map(entity => ({
+          ...entity,
+          availableRecipeCount: -1,
+        })),
+      }),
+    ).toBeNull()
+
+    const compactAmbiguousSnapshot = {
+      ...schema38Snapshot,
+      areaEntities: schema38Snapshot.areaEntities.map(entity =>
+        entity.recipes.length > 0 ? { ...entity, recipes: [], availableRecipeCount: 4 } : entity,
+      ),
+    }
+
+    expect(normalizeGameStateSnapshot(compactAmbiguousSnapshot)).not.toBeNull()
   })
 
   it('requires unique contract route ownership in schema 35', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema35Snapshot,
-      contracts: {
-        ...contractState,
-        routes: [contractState.routes[0], contractState.routes[0]],
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema35Snapshot,
-      contracts: {
-        ...contractState,
-        routes: [{
-          ...contractState.routes[0],
-          modules: [contractState.routes[0].modules[0], {
-            ...contractState.routes[0].modules[1],
-            entityId: contractState.routes[0].modules[0].entityId,
-          }],
-        }],
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema35Snapshot,
-      contracts: {
-        ...contractState,
-        routes: [{
-          ...contractState.routes[0],
-          contractGameId: 'Contract_Missing',
-        }],
-      },
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema35Snapshot,
+        contracts: {
+          ...contractState,
+          routes: [contractState.routes[0], contractState.routes[0]],
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema35Snapshot,
+        contracts: {
+          ...contractState,
+          routes: [
+            {
+              ...contractState.routes[0],
+              modules: [
+                contractState.routes[0].modules[0],
+                {
+                  ...contractState.routes[0].modules[1],
+                  entityId: contractState.routes[0].modules[0].entityId,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema35Snapshot,
+        contracts: {
+          ...contractState,
+          routes: [
+            {
+              ...contractState.routes[0],
+              contractGameId: 'Contract_Missing',
+            },
+          ],
+        },
+      }),
+    ).toBeNull()
   })
 
   it('requires exact Forestry configuration in schema 34', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema34Snapshot,
-      areaEntities: schema34Snapshot.areaEntities.map(entity => (
-        entity.prototypeId === 'ForestryTower'
-          ? { ...entity, forestry: null }
-          : entity
-      )),
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema34Snapshot,
-      areaEntities: schema34Snapshot.areaEntities.map(entity => (
-        entity.prototypeId === 'ForestryTower'
-          ? {
-              ...entity,
-              forestry: {
-                ...forestry,
-                cuttingEnabled: false,
-              },
-            }
-          : entity
-      )),
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema34Snapshot,
-      areaEntities: schema34Snapshot.areaEntities.map(entity => (
-        entity.prototypeId === 'ForestryTower'
-          ? {
-              ...entity,
-              forestry: {
-                ...forestry,
-                harvestDurationMonths: null,
-              },
-            }
-          : entity
-      )),
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema34Snapshot,
+        areaEntities: schema34Snapshot.areaEntities.map(entity =>
+          entity.prototypeId === 'ForestryTower' ? { ...entity, forestry: null } : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema34Snapshot,
+        areaEntities: schema34Snapshot.areaEntities.map(entity =>
+          entity.prototypeId === 'ForestryTower'
+            ? {
+                ...entity,
+                forestry: {
+                  ...forestry,
+                  cuttingEnabled: false,
+                },
+              }
+            : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema34Snapshot,
+        areaEntities: schema34Snapshot.areaEntities.map(entity =>
+          entity.prototypeId === 'ForestryTower'
+            ? {
+                ...entity,
+                forestry: {
+                  ...forestry,
+                  harvestDurationMonths: null,
+                },
+              }
+            : entity,
+        ),
+      }),
+    ).toBeNull()
   })
 
   it('requires the supplied crop-farm fertilizer product in schema 33', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema33Snapshot,
-      cropFarms: schema32Snapshot.cropFarms,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema33Snapshot,
-      cropFarms: {
-        ...schema33Snapshot.cropFarms,
-        entities: schema33Snapshot.cropFarms.entities.map(entity => ({
-          ...entity,
-          fertilizerProductId: 'Product_Diesel',
-        })),
-      },
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema33Snapshot,
+        cropFarms: schema32Snapshot.cropFarms,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema33Snapshot,
+        cropFarms: {
+          ...schema33Snapshot.cropFarms,
+          entities: schema33Snapshot.cropFarms.entities.map(entity => ({
+            ...entity,
+            fertilizerProductId: 'Product_Diesel',
+          })),
+        },
+      }),
+    ).toBeNull()
   })
 
   it('requires valid sorter configuration and unique tower ownership in schema 31', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema31Snapshot,
-      mineTowers: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema31Snapshot,
-      areaEntities: schema31Snapshot.areaEntities.map(entity => (
-        entity.entityId === 902 ? { ...entity, oreSorter: null } : entity
-      )),
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema31Snapshot,
-      mineTowers: [
-        ...schema31Snapshot.mineTowers,
-        { entityId: 1002, assignedOreSorterEntityIds: [902] },
-      ],
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema31Snapshot,
+        mineTowers: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema31Snapshot,
+        areaEntities: schema31Snapshot.areaEntities.map(entity =>
+          entity.entityId === 902 ? { ...entity, oreSorter: null } : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema31Snapshot,
+        mineTowers: [
+          ...schema31Snapshot.mineTowers,
+          { entityId: 1002, assignedOreSorterEntityIds: [902] },
+        ],
+      }),
+    ).toBeNull()
   })
 
   it("requires Captain's office counts in schema 30", () => {
     const buildingsWithoutCaptainOfficeII = Object.fromEntries(
-      Object.entries(schema30Snapshot.buildings).filter(
-        ([id]) => id !== 'captainOfficeII',
-      ),
+      Object.entries(schema30Snapshot.buildings).filter(([id]) => id !== 'captainOfficeII'),
     )
 
-    expect(normalizeGameStateSnapshot({
-      ...schema30Snapshot,
-      buildings: buildingsWithoutCaptainOfficeII,
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema30Snapshot,
+        buildings: buildingsWithoutCaptainOfficeII,
+      }),
+    ).toBeNull()
   })
 
   it('requires valid construction ghosts and effective recipes in schema 28', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema28Snapshot,
-      areaEntities: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema28Snapshot,
-      areaEntities: [{ ...areaEntities[0], running: true }],
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema28Snapshot,
-      areaEntities: [{
-        ...areaEntities[0],
-        recipes: [{ ...areaEntities[0].recipes[0], durationSeconds: 0 }],
-      }],
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema28Snapshot,
+        areaEntities: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema28Snapshot,
+        areaEntities: [{ ...areaEntities[0], running: true }],
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema28Snapshot,
+        areaEntities: [
+          {
+            ...areaEntities[0],
+            recipes: [{ ...areaEntities[0].recipes[0], durationSeconds: 0 }],
+          },
+        ],
+      }),
+    ).toBeNull()
   })
 
   it('requires explicit station configuration fields in schema 29', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema29Snapshot,
-      productionEntities: schema29Snapshot.productionEntities.map((entity, index) => (
-        index === 0 ? { ...entity, trainStation: undefined } : entity
-      )),
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema29Snapshot,
-      productionEntities: schema29Snapshot.productionEntities.map((entity, index) => (
-        index === 0 ? { ...entity, trainStation } : entity
-      )),
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema29Snapshot,
-      productionEntities: schema29Snapshot.productionEntities.map(entity => (
-        entity.prototypeId === 'TrainStationLoose_ELEC'
-          ? { ...entity, trainStation: { ...trainStation, selectedProduct: { name: '' } } }
-          : entity
-      )),
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema29Snapshot,
+        productionEntities: schema29Snapshot.productionEntities.map((entity, index) =>
+          index === 0 ? { ...entity, trainStation: undefined } : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema29Snapshot,
+        productionEntities: schema29Snapshot.productionEntities.map((entity, index) =>
+          index === 0 ? { ...entity, trainStation } : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema29Snapshot,
+        productionEntities: schema29Snapshot.productionEntities.map(entity =>
+          entity.prototypeId === 'TrainStationLoose_ELEC'
+            ? { ...entity, trainStation: { ...trainStation, selectedProduct: { name: '' } } }
+            : entity,
+        ),
+      }),
+    ).toBeNull()
   })
 
   it('requires consistent aquifer state and depleted behavior in schema 26', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema26Snapshot,
-      groundwater: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema26Snapshot,
-      groundwater: {
-        ...schema26Snapshot.groundwater,
-        depletedPumpSpeedPercent: 101,
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema26Snapshot,
-      machines: schema26Snapshot.machines.map((machine, index) => (
-        index === 0
-          ? { ...machine, aquifer: { ...machine.aquifer, quantity: 1 } }
-          : machine
-      )),
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema26Snapshot,
-      machines: schema26Snapshot.machines.map(machine => ({
-        ...machine,
-        aquifer: { ...machine.aquifer, quantity: 20_001 },
-      })),
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema26Snapshot,
+        groundwater: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema26Snapshot,
+        groundwater: {
+          ...schema26Snapshot.groundwater,
+          depletedPumpSpeedPercent: 101,
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema26Snapshot,
+        machines: schema26Snapshot.machines.map((machine, index) =>
+          index === 0 ? { ...machine, aquifer: { ...machine.aquifer, quantity: 1 } } : machine,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema26Snapshot,
+        machines: schema26Snapshot.machines.map(machine => ({
+          ...machine,
+          aquifer: { ...machine.aquifer, quantity: 20_001 },
+        })),
+      }),
+    ).toBeNull()
   })
 
   it('requires valid stable production identities in schema 22', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema22Snapshot,
-      productionEntities: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema22Snapshot,
-      productionEntities: [productionEntities[0], productionEntities[0]],
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema22Snapshot,
-      productionEntities: [{
-        ...productionEntities[1],
-        recipeIds: ['HydrogenProductionFromSteamSp', 'HydrogenProductionFromSteamSp'],
-      }],
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema22Snapshot,
-      productionEntities: [{
-        ...productionEntities[1],
-        nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 100 },
-      }],
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema22Snapshot,
-      productionEntities: [{
-        ...productionEntities[0],
-        nuclearReactor: null,
-      }],
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema22Snapshot,
-      productionEntities: [{
-        ...productionEntities[0],
-        nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 500 },
-      }],
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema22Snapshot,
+        productionEntities: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema22Snapshot,
+        productionEntities: [productionEntities[0], productionEntities[0]],
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema22Snapshot,
+        productionEntities: [
+          {
+            ...productionEntities[1],
+            recipeIds: ['HydrogenProductionFromSteamSp', 'HydrogenProductionFromSteamSp'],
+          },
+        ],
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema22Snapshot,
+        productionEntities: [
+          {
+            ...productionEntities[1],
+            nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 100 },
+          },
+        ],
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema22Snapshot,
+        productionEntities: [
+          {
+            ...productionEntities[0],
+            nuclearReactor: null,
+          },
+        ],
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema22Snapshot,
+        productionEntities: [
+          {
+            ...productionEntities[0],
+            nuclearReactor: { enrichmentStep: 0, targetPowerPercent: 500 },
+          },
+        ],
+      }),
+    ).toBeNull()
   })
 
   it('requires Data Center rack counts in schema 23', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema23Snapshot,
-      productionEntities: computingProductionEntities.map(entity => (
-        entity.prototypeId === 'DataCenter'
-          ? { ...entity, dataCenterRacks: null }
-          : entity
-      )),
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema23Snapshot,
-      productionEntities: computingProductionEntities.map(entity => (
-        entity.prototypeId === 'WaterChiller'
-          ? { ...entity, dataCenterRacks: 1 }
-          : entity
-      )),
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema23Snapshot,
+        productionEntities: computingProductionEntities.map(entity =>
+          entity.prototypeId === 'DataCenter' ? { ...entity, dataCenterRacks: null } : entity,
+        ),
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema23Snapshot,
+        productionEntities: computingProductionEntities.map(entity =>
+          entity.prototypeId === 'WaterChiller' ? { ...entity, dataCenterRacks: 1 } : entity,
+        ),
+      }),
+    ).toBeNull()
   })
 
   it('requires named areas and greenhouse area membership in schema 24', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema24Snapshot,
-      logisticsZones: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema24Snapshot,
-      logisticsZones: [logisticsZones[0], logisticsZones[0]],
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema24Snapshot,
-      cropFarms: schema23Snapshot.cropFarms,
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema24Snapshot,
+        logisticsZones: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema24Snapshot,
+        logisticsZones: [logisticsZones[0], logisticsZones[0]],
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema24Snapshot,
+        cropFarms: schema23Snapshot.cropFarms,
+      }),
+    ).toBeNull()
   })
 
   it('requires a non-empty save identity in schema 21', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema21Snapshot,
-      saveId: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema21Snapshot,
-      saveId: '   ',
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema21Snapshot,
+        saveId: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema21Snapshot,
+        saveId: '   ',
+      }),
+    ).toBeNull()
   })
 
   it('requires rocket infrastructure counts in schema 14', () => {
@@ -1126,105 +1344,143 @@ describe('game-state snapshot validation', () => {
       chickenFarms: null,
       cropFarms: null,
     })
-    expect(normalizeGameStateSnapshot({
-      ...schema16Snapshot,
-      computing: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema16Snapshot,
-      chickenFarms: {
-        configurations: [{
-          ...chickenFarms.configurations[0],
-          running: 6,
-        }],
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema16Snapshot,
-      cropFarms: {
-        configurations: [{
-          ...cropFarms.configurations[0],
-          schedule: ['Crop_Potato'],
-        }],
-      },
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema16Snapshot,
+        computing: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema16Snapshot,
+        chickenFarms: {
+          configurations: [
+            {
+              ...chickenFarms.configurations[0],
+              running: 6,
+            },
+          ],
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema16Snapshot,
+        cropFarms: {
+          configurations: [
+            {
+              ...cropFarms.configurations[0],
+              schedule: ['Crop_Potato'],
+            },
+          ],
+        },
+      }),
+    ).toBeNull()
   })
 
   it('requires a uniquely identified machine inventory in schema 17', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema17Snapshot,
-      machines: undefined,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema17Snapshot,
-      machines: [machines[0], machines[0]],
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema17Snapshot,
-      machines: [{ ...machines[0], running: 'yes' }],
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema17Snapshot,
+        machines: undefined,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema17Snapshot,
+        machines: [machines[0], machines[0]],
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema17Snapshot,
+        machines: [{ ...machines[0], running: 'yes' }],
+      }),
+    ).toBeNull()
   })
 
   it('requires stable, unique greenhouse entities in schema 19', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema19Snapshot,
-      cropFarms,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema19Snapshot,
-      cropFarms: {
-        ...cropFarms,
-        entities: [cropFarmEntities[0], cropFarmEntities[0]],
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema19Snapshot,
-      cropFarms: {
-        ...cropFarms,
-        entities: [{ ...cropFarmEntities[0], running: 'yes' }],
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema19Snapshot,
-      cropFarms: {
-        ...cropFarms,
-        entities: [],
-      },
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema19Snapshot,
+        cropFarms,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema19Snapshot,
+        cropFarms: {
+          ...cropFarms,
+          entities: [cropFarmEntities[0], cropFarmEntities[0]],
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema19Snapshot,
+        cropFarms: {
+          ...cropFarms,
+          entities: [{ ...cropFarmEntities[0], running: 'yes' }],
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema19Snapshot,
+        cropFarms: {
+          ...cropFarms,
+          entities: [],
+        },
+      }),
+    ).toBeNull()
   })
 
   it('requires stable, consistent chicken farm entities in schema 20', () => {
-    expect(normalizeGameStateSnapshot({
-      ...schema20Snapshot,
-      chickenFarms,
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema20Snapshot,
-      chickenFarms: {
-        ...chickenFarms,
-        entities: [chickenFarmEntities[0], chickenFarmEntities[0]],
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema20Snapshot,
-      chickenFarms: {
-        ...chickenFarms,
-        entities: chickenFarmEntities.map((entity, index) => (
-          index === 0 ? { ...entity, chickens: 450 } : entity
-        )),
-      },
-    })).toBeNull()
-    expect(normalizeGameStateSnapshot({
-      ...schema20Snapshot,
-      chickenFarms: {
-        ...chickenFarms,
-        entities: chickenFarmEntities.map((entity, index) => (
-          index === 0
-            ? { ...entity, zones: [{ id: 12, name: 'Chicken Farms' }, { id: 12, name: 'Other' }] }
-            : entity
-        )),
-      },
-    })).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema20Snapshot,
+        chickenFarms,
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema20Snapshot,
+        chickenFarms: {
+          ...chickenFarms,
+          entities: [chickenFarmEntities[0], chickenFarmEntities[0]],
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema20Snapshot,
+        chickenFarms: {
+          ...chickenFarms,
+          entities: chickenFarmEntities.map((entity, index) =>
+            index === 0 ? { ...entity, chickens: 450 } : entity,
+          ),
+        },
+      }),
+    ).toBeNull()
+    expect(
+      normalizeGameStateSnapshot({
+        ...schema20Snapshot,
+        chickenFarms: {
+          ...chickenFarms,
+          entities: chickenFarmEntities.map((entity, index) =>
+            index === 0
+              ? {
+                  ...entity,
+                  zones: [
+                    { id: 12, name: 'Chicken Farms' },
+                    { id: 12, name: 'Other' },
+                  ],
+                }
+              : entity,
+          ),
+        },
+      }),
+    ).toBeNull()
   })
 
   it('accepts an enabled edict whose effect is currently inactive', () => {

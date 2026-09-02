@@ -84,6 +84,7 @@ export const createLegacyPopulationArea = (
     id: `live-area-${zone.id}`,
     name: zone.name ?? "Population",
     description: "",
+    capabilities: ["population"],
     includedInFactoryTotals: false,
     builtBuildings: {},
     presets: [{

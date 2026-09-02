@@ -28,10 +28,7 @@ export const syncedInfrastructureBuildingIds = [
   'maintenanceStatue',
 ] as const
 
-export const syncedRocketBuildingIds = [
-  'rocketAssemblyDepot',
-  'rocketLaunchPad',
-] as const
+export const syncedRocketBuildingIds = ['rocketAssemblyDepot', 'rocketLaunchPad'] as const
 
 const syncedSolarBuildingIds = ['solarPanel', 'solarPanelMono'] as const
 
@@ -303,12 +300,20 @@ export interface SyncedAreaEntity {
   }
   zones: SyncedLogisticsZoneRef[]
   recipes: SyncedAreaRecipe[]
+  /** Total recipes offered by the machine. Present when schema 38 compacts unselected recipes. */
+  availableRecipeCount?: number
   /** Present for ore sorting plants in schema 31 and newer. */
   oreSorter?: SyncedOreSorterConfiguration | null
   /** Present in schema 29 and newer. */
   trainStation?: SyncedTrainStationConfiguration | null
   /** Present for Forestry control towers in schema 34 and newer. */
   forestry?: SyncedForestryConfiguration | null
+  /** Present for Office I–III buildings in schema 37 and newer. */
+  office?: SyncedOfficeConfiguration | null
+}
+
+export interface SyncedOfficeConfiguration {
+  computingBoostStep: 0 | 1 | 2
 }
 
 export interface SyncedLogisticsZoneRef {
@@ -376,8 +381,11 @@ const FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION = 33 as const
 const FORESTRY_CONFIGURATION_SCHEMA_VERSION = 34 as const
 
 export const CONTRACT_STATE_SCHEMA_VERSION = 35 as const
+export const DEFAULT_AREA_ENTITY_SCHEMA_VERSION = 36 as const
+export const OFFICE_CONFIGURATION_SCHEMA_VERSION = 37 as const
+export const COMPACT_AREA_RECIPE_SCHEMA_VERSION = 38 as const
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = CONTRACT_STATE_SCHEMA_VERSION
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = COMPACT_AREA_RECIPE_SCHEMA_VERSION
 type SupportedGameStateSchemaVersion =
   | 6
   | 7
@@ -408,6 +416,9 @@ type SupportedGameStateSchemaVersion =
   | 32
   | 33
   | 34
+  | typeof CONTRACT_STATE_SCHEMA_VERSION
+  | typeof DEFAULT_AREA_ENTITY_SCHEMA_VERSION
+  | typeof OFFICE_CONFIGURATION_SCHEMA_VERSION
   | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
 
 export interface GameStateSnapshot {
@@ -482,7 +493,7 @@ const normalizeContractState = (
   if (!established || !routes) return null
 
   const validEstablished = established.filter(
-    (contract): contract is SyncedEstablishedContract => (
+    (contract): contract is SyncedEstablishedContract =>
       isUnknownRecord(contract) &&
       typeof contract.gameId === 'string' &&
       contract.gameId.length > 0 &&
@@ -495,15 +506,15 @@ const normalizeContractState = (
       isNonNegativeFiniteNumber(contract.unityPerCycle) &&
       isNonNegativeFiniteNumber(contract.unityPer100Imported) &&
       isNonNegativeFiniteNumber(contract.unityToEstablish) &&
-      isNonNegativeInteger(contract.minimumReputation)
-    ),
+      isNonNegativeInteger(contract.minimumReputation),
   )
   const establishedIds = new Set(validEstablished.map(contract => contract.gameId))
 
   if (
     validEstablished.length !== established.length ||
     establishedIds.size !== validEstablished.length
-  ) return null
+  )
+    return null
 
   const ownedEntityIds = new Set<number>()
   const validRoutes = routes.filter((route): route is SyncedContractRoute => {
@@ -523,7 +534,8 @@ const normalizeContractState = (
       !Array.isArray(route.zones) ||
       !route.zones.every(isLogisticsZoneRef) ||
       !Array.isArray(route.modules)
-    ) return false
+    )
+      return false
 
     ownedEntityIds.add(route.depotEntityId)
 
@@ -543,11 +555,15 @@ const normalizeContractState = (
         cargoModule.prototypeName.length === 0 ||
         typeof cargoModule.running !== 'boolean' ||
         !isNonNegativeInteger(cargoModule.workers) ||
-        (cargoModule.selectedProduct !== null && !isSyncedProductRef(cargoModule.selectedProduct)) ||
-        (cargoModule.direction !== null && cargoModule.direction !== 'import' && cargoModule.direction !== 'export') ||
-        ((cargoModule.selectedProduct === null) !== (cargoModule.direction === null)) ||
+        (cargoModule.selectedProduct !== null &&
+          !isSyncedProductRef(cargoModule.selectedProduct)) ||
+        (cargoModule.direction !== null &&
+          cargoModule.direction !== 'import' &&
+          cargoModule.direction !== 'export') ||
+        (cargoModule.selectedProduct === null) !== (cargoModule.direction === null) ||
         !isNonNegativeInteger(cargoModule.onboardCapacity)
-      ) return false
+      )
+        return false
 
       slots.add(cargoModule.slot)
       ownedEntityIds.add(cargoModule.entityId)
@@ -570,12 +586,12 @@ const normalizeContractState = (
       !isNonNegativeInteger(ship.workers) ||
       !isSyncedProductRef(ship.fuelProduct) ||
       typeof ship.saveFuel !== 'boolean' ||
-      (ship.journeyDurationSeconds !== null && (
-        !isNonNegativeFiniteNumber(ship.journeyDurationSeconds) ||
-        ship.journeyDurationSeconds === 0
-      )) ||
+      (ship.journeyDurationSeconds !== null &&
+        (!isNonNegativeFiniteNumber(ship.journeyDurationSeconds) ||
+          ship.journeyDurationSeconds === 0)) ||
       (ship.fuelPerTrip !== null && !isNonNegativeInteger(ship.fuelPerTrip))
-    ) return false
+    )
+      return false
 
     ownedEntityIds.add(ship.entityId)
     return true
@@ -604,9 +620,7 @@ const isComputingState = (value: unknown): value is SyncedComputingState =>
   isBuildingCount(value.racks) &&
   isBuildingCount(value.waterChillers)
 
-const isChickenFarmConfiguration = (
-  value: unknown,
-): value is SyncedChickenFarmConfiguration =>
+const isChickenFarmConfiguration = (value: unknown): value is SyncedChickenFarmConfiguration =>
   isUnknownRecord(value) &&
   typeof value.slaughtering === 'boolean' &&
   isNonNegativeInteger(value.built) &&
@@ -638,7 +652,8 @@ const normalizeChickenFarmState = (
   if (
     configurations.length !== value.configurations.length ||
     new Set(configurations.map(({ slaughtering }) => slaughtering)).size !== configurations.length
-  ) return null
+  )
+    return null
 
   if (schemaVersion < CHICKEN_FARM_ENTITY_SCHEMA_VERSION) {
     return { configurations, entities: [] }
@@ -649,24 +664,23 @@ const normalizeChickenFarmState = (
   const entities = value.entities.filter(isChickenFarmEntity)
 
   if (
-    entities.length !== value.entities.length
-    || new Set(entities.map(({ entityId }) => entityId)).size !== entities.length
-  ) return null
+    entities.length !== value.entities.length ||
+    new Set(entities.map(({ entityId }) => entityId)).size !== entities.length
+  )
+    return null
 
   for (const configuration of configurations) {
-    const matching = entities.filter(entity => (
-      entity.slaughtering === configuration.slaughtering
-    ))
+    const matching = entities.filter(entity => entity.slaughtering === configuration.slaughtering)
     const running = matching.filter(entity => entity.running)
 
     if (
-      matching.length !== configuration.built
-      || running.length !== configuration.running
-      || matching.reduce((total, entity) => total + entity.chickens, 0)
-        !== configuration.chickens
-      || running.reduce((total, entity) => total + entity.chickens, 0)
-        !== configuration.runningChickens
-    ) return null
+      matching.length !== configuration.built ||
+      running.length !== configuration.running ||
+      matching.reduce((total, entity) => total + entity.chickens, 0) !== configuration.chickens ||
+      running.reduce((total, entity) => total + entity.chickens, 0) !==
+        configuration.runningChickens
+    )
+      return null
   }
 
   if (entities.length !== configurations.reduce((total, item) => total + item.built, 0)) {
@@ -678,18 +692,18 @@ const normalizeChickenFarmState = (
 
 const isCropFarmFertilizerProductId = (
   value: unknown,
-): value is SyncedCropFarmFertilizerProductId => (
-  value === 'Product_FertilizerOrganic'
-  || value === 'Product_Fertilizer'
-  || value === 'Product_Fertilizer2'
-)
+): value is SyncedCropFarmFertilizerProductId =>
+  value === 'Product_FertilizerOrganic' ||
+  value === 'Product_Fertilizer' ||
+  value === 'Product_Fertilizer2'
 
 const hasValidCropFarmFertilizerProduct = (
   value: unknown,
   schemaVersion: SupportedGameStateSchemaVersion,
-) => schemaVersion < FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION || (
-  value === null || isCropFarmFertilizerProductId(value)
-)
+) =>
+  schemaVersion < FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION ||
+  value === null ||
+  isCropFarmFertilizerProductId(value)
 
 const isCropFarmConfiguration = (
   value: unknown,
@@ -705,9 +719,9 @@ const isCropFarmConfiguration = (
   hasValidCropFarmFertilizerProduct(value.fertilizerProductId, schemaVersion) &&
   Array.isArray(value.schedule) &&
   value.schedule.length === 4 &&
-  value.schedule.every(cropId => cropId === null || (
-    typeof cropId === 'string' && cropId.length > 0
-  ))
+  value.schedule.every(
+    cropId => cropId === null || (typeof cropId === 'string' && cropId.length > 0),
+  )
 
 const isCropFarmEntity = (
   value: unknown,
@@ -722,17 +736,13 @@ const isCropFarmEntity = (
   hasValidCropFarmFertilizerProduct(value.fertilizerProductId, schemaVersion) &&
   Array.isArray(value.schedule) &&
   value.schedule.length === 4 &&
-  value.schedule.every(cropId => cropId === null || (
-    typeof cropId === 'string' && cropId.length > 0
-  )) &&
-  (
-    schemaVersion < AREA_INVENTORY_SCHEMA_VERSION ||
-    (
-      Array.isArray(value.zones) &&
+  value.schedule.every(
+    cropId => cropId === null || (typeof cropId === 'string' && cropId.length > 0),
+  ) &&
+  (schemaVersion < AREA_INVENTORY_SCHEMA_VERSION ||
+    (Array.isArray(value.zones) &&
       value.zones.every(isLogisticsZoneRef) &&
-      new Set(value.zones.map(zone => zone.id)).size === value.zones.length
-    )
-  )
+      new Set(value.zones.map(zone => zone.id)).size === value.zones.length))
 
 const normalizeCropFarmState = (
   value: unknown,
@@ -740,9 +750,9 @@ const normalizeCropFarmState = (
 ): SyncedCropFarmState | null => {
   if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
 
-  const configurations = value.configurations.filter(configuration => (
-    isCropFarmConfiguration(configuration, schemaVersion)
-  ))
+  const configurations = value.configurations.filter(configuration =>
+    isCropFarmConfiguration(configuration, schemaVersion),
+  )
 
   if (configurations.length !== value.configurations.length) return null
 
@@ -755,19 +765,22 @@ const normalizeCropFarmState = (
   const entities = value.entities.filter(entity => isCropFarmEntity(entity, schemaVersion))
 
   if (
-    entities.length !== value.entities.length
-    || new Set(entities.map(({ entityId }) => entityId)).size !== entities.length
-  ) return null
+    entities.length !== value.entities.length ||
+    new Set(entities.map(({ entityId }) => entityId)).size !== entities.length
+  )
+    return null
 
-  const configurationCounts = new Map(configurations.map(configuration => [
-    JSON.stringify([
-      configuration.prototypeId,
-      configuration.schedule,
-      configuration.fertilityTargetPercent,
-      configuration.fertilizerProductId,
+  const configurationCounts = new Map(
+    configurations.map(configuration => [
+      JSON.stringify([
+        configuration.prototypeId,
+        configuration.schedule,
+        configuration.fertilityTargetPercent,
+        configuration.fertilizerProductId,
+      ]),
+      { built: configuration.built, running: configuration.running },
     ]),
-    { built: configuration.built, running: configuration.running },
-  ]))
+  )
   const entityCounts = new Map<string, { built: number; running: number }>()
 
   for (const entity of entities) {
@@ -785,21 +798,23 @@ const normalizeCropFarmState = (
   }
 
   if (
-    configurationCounts.size !== entityCounts.size
-    || [...configurationCounts].some(([key, count]) => {
+    configurationCounts.size !== entityCounts.size ||
+    [...configurationCounts].some(([key, count]) => {
       const entityCount = entityCounts.get(key)
 
-      return !entityCount
-        || entityCount.built !== count.built
-        || entityCount.running !== count.running
+      return (
+        !entityCount || entityCount.built !== count.built || entityCount.running !== count.running
+      )
     })
-  ) return null
+  )
+    return null
 
   return {
     configurations,
-    entities: schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION
-      ? entities
-      : entities.map(entity => ({ ...entity, zones: [] })),
+    entities:
+      schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION
+        ? entities
+        : entities.map(entity => ({ ...entity, zones: [] })),
   }
 }
 
@@ -812,8 +827,7 @@ const normalizeLogisticsZones = (
 
   const zones = value.filter(isLogisticsZoneRef)
 
-  return zones.length === value.length &&
-      new Set(zones.map(zone => zone.id)).size === zones.length
+  return zones.length === value.length && new Set(zones.map(zone => zone.id)).size === zones.length
     ? zones
     : null
 }
@@ -873,24 +887,23 @@ const normalizeMachineInventory = (
     if (!isMachineInventoryItem(machine)) return null
 
     const rawZones = machine.zones
-    const zones = schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION
-      && Array.isArray(rawZones)
-      ? rawZones.filter(isLogisticsZoneRef)
-      : []
+    const zones =
+      schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION && Array.isArray(rawZones)
+        ? rawZones.filter(isLogisticsZoneRef)
+        : []
 
     if (
-      schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION
-      && (
-        !Array.isArray(rawZones)
-        || zones.length !== rawZones.length
-        || new Set(zones.map(({ id }) => id)).size !== zones.length
-      )
-    ) return null
+      schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION &&
+      (!Array.isArray(rawZones) ||
+        zones.length !== rawZones.length ||
+        new Set(zones.map(({ id }) => id)).size !== zones.length)
+    )
+      return null
 
-    const aquifer = schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION
-      && isGroundwaterAquifer(machine.aquifer)
-      ? machine.aquifer
-      : null
+    const aquifer =
+      schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && isGroundwaterAquifer(machine.aquifer)
+        ? machine.aquifer
+        : null
 
     if (schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && !aquifer) return null
 
@@ -906,13 +919,15 @@ const normalizeMachineInventory = (
 
     const existing = aquifers.get(aquifer.id)
 
-    if (existing && (
-      existing.quantity !== aquifer.quantity
-      || existing.capacity !== aquifer.capacity
-      || existing.configuredCapacity !== aquifer.configuredCapacity
-      || existing.position.x !== aquifer.position.x
-      || existing.position.y !== aquifer.position.y
-    )) return null
+    if (
+      existing &&
+      (existing.quantity !== aquifer.quantity ||
+        existing.capacity !== aquifer.capacity ||
+        existing.configuredCapacity !== aquifer.configuredCapacity ||
+        existing.position.x !== aquifer.position.x ||
+        existing.position.y !== aquifer.position.y)
+    )
+      return null
 
     aquifers.set(aquifer.id, aquifer)
   }
@@ -943,9 +958,7 @@ const isProductRef = (value: unknown): value is SyncedProductRef =>
   typeof value.name === 'string' &&
   value.name.length > 0
 
-const isTrainStationConfiguration = (
-  value: unknown,
-): value is SyncedTrainStationConfiguration =>
+const isTrainStationConfiguration = (value: unknown): value is SyncedTrainStationConfiguration =>
   isUnknownRecord(value) &&
   typeof value.isForLoading === 'boolean' &&
   (value.selectedProduct === null || isProductRef(value.selectedProduct))
@@ -979,11 +992,9 @@ const isProductionEntity = (
   (value.prototypeId === 'FastBreederReactor'
     ? isNuclearReactorConfiguration(value.nuclearReactor)
     : value.nuclearReactor === null) &&
-  (
-    schemaVersion < COMPUTING_ENTITY_SCHEMA_VERSION ||
+  (schemaVersion < COMPUTING_ENTITY_SCHEMA_VERSION ||
     (value.prototypeId === 'DataCenter' && isNonNegativeInteger(value.dataCenterRacks)) ||
-    (value.prototypeId !== 'DataCenter' && value.dataCenterRacks === null)
-  ) &&
+    (value.prototypeId !== 'DataCenter' && value.dataCenterRacks === null)) &&
   hasValidTrainStationConfiguration(value, schemaVersion)
 
 const normalizeProductionEntities = (
@@ -996,7 +1007,7 @@ const normalizeProductionEntities = (
   const entities = value.filter(entity => isProductionEntity(entity, schemaVersion))
 
   return entities.length === value.length &&
-      new Set(entities.map(entity => entity.entityId)).size === entities.length
+    new Set(entities.map(entity => entity.entityId)).size === entities.length
     ? entities
     : null
 }
@@ -1034,31 +1045,31 @@ const isAreaRecipe = (value: unknown): value is SyncedAreaRecipe => {
     typeof value.assigned !== 'boolean' ||
     !Array.isArray(value.inputs) ||
     !Array.isArray(value.outputs)
-  ) return false
+  )
+    return false
 
   const inputs = value.inputs.filter(isAreaRecipeProduct)
   const outputs = value.outputs.filter(isAreaRecipeProduct)
 
-  return inputs.length === value.inputs.length &&
+  return (
+    inputs.length === value.inputs.length &&
     outputs.length === value.outputs.length &&
     new Set(inputs.map(input => input.productId)).size === inputs.length &&
     new Set(outputs.map(output => output.productId)).size === outputs.length
+  )
 }
 
 const oreSorterPrototypeIds = new Set(['OreSortingPlantT1', 'OreSortingPlantT2'])
 
-const isOreSorterProduct = (value: unknown): value is SyncedOreSorterProduct => (
+const isOreSorterProduct = (value: unknown): value is SyncedOreSorterProduct =>
   isUnknownRecord(value) &&
   typeof value.productId === 'string' &&
   value.productId.length > 0 &&
   typeof value.name === 'string' &&
   value.name.length > 0 &&
   typeof value.canBeWasted === 'boolean'
-)
 
-const isOreSorterConfiguration = (
-  value: unknown,
-): value is SyncedOreSorterConfiguration => {
+const isOreSorterConfiguration = (value: unknown): value is SyncedOreSorterConfiguration => {
   if (
     !isUnknownRecord(value) ||
     !isNonNegativeFiniteNumber(value.throughputPerCycle) ||
@@ -1066,48 +1077,62 @@ const isOreSorterConfiguration = (
     !isNonNegativeInteger(value.conversionLossPercent) ||
     value.conversionLossPercent > 100 ||
     !Array.isArray(value.products)
-  ) return false
+  )
+    return false
 
   const products = value.products.filter(isOreSorterProduct)
 
-  return products.length === value.products.length &&
+  return (
+    products.length === value.products.length &&
     new Set(products.map(product => product.productId)).size === products.length
+  )
 }
 
-const isForestryProduct = (value: unknown): value is SyncedForestryProduct => (
+const isForestryProduct = (value: unknown): value is SyncedForestryProduct =>
   isUnknownRecord(value) &&
   typeof value.productId === 'string' &&
   value.productId.length > 0 &&
   typeof value.name === 'string' &&
   value.name.length > 0 &&
   isNonNegativeFiniteNumber(value.quantityPerCycle)
-)
 
-const isForestryConfiguration = (
-  value: unknown,
-): value is SyncedForestryConfiguration => {
+const isForestryConfiguration = (value: unknown): value is SyncedForestryConfiguration => {
   if (
     !isUnknownRecord(value) ||
     !isNonNegativeInteger(value.treeCount) ||
     typeof value.cuttingEnabled !== 'boolean' ||
     !isNonNegativeInteger(value.targetHarvestPercent) ||
     value.targetHarvestPercent > 200 ||
-    value.cuttingEnabled !== (value.targetHarvestPercent < 200) ||
+    value.cuttingEnabled !== value.targetHarvestPercent < 200 ||
     !isNonNegativeFiniteNumber(value.harvestsPerCycle) ||
     !(
       value.harvestDurationMonths === null ||
-      (isNonNegativeFiniteNumber(value.harvestDurationMonths) &&
-        value.harvestDurationMonths > 0)
+      (isNonNegativeFiniteNumber(value.harvestDurationMonths) && value.harvestDurationMonths > 0)
     ) ||
     (value.harvestsPerCycle === 0) !== (value.harvestDurationMonths === null) ||
     !Array.isArray(value.outputs)
-  ) return false
+  )
+    return false
 
   const outputs = value.outputs.filter(isForestryProduct)
 
-  return outputs.length === value.outputs.length &&
+  return (
+    outputs.length === value.outputs.length &&
     new Set(outputs.map(output => output.productId)).size === outputs.length
+  )
 }
+
+const officeBuildingPrototypeIds = new Set([
+  'OfficeBuildingT1',
+  'OfficeBuildingT2',
+  'OfficeBuildingT3',
+])
+
+const isOfficeConfiguration = (value: unknown): value is SyncedOfficeConfiguration =>
+  isUnknownRecord(value) &&
+  (value.computingBoostStep === 0 ||
+    value.computingBoostStep === 1 ||
+    value.computingBoostStep === 2)
 
 const isAreaEntity = (
   value: unknown,
@@ -1132,28 +1157,45 @@ const isAreaEntity = (
     !Number.isInteger(value.tile.y) ||
     !Array.isArray(value.zones) ||
     !Array.isArray(value.recipes)
-  ) return false
+  )
+    return false
 
   const zones = value.zones.filter(isLogisticsZoneRef)
   const recipes = value.recipes.filter(isAreaRecipe)
+  const availableRecipeCount =
+    schemaVersion >= COMPACT_AREA_RECIPE_SCHEMA_VERSION
+      ? value.availableRecipeCount
+      : value.recipes.length
+  const hasValidCompactRecipes =
+    schemaVersion < COMPACT_AREA_RECIPE_SCHEMA_VERSION ||
+    (isNonNegativeInteger(availableRecipeCount) &&
+      availableRecipeCount >= recipes.length &&
+      (availableRecipeCount !== 0 || recipes.length === 0) &&
+      (availableRecipeCount !== 1 || recipes.length === 1) &&
+      (availableRecipeCount <= 1 ||
+        recipes.length === 0 ||
+        recipes.every(recipe => recipe.assigned)))
 
-  return zones.length === value.zones.length &&
+  return (
+    zones.length === value.zones.length &&
     recipes.length === value.recipes.length &&
+    hasValidCompactRecipes &&
     new Set(zones.map(zone => zone.id)).size === zones.length &&
     new Set(recipes.map(recipe => recipe.id)).size === recipes.length &&
-    (
-      schemaVersion < TERRAIN_SORTER_SCHEMA_VERSION ||
+    (schemaVersion < TERRAIN_SORTER_SCHEMA_VERSION ||
       (oreSorterPrototypeIds.has(value.prototypeId)
         ? isOreSorterConfiguration(value.oreSorter)
-        : value.oreSorter === null)
-    ) &&
+        : value.oreSorter === null)) &&
     hasValidTrainStationConfiguration(value, schemaVersion) &&
-    (
-      schemaVersion < FORESTRY_CONFIGURATION_SCHEMA_VERSION ||
+    (schemaVersion < FORESTRY_CONFIGURATION_SCHEMA_VERSION ||
       (value.prototypeId === 'ForestryTower'
         ? isForestryConfiguration(value.forestry)
-        : value.forestry === null)
-    )
+        : value.forestry === null)) &&
+    (schemaVersion < OFFICE_CONFIGURATION_SCHEMA_VERSION ||
+      (officeBuildingPrototypeIds.has(value.prototypeId)
+        ? isOfficeConfiguration(value.office)
+        : value.office === null))
+  )
 }
 
 const normalizeAreaEntities = (
@@ -1190,7 +1232,8 @@ const normalizeMineTowers = (
       new Set(candidate.assignedOreSorterEntityIds).size !==
         candidate.assignedOreSorterEntityIds.length ||
       candidate.assignedOreSorterEntityIds.some(entityId => assignedSorterIds.has(entityId))
-    ) return null
+    )
+      return null
 
     candidate.assignedOreSorterEntityIds.forEach(entityId => assignedSorterIds.add(entityId))
     towers.push({
@@ -1199,9 +1242,7 @@ const normalizeMineTowers = (
     })
   }
 
-  return new Set(towers.map(tower => tower.entityId)).size === towers.length
-    ? towers
-    : null
+  return new Set(towers.map(tower => tower.entityId)).size === towers.length ? towers : null
 }
 
 type LegacySyncedBuildingId = Exclude<
@@ -1401,29 +1442,28 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion !== 32 &&
     schemaVersion !== 33 &&
     schemaVersion !== 34 &&
+    schemaVersion !== CONTRACT_STATE_SCHEMA_VERSION &&
+    schemaVersion !== DEFAULT_AREA_ENTITY_SCHEMA_VERSION &&
+    schemaVersion !== OFFICE_CONFIGURATION_SCHEMA_VERSION &&
     schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
   ) {
     return null
   }
 
   const syncedBuildings = snapshot.buildings
-  const saveId = typeof snapshot.saveId === 'string' && snapshot.saveId.trim().length > 0
-    ? snapshot.saveId
-    : null
+  const saveId =
+    typeof snapshot.saveId === 'string' && snapshot.saveId.trim().length > 0
+      ? snapshot.saveId
+      : null
   const spaceStation = isSpaceStationState(snapshot.spaceStation) ? snapshot.spaceStation : null
   const computing = isComputingState(snapshot.computing) ? snapshot.computing : null
   const logisticsZones = normalizeLogisticsZones(snapshot.logisticsZones, schemaVersion)
   const chickenFarms = normalizeChickenFarmState(snapshot.chickenFarms, schemaVersion)
   const cropFarms = normalizeCropFarmState(snapshot.cropFarms, schemaVersion)
   const machines = normalizeMachineInventory(snapshot.machines, schemaVersion)
-  const groundwater = isGroundwaterState(snapshot.groundwater)
-    ? snapshot.groundwater
-    : null
+  const groundwater = isGroundwaterState(snapshot.groundwater) ? snapshot.groundwater : null
   const contracts = normalizeContractState(snapshot.contracts, schemaVersion)
-  const productionEntities = normalizeProductionEntities(
-    snapshot.productionEntities,
-    schemaVersion,
-  )
+  const productionEntities = normalizeProductionEntities(snapshot.productionEntities, schemaVersion)
   const areaEntities = normalizeAreaEntities(snapshot.areaEntities, schemaVersion)
   const mineTowers = normalizeMineTowers(snapshot.mineTowers, schemaVersion)
   const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
@@ -1438,9 +1478,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     Number.isNaN(Date.parse(snapshot.exportedAtUtc)) ||
     !isCompatibleBuildingCounts(syncedBuildings, schemaVersion) ||
     (schemaVersion >= SPACE_STATION_SCHEMA_VERSION && !spaceStation) ||
-    (schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION && (
-      !computing || !chickenFarms || !cropFarms
-    )) ||
+    (schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION &&
+      (!computing || !chickenFarms || !cropFarms)) ||
     !logisticsZones ||
     (schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION && !machines) ||
     (schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && !groundwater) ||

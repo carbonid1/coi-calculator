@@ -21,14 +21,14 @@ const entity = (
   ...options,
 });
 
-it("counts exact-area building identities by their game prototype", () => {
+it("counts selected-area building identities by their game prototype", () => {
   const counts = resolveAreaBuildingCounts([
     entity(1, "SolarPanelMono"),
     entity(2, "SolarPanelMono", { running: false }),
     entity(3, "SolarPanel"),
     entity(4, "SolarPanel", { zones: [{ id: 21, name: "Solar Backup" }] }),
     entity(5, "FastBreederReactor"),
-  ], "Solar Power");
+  ], 20);
 
   expect(counts).toEqual({
     solarPanel: { built: 1, running: 1 },
@@ -36,7 +36,7 @@ it("counts exact-area building identities by their game prototype", () => {
   });
 });
 
-it("counts only the matching recipe inside the exact area", () => {
+it("counts only the matching recipe inside the selected area ID", () => {
   const counts = resolveAreaRecipeBuildingCount([
     entity(1, "AssemblyRoboticT2", {
       recipeIds: ["StationPartsAssembly"],
@@ -55,7 +55,7 @@ it("counts only the matching recipe inside the exact area", () => {
       recipeIds: ["Electronics4Assembly"],
       zones: [{ id: 15, name: "Space Station" }],
     }),
-  ], "Space Station", "AssemblyRoboticT2", "StationPartsAssembly");
+  ], 15, "AssemblyRoboticT2", "StationPartsAssembly");
 
   expect(counts).toEqual({ built: 2, running: 1 });
 });

@@ -36,12 +36,12 @@ const buildingIdByPrototype = new Map(
 
 export const resolveAreaBuildingCounts = (
   productionEntities: readonly SyncedProductionEntity[],
-  zoneName: string,
+  zoneId: number,
 ): Partial<Record<SyncedBuildingId, SyncedBuildingCount>> => {
   const counts: Partial<Record<SyncedBuildingId, SyncedBuildingCount>> = {};
 
   for (const entity of productionEntities) {
-    if (!entity.zones.some(zone => zone.name === zoneName)) continue;
+    if (!entity.zones.some(zone => zone.id === zoneId)) continue;
     const buildingId = buildingIdByPrototype.get(entity.prototypeId);
 
     if (!buildingId) continue;
@@ -57,7 +57,7 @@ export const resolveAreaBuildingCounts = (
 
 export const resolveAreaRecipeBuildingCount = (
   productionEntities: readonly SyncedProductionEntity[],
-  zoneName: string,
+  zoneId: number,
   prototypeId: string,
   gameRecipeId: string,
 ): SyncedBuildingCount => {
@@ -67,7 +67,7 @@ export const resolveAreaRecipeBuildingCount = (
   for (const entity of productionEntities) {
     if (entity.prototypeId !== prototypeId) continue;
     if (!entity.recipeIds.includes(gameRecipeId)) continue;
-    if (!entity.zones.some(zone => zone.name === zoneName)) continue;
+    if (!entity.zones.some(zone => zone.id === zoneId)) continue;
 
     built++;
     running += Number(entity.running);

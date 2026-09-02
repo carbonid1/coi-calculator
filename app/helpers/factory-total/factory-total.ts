@@ -49,6 +49,7 @@ interface ElectricityDispatchGroup {
 
 const MAX_DISPATCH_ITERATIONS = 32;
 const DISPATCH_TOLERANCE = 0.000001;
+const RESOURCE_DISPATCH_RELAXATION = 0.5;
 const MAX_CONTRACT_BALANCE_ITERATIONS = 32;
 // Contract plans are displayed and acted on at hundredth-unit precision. Stop
 // once every import changes by less than a thousandth of a unit per cycle so a
@@ -100,6 +101,29 @@ const calculateWithDispatch = (
     typedEntries(line.recipe.inputPriorities ?? {}).length > 0
   ));
   const prioritizedLineId = (line: ProductionLine) => `${line.moduleId}:${line.recipe.id}`;
+  const getModuleResourceFlow = (
+    calculation: ReturnType<typeof calculateNet>,
+    moduleId: string,
+    resourceId: ResourceId,
+  ) => {
+    const results = [
+      ...calculation.regularResults,
+      ...calculation.sourceResults,
+      ...calculation.sinkResults,
+    ].filter(result => result.moduleId === moduleId);
+
+    return results.reduce((flow, result) => ({
+      consumed: flow.consumed + result.actualInputs.reduce((total, input) => (
+        input.resourceId === resourceId ? total + input.quantity : total
+      ), 0),
+      produced: flow.produced + result.actualOutputs.reduce((total, output) => (
+        output.resourceId === resourceId ? total + output.quantity : total
+      ), 0),
+    }), {
+      consumed: moduleFixedDemands.get(moduleId)?.[resourceId] ?? 0,
+      produced: moduleSuppliedResources.get(moduleId)?.[resourceId] ?? 0,
+    });
+  };
 
   for (const line of lines) {
     const dispatch = line.recipe.electricityDispatch;
@@ -374,30 +398,87 @@ const calculateWithDispatch = (
           (a.recipe.inputPriorities?.[resourceId] ?? Number.MAX_SAFE_INTEGER)
           - (b.recipe.inputPriorities?.[resourceId] ?? Number.MAX_SAFE_INTEGER)
         ));
-      const currentlyConsumed = consumers.reduce((total, line) => {
+      const currentConsumption = (line: ProductionLine) => {
         const result = currentCalculation.regularResults.find((candidate) => (
           candidate.moduleId === line.moduleId && candidate.recipe.id === line.recipe.id
         ));
 
-        return total + (result?.actualInputs.find(
+        return result?.actualInputs.find(
           (actual) => actual.resourceId === resourceId,
-        )?.quantity ?? 0);
-      }, 0);
+        )?.quantity ?? 0;
+      };
+      const scopeKey = (line: ProductionLine) => (
+        line.recipe.balanceInputScope === "module"
+          ? `module:${line.moduleId}`
+          : "global"
+      );
+      const consumersByScope = new Map<string, ProductionLine[]>();
+
+      for (const line of consumers) {
+        const key = scopeKey(line);
+        const scopedConsumers = consumersByScope.get(key) ?? [];
+
+        scopedConsumers.push(line);
+        consumersByScope.set(key, scopedConsumers);
+      }
+
       const consumedByFallbackSinks = currentCalculation.sinkResults.reduce(
         (total, result) => total + (result.actualInputs.find(
           (actual) => actual.resourceId === resourceId,
         )?.quantity ?? 0),
         0,
       );
-      let remaining = Math.max(
+      const remainingByScope = new Map<string, number>();
+      let reservedModuleSupply = 0;
+
+      for (const [key, scopedConsumers] of consumersByScope) {
+        if (!key.startsWith("module:")) continue;
+
+        const moduleId = key.slice("module:".length);
+        const moduleFlow = getModuleResourceFlow(
+          currentCalculation,
+          moduleId,
+          resourceId,
+        );
+        const currentlyConsumed = scopedConsumers.reduce(
+          (total, line) => total + currentConsumption(line),
+          0,
+        );
+        const consumedByModuleSinks = currentCalculation.sinkResults.reduce(
+          (total, result) => result.moduleId === moduleId
+            ? total + (result.actualInputs.find(
+                (actual) => actual.resourceId === resourceId,
+              )?.quantity ?? 0)
+            : total,
+          0,
+        );
+        const remaining = Math.max(
+          0,
+          moduleFlow.produced - (
+            moduleFlow.consumed - currentlyConsumed - consumedByModuleSinks
+          ),
+        );
+
+        remainingByScope.set(key, remaining);
+        reservedModuleSupply += remaining;
+      }
+
+      const globallyConsumed = (consumersByScope.get("global") ?? []).reduce(
+        (total, line) => total + currentConsumption(line),
+        0,
+      );
+
+      remainingByScope.set("global", Math.max(
         0,
         (flow?.produced ?? 0) - (
-          (flow?.consumed ?? 0) - currentlyConsumed - consumedByFallbackSinks
-        ),
-      );
+          (flow?.consumed ?? 0) - globallyConsumed - consumedByFallbackSinks
+        ) - reservedModuleSupply,
+      ));
 
       for (const line of consumers) {
         const id = prioritizedLineId(line);
+        const key = scopeKey(line);
+        const remaining = remainingByScope.get(key) ?? 0;
         const desiredRatio = desiredResourceRatios.get(id) ?? 0;
         const input = line.recipe.inputs.find(
           (candidate) => candidate.resourceId === resourceId,
@@ -410,8 +491,25 @@ const calculateWithDispatch = (
           : 0;
 
         desiredResourceRatios.set(id, allocatedRatio);
-        remaining = Math.max(0, remaining - capacity * allocatedRatio);
+        remainingByScope.set(key, Math.max(0, remaining - capacity * allocatedRatio));
       }
+    }
+
+    // Several equivalent prioritized consumers can otherwise alternate between
+    // full and idle on successive dispatch passes: each sees the other one's
+    // previous output, then both reverse together. Relaxing the resource update
+    // makes that shared-output fixed point converge while preserving input
+    // priority and installed-capacity limits.
+    for (const line of prioritizedLines) {
+      const id = prioritizedLineId(line);
+      const previousRatio = resourceRatios.get(id) ?? 0;
+      const desiredRatio = desiredResourceRatios.get(id) ?? 0;
+
+      desiredResourceRatios.set(
+        id,
+        previousRatio
+          + (desiredRatio - previousRatio) * RESOURCE_DISPATCH_RELAXATION,
+      );
     }
 
     const electricityConverged = groups.every((group) => (

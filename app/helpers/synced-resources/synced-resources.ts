@@ -13,9 +13,29 @@ for (const resource of Object.values(resources)) {
   resourceIdByKey.set(normalizeResourceKey(resource.name), resource.id)
 }
 
+const gameProductAliases = new Map<string, ResourceId>([
+  ['electronics', 'electronicsI'],
+  ['labequipment', 'labEquipmentI'],
+  ['vehicleparts', 'vehiclePartsI'],
+  ['railparts', 'railParts'],
+  ['slagcrushed', 'slagCrushed'],
+  ['microchipsstage1a', 'microchipStage1A'],
+  ['microchipsstage1b', 'microchipStage1B'],
+  ['microchipsstage1c', 'microchipStage1C'],
+  ['microchipsstage2a', 'microchipStage2A'],
+  ['microchipsstage2b', 'microchipStage2B'],
+  ['microchipsstage2c', 'microchipStage2C'],
+  ['microchipsstage3a', 'microchipStage3A'],
+  ['microchipsstage3b', 'microchipStage3B'],
+  ['microchipsstage3c', 'microchipStage3C'],
+  ['microchipsstage4a', 'microchipStage4A'],
+  ['microchipsstage4b', 'microchipStage4B'],
+])
+
 export const resolveSyncedResourceId = (
   product: { productId: string; name: string },
 ): ResourceId | undefined => (
-  resourceIdByKey.get(normalizeResourceKey(product.name))
+  gameProductAliases.get(normalizeResourceKey(product.productId))
+  ?? resourceIdByKey.get(normalizeResourceKey(product.name))
   ?? resourceIdByKey.get(normalizeResourceKey(product.productId))
 )

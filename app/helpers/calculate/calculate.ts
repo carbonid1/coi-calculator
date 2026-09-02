@@ -578,6 +578,7 @@ export const calculateNet = (
   );
   const sourceOutputCapacities = new Map<ProductionLine, Map<ResourceId, number>>();
   const totalSourceCapacityByResource = new Map<ResourceId, number>();
+  const fallbackSourceCapacityByResource = new Map<ResourceId, number>();
   const totalModuleSourceCapacityByResource = new Map<string, number>();
   const ownedModuleSupplyCapacityByResource = new Map<string, number>();
   const ownedModuleSupplyKeysByResource = new Map<ResourceId, Set<string>>();
@@ -648,6 +649,12 @@ export const calculateNet = (
       resourceId,
       (totalSourceCapacityByResource.get(resourceId) ?? 0) + quantity,
     );
+    if (line.recipe.sourceAllocation !== "primary") {
+      fallbackSourceCapacityByResource.set(
+        resourceId,
+        (fallbackSourceCapacityByResource.get(resourceId) ?? 0) + quantity,
+      );
+    }
     const moduleKey = moduleResourceKey(line.moduleId, resourceId);
 
     totalModuleSourceCapacityByResource.set(
@@ -890,6 +897,7 @@ export const calculateNet = (
   let allocationRatios = new Map<ProductionLine, number>();
   let surplusOnlyConsumption = new Map<ResourceId, number>();
   let surplusOnlyModuleConsumption = new Map<string, number>();
+  let moduleScopedInputConsumption = new Map<ResourceId, number>();
   let createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   let sortedRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const capacityTracker = createCapacityTracker(regularLines);
@@ -928,11 +936,35 @@ export const calculateNet = (
           sortedSources.set(resourceId, quantity);
         }
 
-        sortedRecyclableSources.set(line, sortedSources);
+        const accumulatedSources = additive
+          ? new Map(sortedRecyclableSources.get(line) ?? [])
+          : new Map<ResourceId, number>();
+
+        for (const [resourceId, quantity] of sortedSources) {
+          accumulatedSources.set(
+            resourceId,
+            (accumulatedSources.get(resourceId) ?? 0) + quantity,
+          );
+        }
+
+        sortedRecyclableSources.set(line, accumulatedSources);
       }
 
       flow.consumed += actualQuantity;
       getActualModuleFlow(line.moduleId, input.resourceId).consumed += actualQuantity;
+
+      if (
+        line.recipe.balanceInputScope === "module"
+        && (
+          line.recipe.balanceInputIds == null
+          || line.recipe.balanceInputIds.includes(input.resourceId)
+        )
+      ) {
+        moduleScopedInputConsumption.set(
+          input.resourceId,
+          (moduleScopedInputConsumption.get(input.resourceId) ?? 0) + actualQuantity,
+        );
+      }
 
       if (line.recipe.consumeSurplusInputIds?.includes(input.resourceId)) {
         surplusOnlyConsumption.set(
@@ -984,13 +1016,26 @@ export const calculateNet = (
           }
         }
 
-        createdRecyclableSources.set(line, sourceComposition);
+        const accumulatedSources = additive
+          ? new Map(createdRecyclableSources.get(line) ?? [])
+          : new Map<ResourceId, number>();
+
+        for (const [resourceId, quantity] of sourceComposition) {
+          accumulatedSources.set(
+            resourceId,
+            (accumulatedSources.get(resourceId) ?? 0) + quantity,
+          );
+        }
+
+        createdRecyclableSources.set(line, accumulatedSources);
       }
     }
   };
   const getDrivingConsumption = (resourceId: ResourceId) => Math.max(
     0,
-    getFlow(resourceId).consumed - (surplusOnlyConsumption.get(resourceId) ?? 0),
+    getFlow(resourceId).consumed
+      - (surplusOnlyConsumption.get(resourceId) ?? 0)
+      - (moduleScopedInputConsumption.get(resourceId) ?? 0),
   );
   const getModuleDrivingConsumption = (moduleId: string, resourceId: ResourceId) => {
     const key = moduleResourceKey(moduleId, resourceId);
@@ -1027,8 +1072,11 @@ export const calculateNet = (
     }
 
     const moduleDemand = moduleFixedDemands.get(line.moduleId)?.[resourceId] ?? 0;
+    const hasModuleScopedDemand = moduleScopedInputKeysByResource
+      .get(resourceId)
+      ?.has(key) ?? false;
 
-    if (moduleDemand <= 0) return globalDemand / capacity;
+    if (moduleDemand <= 0 && !hasModuleScopedDemand) return globalDemand / capacity;
 
     return Math.max(globalDemand, selectedSourceDemand) / capacity;
   };
@@ -1078,43 +1126,52 @@ export const calculateNet = (
     applyRegularLine(line, getDrivenInputRatio(line));
   }
 
-  // Ordinary supply-balanced recipes retain the existing constrained-resource
-  // behavior. Shared fallback recipes are deferred until primary demand is known.
-  for (const line of supplyBalancedLines) {
-    if (line.activeBuildings === 0) {
-      applyRegularLine(line, 0);
-      continue;
-    }
+  // Supply-driven chains can contain legitimate byproduct cycles. Iterate so a
+  // line that ran before one of its producers can consume the newly available
+  // material on the next pass without exceeding either recipe or shared capacity.
+  for (let iteration = 0; iteration <= supplyBalancedLines.length; iteration += 1) {
+    let changed = false;
 
-    const currentRatio = allocationRatios.get(line) ?? 0;
-    const factor = lineFactor(line);
-    let ratio = Math.min(
-      Math.max(0, 1 - currentRatio),
-      capacityTracker.availableRatio(line),
-    );
-
-    for (const input of line.recipe.inputs) {
-      const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(input.resourceId) ?? false;
-
-      if (
-        line.recipe.balanceInputIds
-        && !explicitlyInputBalanced
-      ) {
+    for (const line of supplyBalancedLines) {
+      if (line.activeBuildings === 0) {
+        if (iteration === 0) applyRegularLine(line, 0);
         continue;
       }
-      // Output-balanced producers run in the later demand-propagation pass. Let
-      // their products go temporarily negative here so downstream demand can
-      // start them; explicit input-balancing still requires available stock.
-      if (demandProducedIds.has(input.resourceId) && !explicitlyInputBalanced) continue;
-      if (line.recipe.balanceBy !== "input" && !constrained.has(input.resourceId)) continue;
 
-      const available = getAvailableInput(line, input.resourceId);
-      const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+      const currentRatio = allocationRatios.get(line) ?? 0;
+      const factor = lineFactor(line);
+      let ratio = Math.min(
+        Math.max(0, 1 - currentRatio),
+        capacityTracker.availableRatio(line),
+      );
 
-      if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+      if (ratio <= 1e-9) continue;
+
+      for (const input of line.recipe.inputs) {
+        const explicitlyInputBalanced = line.recipe.balanceInputIds?.includes(
+          input.resourceId,
+        ) ?? false;
+
+        if (line.recipe.balanceInputIds && !explicitlyInputBalanced) continue;
+        // Output-balanced producers run in the later demand-propagation pass. Let
+        // their products go temporarily negative here so downstream demand can
+        // start them; explicit input-balancing still requires available stock.
+        if (demandProducedIds.has(input.resourceId) && !explicitlyInputBalanced) continue;
+        if (line.recipe.balanceBy !== "input" && !constrained.has(input.resourceId)) continue;
+
+        const available = getAvailableInput(line, input.resourceId);
+        const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+
+        if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+      }
+
+      if (ratio <= 1e-9) continue;
+
+      applyRegularLine(line, ratio, currentRatio > 0);
+      changed = true;
     }
 
-    applyRegularLine(line, ratio, currentRatio > 0);
+    if (!changed) break;
   }
 
   // Propagate demand from consumers to producers. Internally produced inputs are
@@ -1172,11 +1229,10 @@ export const calculateNet = (
 
       if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
 
-      // Source recipes (map/world mines) are fallback streams. Their reserved
-      // capacity must not hide demand from internal producers; unused source
-      // capacity is removed after regular production has been allocated.
+      // Fallback sources must not hide demand from internal producers. Primary
+      // sources, such as synced Gold reserves, satisfy demand before production.
       const internallyProduced = flow.produced
-        - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+        - (fallbackSourceCapacityByResource.get(output.resourceId) ?? 0);
 
       return [getOutputDemandRatio(
         line,
@@ -1239,7 +1295,7 @@ export const calculateNet = (
           if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
 
           const internallyProduced = flow.produced
-            - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+            - (fallbackSourceCapacityByResource.get(output.resourceId) ?? 0);
 
           return [getOutputDemandRatio(
             line,
@@ -1297,6 +1353,7 @@ export const calculateNet = (
     allocationRatios: new Map(allocationRatios),
     surplusOnlyConsumption: new Map(surplusOnlyConsumption),
     surplusOnlyModuleConsumption: new Map(surplusOnlyModuleConsumption),
+    moduleScopedInputConsumption: new Map(moduleScopedInputConsumption),
     capacity: capacityTracker.snapshot(),
     createdRecyclableSources: cloneLineResourceMaps(createdRecyclableSources),
     sortedRecyclableSources: cloneLineResourceMaps(sortedRecyclableSources),
@@ -1310,6 +1367,7 @@ export const calculateNet = (
     allocationRatios = new Map(state.allocationRatios);
     surplusOnlyConsumption = new Map(state.surplusOnlyConsumption);
     surplusOnlyModuleConsumption = new Map(state.surplusOnlyModuleConsumption);
+    moduleScopedInputConsumption = new Map(state.moduleScopedInputConsumption);
     createdRecyclableSources = cloneLineResourceMaps(state.createdRecyclableSources);
     sortedRecyclableSources = cloneLineResourceMaps(state.sortedRecyclableSources);
     capacityTracker.restore(state.capacity);
@@ -1535,7 +1593,7 @@ export const calculateNet = (
           if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
 
           const internallyProduced = flow.produced
-            - (totalSourceCapacityByResource.get(output.resourceId) ?? 0);
+            - (fallbackSourceCapacityByResource.get(output.resourceId) ?? 0);
 
           return [getOutputDemandRatio(
             line,
@@ -1679,6 +1737,9 @@ export const calculateNet = (
   applyLowerPriorityLines(surplusLines);
   propagateAdditionalDemand();
   applyAdditionalSurplusConsumption(finalSurplusConsumerLines);
+  // Final surplus conversion can create inputs for local fallback cleanup.
+  // Run those fallbacks once more so chained routes settle in the same cycle.
+  settleFallbackDemand();
   propagateAdditionalDemand();
 
   // Regular results

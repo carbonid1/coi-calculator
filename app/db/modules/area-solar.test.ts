@@ -24,10 +24,6 @@ const createModule = (id: string, name: string): Module => ({
   defaultPresetId: "current",
 });
 
-const defaultModule = createModule("general", "Default");
-const nuclearModule = createModule("nuclear", "Nuclear");
-const computingModule = createModule("computing", "Computing");
-const ownershipModules = [defaultModule, nuclearModule, computingModule];
 const createLiveModule = (id: string, name: string, zoneId: number): Module => ({
   ...createModule(id, name),
   liveArea: {
@@ -40,17 +36,21 @@ const createLiveModule = (id: string, name: string, zoneId: number): Module => (
     issues: [],
   },
 });
+const defaultModule = createModule("general", "Default");
+const nuclearModule = createLiveModule("nuclear", "Nuclear", 10);
+const computingModule = createLiveModule("computing", "Computing", 20);
+const ownershipModules = [defaultModule, nuclearModule, computingModule];
 const solarEntity = (
   entityId: number,
   prototypeId: "SolarPanel" | "SolarPanelMono",
-  zoneNames: string[],
+  zoneIds: number[],
   running = true,
 ): SyncedProductionEntity => ({
   entityId,
   prototypeId,
   running,
   recipeIds: [],
-  zones: zoneNames.map((name, index) => ({ id: entityId * 10 + index, name })),
+  zones: zoneIds.map(id => ({ id, name: `Area ${id}` })),
   nuclearReactor: null,
   dataCenterRacks: null,
 });
@@ -60,7 +60,7 @@ it("keeps panels from unmatched areas under the Default fallback owner", () => {
     defaultModuleId: defaultModule.id,
     modules: ownershipModules,
     plannedTargets: { mono: 2 },
-    productionEntities: [solarEntity(1, "SolarPanelMono", ["Solar Power"])],
+    productionEntities: [solarEntity(1, "SolarPanelMono", [30])],
   });
 
   expect(assignments.general).toMatchObject({
@@ -77,7 +77,7 @@ it("applies the global target to the module that owns the live panels", () => {
     defaultModuleId: defaultModule.id,
     modules: ownershipModules,
     plannedTargets: { mono: 2 },
-    productionEntities: [solarEntity(1, "SolarPanelMono", ["Nuclear"])],
+    productionEntities: [solarEntity(1, "SolarPanelMono", [10])],
   });
 
   expect(assignments.general).toMatchObject({
@@ -95,7 +95,7 @@ it("counts an overlapping panel once under the Default fallback owner", () => {
   const assignments = resolveSolarPanelModuleAssignments({
     defaultModuleId: defaultModule.id,
     modules: ownershipModules,
-    productionEntities: [solarEntity(1, "SolarPanelMono", ["Nuclear", "Computing"])],
+    productionEntities: [solarEntity(1, "SolarPanelMono", [10, 20])],
   });
   const totalBuilt = Object.values(assignments).reduce(
     (total, assignment) => total + assignment.builtCounts.mono,

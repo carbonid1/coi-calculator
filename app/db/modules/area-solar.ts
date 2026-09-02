@@ -93,7 +93,6 @@ export const resolveSolarPanelModuleAssignments = ({
     defaultAssignment.builtCounts = fallback.builtCounts;
     defaultAssignment.runningCounts = fallback.runningCounts;
   } else {
-    const moduleIdsByAreaName = new Map<string, string[]>();
     const moduleIdByZoneId = new Map<number, string>();
 
     for (const moduleDefinition of modules) {
@@ -101,10 +100,6 @@ export const resolveSolarPanelModuleAssignments = ({
       if (moduleDefinition.liveArea) {
         moduleIdByZoneId.set(moduleDefinition.liveArea.zoneId, moduleDefinition.id);
       }
-      const moduleIds = moduleIdsByAreaName.get(moduleDefinition.name) ?? [];
-
-      moduleIds.push(moduleDefinition.id);
-      moduleIdsByAreaName.set(moduleDefinition.name, moduleIds);
     }
 
     for (const entity of productionEntities) {
@@ -115,7 +110,7 @@ export const resolveSolarPanelModuleAssignments = ({
       const matchingModuleIds = new Set(entity.zones.flatMap(zone => {
         const moduleId = moduleIdByZoneId.get(zone.id);
 
-        return moduleId ? [moduleId] : (moduleIdsByAreaName.get(zone.name ?? "") ?? []);
+        return moduleId ? [moduleId] : [];
       }));
       const ownerId = matchingModuleIds.size === 1
         ? [...matchingModuleIds][0]

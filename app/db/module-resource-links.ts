@@ -3,22 +3,24 @@ import { type ResourceId } from './resources'
 
 type ModuleResourceLinkMode = 'surplus-only' | 'produce-to-demand'
 
-/**
- * User-shaped connection between two module resource ports. Module names are
- * stable, visible identities for synced game areas; the resolver binds them to
- * the current snapshot's runtime module IDs.
- */
+/** Save-scoped connection between two synced game areas. */
 export interface ModuleResourceLinkDefinition {
   id: string
-  sourceModuleName: string
-  targetModuleName: string
+  saveId: string
+  sourceZoneId: number
+  targetZoneId: number
   resourceId: ResourceId
   mode: ModuleResourceLinkMode
 }
 
-export interface ModuleResourceLink extends ModuleResourceLinkDefinition {
+export interface ModuleResourceLink {
+  id: string
+  sourceModuleName: string
   sourceModuleId: string
+  targetModuleName: string
   targetModuleId: string
+  resourceId: ResourceId
+  mode: ModuleResourceLinkMode
 }
 
 export interface ModuleResourceTransfer extends ModuleResourceLink {
@@ -30,29 +32,33 @@ export interface ModuleResourceTransfer extends ModuleResourceLink {
 export const moduleResourceLinkDefinitions: readonly ModuleResourceLinkDefinition[] = [
   {
     id: 'copper-1-exhaust-to-exaust-1',
-    sourceModuleName: 'Copper #1',
-    targetModuleName: 'Exaust #1',
+    saveId: 'Last-Stop Waters',
+    sourceZoneId: 16,
+    targetZoneId: 17,
     resourceId: 'exhaust',
     mode: 'surplus-only',
   },
   {
     id: 'copper-1-sea-water-to-exaust-1',
-    sourceModuleName: 'Copper #1',
-    targetModuleName: 'Exaust #1',
+    saveId: 'Last-Stop Waters',
+    sourceZoneId: 16,
+    targetZoneId: 17,
     resourceId: 'seaWater',
     mode: 'produce-to-demand',
   },
   {
     id: 'copper-1-sea-water-to-steel-1',
-    sourceModuleName: 'Copper #1',
-    targetModuleName: 'Steel #1',
+    saveId: 'Last-Stop Waters',
+    sourceZoneId: 16,
+    targetZoneId: 21,
     resourceId: 'seaWater',
     mode: 'produce-to-demand',
   },
   {
     id: 'steel-1-exhaust-to-exaust-1',
-    sourceModuleName: 'Steel #1',
-    targetModuleName: 'Exaust #1',
+    saveId: 'Last-Stop Waters',
+    sourceZoneId: 21,
+    targetZoneId: 17,
     resourceId: 'exhaust',
     mode: 'surplus-only',
   },
@@ -60,20 +66,28 @@ export const moduleResourceLinkDefinitions: readonly ModuleResourceLinkDefinitio
 
 export const resolveModuleResourceLinks = (
   modules: readonly Module[],
+  saveId: string | null | undefined,
   definitions: readonly ModuleResourceLinkDefinition[] = moduleResourceLinkDefinitions,
 ): ModuleResourceLink[] => {
-  const modulesByName = new Map(modules.map(module => [module.name, module]))
+  const modulesByZoneId = new Map(modules.flatMap(module => (
+    module.liveArea ? [[module.liveArea.zoneId, module] as const] : []
+  )))
 
   return definitions.flatMap(definition => {
-    const source = modulesByName.get(definition.sourceModuleName)
-    const target = modulesByName.get(definition.targetModuleName)
+    if (definition.saveId !== saveId) return []
+    const source = modulesByZoneId.get(definition.sourceZoneId)
+    const target = modulesByZoneId.get(definition.targetZoneId)
 
     if (!source || !target || source.id === target.id) return []
 
     return [{
-      ...definition,
+      id: definition.id,
+      sourceModuleName: source.name,
       sourceModuleId: source.id,
+      targetModuleName: target.name,
       targetModuleId: target.id,
+      resourceId: definition.resourceId,
+      mode: definition.mode,
     }]
   })
 }

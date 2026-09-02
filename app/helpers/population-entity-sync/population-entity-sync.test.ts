@@ -22,7 +22,7 @@ const entity = (
   ...options,
 });
 
-it("maps only calculator-owned Population buildings from the exact area", () => {
+it("maps only calculator-owned Population buildings from the selected area ID", () => {
   const inventory = resolvePopulationEntityInventory([
     entity(1, "HousingT3"),
     entity(2, "HousingT3", { running: false }),
@@ -33,7 +33,7 @@ it("maps only calculator-owned Population buildings from the exact area", () => 
     entity(7, "TrainStationFluid_ELEC"),
     entity(8, "HousingT3", { zones: [{ id: 26, name: "Population East" }] }),
     entity(9, "HousingT2", { running: false }),
-  ]);
+  ], 25);
 
   expect(inventory.counts).toMatchObject({
     [settlementRecipeIds.residents]: { built: 2, running: 1 },
@@ -54,7 +54,7 @@ it("binds configurable waste-processing buildings only to matching recipes", () 
     entity(3, "AnaerobicDigester", { recipeIds: ["SludgeDigestion"] }),
     entity(4, "AnaerobicDigester", { recipeIds: ["CornDigestion"] }),
     entity(5, "IndustrialMixerT2", { recipeIds: ["BiomassCompost"], running: false }),
-  ]);
+  ], 25);
 
   expect(inventory.counts).toMatchObject({
     [settlementRecipeIds.wastewaterTreatment]: { built: 1, running: 1 },

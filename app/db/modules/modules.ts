@@ -69,6 +69,17 @@ export interface LiveAreaModuleState {
   issues: LiveAreaIssue[];
 }
 
+export type ModuleCapability =
+  | "chicken-farming"
+  | "computing"
+  | "crop-farming"
+  | "default"
+  | "forestry"
+  | "nuclear"
+  | "offices"
+  | "population"
+  | "space-station";
+
 export interface PlanMismatch {
   recipeId: string;
   current: number;
@@ -114,6 +125,8 @@ export interface Module {
   builtBuildings: Record<string, number>;
   /** Runtime-defined recipes owned by this module. */
   recipes?: readonly Recipe[];
+  /** Stable semantic features inferred from game prototype IDs, never display names. */
+  capabilities?: readonly ModuleCapability[];
   presets: Preset[];
   defaultPresetId: string | null;
   /** Resources reported inside this module but intentionally excluded from Factory Total. */
@@ -121,6 +134,11 @@ export interface Module {
   /** Live named-area inventory supplied by the game exporter. */
   liveArea?: LiveAreaModuleState;
 }
+
+export const hasModuleCapability = (
+  module: Pick<Module, "capabilities">,
+  capability: ModuleCapability,
+) => module.capabilities?.includes(capability) ?? false;
 
 export const modules: [Module, ...Module[]] = [
   defaultArea,

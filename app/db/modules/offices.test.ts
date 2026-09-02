@@ -13,6 +13,8 @@ import {
   applySyncedOfficeInventory,
   createOfficeAreaModule,
   createPlannedOfficeModule,
+  getOfficeAreaZoneIds,
+  getSyncedOfficeConfigurations,
   hasAttachedOfficeRecipes,
 } from './offices'
 
@@ -60,7 +62,10 @@ const plan = {
 describe('synced Office areas', () => {
   it('adapts Office buildings in any generated area without changing their balance', () => {
     const entities = [
-      areaEntity(1, 'OfficeBuildingT3', 'Office III'),
+      {
+        ...areaEntity(1, 'OfficeBuildingT3', 'Office III'),
+        office: { computingBoostStep: 2 as const },
+      },
       areaEntity(2, 'AssemblyRoboticT2', 'Assembly V', [officeSuppliesRecipe]),
     ]
     const [generatedArea] = createLiveAreaModules([zone], entities, modules)
@@ -94,7 +99,7 @@ describe('synced Office areas', () => {
     expect(office).toMatchObject({
       activeBuildings: 1,
       builtBuildings: 1,
-      dataSource: 'planned',
+      dataSource: 'synced',
       supplyRatio: 1,
     })
     expect(supplies?.supplyRatio).toBeCloseTo(1 / 6)
@@ -104,6 +109,55 @@ describe('synced Office areas', () => {
     expect(flow('householdGoods')?.net).toBeCloseTo(-8 / 3)
     expect(flow('electronicsII')?.net).toBeCloseTo(-4 / 3)
     expect(result.computingDemandTflops).toBe(198)
+  })
+
+  it('keeps mixed synced computing boosts as separate Office configurations', () => {
+    const entities: SyncedAreaEntity[] = [
+      {
+        ...areaEntity(1, 'OfficeBuildingT3', 'Office III'),
+        office: { computingBoostStep: 0 },
+      },
+      {
+        ...areaEntity(2, 'OfficeBuildingT3', 'Office III'),
+        office: { computingBoostStep: 2 },
+      },
+      {
+        ...areaEntity(3, 'OfficeBuildingT3', 'Office III'),
+        running: false,
+        office: { computingBoostStep: 2 },
+      },
+    ]
+    const [generatedArea] = createLiveAreaModules([zone], entities, modules)
+
+    if (!generatedArea) throw new Error('Missing generated Office area')
+
+    const officeAreaModule = createOfficeAreaModule(generatedArea, entities, plan, 'planned')
+    const preset = officeAreaModule.presets.find(({ id }) => (
+      id === officeAreaModule.defaultPresetId
+    ))
+
+    expect(officeAreaModule.builtBuildings).toMatchObject({
+      'officeIII-boost-0': 1,
+      'officeIII-boost-2': 2,
+    })
+    expect(preset).toMatchObject({
+      activeBuildings: {
+        'officeIII-boost-0': 1,
+        'officeIII-boost-2': 1,
+      },
+      dataSources: {
+        'officeIII-boost-0': 'synced',
+        'officeIII-boost-2': 'synced',
+      },
+    })
+    expect(getSyncedOfficeConfigurations(entities)).toEqual([
+      { tierId: 'officeIII', computingBoostStep: 0, count: 1 },
+      { tierId: 'officeIII', computingBoostStep: 2, count: 1 },
+    ])
+    expect(getSyncedOfficeConfigurations(entities, 'built')).toEqual([
+      { tierId: 'officeIII', computingBoostStep: 0, count: 1 },
+      { tierId: 'officeIII', computingBoostStep: 2, count: 2 },
+    ])
   })
 
   it('uses running synced Offices for the Focus budget', () => {
@@ -193,6 +247,34 @@ describe('synced Office areas', () => {
     expect(configuredAreas.find(area => area.id === 'live-area-24')).toMatchObject({
       includedInFactoryTotals: false,
       liveArea: { issues: [] },
+    })
+  })
+
+  it('assigns an Office outside named areas to Default', () => {
+    const unzonedOffice = {
+      ...areaEntity(1, 'OfficeBuildingT3', 'Office III'),
+      zones: [],
+    }
+    const [generatedDefault] = createLiveAreaModules(
+      [{ id: -1, name: 'Default' }],
+      [unzonedOffice],
+      modules,
+    )
+
+    if (!generatedDefault) throw new Error('Missing generated Default area')
+
+    const configuredDefault = createOfficeAreaModule(
+      generatedDefault,
+      [unzonedOffice],
+      plan,
+      'planned',
+    )
+
+    expect(getOfficeAreaZoneIds([unzonedOffice])).toEqual(new Set([-1]))
+    expect(configuredDefault).toMatchObject({
+      id: 'general',
+      includedInFactoryTotals: true,
+      builtBuildings: { 'officeIII-boost-2': 1 },
     })
   })
 })

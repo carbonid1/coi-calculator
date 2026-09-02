@@ -3,6 +3,7 @@ import { type SyncedMachineInventoryItem } from "../../game-state";
 
 export interface SharedMachineClaim {
   id: string;
+  zoneId: number;
   moduleId: string;
   moduleName: string;
   recipeId: string;
@@ -66,10 +67,6 @@ const defaultZone: SyncedMachineInventoryItem["zones"][number] = {
   id: DEFAULT_ZONE_ID,
   name: "Default",
 };
-const normalizeZoneName = (value: string) => value
-  .toLocaleLowerCase("en-US")
-  .replaceAll(/[^a-z0-9]+/g, " ")
-  .trim();
 
 /**
  * Assigns a machine when its live vehicle-zone membership resolves to exactly
@@ -104,16 +101,9 @@ export const allocateSharedMachines = (
 
     if (manuallyAssignedClaim?.kind === machine.kind) return manuallyAssignedClaim.id;
 
-    const normalizedZoneName = normalizeZoneName(zone.name ?? "");
     const automaticMatches = claims.filter(claim => (
       claim.kind === machine.kind
-      && (
-        (zone.id === DEFAULT_ZONE_ID && normalizeZoneName(claim.moduleName) === "default")
-        || (
-          normalizedZoneName.length > 0
-          && normalizedZoneName === normalizeZoneName(claim.moduleName)
-        )
-      )
+      && claim.zoneId === zone.id
     ));
 
     return automaticMatches.length === 1 ? automaticMatches[0]?.id : undefined;

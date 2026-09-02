@@ -520,8 +520,8 @@ per-production-cycle rates of 48, 24, 16, and 8 respectively.
 Office buildings and their owning areas come from the named-area snapshot. An
 area can have any name; its Office I–III buildings are attached by prototype and
 stable zone ID. The selected Office Supplies recipe on Assembly V is synced
-directly. Office computing boost and Focus allocation are not present in the
-current snapshot, so they remain explicit planned settings.
+directly, as is each Office's computing boost. Focus allocation remains an
+explicit planned setting.
 
 If no generated area can own the Office inventory, the same explicit plan is
 kept as an `Office plan` preset. This preserves its projected workers, power,
@@ -537,6 +537,6 @@ III's 192 TFLOPS demand remains visible in its owning area and Factory Total.
 The supporting Housing III configuration models all 15 blocks as physically
 built and exposes their full-population settlement demand.
 
-Verified against the installed v0.8.7 Office prototypes, `OfficeFocusProto`,
-Focus property implementations, Focus Points infinite research, and Assembly V
-Office Supplies recipe bindings.
+Verified against the installed v0.8.7 `OfficeBuilding.ComputingBoostStep`, Office
+prototypes, `OfficeFocusProto`, Focus property implementations, Focus Points
+infinite research, and Assembly V Office Supplies recipe bindings.

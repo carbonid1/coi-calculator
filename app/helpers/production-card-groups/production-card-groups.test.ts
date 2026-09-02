@@ -4,7 +4,6 @@ import { type Module } from '../../db/modules/modules'
 import { createSpaceStationModule } from '../../db/modules/space-station'
 import {
   emptyRocketInfrastructureConfig,
-  plannedRocketInfrastructureConfig,
 } from '../../db/rocket-infrastructure'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateProductionCardLoad, groupProductionCardLines } from './production-card-groups'
@@ -12,9 +11,8 @@ import { calculateProductionCardLoad, groupProductionCardLines } from './product
 describe('production card groups', () => {
   it('shows the two station operations as one physical card', () => {
     const station = createSpaceStationModule(
-      { currentLevel: 0, highestLevelAchieved: 4, targetLevel: 4 },
+      { currentLevel: 4, highestLevelAchieved: 4 },
       emptyRocketInfrastructureConfig,
-      plannedRocketInfrastructureConfig,
       {
         rocketRunningConfig: emptyRocketInfrastructureConfig,
         rocketSource: 'synced',

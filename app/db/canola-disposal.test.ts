@@ -54,7 +54,8 @@ it("plans the paused Cooking Oil reforming plant with verified v0.8.7 rates", ()
     activeBuildings: 1,
     currentActiveBuildings: 0,
     builtBuildings: 0,
-    constructionGhosts: 1,
+    constructionGhosts: 0,
+    unplacedPlannedBuildings: 1,
     dataSource: "planned",
     operatingMode: "balanced",
     recipe: {

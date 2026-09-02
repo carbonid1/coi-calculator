@@ -3,6 +3,7 @@ import { Tooltip } from "@carbonid1/design-system";
 import {
   type AnimalPopulationDiagnostic,
   type BuildingAttention,
+  type BuildingLevelDiagnostic,
 } from "../helpers/building-diagnostics/building-diagnostics";
 import { formatBuildingLoad } from "../helpers/format-building-load";
 import { BuildingStateCounts } from "./BuildingStateCounts";
@@ -16,6 +17,7 @@ interface Props {
   planned?: number;
   attention?: BuildingAttention | null;
   attentionCount?: number;
+  level?: BuildingLevelDiagnostic;
   animalPopulation?: AnimalPopulationDiagnostic;
 }
 
@@ -24,8 +26,14 @@ const formatCount = (value: number) => parseFloat(value.toFixed(2));
 const attentionLabel = (
   attention: BuildingAttention,
   count: number,
+  level?: BuildingLevelDiagnostic,
   animalPopulation?: AnimalPopulationDiagnostic,
 ) => {
+  if (level) {
+    return attention === "build"
+      ? `Build level ${level.target}`
+      : `Upgrade to level ${level.target}`;
+  }
   if (attention === "add-animals" && animalPopulation) {
     return `Add ${count.toLocaleString()} ${animalPopulation.label}`;
   }
@@ -48,6 +56,7 @@ export const BuildingCount: React.FC<Props> = ({
   planned = 0,
   attention,
   attentionCount = 0,
+  level,
   animalPopulation,
 }) => {
   const displayedActive = currentActive ?? Math.max(
@@ -88,7 +97,7 @@ export const BuildingCount: React.FC<Props> = ({
           ? "text-xs font-medium text-attention-foreground"
           : "text-xs font-medium text-destructive"}
         >
-          {attentionLabel(attention, attentionCount, animalPopulation)}
+          {attentionLabel(attention, attentionCount, level, animalPopulation)}
         </p>
       )}
     </div>

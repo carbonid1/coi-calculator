@@ -25,6 +25,7 @@ const createModule = (
   recipes: Recipe[],
   fixed: string[] = [],
   requestedExports?: Module['presets'][number]['requestedExports'],
+  zoneId: number = 1,
 ): Module => ({
   id,
   name,
@@ -41,7 +42,7 @@ const createModule = (
     ...(requestedExports ? { requestedExports } : {}),
   }],
   defaultPresetId: 'live',
-  liveArea: liveAreaState,
+  liveArea: { ...liveAreaState, zoneId },
 })
 
 describe('linked live modules', () => {
@@ -113,33 +114,43 @@ describe('linked live modules', () => {
     expect(result.moduleResults.has(copper.id)).toBe(false)
   })
 
-  it('resolves the same name-based link records a future UI can persist', () => {
-    const source = createModule('source', 'Source', [])
-    const target = createModule('target', 'Target', [])
+  it('resolves save-scoped area links while preserving current display names', () => {
+    const source = createModule('source', 'Localized source', [], [], undefined, 10)
+    const target = createModule('target', 'Localized target', [], [], undefined, 11)
 
-    expect(resolveModuleResourceLinks([source, target], [{
+    expect(resolveModuleResourceLinks([source, target], 'Test save', [{
       id: 'test-link',
-      sourceModuleName: 'Source',
-      targetModuleName: 'Target',
+      saveId: 'Test save',
+      sourceZoneId: 10,
+      targetZoneId: 11,
       resourceId: 'exhaust',
       mode: 'surplus-only',
     }])).toEqual([{
       id: 'test-link',
-      sourceModuleName: 'Source',
+      sourceModuleName: 'Localized source',
       sourceModuleId: 'source',
-      targetModuleName: 'Target',
+      targetModuleName: 'Localized target',
       targetModuleId: 'target',
       resourceId: 'exhaust',
       mode: 'surplus-only',
     }])
+    expect(resolveModuleResourceLinks([source, target], 'Another save', [{
+      id: 'test-link',
+      saveId: 'Test save',
+      sourceZoneId: 10,
+      targetZoneId: 11,
+      resourceId: 'exhaust',
+      mode: 'surplus-only',
+    }])).toEqual([])
   })
 
-  it('resolves the dedicated Steel #1 routes from the synced area names', () => {
-    const copper = createModule('copper', 'Copper #1', [])
-    const steel = createModule('steel', 'Steel #1', [])
-    const exhaust = createModule('exhaust', 'Exaust #1', [])
+  it('resolves the dedicated routes from stable save and area IDs', () => {
+    const copper = createModule('copper', 'Renamed copper', [], [], undefined, 16)
+    const steel = createModule('steel', 'Renamed steel', [], [], undefined, 21)
+    const exhaust = createModule('exhaust', 'Renamed exhaust', [], [], undefined, 17)
     const links = resolveModuleResourceLinks(
       [copper, steel, exhaust],
+      'Last-Stop Waters',
       moduleResourceLinkDefinitions,
     )
 

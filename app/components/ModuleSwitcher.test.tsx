@@ -67,7 +67,7 @@ describe("ModuleSwitcher", () => {
     liveArea: { ...liveArea, zoneId: 43 },
   });
 
-  it("groups views and presets before synced tabs without reordering a group", () => {
+  it("groups views and presets before synced tabs and pins Default first", () => {
     const { presetModules, syncedModules, viewModules } = getModuleTabGroups([
       zetaArea,
       syncedDefault,
@@ -81,8 +81,8 @@ describe("ModuleSwitcher", () => {
     expect(viewModules.map(({ name }) => name)).toEqual(["Focus", "Mines", "Reserves"]);
     expect(presetModules).toEqual([]);
     expect(syncedModules.map(({ name }) => name)).toEqual([
-      "Zeta Mine",
       "Default",
+      "Zeta Mine",
       "Alpha Works",
       "Chicken Farms",
     ]);

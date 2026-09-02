@@ -82,12 +82,6 @@ export const selectMaintenanceDepotLines = <T extends { recipe: { id: string } }
   lines: readonly T[],
 ): T[] => lines.filter(line => maintenanceResourceByRecipeId.has(line.recipe.id))
 
-const modeledDefaultInventory = {
-  'maintenance-i-recycling': 2,
-  'maintenance-ii-recycling': 1,
-  'maintenance-iii-recycling': 2,
-} as const
-
 export interface MaintenanceDepotModuleAssignment {
   builtBuildings: Record<string, number>
   activeBuildings: Record<string, number>
@@ -118,7 +112,7 @@ const getCalculatorRecipeId = (
     : definition.standardRecipeId
 
 /**
- * Assigns each physical maintenance depot to its exact area-name match. Depots
+ * Assigns each physical maintenance depot to its exact synced area ID. Depots
  * outside named areas belong to the game's immutable Default area.
  */
 export const resolveMaintenanceDepotModuleAssignments = ({
@@ -139,13 +133,7 @@ export const resolveMaintenanceDepotModuleAssignments = ({
     throw new Error(`Missing default maintenance owner module: ${defaultModuleId}`)
   }
 
-  if (productionEntities === undefined) {
-    for (const [recipeId, count] of Object.entries(modeledDefaultInventory)) {
-      defaultAssignment.builtBuildings[recipeId] = count
-      defaultAssignment.activeBuildings[recipeId] = count
-    }
-  } else {
-    const moduleIdsByAreaName = new Map<string, string[]>()
+  if (productionEntities !== undefined) {
     const moduleIdByZoneId = new Map<number, string>()
 
     for (const moduleDefinition of modules) {
@@ -153,10 +141,6 @@ export const resolveMaintenanceDepotModuleAssignments = ({
       if (moduleDefinition.liveArea) {
         moduleIdByZoneId.set(moduleDefinition.liveArea.zoneId, moduleDefinition.id)
       }
-      const moduleIds = moduleIdsByAreaName.get(moduleDefinition.name) ?? []
-
-      moduleIds.push(moduleDefinition.id)
-      moduleIdsByAreaName.set(moduleDefinition.name, moduleIds)
     }
 
     for (const entity of productionEntities) {
@@ -164,13 +148,11 @@ export const resolveMaintenanceDepotModuleAssignments = ({
 
       if (!definition) continue
 
-      const matchingModuleIds = new Set(
-        entity.zones.flatMap(zone => {
-          const moduleId = moduleIdByZoneId.get(zone.id)
+      const matchingModuleIds = new Set(entity.zones.flatMap(zone => {
+        const moduleId = moduleIdByZoneId.get(zone.id)
 
-          return moduleId ? [moduleId] : (moduleIdsByAreaName.get(zone.name ?? '') ?? [])
-        }),
-      )
+        return moduleId ? [moduleId] : []
+      }))
       const ownerId = matchingModuleIds.size === 1 ? [...matchingModuleIds][0] : defaultModuleId
       const owner = ownerId ? assignments[ownerId] : undefined
 

@@ -61,7 +61,12 @@ const isStaticInfrastructureRecipeId = (recipeId: string) => (
 )
 
 export const isAreaAssignableStaticInfrastructurePrototype = (prototypeId: string) => (
-  definitionByPrototypeId.has(prototypeId) || nonProductionInfrastructurePrototypeIds.has(prototypeId)
+  definitionByPrototypeId.has(prototypeId)
+  || isNonProductionAreaInfrastructurePrototype(prototypeId)
+)
+
+export const isNonProductionAreaInfrastructurePrototype = (prototypeId: string) => (
+  nonProductionInfrastructurePrototypeIds.has(prototypeId)
 )
 
 export const selectStaticInfrastructureLines = <T extends { recipe: { id: string } }>(
@@ -198,7 +203,6 @@ export const resolveStaticInfrastructureModuleAssignments = ({
     defaultAssignment.constructionGhosts[item.recipeId] = 0
   }
 
-  const moduleIdsByAreaName = new Map<string, string[]>()
   const moduleIdByZoneId = new Map<number, string>()
 
   for (const moduleDefinition of modules) {
@@ -206,10 +210,6 @@ export const resolveStaticInfrastructureModuleAssignments = ({
     if (moduleDefinition.liveArea) {
       moduleIdByZoneId.set(moduleDefinition.liveArea.zoneId, moduleDefinition.id)
     }
-    const moduleIds = moduleIdsByAreaName.get(moduleDefinition.name) ?? []
-
-    moduleIds.push(moduleDefinition.id)
-    moduleIdsByAreaName.set(moduleDefinition.name, moduleIds)
   }
 
   const assignEntity = (
@@ -237,7 +237,7 @@ export const resolveStaticInfrastructureModuleAssignments = ({
     const matchingModuleIds = new Set(zones.flatMap(zone => {
       const moduleId = moduleIdByZoneId.get(zone.id)
 
-      return moduleId ? [moduleId] : (moduleIdsByAreaName.get(zone.name ?? '') ?? [])
+      return moduleId ? [moduleId] : []
     }))
     const ownerId = matchingModuleIds.size === 1
       ? [...matchingModuleIds][0]

@@ -63,3 +63,18 @@ it("shows chicken population and projected farm capacity", () => {
   expect(html).toContain("2350 / 2500");
   expect(html).toContain("1 planned, not placed building");
 });
+
+it("shows the required Space Station level", () => {
+  const html = renderToStaticMarkup(
+    <BuildingCount
+      load={0}
+      active={0}
+      built={0}
+      attention="build"
+      attentionCount={1}
+      level={{ current: 0, target: 3 }}
+    />,
+  );
+
+  expect(html).toContain("Build level 3");
+});

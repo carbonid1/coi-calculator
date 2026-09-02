@@ -51,3 +51,22 @@ it("omits steam and FBR power-chain advice from Building Attention", () => {
     expect(html).not.toContain(buildingName);
   }
 });
+
+it("shows Space Research as a level-based station action", () => {
+  const html = renderToStaticMarkup(
+    <BuildingAttentionView
+      diagnostics={[{
+        ...diagnostic("Space Station"),
+        moduleId: "space-station",
+        moduleName: "Space Station",
+        recipeName: "Space Research",
+        attention: "upgrade",
+        level: { current: 3, target: 4 },
+      }]}
+      onOpenBuilding={vi.fn()}
+    />,
+  );
+
+  expect(html).toContain("Upgrade to level 4");
+  expect(html).toContain("Level 3 / 4");
+});

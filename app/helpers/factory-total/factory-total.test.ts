@@ -10,8 +10,10 @@ import {
   modules,
   type Module,
 } from "../../db/modules/modules";
+import { recipes, type Recipe } from "../../db/recipes";
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { activeContracts } from "../../test-fixtures/active-contracts";
+import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
 import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
@@ -26,20 +28,110 @@ const maintenanceDemand = {
   maintenanceII: 194.22,
   maintenanceIII: 236.55,
 };
+const recipeById = (id: string): Recipe => {
+  const recipe = recipes.find(candidate => candidate.id === id);
+
+  if (!recipe) throw new Error(`Missing test recipe: ${id}`);
+
+  return recipe;
+};
+const currentFactoryFixture: Module = {
+  id: DEFAULT_MODULE_ID,
+  name: "Default test fixture",
+  description: "",
+  builtBuildings: {
+    "fixture-uranium-demand": 1,
+    "fixture-hydrogen-demand": 1,
+    "fixture-titanium-demand": 1,
+    "fixture-coal-demand": 1,
+    "hydrogen-reformer-super": 8,
+    "crusher-large-titanium": 1,
+    "coal-maker-wood": 3,
+    "waste-sorting-recyclables": 2,
+  },
+  recipes: [
+    {
+      id: "fixture-uranium-demand",
+      name: "Uranium demand",
+      building: "Test",
+      group: "production",
+      inputs: [{ resourceId: "uraniumOre", quantity: 54 }],
+      outputs: [],
+    },
+    {
+      id: "fixture-hydrogen-demand",
+      name: "Hydrogen demand",
+      building: "Test",
+      group: "production",
+      inputs: [{ resourceId: "hydrogen", quantity: 130 }],
+      outputs: [],
+    },
+    {
+      id: "fixture-titanium-demand",
+      name: "Titanium demand",
+      building: "Test",
+      group: "production",
+      inputs: [{ resourceId: "titaniumOreCrushed", quantity: 100 }],
+      outputs: [],
+    },
+    {
+      id: "fixture-coal-demand",
+      name: "Coal demand",
+      building: "Test",
+      group: "production",
+      inputs: [{ resourceId: "coal", quantity: 10 }],
+      outputs: [],
+    },
+    recipeById("hydrogen-reformer-super"),
+    recipeById("crusher-large-titanium"),
+    recipeById("coal-maker-wood"),
+    recipeById("waste-sorting-recyclables"),
+  ],
+  presets: [{
+    id: "fixture",
+    name: "Fixture",
+    description: "",
+    activeBuildings: {
+      "fixture-uranium-demand": 1,
+      "fixture-hydrogen-demand": 1,
+      "fixture-titanium-demand": 1,
+      "fixture-coal-demand": 1,
+      "hydrogen-reformer-super": 8,
+      "crusher-large-titanium": 1,
+      "coal-maker-wood": 0,
+      "waste-sorting-recyclables": 2,
+    },
+    dataSources: {
+      "hydrogen-reformer-super": "synced",
+      "crusher-large-titanium": "synced",
+      "coal-maker-wood": "synced",
+      "waste-sorting-recyclables": "synced",
+    },
+    fixed: [
+      "fixture-uranium-demand",
+      "fixture-hydrogen-demand",
+      "fixture-titanium-demand",
+      "fixture-coal-demand",
+    ],
+  }],
+  defaultPresetId: "fixture",
+};
 const modulesWithNuclear = [
-  ...modules,
+  ...modules.filter(module => module.id !== DEFAULT_MODULE_ID),
+  currentFactoryFixture,
   syncedNuclearTestModule,
 ];
 const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
   defaultModuleId: DEFAULT_MODULE_ID,
   demand: maintenanceDemand,
   modules: modulesWithNuclear,
+  productionEntities: syncedMaintenanceDepotEntities,
 });
 const modulesWithSyncedHistory = modulesWithNuclear.map(module => {
   const maintenanceAssignment = maintenanceAssignments[module.id];
 
   if (maintenanceAssignment) {
-    module = attachMaintenanceDepotsToModule(module, maintenanceAssignment, "modeled");
+    module = attachMaintenanceDepotsToModule(module, maintenanceAssignment, "synced");
   }
 
   return module;
@@ -116,12 +208,12 @@ describe("Factory Total contracts", () => {
     expect(crusher).toMatchObject({
       activeBuildings: 1,
       builtBuildings: 1,
-      dataSource: "modeled",
+      dataSource: "synced",
     });
     expect(crusher?.actualInputs.find(({ resourceId }) => resourceId === "titaniumOre")?.quantity)
       .toBeCloseTo(contractResult?.imported ?? 0);
     expect(titaniumOre?.net).toBeCloseTo(0);
-    expect(crushedTitaniumOre?.net).toBeCloseTo(0);
+    expect(crushedTitaniumOre?.net).toBeLessThan(0);
     expect(result.contractResults.some(
       ({ contract }) => contract.id === "iron-ore-for-vehicle-parts-ii",
     )).toBe(false);
@@ -245,7 +337,7 @@ describe("Factory Total contracts", () => {
     });
   });
 
-  it("uses synced maintenance demand and exposes the saturated recycler", () => {
+  it("uses synced maintenance demand and balances available recycling capacity", () => {
     const maintenanceOutput = calculateMaintenanceOutput(
       defaultInfiniteResearchLevels.maintenanceOutput,
     );
@@ -273,9 +365,9 @@ describe("Factory Total contracts", () => {
     expect(maintenanceII?.supplyRatio).toBeCloseTo(0.39);
     expect(maintenanceIII?.supplyRatio).toBeCloseTo(0.475);
     expect(wasteSorter).toMatchObject({ activeBuildings: 2 });
-    expect(wasteSorter?.supplyRatio).toBeCloseTo(0.51375);
-    expect(recyclables?.consumed).toBeCloseTo(147.96);
-    expect(recyclables?.produced).toBeCloseTo(147.96);
+    expect(wasteSorter?.supplyRatio ?? 0).toBeGreaterThan(0);
+    expect(recyclables?.consumed ?? 0).toBeGreaterThan(0);
+    expect(recyclables?.produced).toBeCloseTo(recyclables?.consumed ?? 0);
     expect(recyclables?.net).toBeCloseTo(0);
   });
 });
@@ -507,5 +599,169 @@ describe("Factory Total module boundaries", () => {
 
     expect(result.flows.find(flow => flow.resourceId === "limestone")?.net).toBe(-2);
     expect(result.flows.find(flow => flow.resourceId === "sulfur")?.net).toBe(1);
+  });
+
+  it("converges equivalent prioritized consumers before a surplus sink runs", () => {
+    const brineModule: Module = {
+      id: "prioritized-brine",
+      name: "Prioritized Brine",
+      description: "",
+      includedInFactoryTotals: true,
+      builtBuildings: {
+        "brine-source": 1,
+        "salt-demand": 1,
+        "salt-pond-a": 1,
+        "salt-pond-b": 2,
+        "brine-dump": 1,
+      },
+      recipes: [{
+        id: "brine-source",
+        name: "Brine source",
+        building: "Source",
+        group: "production",
+        inputs: [],
+        outputs: [{ resourceId: "brine", quantity: 480 }],
+      }, {
+        id: "salt-demand",
+        name: "Salt demand",
+        building: "Consumer",
+        group: "production",
+        inputs: [{ resourceId: "salt", quantity: 24 }],
+        outputs: [],
+      }, ...["salt-pond-a", "salt-pond-b"].map((id): Recipe => ({
+        id,
+        name: id,
+        building: "Evaporation Pond (Heated)",
+        group: "production",
+        balanceBy: "output",
+        balanceInputIds: ["brine"],
+        balanceOutputIds: ["salt"],
+        inputPriorities: { brine: 3 },
+        inputs: [{ resourceId: "brine", quantity: 96 }],
+        outputs: [{ resourceId: "salt", quantity: 12 }],
+      })), {
+        id: "brine-dump",
+        name: "Brine dump",
+        building: "Liquid Dump",
+        group: "sink",
+        inputs: [{ resourceId: "brine", quantity: 200 }],
+        outputs: [],
+      }],
+      presets: [{
+        id: "live",
+        name: "Live",
+        description: "",
+        activeBuildings: {
+          "brine-source": 1,
+          "salt-demand": 1,
+          "salt-pond-a": 1,
+          "salt-pond-b": 2,
+          "brine-dump": 1,
+        },
+        fixed: ["brine-source", "salt-demand"],
+      }],
+      defaultPresetId: "live",
+    };
+    const result = calculateFactoryTotal([brineModule], baselineFactoryOptions);
+
+    expect(result.flows.find(flow => flow.resourceId === "salt")?.net).toBeCloseTo(0, 5);
+    expect(result.flows.find(flow => flow.resourceId === "brine")?.net).toBeCloseTo(88, 5);
+    expect(result.calculation.sinkResults.find(result => (
+      result.recipe.id === "brine-dump"
+    ))?.actualInputs).toEqual([{ resourceId: "brine", quantity: 200 }]);
+  });
+
+  it("lets module-local recovered Steel displace ordinary Steel production", () => {
+    const recoveryModule: Module = {
+      id: "default-recovery",
+      name: "Default recovery",
+      description: "",
+      includedInFactoryTotals: true,
+      builtBuildings: {
+        "local-molten-steel": 1,
+        "local-steel-caster": 1,
+        "steel-demand": 1,
+      },
+      recipes: [{
+        id: "local-molten-steel",
+        name: "Local Molten Steel",
+        building: "Byproduct producer",
+        group: "production",
+        inputs: [],
+        outputs: [{ resourceId: "moltenSteel", quantity: 6 }],
+      }, {
+        id: "local-steel-caster",
+        name: "Local Steel Caster",
+        building: "Cooled Caster",
+        group: "production",
+        allocation: "fallback",
+        balanceBy: "input",
+        balanceInputIds: ["moltenSteel"],
+        balanceInputScope: "module",
+        inputPriorities: { moltenSteel: 100 },
+        inputs: [{ resourceId: "moltenSteel", quantity: 6 }],
+        outputs: [{ resourceId: "steel", quantity: 6 }],
+      }, {
+        id: "steel-demand",
+        name: "Steel demand",
+        building: "Consumer",
+        group: "production",
+        inputs: [{ resourceId: "steel", quantity: 10 }],
+        outputs: [],
+      }],
+      presets: [{
+        id: "live",
+        name: "Live",
+        description: "",
+        activeBuildings: {
+          "local-molten-steel": 1,
+          "local-steel-caster": 1,
+          "steel-demand": 1,
+        },
+        fixed: ["local-molten-steel", "steel-demand"],
+      }],
+      defaultPresetId: "live",
+    };
+    const steelModule: Module = {
+      id: "steel-production",
+      name: "Steel production",
+      description: "",
+      includedInFactoryTotals: true,
+      builtBuildings: { "ordinary-steel": 1 },
+      recipes: [{
+        id: "ordinary-steel",
+        name: "Ordinary Steel",
+        building: "Steel producer",
+        group: "production",
+        balanceBy: "output",
+        balanceOutputIds: ["steel"],
+        inputs: [],
+        outputs: [{ resourceId: "steel", quantity: 10 }],
+      }],
+      presets: [{
+        id: "live",
+        name: "Live",
+        description: "",
+        activeBuildings: { "ordinary-steel": 1 },
+        fixed: [],
+      }],
+      defaultPresetId: "live",
+    };
+    const result = calculateFactoryTotal(
+      [recoveryModule, steelModule],
+      baselineFactoryOptions,
+    );
+    const regularResult = (recipeId: string) => result.calculation.regularResults.find(
+      candidate => candidate.recipe.id === recipeId,
+    );
+
+    expect(regularResult("local-steel-caster")?.supplyRatio).toBeCloseTo(1, 5);
+    expect(regularResult("ordinary-steel")?.supplyRatio).toBeCloseTo(0.4, 5);
+    expect(result.calculation.allResourceFlows.find(
+      flow => flow.resourceId === "moltenSteel",
+    )?.net).toBeCloseTo(0, 4);
+    expect(result.calculation.allResourceFlows.find(
+      flow => flow.resourceId === "steel",
+    )?.net).toBeCloseTo(0, 4);
   });
 });

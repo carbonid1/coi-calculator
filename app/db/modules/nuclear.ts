@@ -248,6 +248,7 @@ export const createNuclearModule = (
     name: generatedArea?.name ?? "Nuclear",
     description: "",
     gameSynced: true,
+    capabilities: generatedArea?.capabilities ?? ["nuclear"],
     includedInFactoryTotals: generatedArea ? true : undefined,
     builtBuildings,
     presets: [

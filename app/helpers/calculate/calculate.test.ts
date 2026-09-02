@@ -3,9 +3,9 @@ import {
   attachMaintenanceDepotsToModule,
   resolveMaintenanceDepotModuleAssignments,
 } from "../../db/modules/area-maintenance";
-import { defaultArea as general } from "../../db/modules/default";
 import { type Module } from "../../db/modules/modules";
 import { type Recipe, recipes } from "../../db/recipes";
+import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateNet } from "./calculate";
@@ -46,12 +46,95 @@ const maintenanceAssignment = resolveMaintenanceDepotModuleAssignments({
   defaultModuleId: maintenanceFixture.id,
   demand: { maintenanceI: 547.8, maintenanceII: 194.22, maintenanceIII: 236.55 },
   modules: [maintenanceFixture],
+  productionEntities: syncedMaintenanceDepotEntities,
 })[maintenanceFixture.id]!;
 const maintenance = attachMaintenanceDepotsToModule(
   maintenanceFixture,
   maintenanceAssignment,
-  "modeled",
+  "synced",
 );
+
+it("treats Toxic Slurry created by demand-driven production after the primary pass", () => {
+  const slurryProducer: Recipe = {
+    id: "test-toxic-slurry-producer",
+    name: "Test Toxic Slurry Producer",
+    building: "Test Producer",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["gold"],
+    inputs: [],
+    outputs: [
+      { resourceId: "gold", quantity: 1 },
+      { resourceId: "toxicSlurry", quantity: 54 },
+    ],
+  };
+  const treatment = recipes.find(
+    recipe => recipe.id === "wastewater-treatment-toxic-slurry",
+  );
+
+  if (!treatment) throw new Error("Missing Toxic Slurry treatment recipe");
+
+  const result = calculateNet([
+    balancedLine(treatment, "general"),
+    balancedLine(slurryProducer, "general"),
+  ], { filterMedia: 3, brine: 9 }, undefined, {}, { gold: 1 });
+  const treatmentResult = result.regularResults.find(
+    candidate => candidate.recipe.id === treatment.id,
+  );
+
+  expect(treatmentResult?.supplyRatio).toBeCloseTo(0.5);
+  expect(result.allResourceFlows.find(
+    flow => flow.resourceId === "toxicSlurry",
+  )?.net).toBeCloseTo(0);
+});
+
+it("never lets surplus-organics disposal create a crop deficit", () => {
+  const greenhouse: Recipe = {
+    id: "test-sugar-cane-greenhouse",
+    name: "Test Sugar Cane Greenhouse",
+    building: "Test Greenhouse",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "sugarCane", quantity: 20 }],
+  };
+  const sugarProduction: Recipe = {
+    id: "test-sugar-production",
+    name: "Test Sugar Production",
+    building: "Test Food Processor",
+    group: "production",
+    inputs: [{ resourceId: "sugarCane", quantity: 18 }],
+    outputs: [{ resourceId: "sugar", quantity: 12 }],
+  };
+  const digestion: Recipe = {
+    id: "test-sugar-cane-digestion",
+    name: "Test Sugar Cane Digestion",
+    building: "Test Anaerobic Digester",
+    group: "production",
+    allocation: "surplus",
+    allocationPriority: 15,
+    balanceBy: "input",
+    balanceInputIds: ["sugarCane"],
+    inputs: [{ resourceId: "sugarCane", quantity: 12 }],
+    outputs: [{ resourceId: "fuelGas", quantity: 4 }],
+  };
+
+  const result = calculateNet([
+    fixedLine(greenhouse, "greenhouses"),
+    fixedLine(sugarProduction, "general"),
+    balancedLine(digestion, "general", 3),
+  ]);
+  const digestionResult = result.regularResults.find(
+    candidate => candidate.recipe.id === digestion.id,
+  );
+
+  expect(digestionResult?.actualInputs).toContainEqual({
+    resourceId: "sugarCane",
+    quantity: 2,
+  });
+  expect(result.allResourceFlows.find(
+    flow => flow.resourceId === "sugarCane",
+  )?.net).toBeCloseTo(0);
+});
 
 it("reserves Forestry saplings and keeps Biomass conversion inside each physical module", () => {
   const treeProducer: Recipe = {
@@ -665,6 +748,117 @@ it("does not import linked-only Steam (Low) from another live module", () => {
     .toBe(20);
 });
 
+it("runs chained module-local fallback cleanup", () => {
+  const moltenIronByproduct: Recipe = {
+    id: "test-molten-iron-byproduct",
+    name: "Test Molten Iron Byproduct",
+    building: "Test Producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "moltenIron", quantity: 12 }],
+  };
+  const localWater: Recipe = {
+    id: "test-local-water",
+    name: "Test Local Water",
+    building: "Test Producer",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "water", quantity: 3 }],
+  };
+  const oxygenFurnace: Recipe = {
+    id: "test-local-oxygen-furnace",
+    name: "Test Local Oxygen Furnace",
+    building: "Test Oxygen Furnace",
+    group: "production",
+    allocation: "fallback",
+    allocationPriority: 10,
+    balanceBy: "output",
+    balanceInputIds: ["moltenIron"],
+    balanceInputScope: "module",
+    consumeSurplusInputIds: ["moltenIron"],
+    consumeSurplusInputScope: "module",
+    surplusConsumptionPriority: 10,
+    inputs: [
+      { resourceId: "moltenIron", quantity: 12 },
+      { resourceId: "oxygen", quantity: 6 },
+    ],
+    outputs: [{ resourceId: "moltenSteel", quantity: 6 }],
+  };
+  const cooledCaster: Recipe = {
+    id: "test-local-cooled-caster",
+    name: "Test Local Cooled Caster",
+    building: "Test Cooled Caster",
+    group: "production",
+    allocation: "fallback",
+    allocationPriority: 30,
+    balanceBy: "input",
+    balanceInputIds: ["moltenSteel"],
+    balanceInputScope: "module",
+    inputs: [
+      { resourceId: "moltenSteel", quantity: 6 },
+      { resourceId: "water", quantity: 3 },
+    ],
+    outputs: [{ resourceId: "steel", quantity: 6 }],
+  };
+  const result = calculateNet([
+    fixedLine(moltenIronByproduct, "default"),
+    fixedLine(localWater, "default"),
+    balancedLine(oxygenFurnace, "default"),
+    balancedLine(cooledCaster, "default"),
+  ], { oxygen: 6 });
+  const recipeResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+
+  expect(recipeResult(oxygenFurnace.id)?.supplyRatio).toBe(1);
+  expect(recipeResult(cooledCaster.id)?.supplyRatio).toBe(1);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "moltenIron")?.net).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "moltenSteel")?.net).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "steel")?.net).toBe(6);
+});
+
+it("routes module-scoped demand only to a producer in the same module", () => {
+  const privateCaster: Recipe = {
+    id: "test-private-caster",
+    name: "Test Private Caster",
+    building: "Test Caster",
+    group: "production",
+    balanceBy: "input",
+    balanceInputIds: ["moltenSteel"],
+    balanceInputScope: "module",
+    inputs: [{ resourceId: "moltenSteel", quantity: 6 }],
+    outputs: [{ resourceId: "steel", quantity: 6 }],
+  };
+  const furnace = (id: string): Recipe => ({
+    id,
+    name: id,
+    building: "Test Furnace",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["moltenSteel"],
+    inputs: [],
+    outputs: [{ resourceId: "moltenSteel", quantity: 6 }],
+  });
+  const localFurnace = furnace("test-local-furnace");
+  const remoteFurnace = furnace("test-remote-furnace");
+  const result = calculateNet([
+    {
+      ...balancedLine(privateCaster, "default"),
+      allocationRatio: 1,
+    },
+    balancedLine(remoteFurnace, "steel"),
+    balancedLine(localFurnace, "default"),
+  ]);
+  const recipeResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+
+  expect(recipeResult(localFurnace.id)?.supplyRatio).toBe(1);
+  expect(recipeResult(remoteFurnace.id)?.supplyRatio).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "moltenSteel")?.net).toBe(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "steel")?.net).toBe(6);
+});
+
 it("does not invent external inputs merely to consume surplus", () => {
   const steamProducer: Recipe = {
     id: "test-guarded-low-steam-producer",
@@ -703,9 +897,8 @@ it("does not invent external inputs merely to consume surplus", () => {
 });
 
 it("installs two demand-balanced tanks with the verified per-building Yellowcake capacity", () => {
-  const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId)!;
-  const { lines } = buildModuleLines(general, preset);
-  const settlingTank = lines.find((line) => line.recipe.id === "settling-tank")!;
+  const settlingTankRecipe = recipes.find((recipe) => recipe.id === "settling-tank")!;
+  const settlingTank = balancedLine(settlingTankRecipe, "default", 2);
   const uraniumOrePowder = settlingTank.recipe.inputs.find((input) => input.resourceId === "uraniumOrePowder")!;
   const yellowcakeCapacity = settlingTank.recipe.outputs.find(
     (output) => output.resourceId === "yellowcake",
@@ -737,6 +930,77 @@ it("installs two demand-balanced tanks with the verified per-building Yellowcake
     produced: Number(recyclables.produced.toFixed(5)),
     sourceValue: Number(recyclables.recyclableSourceValueProduced?.toFixed(5)),
   }).toEqual({ produced: 19.92, sourceValue: 19.92 });
+});
+
+it("uses sorted Broken Glass before fresh Glass Mix", () => {
+  const maintenanceRecycling = recipes.find(
+    recipe => recipe.id === "maintenance-ii-recycling",
+  )!;
+  const wasteSorter = recipes.find(
+    recipe => recipe.id === "waste-sorting-recyclables",
+  )!;
+  const modeledBrokenGlass = recipes.find(
+    recipe => recipe.id === "arc-furnace-ii-glass-broken",
+  )!;
+  const freshGlass = recipes.find(
+    recipe => recipe.id === "arc-furnace-ii-glass-mix",
+  )!;
+  const brokenGlass: Recipe = {
+    ...modeledBrokenGlass,
+    balanceBy: "input",
+    balanceOutputIds: undefined,
+  };
+  const moltenGlassConsumer: Recipe = {
+    id: "test-molten-glass-consumer",
+    name: "Test Molten Glass Consumer",
+    building: "Test",
+    group: "production",
+    inputs: [{ resourceId: "moltenGlass", quantity: 10 }],
+    outputs: [],
+  };
+  const recyclingCycle: Recipe = {
+    id: "test-recycling-cycle",
+    name: "Test Recycling Cycle",
+    building: "Test",
+    group: "production",
+    balanceBy: "input",
+    balanceInputIds: ["steamLow"],
+    inputs: [{ resourceId: "steamLow", quantity: 1 }],
+    outputs: [{ resourceId: "recyclables", quantity: 1 }],
+  };
+  const sharedGlassLine = (recipe: Recipe) => ({
+    ...balancedLine(recipe, "default", 2),
+    capacityPoolId: "default:glass-furnaces",
+    capacityPoolActiveBuildings: 2,
+    capacityPoolBuiltBuildings: 2,
+  });
+  const result = calculateNet([
+    fixedLine(maintenanceRecycling, "default"),
+    balancedLine(wasteSorter, "default"),
+    balancedLine(recyclingCycle, "default"),
+    sharedGlassLine(brokenGlass),
+    sharedGlassLine(freshGlass),
+    fixedLine(moltenGlassConsumer, "default"),
+  ]);
+  const getResult = (recipeId: string) => result.regularResults.find(
+    line => line.recipe.id === recipeId,
+  );
+
+  expect(getResult("waste-sorting-recyclables")?.actualOutputs).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ resourceId: "brokenGlass", quantity: 0.6 }),
+    ]),
+  );
+  expect(getResult("arc-furnace-ii-glass-broken")?.actualInputs).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ resourceId: "brokenGlass", quantity: 0.6 }),
+    ]),
+  );
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "brokenGlass")?.net)
+    .toBeCloseTo(0);
+  expect(getResult("arc-furnace-ii-glass-mix")?.actualOutputs.find(
+    output => output.resourceId === "moltenGlass",
+  )?.quantity).toBeCloseTo(9.6);
 });
 
 it("limits module-scoped Groundwater Pumps to their module's Water demand", () => {

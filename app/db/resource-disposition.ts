@@ -7,6 +7,10 @@ interface MinimizeSurplusPolicy {
   defaultConsumerPriority: number
   /** Exact game recipe IDs can override the fallback route priority. */
   consumerPriorities?: Readonly<Record<string, number>>
+  /** Use this cleanup route only for the implicit Default area. */
+  defaultAreaOnly?: boolean
+  /** Run only from available local input instead of ordinary output demand. */
+  surplusOnly?: boolean
 }
 
 interface ResourceDispositionPolicy {
@@ -19,6 +23,7 @@ export interface SurplusConsumptionSettings {
   inputIds: ResourceId[]
   priority: number
   scope: 'module'
+  surplusOnly?: boolean
 }
 
 /**
@@ -34,6 +39,14 @@ const resourceDispositionPolicies: Partial<Record<ResourceId, ResourceDispositio
       consumerPriorities: {
         SteelSmeltingT2: 10,
       },
+    },
+  },
+  moltenSteel: {
+    minimizeSurplus: {
+      scope: 'module',
+      defaultConsumerPriority: 100,
+      defaultAreaOnly: true,
+      surplusOnly: true,
     },
   },
   seaWater: {
@@ -60,11 +73,12 @@ export const getLinkedOnlyLiveModuleInputIds = (
 export const getSurplusConsumptionSettings = (
   inputIds: readonly ResourceId[],
   gameRecipeId?: string,
+  context: { isDefaultArea?: boolean } = {},
 ): SurplusConsumptionSettings | null => {
   const matches = inputIds.flatMap(resourceId => {
     const policy = resourceDispositionPolicies[resourceId]?.minimizeSurplus
 
-    if (!policy) return []
+    if (!policy || (policy.defaultAreaOnly && !context.isDefaultArea)) return []
 
     return [{
       resourceId,
@@ -72,6 +86,7 @@ export const getSurplusConsumptionSettings = (
         ? (policy.consumerPriorities?.[gameRecipeId] ?? policy.defaultConsumerPriority)
         : policy.defaultConsumerPriority,
       scope: policy.scope,
+      surplusOnly: policy.surplusOnly,
     }]
   })
 
@@ -81,5 +96,8 @@ export const getSurplusConsumptionSettings = (
     inputIds: matches.map(match => match.resourceId),
     priority: Math.min(...matches.map(match => match.priority)),
     scope: 'module',
+    ...(matches.some(match => match.surplusOnly)
+      ? { surplusOnly: true }
+      : {}),
   }
 }

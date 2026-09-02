@@ -7,6 +7,7 @@ import { calculateNet } from '../calculate/calculate'
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
 import {
   createLiveAreaModules,
+  DEFAULT_LIVE_AREA_ZONE_ID,
   getModeledTerrainSorterEntityIds,
 } from './live-area-modules'
 
@@ -40,6 +41,304 @@ const entity = (
 })
 
 describe('createLiveAreaModules', () => {
+  it('builds Default from every entity that has no named area owner', () => {
+    const unzoned = { ...entity(1, true, true), zones: [] }
+    const unnamedZone = {
+      ...entity(2, true, false),
+      zones: [{ id: 99, name: null }],
+    }
+    const namedZone = entity(3, true, true)
+    const [module] = createLiveAreaModules(
+      [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
+      [unzoned, unnamedZone, namedZone],
+      [
+        {
+          id: 'general',
+          name: 'Default',
+          description: '',
+          builtBuildings: {},
+          presets: [],
+          defaultPresetId: null,
+        },
+      ],
+    )
+
+    expect(module).toMatchObject({
+      id: 'general',
+      name: 'Default',
+      includedInFactoryTotals: true,
+      liveArea: {
+        zoneId: DEFAULT_LIVE_AREA_ZONE_ID,
+        trackedBuildings: 2,
+        constructedBuildings: 2,
+        activeBuildings: 1,
+        pausedBuildings: 1,
+      },
+    })
+    expect(module?.presets[0]?.activeBuildings).toEqual({
+      'general:AirSeparator:AirSeparation': 1,
+    })
+    expect(module?.presets[0]?.builtBuildings).toEqual({
+      'general:AirSeparator:AirSeparation': 2,
+    })
+    expect(module?.recipes?.[0]).toMatchObject({
+      balanceBy: 'output',
+      balanceOutputIds: ['oxygen', 'nitrogen'],
+    })
+  })
+
+  it('runs synced Research Labs and ignores their non-material Research Points', () => {
+    const researchLab = {
+      ...entity(4, true, true, [
+        {
+          id: 'Research4Space',
+          name: 'Space research',
+          durationSeconds: 60,
+          assigned: true,
+          inputs: [
+            {
+              productId: 'Product_LabEquipment4',
+              name: 'Lab Equipment IV',
+              quantity: 48,
+            },
+          ],
+          outputs: [
+            {
+              productId: 'Product_Virtual_ResearchPoints',
+              name: 'Research Points',
+              quantity: 120,
+            },
+            {
+              productId: 'Product_Recyclables',
+              name: 'Recyclables',
+              quantity: 48,
+            },
+          ],
+        },
+      ]),
+      prototypeId: 'ResearchLab4',
+      prototypeName: 'Research Lab IV',
+      zones: [],
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
+      [researchLab],
+      [],
+    )
+    const liveRecipe = module?.recipes?.[0]
+
+    expect(module?.liveArea?.issues).toEqual([])
+    expect(liveRecipe).toMatchObject({
+      inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
+      outputs: [{ resourceId: 'recyclables', quantity: 48 }],
+    })
+    expect(module?.presets[0]?.fixed).toEqual([liveRecipe?.id])
+  })
+
+  it('keeps paused Research Lab IV buildings visible when the game exports no recipe', () => {
+    const researchLabs = [1, 2, 3].map(entityId => ({
+      ...entity(entityId, true, false, []),
+      prototypeId: 'ResearchLab5',
+      prototypeName: 'Research Lab IV',
+      zones: [],
+    }))
+    const [module] = createLiveAreaModules(
+      [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
+      researchLabs,
+      [],
+    )
+    const liveRecipe = module?.recipes?.[0]
+
+    expect(liveRecipe).toMatchObject({
+      gameRecipeId: 'research-lab-iv',
+      building: 'Research Lab IV',
+      inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
+      outputs: [{ resourceId: 'recyclables', quantity: 48 }],
+    })
+    expect(module?.presets[0]).toMatchObject({
+      activeBuildings: { [liveRecipe?.id ?? 'missing']: 0 },
+      currentActiveBuildings: { [liveRecipe?.id ?? 'missing']: 0 },
+      builtBuildings: { [liveRecipe?.id ?? 'missing']: 3 },
+      fixed: [liveRecipe?.id],
+    })
+  })
+
+  it('attaches fixed game recipes to synced buildings without selectable recipes', () => {
+    const wasteSorter = {
+      ...entity(5, true, true, []),
+      prototypeId: 'WasteSortingPlant',
+      prototypeName: 'Waste Sorting Plant',
+      zones: [],
+    }
+    const [module] = createLiveAreaModules(
+      [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
+      [wasteSorter],
+      [],
+    )
+    const liveRecipe = module?.recipes?.[0]
+
+    expect(liveRecipe).toMatchObject({
+      gameRecipeId: 'waste-sorting-recyclables',
+      building: 'Waste Sorting Plant',
+      balanceBy: 'input',
+      sortsRecyclableSources: true,
+    })
+    expect(module?.presets[0]).toMatchObject({
+      activeBuildings: { [liveRecipe?.id ?? 'missing']: 1 },
+      builtBuildings: { [liveRecipe?.id ?? 'missing']: 1 },
+      dataSources: { [liveRecipe?.id ?? 'missing']: 'synced' },
+    })
+  })
+
+  it('applies Default cleanup and byproduct rules from exact game recipes', () => {
+    const configured = (
+      entityId: number,
+      prototypeId: string,
+      prototypeName: string,
+      configuredRecipe: SyncedAreaEntity['recipes'][number],
+    ): SyncedAreaEntity => ({
+      ...entity(entityId, true, true, [configuredRecipe]),
+      prototypeId,
+      prototypeName,
+      zones: [],
+    })
+    const [module] = createLiveAreaModules(
+      [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
+      [
+        configured(1, 'AnaerobicDigester', 'Anaerobic Digester', {
+          id: 'CornDigestion',
+          name: 'Corn digestion',
+          durationSeconds: 60,
+          assigned: true,
+          inputs: [{ productId: 'Product_Corn', name: 'Corn', quantity: 14 }],
+          outputs: [{ productId: 'Product_FuelGas', name: 'Fuel Gas', quantity: 8 }],
+        }),
+        configured(2, 'CrackingUnit', 'Cracking Unit', {
+          id: 'DieselReforming',
+          name: 'Diesel reforming',
+          durationSeconds: 20,
+          assigned: true,
+          inputs: [{ productId: 'Product_FuelGas', name: 'Fuel Gas', quantity: 12 }],
+          outputs: [{ productId: 'Product_Diesel', name: 'Diesel', quantity: 8 }],
+        }),
+        configured(3, 'SourWaterStripper', 'Sour Water Stripper', {
+          id: 'SourWaterStripping',
+          name: 'Sour Water stripping',
+          durationSeconds: 20,
+          assigned: true,
+          inputs: [{ productId: 'Product_SourWater', name: 'Sour Water', quantity: 12 }],
+          outputs: [{ productId: 'Product_Sulfur', name: 'Sulfur', quantity: 3 }],
+        }),
+        configured(4, 'ChemicalPlant2', 'Chemical Plant II', {
+          id: 'TitaniumChlorideReduction',
+          name: 'Titanium reduction',
+          durationSeconds: 20,
+          assigned: true,
+          inputs: [
+            {
+              productId: 'Product_TitaniumChloridePure',
+              name: 'Titanium Chloride (Pure)',
+              quantity: 8,
+            },
+          ],
+          outputs: [
+            { productId: 'Product_TitaniumSponge', name: 'Titanium Sponge', quantity: 8 },
+            { productId: 'Product_Chlorine', name: 'Chlorine', quantity: 4 },
+          ],
+        }),
+        configured(5, 'OxygenFurnace', 'Oxygen Furnace', {
+          id: 'SteelSmelting',
+          name: 'Steel smelting',
+          durationSeconds: 40,
+          assigned: true,
+          inputs: [
+            { productId: 'Product_MoltenIron', name: 'Molten Iron', quantity: 24 },
+            { productId: 'Product_Oxygen', name: 'Oxygen', quantity: 18 },
+          ],
+          outputs: [{ productId: 'Product_MoltenSteel', name: 'Molten Steel', quantity: 12 }],
+        }),
+        configured(6, 'CasterCooledT2', 'Cooled Caster II', {
+          id: 'SteelCastingCooled',
+          name: 'Steel casting cooled',
+          durationSeconds: 20,
+          assigned: true,
+          inputs: [
+            { productId: 'Product_MoltenSteel', name: 'Molten Steel', quantity: 4 },
+            { productId: 'Product_Water', name: 'Water', quantity: 2 },
+          ],
+          outputs: [{ productId: 'Product_Steel', name: 'Steel', quantity: 4 }],
+        }),
+      ],
+      [],
+    )
+    const byGameRecipe = (gameRecipeId: string) =>
+      module?.recipes?.find(candidate => candidate.gameRecipeId === gameRecipeId)
+
+    expect(byGameRecipe('CornDigestion')).toMatchObject({
+      allocation: 'surplus',
+      balanceBy: 'input',
+      balanceInputIds: ['corn'],
+    })
+    expect(byGameRecipe('DieselReforming')).toMatchObject({
+      allocation: 'surplus',
+      balanceBy: 'input',
+      balanceInputIds: ['fuelGas'],
+    })
+    expect(byGameRecipe('SourWaterStripping')).toMatchObject({
+      allocation: 'fallback',
+      balanceBy: 'input',
+      balanceInputIds: ['sourWater'],
+      group: 'waste',
+    })
+    expect(byGameRecipe('TitaniumChlorideReduction')).toMatchObject({
+      balanceOutputIds: ['titaniumSponge'],
+      electricityMultiplier: 2,
+    })
+    expect(byGameRecipe('SteelSmelting')).toMatchObject({
+      balanceInputIds: ['moltenIron'],
+      balanceInputScope: 'module',
+      consumeSurplusInputIds: ['moltenIron'],
+      consumeSurplusInputScope: 'module',
+    })
+    expect(byGameRecipe('SteelCastingCooled')).toMatchObject({
+      allocation: 'fallback',
+      balanceBy: 'input',
+      balanceInputIds: ['moltenSteel'],
+      balanceInputScope: 'module',
+      inputPriorities: { moltenSteel: 100 },
+    })
+    expect(byGameRecipe('SteelCastingCooled')).not.toHaveProperty('consumeSurplusInputIds')
+  })
+
+  it('keeps named-area steel casting demand-driven and module-local', () => {
+    const cooledCaster = {
+      ...entity(1, true, true, [
+        {
+          id: 'SteelCastingCooled',
+          name: 'Steel casting cooled',
+          durationSeconds: 20,
+          assigned: true,
+          inputs: [
+            { productId: 'Product_MoltenSteel', name: 'Molten Steel', quantity: 4 },
+            { productId: 'Product_Water', name: 'Water', quantity: 2 },
+          ],
+          outputs: [{ productId: 'Product_Steel', name: 'Steel', quantity: 4 }],
+        },
+      ]),
+      prototypeId: 'CasterCooledT2',
+      prototypeName: 'Cooled Caster II',
+    }
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Steel #1' }], [cooledCaster], [])
+    const recipe = module?.recipes?.[0]
+
+    expect(recipe).toMatchObject({
+      gameRecipeId: 'SteelCastingCooled',
+      balanceBy: 'output',
+    })
+    expect(recipe).not.toHaveProperty('balanceInputScope')
+    expect(recipe).not.toHaveProperty('consumeSurplusInputIds')
+  })
+
   it('creates a planning-only tab and includes ghosts in projected capacity', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
@@ -105,11 +404,13 @@ describe('createLiveAreaModules', () => {
         targetHarvestPercent: 100,
         harvestsPerCycle: 7.384,
         harvestDurationMonths: 137.46,
-        outputs: [{
-          productId: 'Product_Wood',
-          name: 'Wood',
-          quantityPerCycle: 147.68,
-        }],
+        outputs: [
+          {
+            productId: 'Product_Wood',
+            name: 'Wood',
+            quantityPerCycle: 147.68,
+          },
+        ],
       },
     }
     const shreddingWood = {
@@ -120,12 +421,15 @@ describe('createLiveAreaModules', () => {
       inputs: [{ productId: 'Product_Wood', name: 'Wood', quantity: 4 }],
       outputs: [{ productId: 'Product_WoodChips', name: 'Woodchips', quantity: 4 }],
     }
-    const shredders = Array.from({ length: 10 }, (_, index): SyncedAreaEntity => ({
-      ...entity(100 + index, true, true, [shreddingWood]),
-      prototypeId: 'Shredder',
-      prototypeName: 'Shredder',
-      zones: [{ id: 16, name: 'North woods' }],
-    }))
+    const shredders = Array.from(
+      { length: 10 },
+      (_, index): SyncedAreaEntity => ({
+        ...entity(100 + index, true, true, [shreddingWood]),
+        prototypeId: 'Shredder',
+        prototypeName: 'Shredder',
+        zones: [{ id: 16, name: 'North woods' }],
+      }),
+    )
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'North woods' }],
       [forestryTower, ...shredders],
@@ -134,9 +438,9 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Forestry module was not created')
 
-    const forestryRecipe = module.recipes?.find(candidate => (
-      candidate.id === 'live-area-16:forestry:90'
-    ))
+    const forestryRecipe = module.recipes?.find(
+      candidate => candidate.id === 'live-area-16:forestry:90',
+    )
     const { lines } = buildModuleLines(module, module.presets[0] ?? null)
     const cappedResult = calculateNet(lines, {}, undefined, {}, { woodchips: 200 })
     const factoryDemandResult = calculateNet(
@@ -146,12 +450,12 @@ describe('createLiveAreaModules', () => {
       {},
       { wood: 28.55, woodchips: 18 },
     )
-    const forestryResult = cappedResult.sourceResults.find(candidate => (
-      candidate.recipe.id === forestryRecipe?.id
-    ))
-    const factoryForestryResult = factoryDemandResult.sourceResults.find(candidate => (
-      candidate.recipe.id === forestryRecipe?.id
-    ))
+    const forestryResult = cappedResult.sourceResults.find(
+      candidate => candidate.recipe.id === forestryRecipe?.id,
+    )
+    const factoryForestryResult = factoryDemandResult.sourceResults.find(
+      candidate => candidate.recipe.id === forestryRecipe?.id,
+    )
 
     expect(module).toMatchObject({
       name: 'North woods',
@@ -191,24 +495,24 @@ describe('createLiveAreaModules', () => {
         outputs: [],
       },
     }
-    const [module] = createLiveAreaModules(
-      [{ id: 16, name: 'Test' }],
-      [forestryTower],
-      [],
-    )
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [forestryTower], [])
 
     expect(module).toMatchObject({
       includedInFactoryTotals: true,
-      recipes: [{
-        displayName: '1,015 trees · Cutting off',
-        inputs: [],
-        outputs: [],
-      }],
-      presets: [{
-        activeBuildings: { 'live-area-16:forestry:90': 0 },
-        currentActiveBuildings: { 'live-area-16:forestry:90': 0 },
-        builtBuildings: { 'live-area-16:forestry:90': 1 },
-      }],
+      recipes: [
+        {
+          displayName: '1,015 trees · Cutting off',
+          inputs: [],
+          outputs: [],
+        },
+      ],
+      presets: [
+        {
+          activeBuildings: { 'live-area-16:forestry:90': 0 },
+          currentActiveBuildings: { 'live-area-16:forestry:90': 0 },
+          builtBuildings: { 'live-area-16:forestry:90': 1 },
+        },
+      ],
       liveArea: { issues: [] },
     })
   })
@@ -226,17 +530,34 @@ describe('createLiveAreaModules', () => {
         },
       },
     }
-    const [module] = createLiveAreaModules(
-      [{ id: 16, name: 'Test' }],
-      [station],
-      [],
-    )
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [station], [])
 
     expect(module?.recipes).toEqual([])
     expect(module?.liveArea).toMatchObject({
       trackedBuildings: 1,
       activeBuildings: 1,
       issues: [],
+    })
+  })
+
+  it('excludes the recipe-less station root from the modeled area inventory', () => {
+    const stationRoot = {
+      ...entity(3, true, false, []),
+      prototypeId: 'TrainStationRoot_ELEC',
+      prototypeName: 'Air separator',
+    }
+    const pausedBuilding = entity(4, true, false)
+    const [module] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [stationRoot, pausedBuilding],
+      [],
+    )
+
+    expect(module?.liveArea).toMatchObject({
+      trackedBuildings: 1,
+      constructedBuildings: 1,
+      activeBuildings: 0,
+      pausedBuildings: 1,
     })
   })
 
@@ -288,11 +609,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'DataCenter',
       prototypeName: 'Data Center',
     }
-    const [module] = createLiveAreaModules(
-      [{ id: 16, name: 'Test' }],
-      [dataCenterGhost],
-      [],
-    )
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [dataCenterGhost], [])
 
     expect(module?.presets[0]?.capacityPools).toEqual({
       DataCenter: {
@@ -321,39 +638,45 @@ describe('createLiveAreaModules', () => {
       [{ id: 16, name: 'Population' }],
       [
         {
-          ...entity(1, true, true, [populationRecipe(
-            'WaterTreatmentT2',
-            [
-              { productId: 'Product_WasteWater', name: 'Waste Water', quantity: 160 },
-              { productId: 'Product_FilterMedia', name: 'Filter Media', quantity: 8 },
-              { productId: 'Product_Chlorine', name: 'Chlorine', quantity: 16 },
-            ],
-            [
-              { productId: 'Product_Water', name: 'Water', quantity: 120 },
-              { productId: 'Product_Sludge', name: 'Sludge', quantity: 36 },
-            ],
-          )]),
+          ...entity(1, true, true, [
+            populationRecipe(
+              'WaterTreatmentT2',
+              [
+                { productId: 'Product_WasteWater', name: 'Waste Water', quantity: 160 },
+                { productId: 'Product_FilterMedia', name: 'Filter Media', quantity: 8 },
+                { productId: 'Product_Chlorine', name: 'Chlorine', quantity: 16 },
+              ],
+              [
+                { productId: 'Product_Water', name: 'Water', quantity: 120 },
+                { productId: 'Product_Sludge', name: 'Sludge', quantity: 36 },
+              ],
+            ),
+          ]),
           prototypeId: 'WaterTreatmentPlant',
           prototypeName: 'Wastewater treatment',
         },
         {
-          ...entity(2, true, true, [populationRecipe(
-            'SludgeDigestion',
-            [{ productId: 'Product_Sludge', name: 'Sludge', quantity: 18 }],
-            [
-              { productId: 'Product_FuelGas', name: 'Fuel Gas', quantity: 8 },
-              { productId: 'Product_Compost', name: 'Compost', quantity: 3 },
-            ],
-          )]),
+          ...entity(2, true, true, [
+            populationRecipe(
+              'SludgeDigestion',
+              [{ productId: 'Product_Sludge', name: 'Sludge', quantity: 18 }],
+              [
+                { productId: 'Product_FuelGas', name: 'Fuel Gas', quantity: 8 },
+                { productId: 'Product_Compost', name: 'Compost', quantity: 3 },
+              ],
+            ),
+          ]),
           prototypeId: 'AnaerobicDigester',
           prototypeName: 'Anaerobic digester',
         },
         {
-          ...entity(3, true, true, [populationRecipe(
-            'BiomassCompost',
-            [{ productId: 'Product_Biomass', name: 'Biomass', quantity: 24 }],
-            [{ productId: 'Product_Compost', name: 'Compost', quantity: 16 }],
-          )]),
+          ...entity(3, true, true, [
+            populationRecipe(
+              'BiomassCompost',
+              [{ productId: 'Product_Biomass', name: 'Biomass', quantity: 24 }],
+              [{ productId: 'Product_Compost', name: 'Compost', quantity: 16 }],
+            ),
+          ]),
           prototypeId: 'IndustrialMixerT2',
           prototypeName: 'Mixer II',
         },
@@ -361,24 +684,26 @@ describe('createLiveAreaModules', () => {
       [],
     )
 
-    expect(module?.recipes).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        gameRecipeId: 'WaterTreatmentT2',
-        balanceBy: 'input',
-        balanceInputIds: ['wasteWater'],
-      }),
-      expect.objectContaining({
-        gameRecipeId: 'SludgeDigestion',
-        balanceBy: 'input',
-        balanceInputIds: ['sludge'],
-      }),
-      expect.objectContaining({
-        gameRecipeId: 'BiomassCompost',
-        balanceBy: 'input',
-        balanceInputIds: ['biomass'],
-        balanceInputScope: 'module',
-      }),
-    ]))
+    expect(module?.recipes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          gameRecipeId: 'WaterTreatmentT2',
+          balanceBy: 'input',
+          balanceInputIds: ['wasteWater'],
+        }),
+        expect.objectContaining({
+          gameRecipeId: 'SludgeDigestion',
+          balanceBy: 'input',
+          balanceInputIds: ['sludge'],
+        }),
+        expect.objectContaining({
+          gameRecipeId: 'BiomassCompost',
+          balanceBy: 'input',
+          balanceInputIds: ['biomass'],
+          balanceInputScope: 'module',
+        }),
+      ]),
+    )
   })
 
   it('infers terrain supply from an operating sorter and assigned crusher recipe', () => {
@@ -396,11 +721,13 @@ describe('createLiveAreaModules', () => {
       durationSeconds: 30,
       assigned: true,
       inputs: [{ productId: 'Product_TitaniumOre', name: 'Titanium ore', quantity: 48 }],
-      outputs: [{
-        productId: 'Product_TitaniumOreCrushed',
-        name: 'Titanium ore crushed',
-        quantity: 48,
-      }],
+      outputs: [
+        {
+          productId: 'Product_TitaniumOreCrushed',
+          name: 'Titanium ore crushed',
+          quantity: 48,
+        },
+      ],
     }
     const crusher = (
       entityId: number,
@@ -439,10 +766,7 @@ describe('createLiveAreaModules', () => {
       ],
       [],
     )
-    const calculateMine = (
-      name: string,
-      demand: Parameters<typeof calculateNet>[4],
-    ) => {
+    const calculateMine = (name: string, demand: Parameters<typeof calculateNet>[4]) => {
       const mine = mineModules.find(module => module.name === name)
 
       if (!mine) throw new Error(`Missing ${name}`)
@@ -454,27 +778,25 @@ describe('createLiveAreaModules', () => {
     }
     const bauxite = calculateMine('East bauxite pit', { bauxitePowder: 142.5 })
     const titanium = calculateMine('North titanium pit', { titaniumOreCrushed: 38.8 })
-    const bauxiteCrusher = bauxite.result.regularResults.find(result => (
-      result.recipe.gameRecipeId === 'BauxiteMilling'
-    ))
-    const titaniumCrusher = titanium.result.regularResults.find(result => (
-      result.recipe.gameRecipeId === 'IlmeniteMilling'
-    ))
+    const bauxiteCrusher = bauxite.result.regularResults.find(
+      result => result.recipe.gameRecipeId === 'BauxiteMilling',
+    )
+    const titaniumCrusher = titanium.result.regularResults.find(
+      result => result.recipe.gameRecipeId === 'IlmeniteMilling',
+    )
 
     expect(bauxite.mine.includedInFactoryTotals).toBe(true)
     expect(titanium.mine.includedInFactoryTotals).toBe(true)
-    expect(bauxite.lines.find(line => line.recipe.sourceMode === 'module-demand'))
-      .toMatchObject({
-        activeBuildings: 1,
-        dataSource: 'synced',
-        recipe: { hiddenFromModuleView: true },
-      })
-    expect(titanium.lines.find(line => line.recipe.sourceMode === 'module-demand'))
-      .toMatchObject({
-        activeBuildings: 1,
-        dataSource: 'synced',
-        recipe: { hiddenFromModuleView: true },
-      })
+    expect(bauxite.lines.find(line => line.recipe.sourceMode === 'module-demand')).toMatchObject({
+      activeBuildings: 1,
+      dataSource: 'synced',
+      recipe: { hiddenFromModuleView: true },
+    })
+    expect(titanium.lines.find(line => line.recipe.sourceMode === 'module-demand')).toMatchObject({
+      activeBuildings: 1,
+      dataSource: 'synced',
+      recipe: { hiddenFromModuleView: true },
+    })
     expect(titaniumCrusher?.recipe).toMatchObject({
       balanceInputIds: ['titaniumOre'],
       balanceInputScope: 'module',
@@ -491,12 +813,14 @@ describe('createLiveAreaModules', () => {
       actualOutputs: [{ resourceId: 'titaniumOreCrushed', quantity: 38.8 }],
     })
     expect(titaniumCrusher?.supplyRatio).toBeCloseTo(38.8 / 96)
-    expect(bauxite.result.sourceResults.find(result => (
-      result.recipe.sourceMode === 'module-demand'
-    ))?.actualOutputs).toEqual([{ resourceId: 'bauxite', quantity: 142.5 }])
-    expect(titanium.result.sourceResults.find(result => (
-      result.recipe.sourceMode === 'module-demand'
-    ))?.actualOutputs).toEqual([{ resourceId: 'titaniumOre', quantity: 38.8 }])
+    expect(
+      bauxite.result.sourceResults.find(result => result.recipe.sourceMode === 'module-demand')
+        ?.actualOutputs,
+    ).toEqual([{ resourceId: 'bauxite', quantity: 142.5 }])
+    expect(
+      titanium.result.sourceResults.find(result => result.recipe.sourceMode === 'module-demand')
+        ?.actualOutputs,
+    ).toEqual([{ resourceId: 'titaniumOre', quantity: 38.8 }])
   })
 
   it('keeps inferred extraction local when another mine uses the same recipe', () => {
@@ -506,11 +830,13 @@ describe('createLiveAreaModules', () => {
       durationSeconds: 30,
       assigned: true,
       inputs: [{ productId: 'Product_TitaniumOre', name: 'Titanium ore', quantity: 48 }],
-      outputs: [{
-        productId: 'Product_TitaniumOreCrushed',
-        name: 'Titanium ore crushed',
-        quantity: 48,
-      }],
+      outputs: [
+        {
+          productId: 'Product_TitaniumOreCrushed',
+          name: 'Titanium ore crushed',
+          quantity: 48,
+        },
+      ],
     }
     const areaEntity = (
       entityId: number,
@@ -538,23 +864,20 @@ describe('createLiveAreaModules', () => {
       ],
       [],
     )
-    const lines = mineModules.flatMap(mine => (
-      buildModuleLines(mine, mine.presets[0] ?? null).lines
-    ))
+    const lines = mineModules.flatMap(mine => buildModuleLines(mine, mine.presets[0] ?? null).lines)
     const result = calculateNet(lines, {}, undefined, {}, { titaniumOreCrushed: 150 })
-    const crusherResults = result.regularResults.filter(candidate => (
-      candidate.recipe.gameRecipeId === 'IlmeniteMilling'
-    ))
-    const sourceResults = result.sourceResults.filter(candidate => (
-      candidate.recipe.sourceMode === 'module-demand'
-    ))
+    const crusherResults = result.regularResults.filter(
+      candidate => candidate.recipe.gameRecipeId === 'IlmeniteMilling',
+    )
+    const sourceResults = result.sourceResults.filter(
+      candidate => candidate.recipe.sourceMode === 'module-demand',
+    )
 
-    expect(crusherResults.map(candidate => candidate.actualInputs[0]?.quantity))
-      .toEqual([96, 54])
-    expect(sourceResults.map(candidate => candidate.actualOutputs[0]?.quantity))
-      .toEqual([96, 54])
-    expect(sourceResults.map(candidate => candidate.moduleId))
-      .toEqual(crusherResults.map(candidate => candidate.moduleId))
+    expect(crusherResults.map(candidate => candidate.actualInputs[0]?.quantity)).toEqual([96, 54])
+    expect(sourceResults.map(candidate => candidate.actualOutputs[0]?.quantity)).toEqual([96, 54])
+    expect(sourceResults.map(candidate => candidate.moduleId)).toEqual(
+      crusherResults.map(candidate => candidate.moduleId),
+    )
   })
 
   it('draws only the primary resource when a sorter also selects incidental terrain', () => {
@@ -595,27 +918,34 @@ describe('createLiveAreaModules', () => {
     if (!module) throw new Error('Missing linked sorter module')
 
     const { lines } = buildModuleLines(module, module.presets[0] ?? null)
-    const result = calculateNet(lines, {}, undefined, {}, {
-      coal: 72,
-      dirt: 40,
-      rock: 80,
-    })
-    const sorterResults = result.regularResults.filter(candidate => (
-      candidate.recipe.sourceKind === 'terrain-mine'
-    ))
+    const result = calculateNet(
+      lines,
+      {},
+      undefined,
+      {},
+      {
+        coal: 72,
+        dirt: 40,
+        rock: 80,
+      },
+    )
+    const sorterResults = result.regularResults.filter(
+      candidate => candidate.recipe.sourceKind === 'terrain-mine',
+    )
 
     expect(module.includedInFactoryTotals).toBe(true)
     expect(lines).toHaveLength(1)
     expect(new Set(lines.map(line => line.capacityPoolId)).size).toBe(1)
-    expect(sorterResults.map(candidate => candidate.actualOutputs[0]?.quantity))
-      .toEqual([72])
+    expect(sorterResults.map(candidate => candidate.actualOutputs[0]?.quantity)).toEqual([72])
     expect(result.allResourceFlows.find(flow => flow.resourceId === 'dirt')?.net).toBe(-40)
     expect(result.allResourceFlows.find(flow => flow.resourceId === 'rock')?.net).toBe(-80)
-    expect(getModeledTerrainSorterEntityIds(
-      [coalSorter],
-      [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
-      [module],
-    )).toEqual(new Set([1]))
+    expect(
+      getModeledTerrainSorterEntityIds(
+        [coalSorter],
+        [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
+        [module],
+      ),
+    ).toEqual(new Set([1]))
   })
 
   it('treats Rock as the source when a linked sorter selects only incidental terrain', () => {
@@ -649,12 +979,9 @@ describe('createLiveAreaModules', () => {
     const result = calculateNet(lines, {}, undefined, {}, { rock: 80, dirt: 20 })
 
     expect(lines.map(line => line.recipe.outputs[0]?.resourceId)).toEqual(['rock'])
-    expect(result.regularResults[0]?.actualOutputs).toEqual([
-      { resourceId: 'rock', quantity: 80 },
-    ])
+    expect(result.regularResults[0]?.actualOutputs).toEqual([{ resourceId: 'rock', quantity: 80 }])
     expect(result.allResourceFlows.find(flow => flow.resourceId === 'dirt')?.net).toBe(-20)
-    expect(getModeledTerrainSorterEntityIds([rockSorter], towers, [module]))
-      .toEqual(new Set([1]))
+    expect(getModeledTerrainSorterEntityIds([rockSorter], towers, [module])).toEqual(new Set([1]))
   })
 
   it('does not create terrain supply until a mine tower links the sorter', () => {
@@ -665,11 +992,13 @@ describe('createLiveAreaModules', () => {
       oreSorter: {
         throughputPerCycle: 160,
         conversionLossPercent: 10,
-        products: [{
-          productId: 'Product_Coal',
-          name: 'Coal',
-          canBeWasted: true,
-        }],
+        products: [
+          {
+            productId: 'Product_Coal',
+            name: 'Coal',
+            canBeWasted: true,
+          },
+        ],
       },
     }
     const [module] = createLiveAreaModules(
@@ -710,14 +1039,12 @@ describe('createLiveAreaModules', () => {
 
     expect(module?.includedInFactoryTotals).toBe(false)
     expect(module?.recipes).toEqual([])
-    expect(getModeledTerrainSorterEntityIds(
-      [dirtSorter],
-      towers,
-      module ? [module] : [],
-    )).toEqual(new Set())
+    expect(getModeledTerrainSorterEntityIds([dirtSorter], towers, module ? [module] : [])).toEqual(
+      new Set(),
+    )
   })
 
-  it('does not manage a sorter when its area belongs to a configured module', () => {
+  it('keeps synced area ownership when a configured module has the same name', () => {
     const sorter: SyncedAreaEntity = {
       ...entity(1, true, true, []),
       prototypeId: 'OreSortingPlantT1',
@@ -726,32 +1053,35 @@ describe('createLiveAreaModules', () => {
       oreSorter: {
         throughputPerCycle: 160,
         conversionLossPercent: 10,
-        products: [{
-          productId: 'Product_Coal',
-          name: 'Coal',
-          canBeWasted: true,
-        }],
+        products: [
+          {
+            productId: 'Product_Coal',
+            name: 'Coal',
+            canBeWasted: true,
+          },
+        ],
       },
     }
     const towers = [{ entityId: 99, assignedOreSorterEntityIds: [1] }]
     const liveModules = createLiveAreaModules(
       [{ id: 16, name: 'Mines' }],
       [sorter],
-      [{
-        id: 'mines',
-        name: 'Mines',
-        description: '',
-        builtBuildings: {},
-        presets: [],
-        defaultPresetId: null,
-      }],
+      [
+        {
+          id: 'mines',
+          name: 'Mines',
+          description: '',
+          builtBuildings: {},
+          presets: [],
+          defaultPresetId: null,
+        },
+      ],
       undefined,
       towers,
     )
 
-    expect(liveModules).toEqual([])
-    expect(getModeledTerrainSorterEntityIds([sorter], towers, liveModules))
-      .toEqual(new Set())
+    expect(liveModules).toHaveLength(1)
+    expect(getModeledTerrainSorterEntityIds([sorter], towers, liveModules)).toEqual(new Set([1]))
   })
 
   it('routes a configured ore through the selected crusher recipe when applicable', () => {
@@ -770,11 +1100,13 @@ describe('createLiveAreaModules', () => {
       oreSorter: {
         throughputPerCycle: 160,
         conversionLossPercent: 10,
-        products: [{
-          productId: 'Product_Bauxite',
-          name: 'Bauxite',
-          canBeWasted: true,
-        }],
+        products: [
+          {
+            productId: 'Product_Bauxite',
+            name: 'Bauxite',
+            canBeWasted: true,
+          },
+        ],
       },
     }
     const crusher: SyncedAreaEntity = {
@@ -794,12 +1126,12 @@ describe('createLiveAreaModules', () => {
 
     const { lines } = buildModuleLines(module, module.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { bauxitePowder: 96 })
-    const sorterResult = result.regularResults.find(candidate => (
-      candidate.recipe.sourceKind === 'terrain-mine'
-    ))
-    const crusherResult = result.regularResults.find(candidate => (
-      candidate.recipe.gameRecipeId === 'BauxiteMilling'
-    ))
+    const sorterResult = result.regularResults.find(
+      candidate => candidate.recipe.sourceKind === 'terrain-mine',
+    )
+    const crusherResult = result.regularResults.find(
+      candidate => candidate.recipe.gameRecipeId === 'BauxiteMilling',
+    )
 
     expect(crusherResult).toMatchObject({
       supplyRatio: 1,
@@ -821,11 +1153,13 @@ describe('createLiveAreaModules', () => {
       oreSorter: {
         throughputPerCycle: 160,
         conversionLossPercent: 10,
-        products: [{
-          productId: 'Product_Coal',
-          name: 'Coal',
-          canBeWasted: true,
-        }],
+        products: [
+          {
+            productId: 'Product_Coal',
+            name: 'Coal',
+            canBeWasted: true,
+          },
+        ],
       },
     }
     const [module] = createLiveAreaModules(
@@ -842,9 +1176,7 @@ describe('createLiveAreaModules', () => {
     const result = calculateNet(lines, {}, undefined, {}, { coal: 10 })
 
     expect(lines[0]).toMatchObject({ activeBuildings: 0, builtBuildings: 1 })
-    expect(result.regularResults[0]?.actualOutputs).toEqual([
-      { resourceId: 'coal', quantity: 0 },
-    ])
+    expect(result.regularResults[0]?.actualOutputs).toEqual([{ resourceId: 'coal', quantity: 0 }])
   })
 
   it('does not invent terrain supply when a crusher area has no sorting plant', () => {
@@ -854,11 +1186,13 @@ describe('createLiveAreaModules', () => {
       durationSeconds: 30,
       assigned: true,
       inputs: [{ productId: 'Product_TitaniumOre', name: 'Titanium ore', quantity: 48 }],
-      outputs: [{
-        productId: 'Product_TitaniumOreCrushed',
-        name: 'Titanium ore crushed',
-        quantity: 48,
-      }],
+      outputs: [
+        {
+          productId: 'Product_TitaniumOreCrushed',
+          name: 'Titanium ore crushed',
+          quantity: 48,
+        },
+      ],
     }
     const crusher = {
       ...entity(1, true, true, [titaniumMilling]),
@@ -890,39 +1224,54 @@ describe('createLiveAreaModules', () => {
       [],
     )
 
-    expect(module?.recipes?.[0]?.outputs).toEqual([
-      { resourceId: 'oxygen', quantity: 48 },
-    ])
+    expect(module?.recipes?.[0]?.outputs).toEqual([{ resourceId: 'oxygen', quantity: 48 }])
   })
 
-  it('does not duplicate a named area already represented by a configured module', () => {
+  it('treats configured-module and area names as labels, not identity', () => {
     const modules = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [],
-      [{
-        id: 'test',
-        name: 'Test',
-        description: '',
-        builtBuildings: {},
-        presets: [],
-        defaultPresetId: null,
-      }],
+      [
+        {
+          id: 'test',
+          name: 'Test',
+          description: '',
+          builtBuildings: {},
+          presets: [],
+          defaultPresetId: null,
+        },
+      ],
     )
 
-    expect(modules).toEqual([])
+    expect(modules).toHaveLength(1)
+    expect(modules[0]?.id).toBe('live-area-16')
   })
 
   it('keeps multi-recipe ghosts visible as a configuration issue', () => {
     const alternative = { ...recipe, id: 'AirSeparationAlternative', assigned: false }
-    const ambiguous = entity(2, false, false, [
-      { ...recipe, assigned: false },
-      alternative,
-    ])
+    const ambiguous = entity(2, false, false, [{ ...recipe, assigned: false }, alternative])
     const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [ambiguous], [])
 
     expect(module?.recipes).toEqual([])
     expect(module?.liveArea?.issues).toEqual([
       expect.objectContaining({ building: 'Air Separator', count: 1 }),
+    ])
+  })
+
+  it('keeps compact multi-recipe ghosts visible using the exported recipe count', () => {
+    const ambiguous = {
+      ...entity(2, false, false, []),
+      availableRecipeCount: 7,
+    }
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [ambiguous], [])
+
+    expect(module?.recipes).toEqual([])
+    expect(module?.liveArea?.issues).toEqual([
+      expect.objectContaining({
+        building: 'Air Separator',
+        count: 1,
+        message: 'Choose one of 7 recipes in the game before its flows can be projected.',
+      }),
     ])
   })
 
@@ -937,10 +1286,7 @@ describe('createLiveAreaModules', () => {
     }
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
-      [
-        entity(1, true, true, [oxygenRecipe]),
-        entity(2, true, true, [nitrogenRecipe]),
-      ],
+      [entity(1, true, true, [oxygenRecipe]), entity(2, true, true, [nitrogenRecipe])],
       [],
     )
 
@@ -965,6 +1311,57 @@ describe('createLiveAreaModules', () => {
     expect(lines.map(line => line.capacityPoolId)).toEqual([undefined, undefined])
     expect(result.regularResults).toHaveLength(2)
     expect(result.regularResults.map(item => item.supplyRatio)).toEqual([0, 0])
+  })
+
+  it('uses the higher-yield organic Fertilizer I recipe first in a shared Chemical plant II', () => {
+    const fertilizerRecipe = (id: string, fertilizerPerCycle: number, organicPerCycle = 0) => ({
+      id,
+      name: id,
+      durationSeconds: 60,
+      assigned: true,
+      inputs: [
+        ...(organicPerCycle > 0
+          ? [
+              {
+                productId: 'Product_FertilizerOrganic',
+                name: 'Fertilizer (organic)',
+                quantity: organicPerCycle,
+              },
+            ]
+          : []),
+        { productId: 'Product_Ammonia', name: 'Ammonia', quantity: 24 },
+        { productId: 'Product_Oxygen', name: 'Oxygen', quantity: 36 },
+      ],
+      outputs: [
+        {
+          productId: 'Product_Fertilizer',
+          name: 'Fertilizer I',
+          quantity: fertilizerPerCycle,
+        },
+      ],
+    })
+    const chemicalPlant = {
+      ...entity(3, true, true, [
+        fertilizerRecipe('FertilizerProduction', 60),
+        fertilizerRecipe('FertilizerProductionFromOrganic', 90, 60),
+      ]),
+      prototypeId: 'ChemicalPlant2',
+      prototypeName: 'Chemical plant II',
+    }
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [chemicalPlant], [])
+
+    if (!module) throw new Error('Live area module was not created')
+
+    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const result = calculateNet(lines, {}, undefined, {}, { fertilizerI: 80 })
+    const supplyRatio = (gameRecipeId: string) =>
+      result.regularResults.find(item => item.recipe.gameRecipeId === gameRecipeId)?.supplyRatio
+
+    expect(supplyRatio('FertilizerProductionFromOrganic')).toBeCloseTo(80 / 90, 9)
+    expect(supplyRatio('FertilizerProduction')).toBe(0)
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'fertilizerI')).toMatchObject({
+      net: 0,
+    })
   })
 
   it('keeps a completed boosted Sea Water pump separate from a default-recipe ghost', () => {
@@ -993,12 +1390,9 @@ describe('createLiveAreaModules', () => {
     })
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
-      [
-        pumpEntity(1, true, boostedSeawaterPump),
-        pumpEntity(2, false, seawaterPump),
-      ],
+      [pumpEntity(1, true, boostedSeawaterPump), pumpEntity(2, false, seawaterPump)],
       [],
-      { Test: { requestedExports: { seaWater: 300 } } },
+      { 16: { requestedExports: { seaWater: 300 } } },
     )
 
     if (!module) throw new Error('Live area module was not created')
@@ -1015,9 +1409,8 @@ describe('createLiveAreaModules', () => {
       new Map(),
       new Map([[module.id, { seaWater: 300 }]]),
     )
-    const sourceResult = (gameRecipeId: string) => result.sourceResults.find(candidate => (
-      candidate.recipe.gameRecipeId === gameRecipeId
-    ))
+    const sourceResult = (gameRecipeId: string) =>
+      result.sourceResults.find(candidate => candidate.recipe.gameRecipeId === gameRecipeId)
 
     expect(lines.map(line => line.capacityPoolId)).toEqual([undefined, undefined])
     expect(sourceResult('OceanWaterPumping2x')).toMatchObject({
@@ -1084,7 +1477,7 @@ describe('createLiveAreaModules', () => {
       ],
       [],
       {
-        Test: {
+        16: {
           requestedExports: { water: 288 },
         },
       },
@@ -1107,38 +1500,34 @@ describe('createLiveAreaModules', () => {
       new Map(),
       new Map([[module.id, { steamLow: 96 }]]),
     )
-    const pumpResults = result.sourceResults.filter(item => (
-      item.recipe.building === 'Seawater pump'
-    ))
-    const desalinatorResult = result.regularResults.find(item => (
-      item.recipe.building === 'Thermal desalinator'
-    ))
+    const pumpResults = result.sourceResults.filter(
+      item => item.recipe.building === 'Seawater pump',
+    )
+    const desalinatorResult = result.regularResults.find(
+      item => item.recipe.building === 'Thermal desalinator',
+    )
     const seawaterFlow = result.allResourceFlows.find(flow => flow.resourceId === 'seaWater')
 
-    expect(pumpResults.reduce((total, item) => (
-      total + (item.actualOutputs[0]?.quantity ?? 0)
-    ), 0)).toBe(288)
-    expect(pumpResults).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        recipe: expect.objectContaining({ sourceMode: 'module-demand-capped' }),
-      }),
-    ]))
+    expect(
+      pumpResults.reduce((total, item) => total + (item.actualOutputs[0]?.quantity ?? 0), 0),
+    ).toBe(288)
+    expect(pumpResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          recipe: expect.objectContaining({ sourceMode: 'module-demand-capped' }),
+        }),
+      ]),
+    )
     expect(desalinatorResult).toMatchObject({
       operatingMode: 'balanced',
       supplyRatio: 1,
-      actualInputs: expect.arrayContaining([
-        { resourceId: 'seaWater', quantity: 288 },
-      ]),
+      actualInputs: expect.arrayContaining([{ resourceId: 'seaWater', quantity: 288 }]),
     })
     expect(seawaterFlow?.net).toBe(-72)
   })
 
   it('leaves an auto-balanced producer inactive without requested exports', () => {
-    const [module] = createLiveAreaModules(
-      [{ id: 16, name: 'Test' }],
-      [entity(1, true, true)],
-      [],
-    )
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [entity(1, true, true)], [])
 
     if (!module) throw new Error('Live area module was not created')
 
@@ -1203,14 +1592,14 @@ describe('createLiveAreaModules', () => {
         configuredEntity(3, 'ThermalDesalinator', 'Thermal desalinator', desalination),
       ],
       [],
-      { Test: { requestedExports: { copper: 1 } } },
+      { 16: { requestedExports: { copper: 1 } } },
     )
 
     if (!module) throw new Error('Live area module was not created')
 
-    const desalinatorRecipe = module.recipes?.find(candidate => (
-      candidate.gameRecipeId === 'DesalinationFromLP'
-    ))
+    const desalinatorRecipe = module.recipes?.find(
+      candidate => candidate.gameRecipeId === 'DesalinationFromLP',
+    )
     const { lines } = buildModuleLines(module, module.presets[0] ?? null)
     const result = calculateNet(
       lines,
@@ -1219,15 +1608,12 @@ describe('createLiveAreaModules', () => {
       {},
       getPresetResourceDemands(module.presets[0]),
     )
-    const recipeResult = (gameRecipeId: string) => [
-      ...result.regularResults,
-      ...result.sourceResults,
-    ].find(
-      candidate => candidate.recipe.gameRecipeId === gameRecipeId,
-    )
-    const net = (resourceId: string) => result.allResourceFlows.find(
-      flow => flow.resourceId === resourceId,
-    )?.net ?? 0
+    const recipeResult = (gameRecipeId: string) =>
+      [...result.regularResults, ...result.sourceResults].find(
+        candidate => candidate.recipe.gameRecipeId === gameRecipeId,
+      )
+    const net = (resourceId: string) =>
+      result.allResourceFlows.find(flow => flow.resourceId === resourceId)?.net ?? 0
 
     expect(desalinatorRecipe).toMatchObject({
       balanceBy: 'output',
@@ -1313,20 +1699,18 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Copper #1' }],
       [
-        ...Array.from({ length: 8 }, (_, index) => (
-          chainEntity(index + 1, 'ArcFurnace2', 'Arc furnace II', [
-            arcRecipe,
-            arcScrapRecipe,
-          ])
-        )),
-        ...Array.from({ length: 16 }, (_, index) => (
-          chainEntity(index + 20, 'AirSeparator2', 'Metal caster II', [castingRecipe])
-        )),
-        ...Array.from({ length: 16 }, (_, index) => (
-          chainEntity(index + 40, 'AirSeparator3', 'Copper electrolysis', [electrolysisRecipe])
-        )),
+        ...Array.from({ length: 8 }, (_, index) =>
+          chainEntity(index + 1, 'ArcFurnace2', 'Arc furnace II', [arcRecipe, arcScrapRecipe]),
+        ),
+        ...Array.from({ length: 16 }, (_, index) =>
+          chainEntity(index + 20, 'AirSeparator2', 'Metal caster II', [castingRecipe]),
+        ),
+        ...Array.from({ length: 16 }, (_, index) =>
+          chainEntity(index + 40, 'AirSeparator3', 'Copper electrolysis', [electrolysisRecipe]),
+        ),
       ],
       [],
+      { 16: { resourcePool: 'factory' } },
     )
 
     if (!module) throw new Error('Copper #1 module was not created')
@@ -1344,9 +1728,9 @@ describe('createLiveAreaModules', () => {
     expect(module.includedInFactoryTotals).toBe(true)
     expect(preset?.requestedExports).toBeUndefined()
     expect(preset?.outputTargets).toBeUndefined()
-    const arcResults = result.regularResults.filter(candidate => (
-      candidate.recipe.gameRecipeId?.startsWith('CopperSmeltingArc')
-    ))
+    const arcResults = result.regularResults.filter(candidate =>
+      candidate.recipe.gameRecipeId?.startsWith('CopperSmeltingArc'),
+    )
 
     expect(arcResults.map(candidate => candidate.recipe.gameRecipeId)).toEqual([
       'CopperSmeltingArcScrap',
@@ -1354,9 +1738,7 @@ describe('createLiveAreaModules', () => {
     ])
     expect(arcResults).toEqual([
       expect.objectContaining({
-        actualInputs: expect.arrayContaining([
-          { resourceId: 'copperScrap', quantity: 120 },
-        ]),
+        actualInputs: expect.arrayContaining([{ resourceId: 'copperScrap', quantity: 120 }]),
         operatingMode: 'balanced',
         supplyRatio: 0.3125,
       }),
@@ -1364,25 +1746,27 @@ describe('createLiveAreaModules', () => {
         recipe: expect.objectContaining({
           balanceOutputIds: ['moltenCopper'],
         }),
-        actualInputs: expect.arrayContaining([
-          { resourceId: 'copperOreCrushed', quantity: 264 },
-        ]),
+        actualInputs: expect.arrayContaining([{ resourceId: 'copperOreCrushed', quantity: 264 }]),
         operatingMode: 'balanced',
         supplyRatio: 0.6875,
       }),
     ])
-    expect(result.regularResults).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        recipe: expect.objectContaining({ id: expect.stringContaining('CopperCasting') }),
-        operatingMode: 'balanced',
-        supplyRatio: 1,
-      }),
-      expect.objectContaining({
-        recipe: expect.objectContaining({ id: expect.stringContaining('CopperElectrolysisProcess') }),
-        operatingMode: 'balanced',
-        supplyRatio: 1,
-      }),
-    ]))
+    expect(result.regularResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          recipe: expect.objectContaining({ id: expect.stringContaining('CopperCasting') }),
+          operatingMode: 'balanced',
+          supplyRatio: 1,
+        }),
+        expect.objectContaining({
+          recipe: expect.objectContaining({
+            id: expect.stringContaining('CopperElectrolysisProcess'),
+          }),
+          operatingMode: 'balanced',
+          supplyRatio: 1,
+        }),
+      ]),
+    )
     expect(result.allResourceFlows.find(flow => flow.resourceId === 'copper')).toMatchObject({
       consumed: 384,
       produced: 384,
@@ -1471,24 +1855,19 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 21, name: 'Future Steel' }],
       [
-        ...Array.from({ length: 8 }, (_, index) => (
-          chainEntity(index + 1, 'ArcFurnace2', 'Arc furnace II', [
-            arcOreRecipe,
-            arcScrapRecipe,
-          ])
-        )),
-        ...Array.from({ length: 8 }, (_, index) => (
-          chainEntity(index + 20, 'OxygenFurnace2', 'Oxygen furnace II', [
-            oxygenFurnaceRecipe,
-          ])
-        )),
-        ...Array.from({ length: 8 }, (_, index) => (
-          chainEntity(index + 40, 'AirSeparator3', 'Cooled caster II', [casterRecipe])
-        )),
+        ...Array.from({ length: 8 }, (_, index) =>
+          chainEntity(index + 1, 'ArcFurnace2', 'Arc furnace II', [arcOreRecipe, arcScrapRecipe]),
+        ),
+        ...Array.from({ length: 8 }, (_, index) =>
+          chainEntity(index + 20, 'OxygenFurnace2', 'Oxygen furnace II', [oxygenFurnaceRecipe]),
+        ),
+        ...Array.from({ length: 8 }, (_, index) =>
+          chainEntity(index + 40, 'AirSeparator3', 'Cooled caster II', [casterRecipe]),
+        ),
       ],
       [],
       {
-        'Future Steel': {
+        21: {
           resourcePool: 'factory',
           requestedImports: { ironOreCrushed: 384 },
           requestedExports: { steel: 192 },
@@ -1517,14 +1896,11 @@ describe('createLiveAreaModules', () => {
       {},
       getPresetResourceDemands(preset),
     )
-    const normalArcResults = normalResult.regularResults.filter(candidate => (
-      candidate.recipe.gameRecipeId?.startsWith('IronSmeltingArc')
-    ))
+    const normalArcResults = normalResult.regularResults.filter(candidate =>
+      candidate.recipe.gameRecipeId?.startsWith('IronSmeltingArc'),
+    )
 
-    expect(normalArcResults.map(candidate => candidate.supplyRatio)).toEqual([
-      0.3125,
-      0,
-    ])
+    expect(normalArcResults.map(candidate => candidate.supplyRatio)).toEqual([0.3125, 0])
 
     const result = calculateNet(
       lines,
@@ -1540,9 +1916,9 @@ describe('createLiveAreaModules', () => {
       {},
       getPresetResourceDemands(preset),
     )
-    const arcResults = result.regularResults.filter(candidate => (
-      candidate.recipe.gameRecipeId?.startsWith('IronSmeltingArc')
-    ))
+    const arcResults = result.regularResults.filter(candidate =>
+      candidate.recipe.gameRecipeId?.startsWith('IronSmeltingArc'),
+    )
 
     expect(arcResults.map(candidate => candidate.recipe.gameRecipeId)).toEqual([
       'IronSmeltingArcScrap',
@@ -1555,9 +1931,7 @@ describe('createLiveAreaModules', () => {
           balanceInputIds: ['ironScrap'],
           electricityMultiplier: 0.6,
         }),
-        actualInputs: expect.arrayContaining([
-          { resourceId: 'ironScrap', quantity: 0 },
-        ]),
+        actualInputs: expect.arrayContaining([{ resourceId: 'ironScrap', quantity: 0 }]),
         supplyRatio: 0,
       }),
       expect.objectContaining({
@@ -1568,9 +1942,7 @@ describe('createLiveAreaModules', () => {
           balanceInputIds: [],
           balanceOutputIds: ['moltenIron'],
         }),
-        actualInputs: expect.arrayContaining([
-          { resourceId: 'ironOreCrushed', quantity: 384 },
-        ]),
+        actualInputs: expect.arrayContaining([{ resourceId: 'ironOreCrushed', quantity: 384 }]),
         supplyRatio: 1,
       }),
     ])
@@ -1637,11 +2009,7 @@ describe('createLiveAreaModules', () => {
       inputs: [{ productId: 'Product_Brine', name: 'Brine', quantity: 12 }],
       outputs: [{ productId: 'Product_Chlorine', name: 'Chlorine', quantity: 8 }],
     }
-    const coolingRecipe = (
-      id: string,
-      steamName: string,
-      steamProductId: string,
-    ) => ({
+    const coolingRecipe = (id: string, steamName: string, steamProductId: string) => ({
       id,
       name: id,
       durationSeconds: 10,
@@ -1650,11 +2018,7 @@ describe('createLiveAreaModules', () => {
       outputs: [{ productId: 'Product_Water', name: 'Water', quantity: 12 }],
     })
     const cooling = [
-      coolingRecipe(
-        'SteamDepletedCondensationT2',
-        'Steam (Depleted)',
-        'Product_SteamDepleted',
-      ),
+      coolingRecipe('SteamDepletedCondensationT2', 'Steam (Depleted)', 'Product_SteamDepleted'),
       coolingRecipe('SteamSpCondensationT2', 'Steam (Super)', 'Product_SteamSuper'),
     ]
     const brineDump = {
@@ -1675,14 +2039,12 @@ describe('createLiveAreaModules', () => {
       ],
       [],
     )
-    const byGameRecipe = (id: string) => module?.recipes?.find(recipe => (
-      recipe.gameRecipeId === id
-    ))
+    const byGameRecipe = (id: string) => module?.recipes?.find(recipe => recipe.gameRecipeId === id)
 
     expect(module?.gameSynced).toBe(true)
     expect(byGameRecipe('HydrogenProductionFromSteamSp')).toMatchObject({
       balanceBy: 'output',
-      balanceOutputIds: ['hydrogen'],
+      balanceOutputIds: ['hydrogen', 'oxygen'],
     })
     expect(byGameRecipe('BrineElectrolysis')).toMatchObject({
       balanceBy: 'output',
@@ -1700,15 +2062,16 @@ describe('createLiveAreaModules', () => {
     expect(superCooling).toMatchObject({
       group: 'sink',
     })
-    expect(superCooling?.sharedCapacity?.priority)
-      .toBeGreaterThan(depletedCooling?.sharedCapacity?.priority ?? -1)
+    expect(superCooling?.sharedCapacity?.priority).toBeGreaterThan(
+      depletedCooling?.sharedCapacity?.priority ?? -1,
+    )
     expect(byGameRecipe('BrineDumping')).toMatchObject({
       group: 'sink',
       sinkScope: 'module',
     })
   })
 
-  it('uses the CO2 graphite recipe as a local surplus catcher', () => {
+  it('uses the CO2 graphite recipe as an input-driven fallback', () => {
     const scrubber = {
       id: 'TestScrubber',
       name: 'Test scrubber',
@@ -1725,9 +2088,7 @@ describe('createLiveAreaModules', () => {
       name: 'Graphite production from CO2',
       durationSeconds: 60,
       assigned: true,
-      inputs: [
-        { productId: 'Product_CarbonDioxide', name: 'Carbon Dioxide', quantity: 144 },
-      ],
+      inputs: [{ productId: 'Product_CarbonDioxide', name: 'Carbon Dioxide', quantity: 144 }],
       outputs: [{ productId: 'Product_Graphite', name: 'Graphite', quantity: 6 }],
     }
     const configuredEntity = (
@@ -1747,40 +2108,34 @@ describe('createLiveAreaModules', () => {
         configuredEntity(2, 'ChemicalPlant2', 'Chemical plant II', graphiteFromCo2),
       ],
       [],
-      { Test: { requestedExports: { sulfur: 1 } } },
+      { 16: { requestedExports: { sulfur: 1 } } },
     )
 
     if (!module) throw new Error('Live area module was not created')
 
     const preset = module.presets[0]
     const { lines } = buildModuleLines(module, preset ?? null)
-    const result = calculateNet(
-      lines,
-      {},
-      undefined,
-      {},
-      getPresetResourceDemands(preset),
+    const result = calculateNet(lines, {}, undefined, {}, getPresetResourceDemands(preset))
+    const graphiteRecipe = module.recipes?.find(
+      candidate => candidate.gameRecipeId === 'GraphiteProductionCo2',
     )
-    const graphiteRecipe = module.recipes?.find(candidate => (
-      candidate.gameRecipeId === 'GraphiteProductionCo2'
-    ))
-    const graphiteResult = result.regularResults.find(candidate => (
-      candidate.recipe.gameRecipeId === 'GraphiteProductionCo2'
-    ))
+    const graphiteResult = result.regularResults.find(
+      candidate => candidate.recipe.gameRecipeId === 'GraphiteProductionCo2',
+    )
 
     expect(graphiteRecipe).toMatchObject({
-      balanceBy: 'output',
-      consumeSurplusInputIds: ['carbonDioxide'],
-      consumeSurplusInputScope: 'module',
-      surplusConsumptionPriority: 10,
+      allocation: 'fallback',
+      allocationPriority: 20,
+      balanceBy: 'input',
+      balanceInputIds: ['carbonDioxide'],
     })
     expect(graphiteResult?.supplyRatio).toBeCloseTo(38.4 / 144)
-    expect(result.allResourceFlows.find(
-      flow => flow.resourceId === 'carbonDioxide',
-    )?.net).toBeCloseTo(0)
-    expect(result.allResourceFlows.find(
-      flow => flow.resourceId === 'graphite',
-    )?.net).toBeCloseTo(1.6)
+    expect(
+      result.allResourceFlows.find(flow => flow.resourceId === 'carbonDioxide')?.net,
+    ).toBeCloseTo(0)
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'graphite')?.net).toBeCloseTo(
+      1.6,
+    )
   })
 
   it('ignores virtual environmental emissions without dropping material flows', () => {
@@ -1824,43 +2179,34 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'TestProducer',
       prototypeName: 'Test producer',
     }
-    const [module] = createLiveAreaModules(
-      [{ id: 16, name: 'Test' }],
-      [producer, smokeStack],
-      [],
-      { Test: { requestedExports: { sulfur: 1 } } },
-    )
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [producer, smokeStack], [], {
+      16: { requestedExports: { sulfur: 1 } },
+    })
 
     if (!module) throw new Error('Live area module was not created')
 
     expect(module?.liveArea?.issues).toEqual([])
-    expect(module?.recipes).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        gameRecipeId: 'SmokeStackExhaust',
-        inputs: [{ resourceId: 'exhaust', quantity: 60 }],
-        outputs: [],
-        consumeSurplusInputIds: ['exhaust'],
-        consumeSurplusInputScope: 'module',
-      }),
-    ]))
+    expect(module?.recipes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          gameRecipeId: 'SmokeStackExhaust',
+          inputs: [{ resourceId: 'exhaust', quantity: 60 }],
+          outputs: [],
+          group: 'sink',
+          sinkScope: 'module',
+        }),
+      ]),
+    )
 
     const preset = module.presets[0]
     const { lines } = buildModuleLines(module, preset ?? null)
-    const result = calculateNet(
-      lines,
-      {},
-      undefined,
-      {},
-      getPresetResourceDemands(preset),
+    const result = calculateNet(lines, {}, undefined, {}, getPresetResourceDemands(preset))
+    const smokeStackResult = result.sinkResults.find(
+      candidate => candidate.recipe.gameRecipeId === 'SmokeStackExhaust',
     )
-    const smokeStackResult = result.regularResults.find(candidate => (
-      candidate.recipe.gameRecipeId === 'SmokeStackExhaust'
-    ))
 
     expect(smokeStackResult?.supplyRatio).toBe(1)
-    expect(result.allResourceFlows.find(
-      flow => flow.resourceId === 'exhaust',
-    )?.net).toBeCloseTo(0)
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'exhaust')?.net).toBeCloseTo(0)
   })
 
   it('counts every building affected by an unsupported product', () => {

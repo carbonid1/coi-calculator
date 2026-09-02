@@ -1,20 +1,26 @@
 import { type ResourceId } from './resources'
 
 interface LiveAreaPlan {
-  /** Resource ledger used by this named area. Omitted areas remain isolated. */
+  /** Resource ledger used by this synced area. Omitted areas remain isolated. */
   resourcePool?: 'factory'
   requestedImports?: Partial<Record<ResourceId, number>>
   requestedExports?: Partial<Record<ResourceId, number>>
 }
 
-export type LiveAreaPlans = Readonly<Record<string, LiveAreaPlan>>
+export type LiveAreaPlans = Readonly<Record<number, LiveAreaPlan>>
 
-/** Calculator-owned operating requests for synced named game areas. */
-export const liveAreaPlans: LiveAreaPlans = {
-  'Copper #1': {
-    resourcePool: 'factory',
-  },
-  'Steel #1': {
-    resourcePool: 'factory',
+/** Save-scoped operating requests. Area names are labels and never identity. */
+const liveAreaPlansBySave: Readonly<Record<string, LiveAreaPlans>> = {
+  'Last-Stop Waters': {
+    16: {
+      resourcePool: 'factory',
+    },
+    21: {
+      resourcePool: 'factory',
+    },
   },
 }
+
+export const getLiveAreaPlans = (saveId: string | null | undefined): LiveAreaPlans => (
+  saveId ? liveAreaPlansBySave[saveId] ?? {} : {}
+)

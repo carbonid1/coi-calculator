@@ -13,6 +13,7 @@ export const DEFAULT_GROUNDWATER_CLAIM_ID = "general-groundwater";
 
 const defaultGroundwaterPumpClaim = {
   id: DEFAULT_GROUNDWATER_CLAIM_ID,
+  zoneId: -1,
   moduleId: DEFAULT_MODULE_ID,
   moduleName: "Default",
   recipeId: DEFAULT_GROUNDWATER_RECIPE_ID,
@@ -26,6 +27,7 @@ export const createGroundwaterPumpClaims = (
 ): SharedMachineClaim[] => [
   ...cropFarmZones.flatMap(zone => zone.name ? [{
     id: getCropFarmGroundwaterClaimId(zone.id),
+    zoneId: zone.id,
     moduleId: `live-area-${zone.id}`,
     moduleName: zone.name,
     recipeId: getCropFarmGroundwaterRecipeId(zone.id),

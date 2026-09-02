@@ -17,6 +17,7 @@ const labels = {
   build: "Build",
   "can-pause": "Can pause",
   "rebalance-farms": "Rebalance farms",
+  upgrade: "Upgrade",
   unpause: "Unpause",
 } as const;
 
@@ -26,6 +27,7 @@ const icons = {
   "can-pause": CirclePause,
   "rebalance-farms": RefreshCw,
   "remove-animals": CircleMinus,
+  upgrade: Hammer,
   unpause: Play,
 } as const;
 
@@ -54,6 +56,12 @@ const getTooltip = (diagnostic: BuildingDiagnostic) => {
     ? ` Affects ${diagnostic.affectedResources.join(", ")}.`
     : "";
 
+  if (diagnostic.level) {
+    const action = diagnostic.attention === "build" ? "Build" : "Upgrade";
+
+    return `Running Research Lab IV buildings need more Space Research Points. ${action} the Space Station to level ${diagnostic.level.target}.`;
+  }
+
   if (diagnostic.attention === "add-animals" && diagnostic.animalPopulation) {
     const { additionalBuildings, label } = diagnostic.animalPopulation;
     const capacityNote = additionalBuildings > 0
@@ -79,6 +87,12 @@ const getTooltip = (diagnostic: BuildingDiagnostic) => {
 };
 
 const getAttentionLabel = (diagnostic: ActionableDiagnostic) => {
+  if (diagnostic.level) {
+    return diagnostic.attention === "build"
+      ? `Build level ${diagnostic.level.target}`
+      : `Upgrade to level ${diagnostic.level.target}`;
+  }
+
   if (
     diagnostic.attention === "add-animals"
     || diagnostic.attention === "remove-animals"
@@ -101,6 +115,10 @@ const isAttentionNotice = (attention: BuildingAttention) => (
 );
 
 const getAttentionStatus = (diagnostic: BuildingDiagnostic) => {
+  if (diagnostic.level) {
+    return `Level ${diagnostic.level.current} / ${diagnostic.level.target}`;
+  }
+
   if (diagnostic.attention === "rebalance-farms") {
     return `${diagnostic.affectedResources.join(", ")} short`;
   }

@@ -2,7 +2,7 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.34 exports assigned vehicle workers and completed/running counts for
+Version 0.38 exports assigned vehicle workers and completed/running counts for
 the calculator's tracked entities to `coi-calculator-state.json` in the installed
 mod folder. It also exports up to 120 completed in-game months of actual
 Maintenance I/II/III consumption, Hydrogen fuel use by category, and average
@@ -90,7 +90,7 @@ game exposes an assigned recipe. Removing the ghost removes that planned
 capacity on the next snapshot.
 Office I–III are recognized by prototype even though they expose no selectable
 production recipe. Their count and pause state belong to the generated owning
-area; Office computing boost remains a calculator plan until it is exported.
+area.
 Schema 29 adds each electrified train-station module's selected product and
 loading direction. The calculator uses those values to label and group station
 cards inside their assigned area; it does not yet treat stations as material
@@ -123,6 +123,20 @@ exports its managed tree count, cutting setting, harvest target, replacement
 saplings, and sustainable product ceiling per production cycle. The ceiling
 uses the configured tree mix and current game-adjusted growth duration. It does
 not assume extra trees from unfilled designation space or vehicle throughput.
+Schema 35 adds established contracts and their assigned Cargo Depots, modules,
+ships, selected products, loading directions, recurring Unity costs, and voyage
+fuel. Contract-owned entities are claimed together so their infrastructure is
+not also counted by an area module.
+Schema 36 extends the recipe-aware area inventory to every relevant stationary
+building. Buildings outside named vehicle areas now sync into Default instead
+of relying on hand-entered production counts. Buildings in unnamed vehicle areas
+also remain in Default; any named area takes ownership when areas overlap.
+Schema 37 adds each Office I–III building's configured computing boost step.
+The calculator uses the exact boost of every synced Office, including mixed
+boost settings within the same tier or vehicle area.
+Schema 38 reduces the exported file size for multi-recipe machines. Assigned
+recipes and machines with only one recipe retain their full production data;
+unconfigured machines still show how many recipes are available.
 
 The calculator reads that file locally; the mod does not open a port or modify
 gameplay state. Captain of Industry may still record the enabled mod in save

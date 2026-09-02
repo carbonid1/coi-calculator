@@ -33,14 +33,27 @@ const createModule = (id: string, name: string): Module => ({
   defaultPresetId: 'current',
 })
 
+const createLiveModule = (id: string, name: string, zoneId: number): Module => ({
+  ...createModule(id, name),
+  liveArea: {
+    zoneId,
+    trackedBuildings: 0,
+    constructedBuildings: 0,
+    activeBuildings: 0,
+    pausedBuildings: 0,
+    constructionGhosts: 0,
+    issues: [],
+  },
+})
+
 const defaultModule = createModule('default', 'Default')
-const nuclearModule = createModule('nuclear', 'Nuclear')
-const copperModule = createModule('live-area-16', 'Copper #1')
+const nuclearModule = createLiveModule('nuclear', 'Nuclear', 17)
+const copperModule = createLiveModule('live-area-16', 'Copper #1', 16)
 
 const productionEntity = (
   entityId: number,
   prototypeId: string,
-  zoneNames: string[],
+  zoneIds: number[],
   running = true,
   selectedProduct?: { productId: string; name: string },
   isForLoading?: boolean,
@@ -49,7 +62,7 @@ const productionEntity = (
   prototypeId,
   running,
   recipeIds: [],
-  zones: zoneNames.map((name, index) => ({ id: entityId * 10 + index, name })),
+  zones: zoneIds.map(id => ({ id, name: `Area ${id}` })),
   nuclearReactor: null,
   dataCenterRacks: null,
   trainStation: selectedProduct || isForLoading !== undefined
@@ -95,8 +108,8 @@ it('moves stationary infrastructure to an exact area while global assets remain 
     defaultModuleId: defaultModule.id,
     modules: [defaultModule, nuclearModule],
     productionEntities: [
-      productionEntity(1, 'TrainStationUnit_ELEC', ['Nuclear']),
-      productionEntity(2, 'LocomotiveT2Electric', ['Nuclear']),
+      productionEntity(1, 'TrainStationUnit_ELEC', [17]),
+      productionEntity(2, 'LocomotiveT2Electric', [17]),
     ],
   })
 
@@ -125,7 +138,7 @@ it("assigns Captain's office workforce to its exact area", () => {
     defaultModuleId: defaultModule.id,
     modules: [defaultModule, copperModule],
     productionEntities: [
-      productionEntity(3, 'CaptainOfficeT2', ['Copper #1']),
+      productionEntity(3, 'CaptainOfficeT2', [16]),
     ],
   })
 
@@ -147,7 +160,7 @@ it('does not duplicate a sorter already modeled by its live terrain flows', () =
     managedEntityIds: new Set([4]),
     modules: [defaultModule, copperModule],
     productionEntities: [
-      productionEntity(4, 'OreSortingPlantT1', ['Copper #1']),
+      productionEntity(4, 'OreSortingPlantT1', [16]),
     ],
   })
 
@@ -194,14 +207,14 @@ it('groups stations by their synced selected product without adding material flo
       productionEntity(
         9,
         'TrainStationLoose_ELEC',
-        ['Copper #1'],
+        [16],
         true,
         { productId: 'Product_CopperOreCrushed', name: 'Copper Ore Crushed' },
       ),
       productionEntity(
         10,
         'TrainStationLoose_ELEC',
-        ['Copper #1'],
+        [16],
         true,
         { productId: 'Product_CopperOreCrushed', name: 'Copper Ore Crushed' },
       ),
@@ -263,7 +276,7 @@ it('retains station direction when no product is selected yet', () => {
     defaultModuleId: defaultModule.id,
     modules: [defaultModule, copperModule],
     productionEntities: [
-      productionEntity(11, 'TrainStationLoose_ELEC', ['Copper #1'], true, undefined, true),
+      productionEntity(11, 'TrainStationLoose_ELEC', [16], true, undefined, true),
     ],
   })
   const assignment = assignments[copperModule.id]

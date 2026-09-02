@@ -42,9 +42,16 @@ export const buildModuleLines = (
 
       return outputCapacity > 0 ? [target / outputCapacity] : [];
     });
-    const allocationRatio = targetRatios.length > 0 && active > 0
-      ? Math.min(1, Math.max(...targetRatios) / active)
-      : undefined;
+    const fixedTotalOperationRatio = (
+      fixedIds.has(recipe.id)
+      && recipe.fixedTotalOperation
+      && active > 0
+    ) ? 1 / active : undefined;
+    const allocationRatio = fixedTotalOperationRatio ?? (
+      targetRatios.length > 0 && active > 0
+        ? Math.min(1, Math.max(...targetRatios) / active)
+        : undefined
+    );
     const capacityPool = recipe.sharedCapacity
       ? preset?.capacityPools?.[recipe.sharedCapacity.id]
       : undefined;

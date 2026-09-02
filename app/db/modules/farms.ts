@@ -34,6 +34,49 @@ export interface CurrentChickenFarmConfiguration {
   runningChickens: number;
 }
 
+const attachToSyncedArea = (farmModule: Module, syncedArea?: Module): Module => {
+  if (!syncedArea) return farmModule;
+
+  const areaPreset = syncedArea.presets.find(preset => (
+    preset.id === syncedArea.defaultPresetId
+  )) ?? syncedArea.presets[0];
+  const farmPreset = farmModule.presets[0];
+
+  if (!areaPreset || !farmPreset) return farmModule;
+
+  return {
+    ...syncedArea,
+    includedInFactoryTotals: true,
+    builtBuildings: {
+      ...syncedArea.builtBuildings,
+      ...farmModule.builtBuildings,
+    },
+    presets: [{
+      ...areaPreset,
+      activeBuildings: {
+        ...areaPreset.activeBuildings,
+        ...farmPreset.activeBuildings,
+      },
+      builtBuildings: {
+        ...areaPreset.builtBuildings,
+        ...farmModule.builtBuildings,
+      },
+      dataSources: {
+        ...areaPreset.dataSources,
+        ...farmPreset.dataSources,
+      },
+      fixed: [...new Set([...areaPreset.fixed, ...farmPreset.fixed])],
+      planMismatches: farmPreset.planMismatches,
+      speedLevels: {
+        ...areaPreset.speedLevels,
+        ...farmPreset.speedLevels,
+      },
+      unplacedPlannedBuildings: farmPreset.unplacedPlannedBuildings,
+    }],
+    defaultPresetId: areaPreset.id,
+  };
+};
+
 const plannedChickenFarmDirection: PlanDirection = "at-least";
 
 const pluralize = (name: string, count: number) => `${name}${count === 1 ? "" : "s"}`;
@@ -51,6 +94,7 @@ export const createChickenFarmsModule = (
   currentConfigurations?: readonly CurrentChickenFarmConfiguration[],
   planDirection: PlanDirection = plannedChickenFarmDirection,
   currentEntities?: readonly CurrentChickenFarmEntity[],
+  syncedArea?: Module,
 ): Module => {
   const farmRecipeId = settings.slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId;
   const chickenLayout = getChickenFarmLayout(settings.totalChickenCount);
@@ -84,10 +128,11 @@ export const createChickenFarmsModule = (
       if (unplaced > 0) unplacedPlannedBuildings[recipeId] = unplaced;
     }
 
-    return {
+    return attachToSyncedArea({
       id: CHICKEN_FARMS_MODULE_ID,
       name: "Chicken Farms",
       description: "",
+      capabilities: ["chicken-farming"],
       gameSynced: true,
       builtBuildings,
       presets: [{
@@ -106,7 +151,7 @@ export const createChickenFarmsModule = (
         speedLevels,
       }],
       defaultPresetId: "current-chicken-farm-plan",
-    };
+    }, syncedArea);
   }
 
   const configurations = currentConfigurations ?? [{
@@ -250,10 +295,11 @@ export const createChickenFarmsModule = (
         label: "Rebalance chickens across the active planned farms",
       }];
 
-  return {
+  return attachToSyncedArea({
     id: CHICKEN_FARMS_MODULE_ID,
     name: "Chicken Farms",
     description: "",
+    capabilities: ["chicken-farming"],
     gameSynced: true,
     builtBuildings,
     presets: [
@@ -284,7 +330,7 @@ export const createChickenFarmsModule = (
       },
     ],
     defaultPresetId: "current-chicken-farm-plan",
-  };
+  }, syncedArea);
 };
 
 export const chickenFarms = createChickenFarmsModule(

@@ -106,6 +106,12 @@ export interface OfficePlan {
   focusSteps: Record<FocusId, number>;
 }
 
+export interface OfficeConfigurationCount {
+  tierId: OfficeTierId;
+  computingBoostStep: OfficeBoostStep;
+  count: number;
+}
+
 const emptyFocusSteps: Record<FocusId, number> = {
   trucksCapacity: 0,
   trainsCapacity: 0,
@@ -208,6 +214,7 @@ export interface OfficePlanCalculation {
 export const calculateOfficePlan = (
   plan: OfficePlan,
   focusResearchLevel: number,
+  syncedConfigurations?: readonly OfficeConfigurationCount[],
 ): OfficePlanCalculation => {
   const normalizedResearchLevel = Math.min(
     focusPointsResearch.maxLevel,
@@ -222,10 +229,19 @@ export const calculateOfficePlan = (
   let electricityKw = 0;
   let workers = 0;
 
-  for (const office of officeCatalog) {
-    const tierPlan = plan.offices[office.id];
-    const count = normalizeCount(tierPlan.count);
-    const boostStep = clampBoostStep(tierPlan.computingBoostStep);
+  const configurations = syncedConfigurations ?? officeCatalog.map(office => ({
+    tierId: office.id,
+    computingBoostStep: plan.offices[office.id].computingBoostStep,
+    count: plan.offices[office.id].count,
+  }));
+
+  for (const configuration of configurations) {
+    const office = officeCatalog.find(candidate => candidate.id === configuration.tierId);
+
+    if (!office) continue;
+
+    const count = normalizeCount(configuration.count);
+    const boostStep = clampBoostStep(configuration.computingBoostStep);
     const baseFocusPerOffice = Math.round(
       office.workers * (1 + focusResearchBonusPercent / 100),
     );

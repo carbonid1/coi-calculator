@@ -1,8 +1,8 @@
 "use client";
 
 import { Card, SegmentedControl, Tooltip } from "@carbonid1/design-system";
-import { useState } from "react";
 
+import { type ResearchMode } from "../db/config";
 import {
   calculateInfiniteResearchLevelCost,
   calculateInfiniteResearchRemainingCost,
@@ -11,10 +11,6 @@ import {
   type InfiniteResearchId,
 } from "../db/research";
 import { type ResearchEfficiencyBreakdown } from "../helpers/modifiers/calculate-research-efficiency";
-import {
-  getDefaultResearchProgressMode,
-  type ResearchProgressMode,
-} from "../helpers/research-progress/get-default-research-progress-mode";
 
 interface ResearchSettingsProps {
   efficiency: ResearchEfficiencyBreakdown;
@@ -22,21 +18,23 @@ interface ResearchSettingsProps {
 
 interface InfiniteResearchSettingsProps {
   levels: Readonly<Record<InfiniteResearchId, number>>;
+  mode: ResearchMode;
   synced: boolean;
 }
 
 const formatResearchPoints = (value: number) => value.toLocaleString("en-US");
+const keepConfiguredResearchMode = () => undefined;
 
 const getResearchTarget = (
   research: InfiniteResearchDefinition,
-  mode: ResearchProgressMode,
+  mode: ResearchMode,
 ) => mode === "before-space" ? research.spaceResearchLevel : research.maxLevel;
 
 const getResearchProgressTooltip = (
   research: InfiniteResearchDefinition,
   currentLevel: number,
   targetLevel: number,
-  mode: ResearchProgressMode,
+  mode: ResearchMode,
 ) => {
   if (currentLevel >= research.maxLevel) {
     return `Maximum level reached · ${currentLevel}/${research.maxLevel}`;
@@ -65,7 +63,7 @@ const ResearchProgressCard = ({
 }: {
   research: InfiniteResearchDefinition;
   currentLevel: number;
-  mode: ResearchProgressMode;
+  mode: ResearchMode;
 }) => {
   const targetLevel = getResearchTarget(research, mode);
   const normalizedLevel = Math.min(
@@ -170,12 +168,9 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({ efficiency }
 
 export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> = ({
   levels,
+  mode,
   synced,
 }) => {
-  const defaultMode = getDefaultResearchProgressMode(levels);
-  const [selectedMode, setSelectedMode] = useState<ResearchProgressMode>();
-  const mode = selectedMode ?? defaultMode;
-
   const completedCount = infiniteResearchCatalog.filter((research) => (
     levels[research.id] >= getResearchTarget(research, mode)
   )).length;
@@ -195,14 +190,15 @@ export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> =
         </div>
 
         <SegmentedControl.Root
-          aria-label="Infinite research progress target"
-          onValueChange={setSelectedMode}
+          aria-label="Research mode"
+          disabled
+          onValueChange={keepConfiguredResearchMode}
           value={mode}
         >
           <SegmentedControl.Item value="before-space">
             Before space points
           </SegmentedControl.Item>
-          <SegmentedControl.Item value="full-range">
+          <SegmentedControl.Item value="with-space">
             With space points
           </SegmentedControl.Item>
         </SegmentedControl.Root>

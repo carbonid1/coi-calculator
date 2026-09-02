@@ -14,6 +14,7 @@ using Mafi.Core.Buildings.Cargo.Ships;
 using Mafi.Core.Buildings.Farms;
 using Mafi.Core.Buildings.Forestry;
 using Mafi.Core.Buildings.Mine;
+using Mafi.Core.Buildings.Offices;
 using Mafi.Core.Buildings.OreSorting;
 using Mafi.Core.Buildings.Storages;
 using Mafi.Core.Entities;
@@ -231,7 +232,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 25; } }
+    public int Version { get { return 27; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -427,7 +428,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":35,");
+            json.Append("\"schemaVersion\":38,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
@@ -812,12 +813,20 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                         json.Append(',');
                     }
                 }
-                json.Append("],\"oreSorter\":");
+                json.Append("],");
+                appendNumber(
+                    json,
+                    "availableRecipeCount",
+                    entity.AvailableRecipeCount,
+                    true);
+                json.Append("\"oreSorter\":");
                 appendOreSorterConfiguration(json, entity.OreSorter);
                 json.Append(",\"trainStation\":");
                 appendTrainStationConfiguration(json, entity.TrainStation);
                 json.Append(",\"forestry\":");
                 appendForestryConfiguration(json, entity.Forestry);
+                json.Append(",\"office\":");
+                appendOfficeConfiguration(json, entity.Office);
                 json.Append('}');
                 if (i < production.AreaEntities.Count - 1)
                 {
@@ -1275,9 +1284,14 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     entity.Id.Value,
                     assignedOreSorterEntityIds));
             }
-            if (staticEntity != null && isNamedAreaBuilding(entity, entityZones))
+            if (staticEntity != null && isAreaBuilding(entity))
             {
                 string prototypeName = staticEntity.Prototype.Strings.Name.TranslatedString;
+                int availableRecipeCount;
+                List<AreaRecipeSnapshot> areaRecipes = getAreaRecipes(
+                    entity,
+                    staticEntity,
+                    out availableRecipeCount);
                 areaEntities.Add(new AreaEntitySnapshot(
                     entity.Id.Value,
                     entity.Prototype.Id.ToString(),
@@ -1290,10 +1304,12 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     staticEntity.CenterTile.X,
                     staticEntity.CenterTile.Y,
                     entityZones,
-                    getAreaRecipes(entity, staticEntity),
+                    areaRecipes,
+                    availableRecipeCount,
                     getOreSorterConfiguration(entity),
                     getTrainStationConfiguration(entity),
-                    getForestryConfiguration(entity as ForestryTower)));
+                    getForestryConfiguration(entity as ForestryTower),
+                    getOfficeConfiguration(entity as OfficeBuilding)));
             }
 
             if (staticEntity != null && !staticEntity.IsConstructed)
@@ -1311,7 +1327,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             if (TrackedProductionPrototypeIds.Contains(prototypeId)
                 || TrackedPrototypeIndices.ContainsKey(prototypeId)
                 || isOceanWaterPump
-                || isNamedAreaBuilding(entity, entityZones))
+                || isAreaBuilding(entity))
             {
                 NuclearReactor reactor = entity as NuclearReactor;
                 productionEntities.Add(new ProductionEntitySnapshot(
@@ -1633,13 +1649,20 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
     private static List<AreaRecipeSnapshot> getAreaRecipes(
         IEntity entity,
-        IStaticEntity staticEntity)
+        IStaticEntity staticEntity,
+        out int availableRecipeCount)
     {
         List<AreaRecipeSnapshot> recipes = new List<AreaRecipeSnapshot>();
+        availableRecipeCount = 0;
         MachineProto machine = staticEntity.Prototype as MachineProto;
         if (machine == null)
         {
             return recipes;
+        }
+
+        foreach (RecipeProto recipe in machine.Recipes)
+        {
+            availableRecipeCount++;
         }
 
         IEntityWithAssignedRecipes recipeEntity = entity as IEntityWithAssignedRecipes;
@@ -1654,6 +1677,14 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
         foreach (RecipeProto recipe in machine.Recipes)
         {
+            string recipeId = recipe.Id.ToString();
+            bool assigned = assignedRecipeIds.Contains(recipeId)
+                || (recipeEntity == null && machine.UseAllRecipesAtStartOrAfterUnlock);
+            if (!assigned && availableRecipeCount != 1)
+            {
+                continue;
+            }
+
             IRecipeForUi recipeForUi = machine.GetRecipeForUi(recipe);
             List<AreaRecipeProductSnapshot> inputs =
                 new List<AreaRecipeProductSnapshot>();
@@ -1677,11 +1708,10 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             string recipeName = recipe.Strings.Name.TranslatedString;
             recipes.Add(new AreaRecipeSnapshot(
-                recipe.Id.ToString(),
-                String.IsNullOrWhiteSpace(recipeName) ? recipe.Id.ToString() : recipeName,
+                recipeId,
+                String.IsNullOrWhiteSpace(recipeName) ? recipeId : recipeName,
                 Math.Max(0.001, recipeForUi.Duration.Seconds.ToDouble()),
-                assignedRecipeIds.Contains(recipe.Id.ToString())
-                    || (recipeEntity == null && machine.UseAllRecipesAtStartOrAfterUnlock),
+                assigned,
                 inputs,
                 outputs));
         }
@@ -1691,6 +1721,13 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             return String.CompareOrdinal(left.Id, right.Id);
         });
         return recipes;
+    }
+
+    private static OfficeConfigurationSnapshot getOfficeConfiguration(OfficeBuilding office)
+    {
+        return office == null
+            ? null
+            : new OfficeConfigurationSnapshot(office.ComputingBoostStep);
     }
 
     private static TrainStationConfigurationSnapshot getTrainStationConfiguration(
@@ -1952,32 +1989,17 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         return zones;
     }
 
-    private static bool containsNamedZone(List<LogisticsZoneSnapshot> zones)
+    private static bool isAreaBuilding(IEntity entity)
     {
-        for (int i = 0; i < zones.Count; i++)
-        {
-            if (!String.IsNullOrWhiteSpace(zones[i].Name))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool isNamedAreaBuilding(
-        IEntity entity,
-        List<LogisticsZoneSnapshot> zones)
-    {
-        if (!containsNamedZone(zones))
+        IStaticEntity staticEntity = entity as IStaticEntity;
+        if (staticEntity == null)
         {
             return false;
         }
 
         string entityNamespace = entity.GetType().Namespace;
-        IStaticEntity staticEntity = entity as IStaticEntity;
         return entity is ForestryTower
-            || (staticEntity != null && staticEntity.Prototype is MachineProto)
+            || staticEntity.Prototype is MachineProto
             || entity is IEntityWithAssignedRecipes
             || entity is IEntityWithWorkers
             || (!String.IsNullOrWhiteSpace(entityNamespace)
@@ -2622,6 +2644,21 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         json.Append("]}");
     }
 
+    private static void appendOfficeConfiguration(
+        StringBuilder json,
+        OfficeConfigurationSnapshot office)
+    {
+        if (office == null)
+        {
+            json.Append("null");
+            return;
+        }
+
+        json.Append('{');
+        appendNumber(json, "computingBoostStep", office.ComputingBoostStep, false);
+        json.Append('}');
+    }
+
     private static void appendOreSorterConfiguration(
         StringBuilder json,
         OreSorterConfigurationSnapshot sorter)
@@ -3229,9 +3266,11 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly int TileY;
         public readonly List<LogisticsZoneSnapshot> Zones;
         public readonly List<AreaRecipeSnapshot> Recipes;
+        public readonly int AvailableRecipeCount;
         public readonly OreSorterConfigurationSnapshot OreSorter;
         public readonly TrainStationConfigurationSnapshot TrainStation;
         public readonly ForestryConfigurationSnapshot Forestry;
+        public readonly OfficeConfigurationSnapshot Office;
 
         public AreaEntitySnapshot(
             int entityId,
@@ -3244,9 +3283,11 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             int tileY,
             List<LogisticsZoneSnapshot> zones,
             List<AreaRecipeSnapshot> recipes,
+            int availableRecipeCount,
             OreSorterConfigurationSnapshot oreSorter,
             TrainStationConfigurationSnapshot trainStation,
-            ForestryConfigurationSnapshot forestry)
+            ForestryConfigurationSnapshot forestry,
+            OfficeConfigurationSnapshot office)
         {
             EntityId = entityId;
             PrototypeId = prototypeId;
@@ -3258,9 +3299,21 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             TileY = tileY;
             Zones = zones;
             Recipes = recipes;
+            AvailableRecipeCount = availableRecipeCount;
             OreSorter = oreSorter;
             TrainStation = trainStation;
             Forestry = forestry;
+            Office = office;
+        }
+    }
+
+    private sealed class OfficeConfigurationSnapshot
+    {
+        public readonly int ComputingBoostStep;
+
+        public OfficeConfigurationSnapshot(int computingBoostStep)
+        {
+            ComputingBoostStep = computingBoostStep;
         }
     }
 

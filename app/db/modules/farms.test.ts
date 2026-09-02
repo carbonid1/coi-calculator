@@ -10,7 +10,7 @@ import {
 import { baseConfig } from "../config";
 import { recipes } from "../recipes";
 import { chickenFarms, createChickenFarmsModule } from "./farms";
-import { modules } from "./modules";
+import { type Module } from "./modules";
 
 describe("Chicken Farms", () => {
   it("supports disabling chicken farms completely", () => {
@@ -88,6 +88,67 @@ describe("Chicken Farms", () => {
     ]);
   });
 
+  it("attaches farm calculations to a randomly named synced area", () => {
+    const syncedArea: Module = {
+      id: "live-area-77",
+      name: "Pollos del norte",
+      description: "",
+      gameSynced: true,
+      includedInFactoryTotals: false,
+      capabilities: ["chicken-farming"],
+      builtBuildings: {},
+      recipes: [],
+      presets: [{
+        id: "live",
+        name: "Live area",
+        description: "",
+        activeBuildings: {},
+        builtBuildings: {},
+        dataSources: {},
+        fixed: [],
+      }],
+      defaultPresetId: "live",
+      liveArea: {
+        zoneId: 77,
+        trackedBuildings: 5,
+        constructedBuildings: 5,
+        activeBuildings: 5,
+        pausedBuildings: 0,
+        constructionGhosts: 0,
+        issues: [],
+      },
+    };
+    const currentEntities = [500, 500, 500, 500, 350].map((chickens, index) => ({
+      entityId: index + 1,
+      running: true,
+      slaughtering: true,
+      chickens,
+      zones: [{ id: 77, name: "A label the calculator never matches" }],
+    }));
+    const farmArea = createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      plannedChickenFarmSettings,
+      "planned",
+      "synced",
+      undefined,
+      undefined,
+      currentEntities,
+      syncedArea,
+    );
+
+    expect(farmArea).toMatchObject({
+      id: "live-area-77",
+      name: "Pollos del norte",
+      includedInFactoryTotals: true,
+      liveArea: { zoneId: 77 },
+    });
+    expect(farmArea.presets[0]).toMatchObject({
+      activeBuildings: { "chicken-farm-slaughtering": 5 },
+      dataSources: { "chicken-farm-slaughtering": "synced" },
+      speedLevels: { "chicken-farm-slaughtering": 0.94 },
+    });
+  });
+
   it("keeps extra synced operating modes after the minimum plan is reached", () => {
     const farmModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
@@ -124,7 +185,7 @@ describe("Chicken Farms", () => {
     expect(eggs?.produced).toBeCloseTo(42.75);
   });
 
-  it("keeps carcass processing in Default", () => {
+  it("keeps both carcass-processing recipes available to synced modules", () => {
     const mixed = recipes.find(recipe => recipe.id === "food-processor-meat");
     const trimmingsOnly = recipes.find(
       recipe => recipe.id === "food-processor-meat-trimmings",
@@ -143,10 +204,6 @@ describe("Chicken Farms", () => {
       balanceBy: "input",
       allocation: "fallback",
       inputs: [{ resourceId: "chickenCarcass", quantity: 30 }],
-    });
-    expect(modules.find(module => module.id === "general")?.builtBuildings).toMatchObject({
-      "food-processor-meat": 2,
-      "food-processor-meat-trimmings": 1,
     });
   });
 });

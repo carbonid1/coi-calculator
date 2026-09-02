@@ -17,7 +17,9 @@ import { type Module, type Preset } from './modules'
 
 export const cropFarmPrototypeIds = new Set(['FarmT3', 'FarmT4'])
 
-const liveAreaModuleId = (zoneId: number) => `live-area-${zoneId}`
+const liveAreaModuleId = (zoneId: number) => zoneId === -1
+  ? 'general'
+  : `live-area-${zoneId}`
 
 export const getCropFarmGroundwaterRecipeId = (zoneId: number) => (
   `${liveAreaModuleId(zoneId)}:LandWaterPump:LandWaterPumping`
@@ -143,10 +145,6 @@ const attachCropFarms = (
   ) === ownerZoneId
   const entities = allEntities.filter(ownsEntity)
   const liveArea = withoutGenericCropFarmIssues(module)
-
-  if (entities.length === 0) {
-    return liveArea ? { ...module, liveArea } : module
-  }
 
   const grouped = new Map<string, CropFarmGroupInventory>()
   const statuses = new Map<string, CropFarmStatusInventory>()
@@ -362,4 +360,5 @@ export const createCropFarmAreaModule = (
 export const createDefaultCropFarmModule = (
   defaultModule: Module,
   entities: readonly CurrentCropFarmEntity[],
-) => attachCropFarms(defaultModule, entities, null)
+  groundwaterConstraint?: GroundwaterSourceConstraint,
+) => attachCropFarms(defaultModule, entities, null, groundwaterConstraint)

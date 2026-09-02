@@ -9,6 +9,7 @@ import {
 const claims: SharedMachineClaim[] = [
   {
     id: "greenhouses-groundwater",
+    zoneId: 10,
     moduleId: "greenhouses",
     moduleName: "Greenhouses",
     recipeId: "groundwater-pump",
@@ -18,6 +19,7 @@ const claims: SharedMachineClaim[] = [
   },
   {
     id: "general-groundwater",
+    zoneId: -1,
     moduleId: "general",
     moduleName: "Default",
     recipeId: "groundwater-pump-factory-reserve",

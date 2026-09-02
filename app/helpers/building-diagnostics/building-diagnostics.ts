@@ -15,7 +15,13 @@ export type BuildingAttention =
   | "can-pause"
   | "rebalance-farms"
   | "remove-animals"
+  | "upgrade"
   | "unpause";
+
+export interface BuildingLevelDiagnostic {
+  current: number;
+  target: number;
+}
 
 export interface AnimalPopulationDiagnostic {
   current: number;
@@ -26,6 +32,8 @@ export interface AnimalPopulationDiagnostic {
 
 export interface BuildingDiagnostic {
   key: string;
+  /** Optional card target when the diagnostic itself represents virtual infrastructure. */
+  navigationKey?: string;
   moduleId: string;
   moduleName: string;
   buildingName: string;
@@ -36,6 +44,7 @@ export interface BuildingDiagnostic {
   built: number;
   attention: BuildingAttention | null;
   attentionCount: number;
+  level?: BuildingLevelDiagnostic;
   animalPopulation?: AnimalPopulationDiagnostic;
   affectedResources: string[];
 }
@@ -165,6 +174,8 @@ const getAttention = ({
   paused,
   atCapacity,
   canPause,
+  requiresRunningCapacity,
+  currentActive,
 }: {
   tracksPhysicalCapacity: boolean;
   plannedCapacity: boolean;
@@ -174,9 +185,14 @@ const getAttention = ({
   paused: number;
   atCapacity: boolean;
   canPause: number;
+  requiresRunningCapacity: boolean;
+  currentActive: number;
 }): BuildingAttention | null => {
   if (!tracksPhysicalCapacity) return null;
   if (plannedCapacity) return null;
+  if (requiresRunningCapacity && currentActive + EPSILON < active) {
+    return built > currentActive + EPSILON ? "unpause" : "build";
+  }
   if (active > built + EPSILON) return "build";
   if (hasShortage && active === 0 && paused >= 1) return "unpause";
   if (hasShortage && active === 0 && built === 0) return "build";
@@ -194,11 +210,11 @@ const getAttentionCount = (
   paused: number,
   active: number,
   built: number,
-  load: number,
+  currentActive: number,
 ) => {
   if (attention === "can-pause") return canPause;
   if (attention === "unpause") {
-    return Math.min(paused, Math.max(1, Math.ceil(load + EPSILON) - active));
+    return Math.min(paused, Math.max(1, Math.ceil(active - currentActive - EPSILON)));
   }
   if (attention === "build") {
     return Math.max(1, Math.ceil(active - built - EPSILON));
@@ -292,6 +308,12 @@ export const calculateBuildingDiagnostics = (
     const built = Math.max(...results.map(
       (result) => result.capacityPoolBuiltBuildings ?? result.builtBuildings,
     ));
+    const currentActive = Math.max(...results.map(
+      (result) => result.capacityPoolCurrentActiveBuildings
+        ?? result.currentActiveBuildings
+        ?? result.capacityPoolActiveBuildings
+        ?? result.activeBuildings,
+    ));
     const load = results.reduce(
       (total, result) => total + result.activeBuildings * result.supplyRatio,
       0,
@@ -330,7 +352,10 @@ export const calculateBuildingDiagnostics = (
     }
 
     const atCapacity = active > 0 && load >= active - EPSILON;
-    const paused = Math.max(0, built - active);
+    const requiresRunningCapacity = physicalCapacityResults.some(
+      result => result.recipe.requiresRunningCapacity === true,
+    );
+    const paused = Math.max(0, built - (requiresRunningCapacity ? currentActive : active));
     const suppressPauseAttention = results.every((result) => (
       getBuildingData(result.recipe.building)?.suppressPauseAttention === true
     ));
@@ -347,6 +372,8 @@ export const calculateBuildingDiagnostics = (
       paused,
       atCapacity,
       canPause,
+      requiresRunningCapacity,
+      currentActive,
     });
     const attentionCount = getAttentionCount(
       attention,
@@ -354,7 +381,7 @@ export const calculateBuildingDiagnostics = (
       paused,
       active,
       built,
-      load,
+      currentActive,
     );
 
     return {

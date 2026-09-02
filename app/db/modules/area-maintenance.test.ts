@@ -26,11 +26,6 @@ const createModule = (id: string, name: string): Module => ({
   defaultPresetId: 'current',
 })
 
-const defaultModule = createModule('general', 'Default')
-const nuclearModule = createModule('nuclear', 'Nuclear')
-const computingModule = createModule('computing', 'Computing')
-const ownershipModules = [defaultModule, nuclearModule, computingModule]
-
 const createLiveModule = (id: string, name: string, zoneId: number): Module => ({
   ...createModule(id, name),
   liveArea: {
@@ -44,45 +39,38 @@ const createLiveModule = (id: string, name: string, zoneId: number): Module => (
   },
 })
 
+const defaultModule = createModule('general', 'Default')
+const nuclearModule = createLiveModule('nuclear', 'Nuclear', 10)
+const computingModule = createLiveModule('computing', 'Computing', 20)
+const ownershipModules = [defaultModule, nuclearModule, computingModule]
+
 const depotEntity = (
   entityId: number,
   prototypeId: string,
   recipeIds: string[],
-  zoneNames: string[] = [],
+  zoneIds: number[] = [],
   running = true,
 ): SyncedProductionEntity => ({
   entityId,
   prototypeId,
   running,
   recipeIds,
-  zones: zoneNames.map((name, index) => ({ id: entityId * 10 + index, name })),
+  zones: zoneIds.map(id => ({ id, name: `Area ${id}` })),
   nuclearReactor: null,
   dataCenterRacks: null,
 })
 
-it('keeps the modeled depot plan under Default until depot identities are available', () => {
+it('does not invent Default depots when synced identities are unavailable', () => {
   const assignments = resolveMaintenanceDepotModuleAssignments({
     defaultModuleId: defaultModule.id,
     demand: { maintenanceI: 547.8, maintenanceII: 194.22, maintenanceIII: 236.55 },
     modules: ownershipModules,
   })
 
-  expect(assignments.general).toMatchObject({
-    builtBuildings: {
-      'maintenance-i-recycling': 2,
-      'maintenance-ii-recycling': 1,
-      'maintenance-iii-recycling': 2,
-    },
-    activeBuildings: {
-      'maintenance-i-recycling': 2,
-      'maintenance-ii-recycling': 1,
-      'maintenance-iii-recycling': 2,
-    },
-    recipeOutputTargets: {
-      'maintenance-i-recycling': { maintenanceI: 547.8 },
-      'maintenance-ii-recycling': { maintenanceII: 194.22 },
-      'maintenance-iii-recycling': { maintenanceIII: 236.55 },
-    },
+  expect(assignments.general).toEqual({
+    builtBuildings: {},
+    activeBuildings: {},
+    recipeOutputTargets: {},
   })
 })
 
@@ -117,8 +105,8 @@ it('moves a depot with an exact named area and falls back on overlaps', () => {
     defaultModuleId: defaultModule.id,
     modules: ownershipModules,
     productionEntities: [
-      depotEntity(1, 'MaintenanceDepotT2', ['MaintenanceT2Recycling'], ['Nuclear']),
-      depotEntity(2, 'MaintenanceDepotT3', ['MaintenanceT3Recycling'], ['Nuclear', 'Computing']),
+      depotEntity(1, 'MaintenanceDepotT2', ['MaintenanceT2Recycling'], [10]),
+      depotEntity(2, 'MaintenanceDepotT3', ['MaintenanceT3Recycling'], [10, 20]),
     ],
   })
 

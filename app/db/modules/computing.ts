@@ -24,6 +24,7 @@ export const createLegacyComputingArea = (
     id: `live-area-${zone.id}`,
     name: zone.name ?? "Computing",
     description: "",
+    capabilities: ["computing"],
     includedInFactoryTotals: false,
     builtBuildings: {},
     presets: [{
@@ -107,6 +108,7 @@ export const createComputingModule = (
     id: COMPUTING_MODULE_ID,
     name: "Computing",
     description: "",
+    capabilities: ["computing"],
     builtBuildings,
     presets: [{
       id: "current-data-centers",

@@ -4,8 +4,6 @@ import {
   type SyncedProductionEntity,
 } from "../../game-state";
 
-export const POPULATION_ZONE_NAME = "Population";
-
 interface SyncedPopulationBuildingCount {
   built: number;
   running: number;
@@ -91,10 +89,13 @@ export const resolvePopulationEntityInventory = (
   productionEntities: readonly SyncedProductionEntity[],
   zoneId?: number,
 ): ResolvedPopulationEntityInventory => {
+  const populationZoneIds = new Set(
+    zoneId == null
+      ? getPopulationZones(productionEntities).map(zone => zone.id)
+      : [zoneId],
+  );
   const entities = productionEntities.filter(entity => (
-    entity.zones.some(zone => (
-      zone.name === POPULATION_ZONE_NAME && (zoneId === undefined || zone.id === zoneId)
-    ))
+    entity.zones.some(zone => populationZoneIds.has(zone.id))
   ));
   const counts: ResolvedPopulationEntityInventory["counts"] = {};
   const housingIiCandidates = { built: 0, running: 0 };
@@ -130,8 +131,10 @@ export const getPopulationZones = (
   const zones = new Map<number, SyncedLogisticsZoneRef>();
 
   for (const entity of productionEntities) {
+    if (entity.prototypeId !== "HousingT2" && entity.prototypeId !== "HousingT3") continue;
+
     for (const zone of entity.zones) {
-      if (zone.name === POPULATION_ZONE_NAME) zones.set(zone.id, zone);
+      zones.set(zone.id, zone);
     }
   }
 

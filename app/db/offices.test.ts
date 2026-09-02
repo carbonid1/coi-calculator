@@ -109,4 +109,20 @@ describe("offices and focuses", () => {
     expect(result.bonuses.researchEfficiency).toBe(20);
     expect(result.bonuses.maintenanceProduction).toBe(10);
   });
+
+  it("calculates mixed synced computing boosts exactly", () => {
+    const result = calculateOfficePlan(resolvedOfficePlan.value, 5, [
+      { tierId: "officeIII", computingBoostStep: 0, count: 1 },
+      { tierId: "officeIII", computingBoostStep: 2, count: 1 },
+    ]);
+
+    expect(result).toMatchObject({
+      computingTflops: 192,
+      electricityKw: 1_200,
+      focusPointsCapacity: 2_900,
+      officeSuppliesPerCycle: 16,
+      recyclablesPerCycle: 16,
+      workers: 2_000,
+    });
+  });
 });

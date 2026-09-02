@@ -2,24 +2,22 @@ import { describe, expect, it } from 'vitest'
 
 import {
   emptyRocketInfrastructureConfig,
-  plannedRocketInfrastructureConfig,
-  rocketInfrastructureItems,
+  normalizeRocketInfrastructureConfig,
 } from './rocket-infrastructure'
 
 describe('Space Station physical buildings', () => {
-  it('plans one Rocket Assembly Depot and one Rocket Launch Pad over an empty baseline', () => {
+  it('normalizes the synced rocket inventory', () => {
     expect(emptyRocketInfrastructureConfig).toEqual({
       rocketAssemblyDepot: 0,
       rocketLaunchPad: 0,
     })
-    expect(plannedRocketInfrastructureConfig).toEqual({
+    expect(normalizeRocketInfrastructureConfig({
+      rocketAssemblyDepot: 1.8,
+      rocketLaunchPad: -1,
+    })).toEqual({
       rocketAssemblyDepot: 1,
-      rocketLaunchPad: 1,
+      rocketLaunchPad: 0,
     })
-    expect(rocketInfrastructureItems.reduce(
-      (total, item) => total + plannedRocketInfrastructureConfig[item.id] * item.workers,
-      0,
-    )).toBe(190)
   })
 
 })

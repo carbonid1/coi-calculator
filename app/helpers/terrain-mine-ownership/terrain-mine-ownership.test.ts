@@ -1,12 +1,36 @@
 import { describe, expect, it } from 'vitest'
 
-import { defaultArea } from '../../db/modules/default'
 import { type Module } from '../../db/modules/modules'
 import { recipes, type Recipe } from '../../db/recipes'
 import {
   getClaimedTerrainResourceIds,
   transferTerrainMineOwnership,
 } from './terrain-mine-ownership'
+
+const createDefault = (): Module => ({
+  id: 'general',
+  name: 'Default',
+  description: '',
+  builtBuildings: {
+    'crusher-large-copper': 1,
+    'crusher-large-iron': 1,
+  },
+  presets: [{
+    id: 'live',
+    name: 'Live area',
+    description: '',
+    activeBuildings: {
+      'crusher-large-copper': 1,
+      'crusher-large-iron': 1,
+    },
+    builtBuildings: {
+      'crusher-large-copper': 1,
+      'crusher-large-iron': 1,
+    },
+    fixed: [],
+  }],
+  defaultPresetId: 'live',
+})
 
 const createLiveIronMine = (): Module => {
   const crusher = recipes.find(recipe => recipe.id === 'crusher-large-iron')
@@ -34,6 +58,7 @@ const createLiveIronMine = (): Module => {
       {
         ...crusher,
         id: 'live-area-99:CrusherLarge:IronOreCrushing',
+        gameBuildingId: 'CrusherLarge',
         building: 'Crusher (large)',
       },
     ],
@@ -56,7 +81,7 @@ describe('terrain mine ownership', () => {
 
   it('retires only the matching Default first-stage crusher', () => {
     const [updatedDefault] = transferTerrainMineOwnership(
-      [defaultArea],
+      [createDefault()],
       [createLiveIronMine()],
     )
 
@@ -73,7 +98,7 @@ describe('terrain mine ownership', () => {
     if (!source) throw new Error('Missing live Iron source')
 
     const [updatedDefault] = transferTerrainMineOwnership(
-      [defaultArea],
+      [createDefault()],
       [{ ...rawIronMine, recipes: [source] }],
     )
 
@@ -88,7 +113,7 @@ describe('terrain mine ownership', () => {
     if (!source || !crusher) throw new Error('Missing live Iron fixtures')
 
     const [updatedDefault] = transferTerrainMineOwnership(
-      [defaultArea],
+      [createDefault()],
       [
         { ...liveIronMine, recipes: [source] },
         {

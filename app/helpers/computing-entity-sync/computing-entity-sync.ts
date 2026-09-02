@@ -4,8 +4,6 @@ import {
   type SyncedProductionEntity,
 } from "../../game-state";
 
-export const COMPUTING_ZONE_NAME = "Computing";
-
 export interface ResolvedComputingEntityInventory {
   built: ComputingConfig;
   running: ComputingConfig;
@@ -23,9 +21,7 @@ export const resolveComputingEntityInventory = (
   zoneId?: number,
 ): ResolvedComputingEntityInventory => {
   const entities = productionEntities.filter(entity => (
-    entity.zones.some(zone => (
-      zone.name === COMPUTING_ZONE_NAME && (zoneId === undefined || zone.id === zoneId)
-    )) &&
+    entity.zones.some(zone => zoneId === undefined || zone.id === zoneId) &&
     (entity.prototypeId === "DataCenter" || entity.prototypeId === "WaterChiller")
   ));
   const built = emptyConfig();
@@ -57,8 +53,10 @@ export const getComputingZones = (
   const zones = new Map<number, SyncedLogisticsZoneRef>();
 
   for (const entity of productionEntities) {
+    if (entity.prototypeId !== "DataCenter" && entity.prototypeId !== "WaterChiller") continue;
+
     for (const zone of entity.zones) {
-      if (zone.name === COMPUTING_ZONE_NAME) zones.set(zone.id, zone);
+      zones.set(zone.id, zone);
     }
   }
 

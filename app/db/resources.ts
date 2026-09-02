@@ -101,6 +101,7 @@ export const resources = {
   filterMedia: { id: "filterMedia", name: "Filter Media", state: "loose" },
   rock: { id: "rock", name: "Rock", state: "loose" },
   gravel: { id: "gravel", name: "Gravel", state: "loose" },
+  slagCrushed: { id: "slagCrushed", name: "Crushed Slag", state: "loose" },
   dirt: { id: "dirt", name: "Dirt", state: "loose" },
   coal: { id: "coal", name: "Coal", state: "loose" },
   bauxite: { id: "bauxite", name: "Bauxite", state: "loose" },
@@ -135,6 +136,7 @@ export const resources = {
   vehiclePartsI: { id: "vehiclePartsI", name: "Vehicle Parts I", state: "unit" },
   vehiclePartsII: { id: "vehiclePartsII", name: "Vehicle Parts II", state: "unit" },
   vehiclePartsIII: { id: "vehiclePartsIII", name: "Vehicle Parts III", state: "unit" },
+  railParts: { id: "railParts", name: "Rail Parts", state: "unit" },
   householdGoods: {
     id: "householdGoods",
     name: "Household Goods",

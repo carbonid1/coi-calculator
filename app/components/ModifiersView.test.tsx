@@ -52,7 +52,7 @@ it("shows only the final Population capacity", () => {
   expect(html).not.toContain("%");
 });
 
-it("condenses the Space Station plan to its calculated effect and Rocket II cadence", () => {
+it("condenses the synced Space Station to its calculated effect and Rocket II cadence", () => {
   expect(formatSpaceStationOverview(
     defaultSpaceStationLevel,
     defaultRocketIiRecurringLogistics,
@@ -68,7 +68,7 @@ it("condenses the Space Station plan to its calculated effect and Rocket II cade
     />,
   );
 
-  expect(html).toContain("Space Station plan");
+  expect(html).toContain("Space Station");
   expect(html).not.toContain("Unity");
   expect(html).not.toContain("construction");
   expect(html).not.toContain("Net Summary");
