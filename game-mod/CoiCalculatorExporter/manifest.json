@@ -1,6 +1,6 @@
 {
   "id": "CoiCalculatorExporter",
-  "version": "0.38.0",
+  "version": "0.39.0",
   "display_name": "CoI Calculator Exporter",
   "description_short": "Exports factory areas, contracts, reserves, and operating history to the local CoI calculator.",
   "description_long": "Exports established contracts and assigned Cargo Depots, Default and named vehicle areas, buildings and construction ghosts, machine recipes, Office computing boosts, Forestry towers, terrain sorters, train-station products, Groundwater Pumps, area membership, reserves, Data Centers, Water Chillers, farms, rocket infrastructure, solar panels, maintenance depots, research, edicts, and operating averages to the local CoI calculator.",

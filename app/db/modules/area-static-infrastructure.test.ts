@@ -16,7 +16,7 @@ import {
   resolveStaticInfrastructureModuleAssignments,
   selectStaticInfrastructureLines,
 } from './area-static-infrastructure'
-import { modules, type Module } from './modules'
+import { type Module } from './modules'
 
 const createModule = (id: string, name: string): Module => ({
   id,
@@ -320,10 +320,6 @@ it('selects static infrastructure cards for specialized module layouts', () => {
   ]
 
   expect(selectStaticInfrastructureLines(lines)).toEqual([lines[0], lines[1]])
-})
-
-it('does not expose a separate Infrastructure tab', () => {
-  expect(modules.some(module => module.name === 'Infrastructure')).toBe(false)
 })
 
 it('treats the recipe-less station root as handled infrastructure', () => {

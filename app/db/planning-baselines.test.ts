@@ -64,7 +64,6 @@ describe("synced operating baselines", () => {
         },
       }),
     ).toEqual(emptyPlanningBaselines);
-    expect(resolvePlanningBaselines(null)).toEqual(emptyPlanningBaselines);
   });
 
   it("weights generator averages over one common history window", () => {

@@ -100,7 +100,6 @@ export const getEdict = (id: EdictId): EdictDefinition => {
 
   return edict;
 };
-
 export const mapEdictValues = <T>(getValue: (id: EdictId) => T) => ({
   growthPause: getValue("growthPause"),
   growthBoost: getValue("growthBoost"),
@@ -226,7 +225,6 @@ const withMaintenanceEffect = (value: MaintenanceReducerLevel) => {
   };
 };
 
-// Compatibility exports for the calculation helpers that apply modeled effects.
 export const recyclingIncreaseEdict = {
   id: "recyclingIncrease",
   name: getEdict("recyclingIncrease").name,
@@ -271,16 +269,4 @@ export const maintenanceReducerEdict = {
     2: withMaintenanceEffect(2),
     3: withMaintenanceEffect(3),
   },
-};
-
-export const defaultActiveEdicts = {
-  recyclingIncrease: 4,
-  cleanPanels: 0,
-  farmingBoost: 1,
-  maintenanceReducer: 3,
-} as const satisfies {
-  recyclingIncrease: EdictLevel;
-  cleanPanels: CleanPanelsLevel;
-  farmingBoost: FarmingBoostLevel;
-  maintenanceReducer: MaintenanceReducerLevel;
 };

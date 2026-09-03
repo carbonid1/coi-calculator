@@ -37,22 +37,6 @@ export const settlementFoods: readonly SettlementFood[] = [
   { resourceId: "cake", categoryId: "treats", consumedPerHundredPopsPerMonth: 2.5, biomassSourcePerUnit: 58 / 63, unityPerCycleWhenSupplied: 0.55 },
 ];
 
-export const settlementServiceBuildings = {
-  foodMarket: 7,
-  foodMarketII: 2,
-  transformer: 1,
-  waterFacility: 1,
-  householdGoodsModule: 1,
-  wasteCollection: 1,
-  recyclablesCollection: 1,
-  biomassCollection: 1,
-  clinic: 1,
-  internetModule: 1,
-  wastewaterTreatment: 1,
-  anaerobicDigester: 2,
-  biomassCompostMixer: 2,
-} as const;
-
 export const settlementRecipeIds = {
   residents: "housing-residents",
   residentsII: "housing-ii-residents",

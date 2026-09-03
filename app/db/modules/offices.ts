@@ -28,11 +28,11 @@ const officeRecipeIds = new Set(officeTierIds.flatMap(tierId => (
   officeBoostSteps.map(boostStep => getOfficeRecipeId(tierId, boostStep))
 )))
 
-export const officeBuildingPrototypeIds = new Set(
+const officeBuildingPrototypeIds = new Set(
   Object.values(officePrototypeIdByTier),
 )
 
-export const isOfficeBuildingPrototype = (prototypeId: string) => (
+const isOfficeBuildingPrototype = (prototypeId: string) => (
   officeBuildingPrototypeIds.has(prototypeId)
 )
 

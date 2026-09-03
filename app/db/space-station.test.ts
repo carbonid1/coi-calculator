@@ -383,7 +383,6 @@ describe("Space Station", () => {
           recipes: [],
         },
       ],
-      [],
     );
 
     if (!generatedArea) throw new Error("Missing generated Space Station area");

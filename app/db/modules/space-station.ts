@@ -19,8 +19,6 @@ import { type Module, type PlanMismatch } from "./modules";
 const SPACE_STATION_MODULE_ID = "space-station";
 const SPACE_STATION_PARTS_RECIPE_ID = "assembly-v-station-parts";
 
-export const SPACE_STATION_ZONE_NAME = "Space Station";
-
 const handledAreaPrototypeIds = new Set([
   "RocketAssemblyDepot",
   "RocketLaunchPad",

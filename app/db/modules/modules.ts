@@ -2,10 +2,6 @@ import { type ValueSource } from "../../data-source";
 import { type PlanDirection } from "../../helpers/resolve-directional-plan";
 import { type Recipe } from "../recipes";
 import { type ResourceId } from "../resources";
-import { defaultArea } from "./default";
-import { chickenFarms } from "./farms";
-import { mines } from "./mines";
-import { reserves } from "./reserves";
 
 export interface Preset {
   id: string;
@@ -141,10 +137,3 @@ export const hasModuleCapability = (
   module: Pick<Module, "capabilities">,
   capability: ModuleCapability,
 ) => module.capabilities?.includes(capability) ?? false;
-
-export const modules: [Module, ...Module[]] = [
-  defaultArea,
-  chickenFarms,
-  mines,
-  reserves,
-];

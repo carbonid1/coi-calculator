@@ -1,9 +1,37 @@
-import {
-  type SyncedBuildingCount,
-  type SyncedBuildingId,
-  type SyncedProductionEntity,
-  syncedBuildingIds,
-} from "../../game-state";
+import { type SyncedProductionEntity } from "../../game-state";
+
+export const syncedInfrastructureBuildingIds = [
+  "electricLocomotiveII",
+  "looseStationModuleElectrified",
+  "fluidStationModuleElectrified",
+  "unitStationModuleElectrified",
+  "moltenStationModuleElectrified",
+  "oreSortingPlant",
+  "oreSortingPlantLarge",
+  "stackerTower",
+  "trainDepot",
+  "vehiclesDepot",
+  "vehiclesDepotII",
+  "vehiclesDepotIII",
+  "captainOfficeI",
+  "captainOfficeII",
+  "maintenanceStatue",
+] as const;
+
+export const syncedRocketBuildingIds = ["rocketAssemblyDepot", "rocketLaunchPad"] as const;
+const syncedSolarBuildingIds = ["solarPanel", "solarPanelMono"] as const;
+const syncedBuildingIds = [
+  ...syncedInfrastructureBuildingIds,
+  ...syncedRocketBuildingIds,
+  ...syncedSolarBuildingIds,
+] as const;
+
+export type SyncedBuildingId = (typeof syncedBuildingIds)[number];
+
+export interface SyncedBuildingCount {
+  built: number;
+  running: number;
+}
 
 export const syncedBuildingPrototypeIds: Record<SyncedBuildingId, string> = {
   rocketAssemblyDepot: "RocketAssemblyDepot",
@@ -28,20 +56,17 @@ export const syncedBuildingPrototypeIds: Record<SyncedBuildingId, string> = {
 };
 
 const buildingIdByPrototype = new Map(
-  syncedBuildingIds.map(buildingId => [
-    syncedBuildingPrototypeIds[buildingId],
-    buildingId,
-  ]),
+  syncedBuildingIds.map(buildingId => [syncedBuildingPrototypeIds[buildingId], buildingId]),
 );
 
 export const resolveAreaBuildingCounts = (
   productionEntities: readonly SyncedProductionEntity[],
-  zoneId: number,
+  zoneId?: number,
 ): Partial<Record<SyncedBuildingId, SyncedBuildingCount>> => {
   const counts: Partial<Record<SyncedBuildingId, SyncedBuildingCount>> = {};
 
   for (const entity of productionEntities) {
-    if (!entity.zones.some(zone => zone.id === zoneId)) continue;
+    if (zoneId !== undefined && !entity.zones.some(zone => zone.id === zoneId)) continue;
     const buildingId = buildingIdByPrototype.get(entity.prototypeId);
 
     if (!buildingId) continue;

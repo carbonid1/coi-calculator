@@ -6,7 +6,6 @@ import {
   plannedDefaultBuiltBuildings as plannedGeneralBuiltBuildings,
   plannedNewDefaultBuildings as plannedNewGeneralBuildings,
 } from "./modules/default";
-import { modules } from "./modules/modules";
 import { recipes } from "./recipes";
 
 const plannedBuildings = plannedNewGeneralBuildings;
@@ -118,7 +117,6 @@ describe("planned advanced production", () => {
   it("has no remaining net-new advanced buildings", () => {
     const generalPreset = general.presets.find(({ id }) => id === general.defaultPresetId);
 
-    expect(modules.some(({ id }) => id === "space-points-expansion")).toBe(false);
     expect(Object.keys(plannedAdvancedBuildings)).toHaveLength(0);
     expect(Object.values(plannedGeneralBuiltBuildings).every((count) => count === 0)).toBe(true);
     expect(generalPreset?.activeBuildings).toMatchObject(plannedGeneralBuildings);

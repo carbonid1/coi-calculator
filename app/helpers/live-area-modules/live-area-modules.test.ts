@@ -51,16 +51,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
       [unzoned, unnamedZone, namedZone],
-      [
-        {
-          id: 'general',
-          name: 'Default',
-          description: '',
-          builtBuildings: {},
-          presets: [],
-          defaultPresetId: null,
-        },
-      ],
     )
 
     expect(module).toMatchObject({
@@ -123,7 +113,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
       [researchLab],
-      [],
     )
     const liveRecipe = module?.recipes?.[0]
 
@@ -145,7 +134,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
       researchLabs,
-      [],
     )
     const liveRecipe = module?.recipes?.[0]
 
@@ -173,7 +161,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
       [wasteSorter],
-      [],
     )
     const liveRecipe = module?.recipes?.[0]
 
@@ -269,7 +256,6 @@ describe('createLiveAreaModules', () => {
           outputs: [{ productId: 'Product_Steel', name: 'Steel', quantity: 4 }],
         }),
       ],
-      [],
     )
     const byGameRecipe = (gameRecipeId: string) =>
       module?.recipes?.find(candidate => candidate.gameRecipeId === gameRecipeId)
@@ -328,7 +314,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'CasterCooledT2',
       prototypeName: 'Cooled Caster II',
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Steel #1' }], [cooledCaster], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Steel #1' }], [cooledCaster])
     const recipe = module?.recipes?.[0]
 
     expect(recipe).toMatchObject({
@@ -343,7 +329,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [entity(1, true, true), entity(2, false, false)],
-      [],
     )
     const liveRecipe = module?.recipes?.[0]
 
@@ -378,7 +363,7 @@ describe('createLiveAreaModules', () => {
   })
 
   it('creates an empty tab as soon as a new named area exists', () => {
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [])
 
     expect(module).toMatchObject({
       name: 'Test',
@@ -433,7 +418,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'North woods' }],
       [forestryTower, ...shredders],
-      [],
     )
 
     if (!module) throw new Error('Forestry module was not created')
@@ -495,7 +479,7 @@ describe('createLiveAreaModules', () => {
         outputs: [],
       },
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [forestryTower], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [forestryTower])
 
     expect(module).toMatchObject({
       includedInFactoryTotals: true,
@@ -530,7 +514,7 @@ describe('createLiveAreaModules', () => {
         },
       },
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [station], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [station])
 
     expect(module?.recipes).toEqual([])
     expect(module?.liveArea).toMatchObject({
@@ -550,7 +534,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [stationRoot, pausedBuilding],
-      [],
     )
 
     expect(module?.liveArea).toMatchObject({
@@ -567,7 +550,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'TrainStationLoose_ELEC',
       prototypeName: 'Loose station module (electrified)',
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [station], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [station])
 
     expect(module?.recipes).toEqual([])
     expect(module?.liveArea).toMatchObject({
@@ -591,7 +574,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [maintenanceDepot, solarPanel],
-      [],
     )
 
     expect(module?.recipes).toEqual([])
@@ -609,7 +591,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'DataCenter',
       prototypeName: 'Data Center',
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [dataCenterGhost], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [dataCenterGhost])
 
     expect(module?.presets[0]?.capacityPools).toEqual({
       DataCenter: {
@@ -681,7 +663,6 @@ describe('createLiveAreaModules', () => {
           prototypeName: 'Mixer II',
         },
       ],
-      [],
     )
 
     expect(module?.recipes).toEqual(
@@ -764,7 +745,6 @@ describe('createLiveAreaModules', () => {
         crusher(5, 19, 'East bauxite pit', bauxiteMilling),
         crusher(6, 19, 'East bauxite pit', bauxiteMilling),
       ],
-      [],
     )
     const calculateMine = (name: string, demand: Parameters<typeof calculateNet>[4]) => {
       const mine = mineModules.find(module => module.name === name)
@@ -862,7 +842,6 @@ describe('createLiveAreaModules', () => {
         areaEntity(3, 31, 'Mine B', 'OreSortingPlantT2', 'Ore sorting plant (large)', []),
         areaEntity(4, 31, 'Mine B', 'CrusherLarge', 'Crusher (large)', [titaniumMilling]),
       ],
-      [],
     )
     const lines = mineModules.flatMap(mine => buildModuleLines(mine, mine.presets[0] ?? null).lines)
     const result = calculateNet(lines, {}, undefined, {}, { titaniumOreCrushed: 150 })
@@ -910,7 +889,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [coalSorter],
-      [],
       undefined,
       [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
     )
@@ -968,7 +946,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [rockSorter],
-      [],
       undefined,
       towers,
     )
@@ -1004,7 +981,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [unlinkedSorter],
-      [],
       undefined,
       [],
     )
@@ -1032,7 +1008,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [dirtSorter],
-      [],
       undefined,
       towers,
     )
@@ -1066,16 +1041,6 @@ describe('createLiveAreaModules', () => {
     const liveModules = createLiveAreaModules(
       [{ id: 16, name: 'Mines' }],
       [sorter],
-      [
-        {
-          id: 'mines',
-          name: 'Mines',
-          description: '',
-          builtBuildings: {},
-          presets: [],
-          defaultPresetId: null,
-        },
-      ],
       undefined,
       towers,
     )
@@ -1117,7 +1082,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [sorter, crusher],
-      [],
       undefined,
       [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
     )
@@ -1165,7 +1129,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [pausedSorter],
-      [],
       undefined,
       [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
     )
@@ -1199,7 +1162,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'CrusherLarge',
       prototypeName: 'Crusher (large)',
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [crusher], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [crusher])
     const { lines } = buildModuleLines(module!, module?.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { titaniumOreCrushed: 96 })
 
@@ -1221,7 +1184,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [entity(1, false, false, [fractionalRecipe])],
-      [],
     )
 
     expect(module?.recipes?.[0]?.outputs).toEqual([{ resourceId: 'oxygen', quantity: 48 }])
@@ -1231,16 +1193,6 @@ describe('createLiveAreaModules', () => {
     const modules = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [],
-      [
-        {
-          id: 'test',
-          name: 'Test',
-          description: '',
-          builtBuildings: {},
-          presets: [],
-          defaultPresetId: null,
-        },
-      ],
     )
 
     expect(modules).toHaveLength(1)
@@ -1250,7 +1202,7 @@ describe('createLiveAreaModules', () => {
   it('keeps multi-recipe ghosts visible as a configuration issue', () => {
     const alternative = { ...recipe, id: 'AirSeparationAlternative', assigned: false }
     const ambiguous = entity(2, false, false, [{ ...recipe, assigned: false }, alternative])
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [ambiguous], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [ambiguous])
 
     expect(module?.recipes).toEqual([])
     expect(module?.liveArea?.issues).toEqual([
@@ -1263,7 +1215,7 @@ describe('createLiveAreaModules', () => {
       ...entity(2, false, false, []),
       availableRecipeCount: 7,
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [ambiguous], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [ambiguous])
 
     expect(module?.recipes).toEqual([])
     expect(module?.liveArea?.issues).toEqual([
@@ -1287,7 +1239,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [entity(1, true, true, [oxygenRecipe]), entity(2, true, true, [nitrogenRecipe])],
-      [],
     )
 
     expect(module?.presets[0]?.capacityPools).toEqual({
@@ -1348,7 +1299,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'ChemicalPlant2',
       prototypeName: 'Chemical plant II',
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [chemicalPlant], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [chemicalPlant])
 
     if (!module) throw new Error('Live area module was not created')
 
@@ -1391,7 +1342,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [pumpEntity(1, true, boostedSeawaterPump), pumpEntity(2, false, seawaterPump)],
-      [],
       { 16: { requestedExports: { seaWater: 300 } } },
     )
 
@@ -1475,7 +1425,6 @@ describe('createLiveAreaModules', () => {
         pumpEntity(2, seawaterPumpBoosted),
         ...[3, 4, 5, 6].map(desalinatorEntity),
       ],
-      [],
       {
         16: {
           requestedExports: { water: 288 },
@@ -1527,7 +1476,7 @@ describe('createLiveAreaModules', () => {
   })
 
   it('leaves an auto-balanced producer inactive without requested exports', () => {
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [entity(1, true, true)], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [entity(1, true, true)])
 
     if (!module) throw new Error('Live area module was not created')
 
@@ -1591,7 +1540,6 @@ describe('createLiveAreaModules', () => {
         configuredEntity(2, 'OceanWaterPumpT1', 'Seawater pump', seawaterPump),
         configuredEntity(3, 'ThermalDesalinator', 'Thermal desalinator', desalination),
       ],
-      [],
       { 16: { requestedExports: { copper: 1 } } },
     )
 
@@ -1709,7 +1657,6 @@ describe('createLiveAreaModules', () => {
           chainEntity(index + 40, 'AirSeparator3', 'Copper electrolysis', [electrolysisRecipe]),
         ),
       ],
-      [],
       { 16: { resourcePool: 'factory' } },
     )
 
@@ -1865,7 +1812,6 @@ describe('createLiveAreaModules', () => {
           chainEntity(index + 40, 'AirSeparator3', 'Cooled caster II', [casterRecipe]),
         ),
       ],
-      [],
       {
         21: {
           resourcePool: 'factory',
@@ -1970,7 +1916,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'Shredder',
       prototypeName: 'Shredder',
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [shredder], [])
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [shredder])
 
     expect(module?.recipes?.[0]?.appliesRecyclingEfficiency).toBe(false)
   })
@@ -2037,7 +1983,6 @@ describe('createLiveAreaModules', () => {
         configured(3, 'CoolingTowerT2', 'Cooling tower (large)', cooling),
         configured(4, 'WasteDump', 'Liquid dump', [brineDump]),
       ],
-      [],
     )
     const byGameRecipe = (id: string) => module?.recipes?.find(recipe => recipe.gameRecipeId === id)
 
@@ -2107,7 +2052,6 @@ describe('createLiveAreaModules', () => {
         configuredEntity(1, 'TestProducer', 'Test producer', scrubber),
         configuredEntity(2, 'ChemicalPlant2', 'Chemical plant II', graphiteFromCo2),
       ],
-      [],
       { 16: { requestedExports: { sulfur: 1 } } },
     )
 
@@ -2179,7 +2123,7 @@ describe('createLiveAreaModules', () => {
       prototypeId: 'TestProducer',
       prototypeName: 'Test producer',
     }
-    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [producer, smokeStack], [], {
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [producer, smokeStack], {
       16: { requestedExports: { sulfur: 1 } },
     })
 
@@ -2217,7 +2161,6 @@ describe('createLiveAreaModules', () => {
     const [module] = createLiveAreaModules(
       [{ id: 16, name: 'Test' }],
       [entity(4, true, true, [unsupported]), entity(5, false, false, [unsupported])],
-      [],
     )
 
     expect(module?.liveArea?.issues).toEqual([

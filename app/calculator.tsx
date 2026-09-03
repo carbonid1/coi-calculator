@@ -76,8 +76,8 @@ import {
   createChickenFarmsModule,
   CHICKEN_FARMS_MODULE_ID,
 } from './db/modules/farms'
-import { MINES_MODULE_ID } from './db/modules/mines'
-import { hasModuleCapability, modules, type Module } from './db/modules/modules'
+import { mines, MINES_MODULE_ID } from './db/modules/mines'
+import { hasModuleCapability, type Module } from './db/modules/modules'
 import {
   createNuclearModule,
   plannedNuclearOperation,
@@ -128,12 +128,10 @@ import {
 } from './db/static-infrastructure'
 import { calculateUnityBudget } from './db/unity'
 import {
-  syncedInfrastructureBuildingIds,
-  syncedRocketBuildingIds,
-} from './game-state'
-import {
   resolveAreaBuildingCounts,
   resolveAreaRecipeBuildingCount,
+  syncedInfrastructureBuildingIds,
+  syncedRocketBuildingIds,
 } from './helpers/area-building-sync/area-building-sync'
 import {
   calculateBuildingDiagnostics,
@@ -390,6 +388,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const areaEntities = snapshot.areaEntities.filter(
     entity => !contractResolution.claimedEntityIds.has(entity.entityId),
   )
+  const globalBuildingCounts = resolveAreaBuildingCounts(productionEntities)
   const officeAreaZoneIds = getOfficeAreaZoneIds(areaEntities)
   const nuclearReactorZoneIds = new Set(productionEntities.flatMap(entity => (
     entity.prototypeId === 'FastBreederReactor'
@@ -423,7 +422,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       : undefined
 
   for (const id of syncedInfrastructureBuildingIds) {
-    const count = snapshot.buildings[id]
+    const count = globalBuildingCounts[id] ?? { built: 0, running: 0 }
 
     staticInfrastructureBuiltConfig[id] = count.built
     staticInfrastructureRunningConfig[id] = count.running
@@ -432,7 +431,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   for (const id of syncedRocketBuildingIds) {
     const count = usesSpaceStationArea
       ? (spaceStationAreaCounts[id] ?? { built: 0, running: 0 })
-      : snapshot.buildings[id]
+      : (globalBuildingCounts[id] ?? { built: 0, running: 0 })
 
     rocketInfrastructureBuiltConfig[id] = count.built
     rocketInfrastructureRunningConfig[id] = count.running
@@ -547,39 +546,27 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     )
   }
 
-  const configureModules = () =>
-    modules.map(module => {
-      if (module.id === DEFAULT_MODULE_ID) {
-        return createDefaultCropFarmModule(
-          createDefaultModule(
-            defaultGroundwaterResolution,
-            defaultGroundwaterConstraint,
-          ),
-          currentCropFarmEntities,
-        )
-      }
-
-      if (module.id === CHICKEN_FARMS_MODULE_ID) {
-        return createChickenFarmsModule(
-          plannedChickenFarmSettings,
-          currentChickenFarmEntities,
-        )
-      }
-
-      if (module.id === RESERVES_MODULE_ID) {
-        return createReservesModule(snapshot.reserves)
-      }
-
-      return module
-    })
-  const configuredAreaModules = configureModules()
+  const configuredAreaModules = [
+    createDefaultCropFarmModule(
+      createDefaultModule(
+        defaultGroundwaterResolution,
+        defaultGroundwaterConstraint,
+      ),
+      currentCropFarmEntities,
+    ),
+    createChickenFarmsModule(
+      plannedChickenFarmSettings,
+      currentChickenFarmEntities,
+    ),
+    mines,
+    createReservesModule(snapshot.reserves),
+  ]
   const generatedLiveAreaModules = createLiveAreaModules(
     [
       { id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' },
       ...snapshot.logisticsZones,
     ],
     areaEntities,
-    configuredAreaModules,
     getLiveAreaPlans(snapshot.saveId),
     snapshot.mineTowers,
   )
@@ -731,12 +718,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     defaultModuleId: DEFAULT_MODULE_ID,
     fallbackInventory: {
       builtCounts: {
-        standard: snapshot.buildings.solarPanel.built,
-        mono: snapshot.buildings.solarPanelMono.built,
+        standard: globalBuildingCounts.solarPanel?.built ?? 0,
+        mono: globalBuildingCounts.solarPanelMono?.built ?? 0,
       },
       runningCounts: {
-        standard: snapshot.buildings.solarPanel.running,
-        mono: snapshot.buildings.solarPanelMono.running,
+        standard: globalBuildingCounts.solarPanel?.running ?? 0,
+        mono: globalBuildingCounts.solarPanelMono?.running ?? 0,
       },
     },
     modules: configuredModulesWithoutSolar,

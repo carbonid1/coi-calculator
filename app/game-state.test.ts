@@ -8,7 +8,6 @@ import {
   normalizeGameStateSnapshot,
 } from './game-state'
 
-const emptyBuildingCount = { built: 0, running: 0 }
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
 const edicts = Object.fromEntries(edictCatalog.map(edict => {
   const level = defaultEdictLevels[edict.id]
@@ -20,36 +19,10 @@ const currentSnapshot = {
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
   saveId: 'Test Island',
   exportedAtUtc: '2026-09-04T00:00:00.000Z',
-  buildings: {
-    electricLocomotiveII: emptyBuildingCount,
-    looseStationModuleElectrified: emptyBuildingCount,
-    fluidStationModuleElectrified: emptyBuildingCount,
-    unitStationModuleElectrified: emptyBuildingCount,
-    moltenStationModuleElectrified: emptyBuildingCount,
-    oreSortingPlant: emptyBuildingCount,
-    oreSortingPlantLarge: emptyBuildingCount,
-    stackerTower: emptyBuildingCount,
-    trainDepot: emptyBuildingCount,
-    vehiclesDepot: emptyBuildingCount,
-    vehiclesDepotII: emptyBuildingCount,
-    vehiclesDepotIII: emptyBuildingCount,
-    captainOfficeI: emptyBuildingCount,
-    captainOfficeII: emptyBuildingCount,
-    maintenanceStatue: emptyBuildingCount,
-    rocketAssemblyDepot: emptyBuildingCount,
-    rocketLaunchPad: emptyBuildingCount,
-    solarPanel: emptyBuildingCount,
-    solarPanelMono: emptyBuildingCount,
-  },
   spaceStation: { currentLevel: 0, highestLevelAchieved: 0 },
-  computing: {
-    dataCenters: emptyBuildingCount,
-    racks: emptyBuildingCount,
-    waterChillers: emptyBuildingCount,
-  },
   logisticsZones: [],
-  chickenFarms: { configurations: [], entities: [] },
-  cropFarms: { configurations: [], entities: [] },
+  chickenFarms: [],
+  cropFarms: [],
   machines: [],
   groundwater: { depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 },
   contracts: { established: [], routes: [] },
@@ -88,14 +61,13 @@ describe('game-state snapshot validation', () => {
   })
 
   it('rejects every non-current exporter schema', () => {
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 37 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 39 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 38 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 40 })).toBe(false)
   })
 
   it.each([
     'saveId',
     'spaceStation',
-    'computing',
     'logisticsZones',
     'chickenFarms',
     'cropFarms',
@@ -114,19 +86,6 @@ describe('game-state snapshot validation', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, [field]: undefined })).toBe(false)
   })
 
-  it('requires complete and internally consistent building counts', () => {
-    const { trainDepot: _trainDepot, ...missingTrainDepot } = currentSnapshot.buildings
-
-    expect(isGameStateSnapshot({ ...currentSnapshot, buildings: missingTrainDepot })).toBe(false)
-    expect(isGameStateSnapshot({
-      ...currentSnapshot,
-      buildings: {
-        ...currentSnapshot.buildings,
-        oreSortingPlant: { built: 1, running: 2 },
-      },
-    })).toBe(false)
-  })
-
   it('requires valid Space Station state', () => {
     expect(isGameStateSnapshot({
       ...currentSnapshot,
@@ -134,7 +93,7 @@ describe('game-state snapshot validation', () => {
     })).toBe(false)
   })
 
-  it('requires consistent chicken farm configurations and entities', () => {
+  it('requires unique valid chicken farm entities', () => {
     const entity = {
       entityId: 1,
       prototypeId: 'ChickenFarm',
@@ -145,29 +104,21 @@ describe('game-state snapshot validation', () => {
     }
     const snapshot = {
       ...currentSnapshot,
-      chickenFarms: {
-        configurations: [{
-          slaughtering: true,
-          built: 1,
-          running: 1,
-          chickens: 500,
-          runningChickens: 500,
-        }],
-        entities: [entity],
-      },
+      chickenFarms: [entity],
     }
 
     expect(isGameStateSnapshot(snapshot)).toBe(true)
     expect(isGameStateSnapshot({
       ...snapshot,
-      chickenFarms: {
-        ...snapshot.chickenFarms,
-        entities: [{ ...entity, chickens: 450 }],
-      },
+      chickenFarms: [entity, entity],
+    })).toBe(false)
+    expect(isGameStateSnapshot({
+      ...snapshot,
+      chickenFarms: [{ ...entity, chickens: -1 }],
     })).toBe(false)
   })
 
-  it('requires consistent crop farm configurations and entities', () => {
+  it('requires unique valid crop farm entities', () => {
     const farm = {
       prototypeId: 'FarmT4',
       running: true,
@@ -177,22 +128,16 @@ describe('game-state snapshot validation', () => {
     }
     const snapshot = {
       ...currentSnapshot,
-      cropFarms: {
-        configurations: [{ ...farm, built: 1, running: 1 }],
-        entities: [{ ...farm, entityId: 2, zones: [] }],
-      },
+      cropFarms: [{ ...farm, entityId: 2, zones: [] }],
     }
 
     expect(isGameStateSnapshot(snapshot)).toBe(true)
     expect(isGameStateSnapshot({
       ...snapshot,
-      cropFarms: {
-        ...snapshot.cropFarms,
-        entities: [{
-          ...snapshot.cropFarms.entities[0],
-          fertilizerProductId: 'Product_Diesel',
-        }],
-      },
+      cropFarms: [{
+        ...snapshot.cropFarms[0],
+        fertilizerProductId: 'Product_Diesel',
+      }],
     })).toBe(false)
   })
 

@@ -55,7 +55,6 @@ const attachToSyncedArea = (farmModule: Module, syncedArea?: Module): Module => 
     defaultPresetId: areaPreset.id,
   };
 };
-
 const plannedChickenFarmDirection: PlanDirection = "at-least";
 
 export const createChickenFarmsModule = (
@@ -109,22 +108,4 @@ export const createChickenFarmsModule = (
     }],
     defaultPresetId: "current-chicken-farm-plan",
   }, syncedArea);
-};
-
-export const chickenFarms: Module = {
-  id: CHICKEN_FARMS_MODULE_ID,
-  name: "Chicken Farms",
-  description: "",
-  capabilities: ["chicken-farming"],
-  gameSynced: true,
-  builtBuildings: {},
-  presets: [{
-    id: "current-chicken-farm-plan",
-    name: "Chicken Farms",
-    description: "",
-    activeBuildings: {},
-    dataSources: {},
-    fixed: [],
-  }],
-  defaultPresetId: "current-chicken-farm-plan",
 };

@@ -9,7 +9,7 @@ export const rocketInfrastructureItems = [
   },
 ] as const
 
-export type RocketInfrastructureId = (typeof rocketInfrastructureItems)[number]['id']
+type RocketInfrastructureId = (typeof rocketInfrastructureItems)[number]['id']
 export type RocketInfrastructureConfig = Record<RocketInfrastructureId, number>
 
 export const emptyRocketInfrastructureConfig: RocketInfrastructureConfig = {

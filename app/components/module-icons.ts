@@ -8,10 +8,11 @@ import {
 
 import { type Module } from "../db/modules/modules";
 
-export const defaultModuleIcon = Boxes;
+const defaultModuleIcon = Boxes;
+
 export const syncedModuleIcon = MapPinned;
 
-export const moduleIcons: Partial<Record<string, LucideIcon>> = {
+const moduleIcons: Partial<Record<string, LucideIcon>> = {
   mines: Pickaxe,
   reserves: Archive,
 };

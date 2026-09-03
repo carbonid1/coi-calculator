@@ -6,66 +6,12 @@ import {
 } from './db/research'
 import { type ReserveBalances } from './db/reserve-resources'
 
-export const syncedInfrastructureBuildingIds = [
-  'electricLocomotiveII',
-  'looseStationModuleElectrified',
-  'fluidStationModuleElectrified',
-  'unitStationModuleElectrified',
-  'moltenStationModuleElectrified',
-  'oreSortingPlant',
-  'oreSortingPlantLarge',
-  'stackerTower',
-  'trainDepot',
-  'vehiclesDepot',
-  'vehiclesDepotII',
-  'vehiclesDepotIII',
-  'captainOfficeI',
-  'captainOfficeII',
-  'maintenanceStatue',
-] as const
-
-export const syncedRocketBuildingIds = ['rocketAssemblyDepot', 'rocketLaunchPad'] as const
-
-const syncedSolarBuildingIds = ['solarPanel', 'solarPanelMono'] as const
-
-export const syncedBuildingIds = [
-  ...syncedInfrastructureBuildingIds,
-  ...syncedRocketBuildingIds,
-  ...syncedSolarBuildingIds,
-] as const
-
-export type SyncedBuildingId = (typeof syncedBuildingIds)[number]
-
-export interface SyncedBuildingCount {
-  built: number
-  running: number
-}
-
 interface SyncedSpaceStationState {
   currentLevel: number
   highestLevelAchieved: number
 }
 
-export interface SyncedComputingState {
-  dataCenters: SyncedBuildingCount
-  racks: SyncedBuildingCount
-  waterChillers: SyncedBuildingCount
-}
-
-interface SyncedChickenFarmConfiguration {
-  slaughtering: boolean
-  built: number
-  running: number
-  chickens: number
-  runningChickens: number
-}
-
-export interface SyncedChickenFarmState {
-  configurations: SyncedChickenFarmConfiguration[]
-  entities: SyncedChickenFarmEntity[]
-}
-
-interface SyncedChickenFarmEntity {
+export interface SyncedChickenFarmEntity {
   entityId: number
   prototypeId: 'ChickenFarm'
   running: boolean
@@ -74,22 +20,12 @@ interface SyncedChickenFarmEntity {
   zones: SyncedLogisticsZoneRef[]
 }
 
-interface SyncedCropFarmConfiguration {
-  prototypeId: 'FarmT3' | 'FarmT4'
-  built: number
-  running: number
-  fertilityTargetPercent: number
-  /** Supplied fertilizer product. Present in schema 33 and newer. */
-  fertilizerProductId?: SyncedCropFarmFertilizerProductId | null
-  schedule: (string | null)[]
-}
-
-export type SyncedCropFarmFertilizerProductId =
+type SyncedCropFarmFertilizerProductId =
   | 'Product_FertilizerOrganic'
   | 'Product_Fertilizer'
   | 'Product_Fertilizer2'
 
-interface SyncedCropFarmEntity {
+export interface SyncedCropFarmEntity {
   entityId: number
   prototypeId: 'FarmT3' | 'FarmT4'
   running: boolean
@@ -98,11 +34,6 @@ interface SyncedCropFarmEntity {
   fertilizerProductId?: SyncedCropFarmFertilizerProductId | null
   schedule: (string | null)[]
   zones?: SyncedLogisticsZoneRef[]
-}
-
-export interface SyncedCropFarmState {
-  configurations: SyncedCropFarmConfiguration[]
-  entities: SyncedCropFarmEntity[]
 }
 
 export interface SyncedMachineInventoryItem {
@@ -145,7 +76,7 @@ interface SyncedProductRef {
   name: string
 }
 
-export interface SyncedEstablishedContract {
+interface SyncedEstablishedContract {
   gameId: string
   exportedProduct: SyncedProductRef
   exportedQuantity: number
@@ -157,7 +88,7 @@ export interface SyncedEstablishedContract {
   minimumReputation: number
 }
 
-export interface SyncedContractModule {
+interface SyncedContractModule {
   entityId: number
   slot: number
   prototypeId: string
@@ -169,7 +100,7 @@ export interface SyncedContractModule {
   onboardCapacity: number
 }
 
-export interface SyncedContractShip {
+interface SyncedContractShip {
   entityId: number
   prototypeId: string
   prototypeName: string
@@ -221,7 +152,7 @@ interface SyncedForestryProduct extends SyncedProductRef {
   quantityPerCycle: number
 }
 
-export interface SyncedForestryConfiguration {
+interface SyncedForestryConfiguration {
   treeCount: number
   cuttingEnabled: boolean
   targetHarvestPercent: number
@@ -308,7 +239,7 @@ export interface SyncedAreaEntity {
   office?: SyncedOfficeConfiguration | null
 }
 
-export interface SyncedOfficeConfiguration {
+interface SyncedOfficeConfiguration {
   computingBoostStep: 0 | 1 | 2
 }
 
@@ -317,12 +248,12 @@ export interface SyncedLogisticsZoneRef {
   name: string | null
 }
 
-export interface SyncedHistoryAverage {
+interface SyncedHistoryAverage {
   averagePerCycle: number
   sampleMonths: number
 }
 
-export const syncedHydrogenFuelUseIds = [
+const syncedHydrogenFuelUseIds = [
   'vehicles',
   'cargoShips',
   'battleShip',
@@ -351,18 +282,16 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 38 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 39 as const
 
 export interface GameStateSnapshot {
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
   saveId: string
   exportedAtUtc: string
-  buildings: Record<SyncedBuildingId, SyncedBuildingCount>
   spaceStation: SyncedSpaceStationState
-  computing: SyncedComputingState
   logisticsZones: SyncedLogisticsZoneRef[]
-  chickenFarms: SyncedChickenFarmState
-  cropFarms: SyncedCropFarmState
+  chickenFarms: SyncedChickenFarmEntity[]
+  cropFarms: SyncedCropFarmEntity[]
   machines: SyncedMachineInventoryItem[]
   groundwater: SyncedGroundwaterState
   contracts: SyncedContractState
@@ -530,33 +459,11 @@ const normalizeContractState = (value: unknown): SyncedContractState | null => {
   return { established: validEstablished, routes: validRoutes }
 }
 
-const isBuildingCount = (value: unknown): value is SyncedBuildingCount =>
-  isUnknownRecord(value) &&
-  isNonNegativeInteger(value.built) &&
-  isNonNegativeInteger(value.running) &&
-  value.running <= value.built
-
 const isSpaceStationState = (value: unknown): value is SyncedSpaceStationState =>
   isUnknownRecord(value) &&
   isNonNegativeInteger(value.currentLevel) &&
   isNonNegativeInteger(value.highestLevelAchieved) &&
   value.currentLevel <= value.highestLevelAchieved
-
-const isComputingState = (value: unknown): value is SyncedComputingState =>
-  isUnknownRecord(value) &&
-  isBuildingCount(value.dataCenters) &&
-  isBuildingCount(value.racks) &&
-  isBuildingCount(value.waterChillers)
-
-const isChickenFarmConfiguration = (value: unknown): value is SyncedChickenFarmConfiguration =>
-  isUnknownRecord(value) &&
-  typeof value.slaughtering === 'boolean' &&
-  isNonNegativeInteger(value.built) &&
-  isNonNegativeInteger(value.running) &&
-  value.running <= value.built &&
-  isNonNegativeInteger(value.chickens) &&
-  isNonNegativeInteger(value.runningChickens) &&
-  value.runningChickens <= value.chickens
 
 const isChickenFarmEntity = (value: unknown): value is SyncedChickenFarmEntity =>
   isUnknownRecord(value) &&
@@ -569,46 +476,18 @@ const isChickenFarmEntity = (value: unknown): value is SyncedChickenFarmEntity =
   value.zones.every(isLogisticsZoneRef) &&
   new Set(value.zones.map(zone => zone.id)).size === value.zones.length
 
-const normalizeChickenFarmState = (value: unknown): SyncedChickenFarmState | null => {
-  if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
+const normalizeChickenFarms = (value: unknown): SyncedChickenFarmEntity[] | null => {
+  if (!Array.isArray(value)) return null
 
-  const configurations = value.configurations.filter(isChickenFarmConfiguration)
-
-  if (
-    configurations.length !== value.configurations.length ||
-    new Set(configurations.map(({ slaughtering }) => slaughtering)).size !== configurations.length
-  )
-    return null
-
-  if (!Array.isArray(value.entities)) return null
-
-  const entities = value.entities.filter(isChickenFarmEntity)
+  const entities = value.filter(isChickenFarmEntity)
 
   if (
-    entities.length !== value.entities.length ||
+    entities.length !== value.length ||
     new Set(entities.map(({ entityId }) => entityId)).size !== entities.length
   )
     return null
 
-  for (const configuration of configurations) {
-    const matching = entities.filter(entity => entity.slaughtering === configuration.slaughtering)
-    const running = matching.filter(entity => entity.running)
-
-    if (
-      matching.length !== configuration.built ||
-      running.length !== configuration.running ||
-      matching.reduce((total, entity) => total + entity.chickens, 0) !== configuration.chickens ||
-      running.reduce((total, entity) => total + entity.chickens, 0) !==
-        configuration.runningChickens
-    )
-      return null
-  }
-
-  if (entities.length !== configurations.reduce((total, item) => total + item.built, 0)) {
-    return null
-  }
-
-  return { configurations, entities }
+  return entities
 }
 
 const isCropFarmFertilizerProductId = (
@@ -621,26 +500,7 @@ const isCropFarmFertilizerProductId = (
 const hasValidCropFarmFertilizerProduct = (value: unknown) =>
   value === null || isCropFarmFertilizerProductId(value)
 
-const isCropFarmConfiguration = (
-  value: unknown,
-): value is SyncedCropFarmConfiguration =>
-  isUnknownRecord(value) &&
-  (value.prototypeId === 'FarmT3' || value.prototypeId === 'FarmT4') &&
-  isNonNegativeInteger(value.built) &&
-  isNonNegativeInteger(value.running) &&
-  value.running <= value.built &&
-  isNonNegativeInteger(value.fertilityTargetPercent) &&
-  value.fertilityTargetPercent <= 200 &&
-  hasValidCropFarmFertilizerProduct(value.fertilizerProductId) &&
-  Array.isArray(value.schedule) &&
-  value.schedule.length === 4 &&
-  value.schedule.every(
-    cropId => cropId === null || (typeof cropId === 'string' && cropId.length > 0),
-  )
-
-const isCropFarmEntity = (
-  value: unknown,
-): value is SyncedCropFarmEntity =>
+const isCropFarmEntity = (value: unknown): value is SyncedCropFarmEntity =>
   isUnknownRecord(value) &&
   isNonNegativeInteger(value.entityId) &&
   (value.prototypeId === 'FarmT3' || value.prototypeId === 'FarmT4') &&
@@ -657,63 +517,18 @@ const isCropFarmEntity = (
   value.zones.every(isLogisticsZoneRef) &&
   new Set(value.zones.map(zone => zone.id)).size === value.zones.length
 
-const normalizeCropFarmState = (value: unknown): SyncedCropFarmState | null => {
-  if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
+const normalizeCropFarms = (value: unknown): SyncedCropFarmEntity[] | null => {
+  if (!Array.isArray(value)) return null
 
-  const configurations = value.configurations.filter(isCropFarmConfiguration)
-
-  if (configurations.length !== value.configurations.length) return null
-
-  if (!Array.isArray(value.entities)) return null
-
-  const entities = value.entities.filter(isCropFarmEntity)
+  const entities = value.filter(isCropFarmEntity)
 
   if (
-    entities.length !== value.entities.length ||
+    entities.length !== value.length ||
     new Set(entities.map(({ entityId }) => entityId)).size !== entities.length
   )
     return null
 
-  const configurationCounts = new Map(
-    configurations.map(configuration => [
-      JSON.stringify([
-        configuration.prototypeId,
-        configuration.schedule,
-        configuration.fertilityTargetPercent,
-        configuration.fertilizerProductId,
-      ]),
-      { built: configuration.built, running: configuration.running },
-    ]),
-  )
-  const entityCounts = new Map<string, { built: number; running: number }>()
-
-  for (const entity of entities) {
-    const key = JSON.stringify([
-      entity.prototypeId,
-      entity.schedule,
-      entity.fertilityTargetPercent,
-      entity.fertilizerProductId,
-    ])
-    const count = entityCounts.get(key) ?? { built: 0, running: 0 }
-
-    count.built++
-    count.running += Number(entity.running)
-    entityCounts.set(key, count)
-  }
-
-  if (
-    configurationCounts.size !== entityCounts.size ||
-    [...configurationCounts].some(([key, count]) => {
-      const entityCount = entityCounts.get(key)
-
-      return (
-        !entityCount || entityCount.built !== count.built || entityCount.running !== count.running
-      )
-    })
-  )
-    return null
-
-  return { configurations, entities }
+  return entities
 }
 
 const normalizeLogisticsZones = (value: unknown): SyncedLogisticsZoneRef[] | null => {
@@ -1100,14 +915,6 @@ const normalizeMineTowers = (value: unknown): SyncedMineTower[] | null => {
   return new Set(towers.map(tower => tower.entityId)).size === towers.length ? towers : null
 }
 
-const isBuildingCounts = (
-  value: unknown,
-): value is Record<SyncedBuildingId, SyncedBuildingCount> => {
-  if (!isUnknownRecord(value)) return false
-
-  return syncedBuildingIds.every(id => isBuildingCount(value[id]))
-}
-
 const isHistoryAverage = (value: unknown, windowMonths: number): value is SyncedHistoryAverage => {
   if (!isUnknownRecord(value)) return false
 
@@ -1208,16 +1015,14 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
 
-  const syncedBuildings = snapshot.buildings
   const saveId =
     typeof snapshot.saveId === 'string' && snapshot.saveId.trim().length > 0
       ? snapshot.saveId
       : null
   const spaceStation = isSpaceStationState(snapshot.spaceStation) ? snapshot.spaceStation : null
-  const computing = isComputingState(snapshot.computing) ? snapshot.computing : null
   const logisticsZones = normalizeLogisticsZones(snapshot.logisticsZones)
-  const chickenFarms = normalizeChickenFarmState(snapshot.chickenFarms)
-  const cropFarms = normalizeCropFarmState(snapshot.cropFarms)
+  const chickenFarms = normalizeChickenFarms(snapshot.chickenFarms)
+  const cropFarms = normalizeCropFarms(snapshot.cropFarms)
   const machines = normalizeMachineInventory(snapshot.machines)
   const groundwater = isGroundwaterState(snapshot.groundwater) ? snapshot.groundwater : null
   const contracts = normalizeContractState(snapshot.contracts)
@@ -1234,9 +1039,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   if (
     typeof snapshot.exportedAtUtc !== 'string' ||
     Number.isNaN(Date.parse(snapshot.exportedAtUtc)) ||
-    !isBuildingCounts(syncedBuildings) ||
     !spaceStation ||
-    !computing ||
     !chickenFarms ||
     !cropFarms ||
     !logisticsZones ||
@@ -1310,9 +1113,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion,
     saveId,
     exportedAtUtc: snapshot.exportedAtUtc,
-    buildings: syncedBuildings,
     spaceStation,
-    computing,
     logisticsZones,
     chickenFarms,
     cropFarms,

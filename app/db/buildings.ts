@@ -13,7 +13,7 @@ export interface BuildingData {
   unityPerCycle?: number;
 }
 
-export const buildings: Record<string, BuildingData> = {
+const buildings: Record<string, BuildingData> = {
   [activeHousingType.name]: {
     workers: 0,
     electricityKw: activeHousingType.populationCapacity

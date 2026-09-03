@@ -7,13 +7,6 @@ import {
 
 it("preserves chicken modes, population, identities, and areas", () => {
   const state = {
-    configurations: [{
-      slaughtering: true,
-      built: 5,
-      running: 1,
-      chickens: 2_350,
-      runningChickens: 500,
-    }],
     entities: [{
       entityId: 84,
       prototypeId: "ChickenFarm" as const,
@@ -24,7 +17,7 @@ it("preserves chicken modes, population, identities, and areas", () => {
     }],
   };
 
-  expect(getSyncedChickenFarmEntities(state)).toEqual([{
+  expect(getSyncedChickenFarmEntities(state.entities)).toEqual([{
     entityId: 84,
     running: false,
     slaughtering: true,
@@ -32,11 +25,8 @@ it("preserves chicken modes, population, identities, and areas", () => {
     zones: [{ id: 12, name: "Chicken Farms" }],
   }]);
 });
-
 it("maps exact crop-farm configuration and supplied fertilizer", () => {
-  expect(getSyncedCropFarmEntities({
-    configurations: [],
-    entities: [{
+  expect(getSyncedCropFarmEntities([{
       entityId: 42,
       prototypeId: "FarmT4",
       running: false,
@@ -44,8 +34,7 @@ it("maps exact crop-farm configuration and supplied fertilizer", () => {
       fertilizerProductId: "Product_Fertilizer2",
       schedule: ["Crop_Corn", "Crop_Wheat", null, null],
       zones: [{ id: 10, name: "Any farming area" }],
-    }],
-  })).toEqual([{
+    }])).toEqual([{
     entityId: 42,
     tierId: "greenhouseII",
     running: false,
@@ -54,31 +43,4 @@ it("maps exact crop-farm configuration and supplied fertilizer", () => {
     schedule: ["corn", "wheat", "none", "none"],
     zones: [{ id: 10, name: "Any farming area" }],
   }]);
-});
-
-it("creates entity-shaped synced farms for older aggregate snapshots", () => {
-  expect(getSyncedCropFarmEntities({
-    entities: [],
-    configurations: [{
-      prototypeId: "FarmT4",
-      built: 2,
-      running: 1,
-      fertilityTargetPercent: 140,
-      fertilizerProductId: "Product_Fertilizer2",
-      schedule: ["Crop_Potato", "Crop_Fruits", null, "Crop_Wheat"],
-    }],
-  })).toEqual([
-    expect.objectContaining({
-      tierId: "greenhouseII",
-      running: true,
-      fertilizerId: "fertilizerII",
-      schedule: ["potato", "fruit", "none", "wheat"],
-    }),
-    expect.objectContaining({
-      tierId: "greenhouseII",
-      running: false,
-      fertilizerId: "fertilizerII",
-      schedule: ["potato", "fruit", "none", "wheat"],
-    }),
-  ]);
 });

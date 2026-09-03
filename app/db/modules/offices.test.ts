@@ -8,7 +8,6 @@ import { calculateFactoryTotal } from '../../helpers/factory-total/factory-total
 import { createLiveAreaModules } from '../../helpers/live-area-modules/live-area-modules'
 import { baseConfig } from '../config'
 import { defaultOfficePlan } from '../offices'
-import { modules } from './modules'
 import {
   applySyncedOfficeInventory,
   createOfficeAreaModule,
@@ -68,7 +67,7 @@ describe('synced Office areas', () => {
       },
       areaEntity(2, 'AssemblyRoboticT2', 'Assembly V', [officeSuppliesRecipe]),
     ]
-    const [generatedArea] = createLiveAreaModules([zone], entities, modules)
+    const [generatedArea] = createLiveAreaModules([zone], entities)
 
     if (!generatedArea) throw new Error('Missing generated Office area')
 
@@ -95,7 +94,6 @@ describe('synced Office areas', () => {
       builtBuildings: { 'officeIII-boost-2': 1 },
       liveArea: { issues: [] },
     })
-    expect(modules.some(candidate => candidate.name === 'Offices')).toBe(false)
     expect(office).toMatchObject({
       activeBuildings: 1,
       builtBuildings: 1,
@@ -127,7 +125,7 @@ describe('synced Office areas', () => {
         office: { computingBoostStep: 2 },
       },
     ]
-    const [generatedArea] = createLiveAreaModules([zone], entities, modules)
+    const [generatedArea] = createLiveAreaModules([zone], entities)
 
     if (!generatedArea) throw new Error('Missing generated Office area')
 
@@ -235,7 +233,6 @@ describe('synced Office areas', () => {
     const generatedAreas = createLiveAreaModules(
       [zone, secondZone],
       [overlappingOffice],
-      modules,
     )
     const configuredAreas = generatedAreas.map(generatedArea => (
       createOfficeAreaModule(generatedArea, [overlappingOffice], plan)
@@ -258,7 +255,6 @@ describe('synced Office areas', () => {
     const [generatedDefault] = createLiveAreaModules(
       [{ id: -1, name: 'Default' }],
       [unzonedOffice],
-      modules,
     )
 
     if (!generatedDefault) throw new Error('Missing generated Default area')

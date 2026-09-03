@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import { plannedChickenFarmSettings } from "../../db/chicken-farm";
 import { baseConfig } from "../../db/config";
 import {
   attachMaintenanceDepotsToModule,
   resolveMaintenanceDepotModuleAssignments,
 } from "../../db/modules/area-maintenance";
 import { DEFAULT_MODULE_ID } from "../../db/modules/default";
-import {
-  modules,
-  type Module,
-} from "../../db/modules/modules";
+import { createChickenFarmsModule } from "../../db/modules/farms";
+import { mines } from "../../db/modules/mines";
+import { type Module } from "../../db/modules/modules";
+import { createReservesModule } from "../../db/modules/reserves";
 import { recipes, type Recipe } from "../../db/recipes";
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { activeContracts } from "../../test-fixtures/active-contracts";
@@ -117,7 +118,9 @@ const currentFactoryFixture: Module = {
   defaultPresetId: "fixture",
 };
 const modulesWithNuclear = [
-  ...modules.filter(module => module.id !== DEFAULT_MODULE_ID),
+  createChickenFarmsModule(plannedChickenFarmSettings, []),
+  mines,
+  createReservesModule(null),
   currentFactoryFixture,
   syncedNuclearTestModule,
 ];

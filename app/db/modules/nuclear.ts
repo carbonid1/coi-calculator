@@ -12,7 +12,7 @@ import {
 } from "./modules";
 import { createAtLeastBuildingActions } from "./plan-mismatch";
 
-export const NUCLEAR_MODULE_ID = "nuclear";
+const NUCLEAR_MODULE_ID = "nuclear";
 
 export interface NuclearOperationPlan {
   generationTargetMw: number;

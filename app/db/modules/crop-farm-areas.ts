@@ -15,7 +15,7 @@ import {
 } from '../recipes'
 import { type Module, type Preset } from './modules'
 
-export const cropFarmPrototypeIds = new Set(['FarmT3', 'FarmT4'])
+const cropFarmPrototypeIds = new Set(['FarmT3', 'FarmT4'])
 
 const liveAreaModuleId = (zoneId: number) => zoneId === -1
   ? 'general'

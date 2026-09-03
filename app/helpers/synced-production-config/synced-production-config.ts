@@ -4,8 +4,8 @@ import {
   type FertilizerId,
 } from "../../db/crop-farming";
 import {
-  type SyncedChickenFarmState,
-  type SyncedCropFarmState,
+  type SyncedChickenFarmEntity,
+  type SyncedCropFarmEntity,
 } from "../../game-state";
 
 const gameCropIds: Record<string, string> = {
@@ -37,8 +37,8 @@ const getSyncedFertilizerId = (
   : gameFertilizerIds[fertilizerProductId] ?? null;
 
 export const getSyncedChickenFarmEntities = (
-  state: SyncedChickenFarmState,
-): CurrentChickenFarmEntity[] => (state.entities ?? []).map(entity => ({
+  entities: readonly SyncedChickenFarmEntity[],
+): CurrentChickenFarmEntity[] => entities.map(entity => ({
   entityId: entity.entityId,
   running: entity.running,
   slaughtering: entity.slaughtering,
@@ -51,35 +51,15 @@ const mapCropSchedule = (schedule: readonly (string | null)[]) => schedule.map(c
 ));
 
 export const getSyncedCropFarmEntities = (
-  state: SyncedCropFarmState,
-): CurrentCropFarmEntity[] => {
-  if (state.entities?.length > 0) {
-    return state.entities.map(entity => ({
-      entityId: entity.entityId,
-      tierId: entity.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
-      schedule: mapCropSchedule(entity.schedule),
-      fertilityTargetPercent: entity.fertilityTargetPercent,
-      fertilizerId: getSyncedFertilizerId(
-        entity.fertilizerProductId,
-      ),
-      running: entity.running,
-      zones: entity.zones ?? [],
-    }));
-  }
-
-  let pseudoEntityId = -1;
-
-  return state.configurations.flatMap(configuration => Array.from(
-    { length: configuration.built },
-    (_, index): CurrentCropFarmEntity => ({
-      entityId: pseudoEntityId--,
-      tierId: configuration.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
-      schedule: mapCropSchedule(configuration.schedule),
-      fertilityTargetPercent: configuration.fertilityTargetPercent,
-      fertilizerId: getSyncedFertilizerId(
-        configuration.fertilizerProductId,
-      ),
-      running: index < configuration.running,
-    }),
-  ));
-};
+  entities: readonly SyncedCropFarmEntity[],
+): CurrentCropFarmEntity[] => entities.map(entity => ({
+  entityId: entity.entityId,
+  tierId: entity.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
+  schedule: mapCropSchedule(entity.schedule),
+  fertilityTargetPercent: entity.fertilityTargetPercent,
+  fertilizerId: getSyncedFertilizerId(
+    entity.fertilizerProductId,
+  ),
+  running: entity.running,
+  zones: entity.zones ?? [],
+}));

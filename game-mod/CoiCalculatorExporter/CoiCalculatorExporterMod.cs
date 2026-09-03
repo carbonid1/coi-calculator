@@ -58,8 +58,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private const string MaintenanceT1ProductId = "Product_Virtual_MaintenanceT1";
     private const string MaintenanceT2ProductId = "Product_Virtual_MaintenanceT2";
     private const string MaintenanceT3ProductId = "Product_Virtual_MaintenanceT3";
-    private const string DataCenterPrototypeId = "DataCenter";
-    private const string WaterChillerPrototypeId = "WaterChiller";
     private const string ChickenFarmPrototypeId = "ChickenFarm";
     private const string GreenhousePrototypeId = "FarmT3";
     private const string GreenhouseIiPrototypeId = "FarmT4";
@@ -71,8 +69,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private static readonly HashSet<string> TrackedProductionPrototypeIds =
         new HashSet<string>(new[]
         {
-            DataCenterPrototypeId,
-            WaterChillerPrototypeId,
+            "DataCenter",
+            "WaterChiller",
             "FastBreederReactor",
             "OceanWaterPumpLarge",
             "NuclearReprocessingPlant",
@@ -95,53 +93,26 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             "MaintenanceDepotT1",
             "MaintenanceDepotT2",
             "MaintenanceDepotT3",
+            "RocketAssemblyDepot",
+            "RocketLaunchPad",
+            "LocomotiveT2Electric",
+            "TrainStationLoose_ELEC",
+            "TrainStationFluid_ELEC",
+            "TrainStationUnit_ELEC",
+            "TrainStationMolten_ELEC",
+            "OreSortingPlantT1",
+            "OreSortingPlantT2",
+            "StackerTower",
+            "TrainDepot",
+            "VehiclesDepot",
+            "VehiclesDepotT2",
+            "VehiclesDepotT3",
+            "CaptainOfficeT1",
+            "CaptainOfficeT2",
+            "SolarPanel",
+            "SolarPanelMono",
+            "StatueOfMaintenanceGolden",
         }, StringComparer.Ordinal);
-    private static readonly string[] TrackedBuildingKeys = new[]
-    {
-        "rocketAssemblyDepot",
-        "rocketLaunchPad",
-        "electricLocomotiveII",
-        "looseStationModuleElectrified",
-        "fluidStationModuleElectrified",
-        "unitStationModuleElectrified",
-        "moltenStationModuleElectrified",
-        "oreSortingPlant",
-        "oreSortingPlantLarge",
-        "stackerTower",
-        "trainDepot",
-        "vehiclesDepot",
-        "vehiclesDepotII",
-        "vehiclesDepotIII",
-        "captainOfficeI",
-        "captainOfficeII",
-        "solarPanel",
-        "solarPanelMono",
-        "maintenanceStatue",
-    };
-    private static readonly string[] TrackedPrototypeIds = new[]
-    {
-        "RocketAssemblyDepot",
-        "RocketLaunchPad",
-        "LocomotiveT2Electric",
-        "TrainStationLoose_ELEC",
-        "TrainStationFluid_ELEC",
-        "TrainStationUnit_ELEC",
-        "TrainStationMolten_ELEC",
-        "OreSortingPlantT1",
-        "OreSortingPlantT2",
-        "StackerTower",
-        "TrainDepot",
-        "VehiclesDepot",
-        "VehiclesDepotT2",
-        "VehiclesDepotT3",
-        "CaptainOfficeT1",
-        "CaptainOfficeT2",
-        "SolarPanel",
-        "SolarPanelMono",
-        "StatueOfMaintenanceGolden",
-    };
-    private static readonly Dictionary<string, int> TrackedPrototypeIndices =
-        createTrackedPrototypeIndices();
     private static readonly TrackedReserveDefinition[] TrackedReserves = new[]
     {
         new TrackedReserveDefinition("gold", "Product_Gold"),
@@ -201,7 +172,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private ILogisticsZonesManager m_logisticsZonesManager;
     private GameNameConfig m_gameNameConfig;
     private IEntitiesManager m_entitiesManager;
-    private IConstructionManager m_constructionManager;
     private IProductsManager m_productsManager;
     private IPropertiesDb m_propertiesDb;
     private IVirtualResourceManager m_virtualResourceManager;
@@ -215,10 +185,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private ContractsManager m_contractsManager;
     private ICalendar m_calendar;
     private ISimLoopEvents m_simLoopEvents;
-    private readonly int[] m_builtBuildings = new int[TrackedBuildingKeys.Length];
-    private readonly int[] m_runningBuildings = new int[TrackedBuildingKeys.Length];
-    private readonly Dictionary<EntityId, TrackedEntityState> m_trackedEntities =
-        new Dictionary<EntityId, TrackedEntityState>();
     private readonly object m_snapshotWriteLock = new object();
     private string m_pendingSnapshotJson;
     private bool m_snapshotWriterRunning;
@@ -232,7 +198,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private readonly string m_snapshotPath;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 27; } }
+    public int Version { get { return 28; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -266,7 +232,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_logisticsZonesManager = resolver.Resolve<ILogisticsZonesManager>();
         m_gameNameConfig = resolver.Resolve<GameNameConfig>();
         m_entitiesManager = resolver.Resolve<IEntitiesManager>();
-        m_constructionManager = resolver.Resolve<IConstructionManager>();
         m_productsManager = resolver.Resolve<IProductsManager>();
         m_propertiesDb = resolver.Resolve<IPropertiesDb>();
         m_virtualResourceManager = resolver.Resolve<IVirtualResourceManager>();
@@ -280,17 +245,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         m_contractsManager = resolver.Resolve<ContractsManager>();
         m_calendar = resolver.Resolve<ICalendar>();
         m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
-        initializeTrackedBuildingCounts();
         refreshHistorySnapshots();
-        m_entitiesManager.EntityAdded.AddNonSaveable(this, onEntityAdded);
-        m_entitiesManager.EntityRemoved.AddNonSaveable(this, onEntityRemoved);
-        m_entitiesManager.EntityPauseStateChanged.AddNonSaveable(
-            this,
-            onEntityPauseStateChanged);
-        m_entitiesManager.OnUpgradeJustPerformed.AddNonSaveable(this, onEntityUpgraded);
-        m_constructionManager.EntityConstructionStateChanged.AddNonSaveable(
-            this,
-            onEntityConstructionStateChanged);
         m_calendar.NewMonthEnd.AddNonSaveable(this, onNewMonthEnd);
         m_simLoopEvents.Update.AddNonSaveable(this, onSimUpdate);
         m_simLoopEvents.UpdateAfterCmdProc.AddNonSaveable(this, onSimUpdate);
@@ -305,37 +260,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
     public void Dispose()
     {
-        if (m_entitiesManager != null)
-        {
-            try
-            {
-                m_entitiesManager.EntityAdded.RemoveNonSaveable(this, onEntityAdded);
-                m_entitiesManager.EntityRemoved.RemoveNonSaveable(this, onEntityRemoved);
-                m_entitiesManager.EntityPauseStateChanged.RemoveNonSaveable(
-                    this,
-                    onEntityPauseStateChanged);
-                m_entitiesManager.OnUpgradeJustPerformed.RemoveNonSaveable(
-                    this,
-                    onEntityUpgraded);
-            }
-            catch
-            {
-            }
-        }
-
-        if (m_constructionManager != null)
-        {
-            try
-            {
-                m_constructionManager.EntityConstructionStateChanged.RemoveNonSaveable(
-                    this,
-                    onEntityConstructionStateChanged);
-            }
-            catch
-            {
-            }
-        }
-
         if (m_calendar != null)
         {
             try
@@ -369,7 +293,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
         m_vehiclesManager = null;
         m_entitiesManager = null;
-        m_constructionManager = null;
         m_propertiesDb = null;
         m_virtualResourceManager = null;
         m_treesManager = null;
@@ -428,35 +351,15 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
             StringBuilder json = new StringBuilder(3600);
             json.Append('{');
-            json.Append("\"schemaVersion\":38,");
+            json.Append("\"schemaVersion\":39,");
             appendString(json, "saveId", m_gameNameConfig.GameName, true);
             json.Append("\"exportedAtUtc\":\"");
             json.Append(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             json.Append("\",");
-            json.Append("\"buildings\":{");
-            for (int i = 0; i < TrackedBuildingKeys.Length; i++)
-            {
-                json.Append('\"');
-                json.Append(TrackedBuildingKeys[i]);
-                json.Append("\":{");
-                appendNumber(json, "built", m_builtBuildings[i], true);
-                appendNumber(json, "running", m_runningBuildings[i], false);
-                json.Append('}');
-                if (i < TrackedBuildingKeys.Length - 1)
-                {
-                    json.Append(',');
-                }
-            }
-            json.Append("},");
             SpaceStation spaceStation = m_orbitManager.SpaceStation.ValueOrNull;
             json.Append("\"spaceStation\":{");
             appendNumber(json, "currentLevel", spaceStation == null ? 0 : spaceStation.CurrentTier, true);
             appendNumber(json, "highestLevelAchieved", m_orbitManager.HighestStationTierAchieved, false);
-            json.Append("},");
-            json.Append("\"computing\":{");
-            appendBuildingCount(json, "dataCenters", production.DataCenters, true);
-            appendBuildingCount(json, "racks", production.Racks, true);
-            appendBuildingCount(json, "waterChillers", production.WaterChillers, false);
             json.Append("},");
             json.Append("\"logisticsZones\":[");
             for (int i = 0; i < production.LogisticsZones.Count; i++)
@@ -472,26 +375,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 }
             }
             json.Append("],");
-            json.Append("\"chickenFarms\":{");
-            json.Append("\"configurations\":[");
-            for (int i = 0; i < production.ChickenFarms.Count; i++)
-            {
-                ChickenFarmSnapshot farm = production.ChickenFarms[i];
-                json.Append('{');
-                json.Append("\"slaughtering\":");
-                json.Append(farm.Slaughtering ? "true" : "false");
-                json.Append(',');
-                appendNumber(json, "built", farm.Built, true);
-                appendNumber(json, "running", farm.Running, true);
-                appendNumber(json, "chickens", farm.Chickens, true);
-                appendNumber(json, "runningChickens", farm.RunningChickens, false);
-                json.Append('}');
-                if (i < production.ChickenFarms.Count - 1)
-                {
-                    json.Append(',');
-                }
-            }
-            json.Append("],\"entities\":[");
+            json.Append("\"chickenFarms\":[");
             for (int i = 0; i < production.ChickenFarmEntities.Count; i++)
             {
                 ChickenFarmEntitySnapshot farm = production.ChickenFarmEntities[i];
@@ -524,45 +408,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     json.Append(',');
                 }
             }
-            json.Append("]},");
-            json.Append("\"cropFarms\":{");
-            json.Append("\"configurations\":[");
-            for (int i = 0; i < production.CropFarms.Count; i++)
-            {
-                CropFarmSnapshot farm = production.CropFarms[i];
-                json.Append('{');
-                appendString(json, "prototypeId", farm.PrototypeId, true);
-                appendNumber(json, "built", farm.Built, true);
-                appendNumber(json, "running", farm.Running, true);
-                appendNumber(json, "fertilityTargetPercent", farm.FertilityTargetPercent, true);
-                appendNullableString(json, "fertilizerProductId", farm.FertilizerProductId, true);
-                json.Append("\"schedule\":[");
-                for (int scheduleIndex = 0; scheduleIndex < farm.Schedule.Length; scheduleIndex++)
-                {
-                    string cropId = farm.Schedule[scheduleIndex];
-                    if (cropId == null)
-                    {
-                        json.Append("null");
-                    }
-                    else
-                    {
-                        json.Append('"');
-                        appendEscapedString(json, cropId);
-                        json.Append('"');
-                    }
-
-                    if (scheduleIndex < farm.Schedule.Length - 1)
-                    {
-                        json.Append(',');
-                    }
-                }
-                json.Append("]}");
-                if (i < production.CropFarms.Count - 1)
-                {
-                    json.Append(',');
-                }
-            }
-            json.Append("],\"entities\":[");
+            json.Append("],");
+            json.Append("\"cropFarms\":[");
             for (int i = 0; i < production.CropFarmEntities.Count; i++)
             {
                 CropFarmEntitySnapshot farm = production.CropFarmEntities[i];
@@ -613,7 +460,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     json.Append(',');
                 }
             }
-            json.Append("]},");
+            json.Append("],");
             json.Append("\"machines\":[");
             for (int i = 0; i < production.Machines.Count; i++)
             {
@@ -941,17 +788,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
-    private static Dictionary<string, int> createTrackedPrototypeIndices()
-    {
-        Dictionary<string, int> result = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (int i = 0; i < TrackedPrototypeIds.Length; i++)
-        {
-            result.Add(TrackedPrototypeIds[i], i);
-        }
-
-        return result;
-    }
-
     private ContractStateSnapshot getContractStateSnapshot()
     {
         Dictionary<string, EstablishedContractSnapshot> establishedById =
@@ -1243,15 +1079,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
     private ProductionSnapshot getProductionSnapshot()
     {
-        BuildingCountSnapshot dataCenters = new BuildingCountSnapshot();
-        BuildingCountSnapshot racks = new BuildingCountSnapshot();
-        BuildingCountSnapshot waterChillers = new BuildingCountSnapshot();
-        ChickenFarmSnapshot slaughteringFarms = new ChickenFarmSnapshot(true);
-        ChickenFarmSnapshot eggsOnlyFarms = new ChickenFarmSnapshot(false);
         List<ChickenFarmEntitySnapshot> chickenFarmEntities =
             new List<ChickenFarmEntitySnapshot>();
-        Dictionary<string, CropFarmSnapshot> cropFarmConfigurations =
-            new Dictionary<string, CropFarmSnapshot>(StringComparer.Ordinal);
         List<CropFarmEntitySnapshot> cropFarmEntities = new List<CropFarmEntitySnapshot>();
         List<MachineInventorySnapshot> machines = new List<MachineInventorySnapshot>();
         List<ProductionEntitySnapshot> productionEntities =
@@ -1325,7 +1154,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 StringComparison.Ordinal);
             DataCenter dataCenterEntity = entity as DataCenter;
             if (TrackedProductionPrototypeIds.Contains(prototypeId)
-                || TrackedPrototypeIndices.ContainsKey(prototypeId)
                 || isOceanWaterPump
                 || isAreaBuilding(entity))
             {
@@ -1361,28 +1189,10 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                     getGroundwaterAquifer(groundwaterPump)));
             }
 
-            if (dataCenterEntity != null
-                && String.Equals(prototypeId, DataCenterPrototypeId, StringComparison.Ordinal))
-            {
-                dataCenters.Add(isRunning, 1);
-                racks.Add(isRunning, dataCenterEntity.RacksCount);
-                continue;
-            }
-
-            if (String.Equals(prototypeId, WaterChillerPrototypeId, StringComparison.Ordinal))
-            {
-                waterChillers.Add(isRunning, 1);
-                continue;
-            }
-
             AnimalFarm animalFarm = entity as AnimalFarm;
             if (animalFarm != null
                 && String.Equals(prototypeId, ChickenFarmPrototypeId, StringComparison.Ordinal))
             {
-                ChickenFarmSnapshot farm = animalFarm.IsSlaughteringEnabled
-                    ? slaughteringFarms
-                    : eggsOnlyFarms;
-                farm.Add(isRunning, animalFarm.AnimalsCount);
                 chickenFarmEntities.Add(new ChickenFarmEntitySnapshot(
                     entity.Id.Value,
                     isRunning,
@@ -1401,13 +1211,10 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             }
 
             string[] schedule = new string[cropFarm.Schedule.Length];
-            StringBuilder key = new StringBuilder(prototypeId);
             for (int i = 0; i < cropFarm.Schedule.Length; i++)
             {
                 CropProto crop = cropFarm.Schedule[i].ValueOrNull;
                 schedule[i] = crop == null ? null : crop.Id.ToString();
-                key.Append('|');
-                key.Append(schedule[i] ?? "null");
             }
 
             int fertilityTargetPercent = cropFarm.FertilityTargetValue.ToIntPercentRounded();
@@ -1420,40 +1227,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
                 fertilityTargetPercent,
                 fertilizerProductId,
                 entityZones));
-            key.Append('|');
-            key.Append(fertilityTargetPercent.ToString(CultureInfo.InvariantCulture));
-            key.Append('|');
-            key.Append(fertilizerProductId ?? "null");
-
-            CropFarmSnapshot cropFarmSnapshot;
-            if (!cropFarmConfigurations.TryGetValue(key.ToString(), out cropFarmSnapshot))
-            {
-                cropFarmSnapshot = new CropFarmSnapshot(
-                    prototypeId,
-                    schedule,
-                    fertilityTargetPercent,
-                    fertilizerProductId);
-                cropFarmConfigurations.Add(key.ToString(), cropFarmSnapshot);
-            }
-
-            cropFarmSnapshot.Add(isRunning);
         }
 
-        List<ChickenFarmSnapshot> chickenFarms = new List<ChickenFarmSnapshot>();
-        if (slaughteringFarms.Built > 0)
-        {
-            chickenFarms.Add(slaughteringFarms);
-        }
-        if (eggsOnlyFarms.Built > 0)
-        {
-            chickenFarms.Add(eggsOnlyFarms);
-        }
-
-        List<CropFarmSnapshot> cropFarms = new List<CropFarmSnapshot>(cropFarmConfigurations.Values);
-        cropFarms.Sort(delegate(CropFarmSnapshot left, CropFarmSnapshot right)
-        {
-            return String.CompareOrdinal(left.Key, right.Key);
-        });
         cropFarmEntities.Sort(delegate(CropFarmEntitySnapshot left, CropFarmEntitySnapshot right)
         {
             return left.EntityId.CompareTo(right.EntityId);
@@ -1484,13 +1259,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         });
 
         return new ProductionSnapshot(
-            dataCenters,
-            racks,
-            waterChillers,
             getNamedLogisticsZones(),
-            chickenFarms,
             chickenFarmEntities,
-            cropFarms,
             cropFarmEntities,
             machines,
             productionEntities,
@@ -2180,45 +1950,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         return result;
     }
 
-    private void initializeTrackedBuildingCounts()
-    {
-        Array.Clear(m_builtBuildings, 0, m_builtBuildings.Length);
-        Array.Clear(m_runningBuildings, 0, m_runningBuildings.Length);
-        m_trackedEntities.Clear();
-
-        foreach (IEntity entity in m_entitiesManager.Entities)
-        {
-            syncTrackedEntity(entity);
-        }
-    }
-
-    private void onEntityAdded(IEntity entity)
-    {
-        syncTrackedEntity(entity);
-    }
-
-    private void onEntityRemoved(IEntity entity)
-    {
-        removeTrackedEntity(entity.Id);
-    }
-
-    private void onEntityPauseStateChanged(IEntity entity, bool isPaused)
-    {
-        syncTrackedEntity(entity);
-    }
-
-    private void onEntityConstructionStateChanged(
-        IStaticEntity entity,
-        ConstructionState constructionState)
-    {
-        syncTrackedEntity(entity);
-    }
-
-    private void onEntityUpgraded(IUpgradableEntity entity, IEntityProto newPrototype)
-    {
-        syncTrackedEntity(entity);
-    }
-
     private void onNewMonthEnd()
     {
         refreshHistorySnapshots();
@@ -2251,59 +1982,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
         m_hydrogenFuel = getHydrogenFuelHistory();
         m_generationByType = getGenerationHistory();
-    }
-
-    private void syncTrackedEntity(IEntity entity)
-    {
-        TrackedEntityState previous;
-        if (m_trackedEntities.TryGetValue(entity.Id, out previous))
-        {
-            m_builtBuildings[previous.Index]--;
-            if (previous.IsRunning)
-            {
-                m_runningBuildings[previous.Index]--;
-            }
-
-            m_trackedEntities.Remove(entity.Id);
-        }
-
-        int index;
-        if (!TrackedPrototypeIndices.TryGetValue(entity.Prototype.Id.ToString(), out index))
-        {
-            return;
-        }
-
-        IStaticEntity staticEntity = entity as IStaticEntity;
-        if (entity.IsDestroyed || (staticEntity != null && !staticEntity.IsConstructed))
-        {
-            return;
-        }
-
-        bool isRunning = !entity.IsPaused;
-        m_builtBuildings[index]++;
-        if (isRunning)
-        {
-            m_runningBuildings[index]++;
-        }
-
-        m_trackedEntities.Add(entity.Id, new TrackedEntityState(index, isRunning));
-    }
-
-    private void removeTrackedEntity(EntityId entityId)
-    {
-        TrackedEntityState previous;
-        if (!m_trackedEntities.TryGetValue(entityId, out previous))
-        {
-            return;
-        }
-
-        m_builtBuildings[previous.Index]--;
-        if (previous.IsRunning)
-        {
-            m_runningBuildings[previous.Index]--;
-        }
-
-        m_trackedEntities.Remove(entityId);
     }
 
     private void queueSnapshotWrite(string json)
@@ -2708,24 +2386,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
-    private static void appendBuildingCount(
-        StringBuilder json,
-        string name,
-        BuildingCountSnapshot count,
-        bool trailingComma)
-    {
-        json.Append('"');
-        json.Append(name);
-        json.Append("\":{");
-        appendNumber(json, "built", count.Built, true);
-        appendNumber(json, "running", count.Running, false);
-        json.Append('}');
-        if (trailingComma)
-        {
-            json.Append(',');
-        }
-    }
-
     private static void appendString(
         StringBuilder json,
         string name,
@@ -2981,46 +2641,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
     }
 
-    private sealed class BuildingCountSnapshot
-    {
-        public int Built;
-        public int Running;
-
-        public void Add(bool isRunning, int count)
-        {
-            Built += count;
-            if (isRunning)
-            {
-                Running += count;
-            }
-        }
-    }
-
-    private sealed class ChickenFarmSnapshot
-    {
-        public readonly bool Slaughtering;
-        public int Built;
-        public int Running;
-        public int Chickens;
-        public int RunningChickens;
-
-        public ChickenFarmSnapshot(bool slaughtering)
-        {
-            Slaughtering = slaughtering;
-        }
-
-        public void Add(bool isRunning, int chickens)
-        {
-            Built++;
-            Chickens += chickens;
-            if (isRunning)
-            {
-                Running++;
-                RunningChickens += chickens;
-            }
-        }
-    }
-
     private sealed class ChickenFarmEntitySnapshot
     {
         public readonly int EntityId;
@@ -3041,41 +2661,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             Slaughtering = slaughtering;
             Chickens = chickens;
             Zones = zones;
-        }
-    }
-
-    private sealed class CropFarmSnapshot
-    {
-        public readonly string PrototypeId;
-        public readonly string[] Schedule;
-        public readonly int FertilityTargetPercent;
-        public readonly string FertilizerProductId;
-        public readonly string Key;
-        public int Built;
-        public int Running;
-
-        public CropFarmSnapshot(
-            string prototypeId,
-            string[] schedule,
-            int fertilityTargetPercent,
-            string fertilizerProductId)
-        {
-            PrototypeId = prototypeId;
-            Schedule = schedule;
-            FertilityTargetPercent = fertilityTargetPercent;
-            FertilizerProductId = fertilizerProductId;
-            Key = prototypeId + "|" + String.Join("|", schedule) + "|"
-                + fertilityTargetPercent.ToString(CultureInfo.InvariantCulture) + "|"
-                + (fertilizerProductId ?? "null");
-        }
-
-        public void Add(bool isRunning)
-        {
-            Built++;
-            if (isRunning)
-            {
-                Running++;
-            }
         }
     }
 
@@ -3110,13 +2695,8 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 
     private sealed class ProductionSnapshot
     {
-        public readonly BuildingCountSnapshot DataCenters;
-        public readonly BuildingCountSnapshot Racks;
-        public readonly BuildingCountSnapshot WaterChillers;
         public readonly List<LogisticsZoneSnapshot> LogisticsZones;
-        public readonly List<ChickenFarmSnapshot> ChickenFarms;
         public readonly List<ChickenFarmEntitySnapshot> ChickenFarmEntities;
-        public readonly List<CropFarmSnapshot> CropFarms;
         public readonly List<CropFarmEntitySnapshot> CropFarmEntities;
         public readonly List<MachineInventorySnapshot> Machines;
         public readonly List<ProductionEntitySnapshot> ProductionEntities;
@@ -3124,26 +2704,16 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public readonly List<MineTowerSnapshot> MineTowers;
 
         public ProductionSnapshot(
-            BuildingCountSnapshot dataCenters,
-            BuildingCountSnapshot racks,
-            BuildingCountSnapshot waterChillers,
             List<LogisticsZoneSnapshot> logisticsZones,
-            List<ChickenFarmSnapshot> chickenFarms,
             List<ChickenFarmEntitySnapshot> chickenFarmEntities,
-            List<CropFarmSnapshot> cropFarms,
             List<CropFarmEntitySnapshot> cropFarmEntities,
             List<MachineInventorySnapshot> machines,
             List<ProductionEntitySnapshot> productionEntities,
             List<AreaEntitySnapshot> areaEntities,
             List<MineTowerSnapshot> mineTowers)
         {
-            DataCenters = dataCenters;
-            Racks = racks;
-            WaterChillers = waterChillers;
             LogisticsZones = logisticsZones;
-            ChickenFarms = chickenFarms;
             ChickenFarmEntities = chickenFarmEntities;
-            CropFarms = cropFarms;
             CropFarmEntities = cropFarmEntities;
             Machines = machines;
             ProductionEntities = productionEntities;
@@ -3552,18 +3122,6 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         public int EnabledLevel;
         public int ActiveLevel;
         public string InactiveReason;
-    }
-
-    private sealed class TrackedEntityState
-    {
-        public readonly int Index;
-        public readonly bool IsRunning;
-
-        public TrackedEntityState(int index, bool isRunning)
-        {
-            Index = index;
-            IsRunning = isRunning;
-        }
     }
 
     private sealed class FuelHistory

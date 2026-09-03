@@ -1,4 +1,4 @@
-export interface ContractRoutePlan {
+interface ContractRoutePlan {
   /** False forecasts this route as unavailable without changing the game. */
   enabled?: boolean
   /** Fixed import allocation, or null/omitted to follow the remaining factory demand. */

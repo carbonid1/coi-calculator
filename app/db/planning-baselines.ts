@@ -19,14 +19,12 @@ export const emptyPlanningBaselines = {
 
 const separatelyModeledGenerationPrototypeIds = new Set(["SolarPanel", "SolarPanelMono"]);
 
-export const isSeparatelyModeledGenerationPrototype = (prototypeId: string) =>
+const isSeparatelyModeledGenerationPrototype = (prototypeId: string) =>
   separatelyModeledGenerationPrototypeIds.has(prototypeId);
 
 export const resolvePlanningBaselines = (
-  snapshot: PlanningHistorySnapshot | null,
+  snapshot: PlanningHistorySnapshot,
 ): PlanningBaselines => {
-  if (!snapshot) return emptyPlanningBaselines;
-
   const generationTypes = snapshot.history.electricityGeneration.byType.filter(
     generation =>
       generation.sampleMonths > 0 &&

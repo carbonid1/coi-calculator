@@ -38,5 +38,3 @@ export const createReservesModule = (balances: ReserveBalances | null): Module =
     defaultPresetId: "synced-reserves",
   };
 };
-
-export const reserves = createReservesModule(null);

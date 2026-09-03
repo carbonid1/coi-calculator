@@ -10,7 +10,7 @@ import {
   getCropFarmOwnerZone,
 } from "./crop-farm-areas";
 import { defaultArea } from "./default";
-import { modules, type Module } from "./modules";
+import { type Module } from "./modules";
 
 const area = (
   zoneId: number,
@@ -63,10 +63,6 @@ const farm = (
 });
 
 describe("synced crop-farm areas", () => {
-  it("has no fixed Greenhouses module", () => {
-    expect(modules.map(module => module.id)).not.toContain("greenhouses");
-  });
-
   it("specializes any generated area using its exact synced farm configuration", () => {
     const farmModule = createCropFarmAreaModule(area(17), [farm()]);
     const recipe = farmModule.recipes?.find(candidate => candidate.farmFertilizer);

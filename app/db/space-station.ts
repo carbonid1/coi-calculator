@@ -71,7 +71,7 @@ export const rocketIiGameData = {
 const SPACE_STATION_CREW_ROTATION_CYCLES = 24;
 
 /** Maximum Space Station level in Captain of Industry v0.8.7. */
-export const maximumSpaceStationLevel = 4;
+const maximumSpaceStationLevel = 4;
 
 const normalizeLevel = (level: number) => Math.max(0, Math.trunc(level));
 const roundRate = (value: number) => parseFloat(value.toFixed(6));

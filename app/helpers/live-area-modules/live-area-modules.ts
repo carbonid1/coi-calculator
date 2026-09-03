@@ -68,7 +68,7 @@ const fixedAreaRecipeByPrototypeId = new Map<string, Recipe>(
 )
 
 export const DEFAULT_LIVE_AREA_ZONE_ID = -1
-export const DEFAULT_LIVE_AREA_MODULE_ID = 'general'
+const DEFAULT_LIVE_AREA_MODULE_ID = 'general'
 
 const hasNamedZone = (entity: Pick<SyncedAreaEntity, 'zones'>) =>
   entity.zones.some(zone => Boolean(zone.name))
@@ -208,7 +208,6 @@ const moduleIdForZone = (zoneId: number) =>
 export const createLiveAreaModules = (
   zones: readonly SyncedLogisticsZoneRef[],
   entities: readonly SyncedAreaEntity[],
-  _configuredModules: readonly Module[],
   plans: LiveAreaPlans = {},
   mineTowers?: readonly SyncedMineTower[],
 ): Module[] => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MINES_MODULE_ID } from "../db/modules/mines";
-import { modules, type Module } from "../db/modules/modules";
+import { type Module } from "../db/modules/modules";
 import { RESERVES_MODULE_ID } from "../db/modules/reserves";
 import {
   getModuleIcon,
@@ -90,7 +90,7 @@ describe("ModuleSwitcher", () => {
 
   it("places dashboards in Views and game areas in Synced", () => {
     const { presetModules, syncedModules, viewModules } = getModuleTabGroups(
-      modules,
+      [syncedDefault, syncedChickenFarms, minesView, reservesView],
       new Set([MINES_MODULE_ID, RESERVES_MODULE_ID]),
     );
 
