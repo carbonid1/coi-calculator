@@ -2,6 +2,9 @@ import { expect, it } from "vitest";
 
 import { type SyncedProductionEntity } from "../../game-state";
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
+import { calculateBuildingDiagnostics } from "../../helpers/building-diagnostics/building-diagnostics";
+import { calculateNet } from "../../helpers/calculate/calculate";
+import { getPlannedConfigurationSummaries } from "../../helpers/planned-builds/planned-builds";
 import {
   attachSolarPanelsToModule,
   resolveSolarPanelModuleAssignments,
@@ -159,12 +162,23 @@ it("keeps a fixed target planned until enough built panels are running", () => {
   const mono = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]).lines.find(
     line => line.recipe.id === "solar-panel-mono",
   );
+  const calculation = calculateNet(
+    buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]).lines,
+  );
+  const diagnostics = calculateBuildingDiagnostics(
+    [moduleWithSolar],
+    calculation.allResourceFlows,
+    calculation.regularResults,
+  );
 
   expect(mono).toMatchObject({
     activeBuildings: 25,
     builtBuildings: 25,
     dataSource: "planned",
   });
+  expect(getPlannedConfigurationSummaries([moduleWithSolar], diagnostics)).toMatchObject([{
+    key: "general:solar-panel-mono",
+  }]);
 });
 
 it("uses the live count after a solar target is complete", () => {

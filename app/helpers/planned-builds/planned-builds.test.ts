@@ -75,7 +75,7 @@ describe("planned build summaries", () => {
   });
 
   it("groups planned settings applied to existing buildings", () => {
-    const summaries = getPlannedConfigurationSummaries([
+    const summaries = getPlannedConfigurationSummaries([], [
       diagnostic({
         key: "farms:first",
         moduleId: "farms",
@@ -127,6 +127,37 @@ describe("planned build summaries", () => {
         count: 1,
       },
     ]);
+  });
+
+  it("omits calculation-only planned operating assumptions", () => {
+    const plannedModule: Module = {
+      id: "general",
+      name: "Default",
+      description: "",
+      builtBuildings: { "cracking-unit": 3 },
+      defaultPresetId: "plan",
+      presets: [{
+        id: "plan",
+        name: "Plan",
+        description: "",
+        activeBuildings: { "cracking-unit": 3 },
+        fixed: ["cracking-unit"],
+        nonActionablePlanRecipeIds: ["cracking-unit"],
+      }],
+    };
+    const summaries = getPlannedConfigurationSummaries([plannedModule], [
+      diagnostic({
+        key: "general:cracking-unit",
+        moduleId: "general",
+        moduleName: "Default",
+        buildingName: "Cracking Unit",
+        recipeName: "FuelGasReforming",
+        active: 3,
+        built: 3,
+      }),
+    ]);
+
+    expect(summaries).toEqual([]);
   });
 
   it("keeps sequenced pause reminders in the checklist", () => {

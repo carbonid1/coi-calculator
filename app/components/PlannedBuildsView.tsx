@@ -58,6 +58,7 @@ const getChecklistLocation = (planned: {
 const mismatchIcons = {
   assign: Tags,
   build: Hammer,
+  "cancel-build": CircleMinus,
   pause: CirclePause,
   unpause: Play,
   upgrade: Hammer,
@@ -109,7 +110,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
   const mismatchKeys = new Set(planMismatches.map(({ key }) => key));
   const plannedBuilds = getPlannedBuildSummaries(diagnostics)
     .filter(({ key }) => !mismatchKeys.has(key));
-  const plannedConfigurations = getPlannedConfigurationSummaries(diagnostics)
+  const plannedConfigurations = getPlannedConfigurationSummaries(modules, diagnostics)
     .filter(({ key }) => !mismatchKeys.has(key));
   const plannedFollowUps = getPlannedFollowUpSummaries(modules, diagnostics);
   const actionableMachineZones = machineZones.filter(zone => zone.needsAssignment);

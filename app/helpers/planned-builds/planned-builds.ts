@@ -80,27 +80,39 @@ export const getPlannedBuildSummaries = (
   ));
 
 export const getPlannedConfigurationSummaries = (
+  modules: Module[],
   diagnostics: BuildingDiagnostic[],
-): PlannedConfigurationSummary[] => diagnostics.flatMap((diagnostic) => {
-  if (
-    !diagnostic.plannedCapacity
-    || diagnostic.active <= EPSILON
-    || diagnostic.active > diagnostic.built + EPSILON
-  ) return [];
+): PlannedConfigurationSummary[] => {
+  const nonActionableKeys = new Set(modules.flatMap((module) => {
+    const preset = module.presets.find(({ id }) => id === module.defaultPresetId);
 
-  return [{
-    key: diagnostic.key,
-    moduleName: diagnostic.moduleName,
-    buildingName: diagnostic.buildingName,
-    recipeName: diagnostic.recipeName,
-    count: Math.ceil(diagnostic.active - EPSILON),
-    diagnostic,
-  }];
-}).toSorted((a, b) => (
+    return (preset?.nonActionablePlanRecipeIds ?? []).map(
+      recipeId => `${module.id}:${recipeId}`,
+    );
+  }));
+
+  return diagnostics.flatMap((diagnostic) => {
+    if (
+      !diagnostic.plannedCapacity
+      || diagnostic.active <= EPSILON
+      || diagnostic.active > diagnostic.built + EPSILON
+      || nonActionableKeys.has(diagnostic.key)
+    ) return [];
+
+    return [{
+      key: diagnostic.key,
+      moduleName: diagnostic.moduleName,
+      buildingName: diagnostic.buildingName,
+      recipeName: diagnostic.recipeName,
+      count: Math.ceil(diagnostic.active - EPSILON),
+      diagnostic,
+    }];
+  }).toSorted((a, b) => (
     a.moduleName.localeCompare(b.moduleName)
     || a.buildingName.localeCompare(b.buildingName)
     || a.recipeName.localeCompare(b.recipeName)
   ));
+};
 
 export const getPlannedFollowUpSummaries = (
   modules: Module[],

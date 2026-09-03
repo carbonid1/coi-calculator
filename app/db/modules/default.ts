@@ -8,6 +8,10 @@ import {
   type Recipe,
 } from '../recipes'
 import { type Module, type PlanMismatchAction } from './modules'
+import {
+  createAtLeastBuildingActions,
+  createAtMostBuildingActions,
+} from './plan-mismatch'
 
 /** Stable internal ID retained so existing deep links and saved UI state keep working. */
 export const DEFAULT_MODULE_ID = 'general'
@@ -17,6 +21,12 @@ const cookingOilDieselRecipeId = 'chemical-plant-ii-cooking-oil-diesel'
 const cookingOilDieselGameBuildingId = 'ChemicalPlant2'
 const cookingOilDieselGameRecipeId = 'EthanolCookingOilReforming'
 const cookingOilDieselTarget = 1
+const crackingUnitDieselRecipeId = 'cracking-unit-fuel-gas-diesel'
+const crackingUnitDieselGameBuildingId = 'HydroCrackerT1'
+const crackingUnitDieselGameRecipeId = 'FuelGasReforming'
+
+export const plannedCrackingUnitDieselTarget = 3
+
 const railPartsGameBuildingId = 'AssemblyRoboticT2'
 const railPartsGameRecipeId = 'RailPartsAssembly'
 
@@ -29,20 +39,29 @@ export const plannedResearchLabTarget = 2
 export const spaceResearchPointsPerLab = 48
 
 const cookingOilDieselRecipe = recipes.find(recipe => recipe.id === cookingOilDieselRecipeId)
+const crackingUnitDieselRecipe = recipes.find(recipe => recipe.id === crackingUnitDieselRecipeId)
 
 if (!cookingOilDieselRecipe) {
   throw new Error(`Missing Default plan recipe: ${cookingOilDieselRecipeId}`)
+}
+
+if (!crackingUnitDieselRecipe) {
+  throw new Error(`Missing Default plan recipe: ${crackingUnitDieselRecipeId}`)
 }
 
 export const plannedNewDefaultBuildings = {
   [cookingOilDieselRecipeId]: cookingOilDieselTarget,
 } as const
 
-export const plannedDefaultBuildings = plannedNewDefaultBuildings
+export const plannedDefaultBuildings = {
+  ...plannedNewDefaultBuildings,
+  [crackingUnitDieselRecipeId]: plannedCrackingUnitDieselTarget,
+} as const
 export const plannedDefaultBuiltBuildings = {
   [cookingOilDieselRecipeId]: 0,
+  [crackingUnitDieselRecipeId]: 0,
 } as const
-export const unplacedPlannedDefaultBuildings = plannedNewDefaultBuildings
+export const unplacedPlannedDefaultBuildings = plannedDefaultBuildings
 
 const getDefaultPlanRecipe = (module: Module) => (
   module.recipes?.find(recipe => matchesGameRecipe(
@@ -51,6 +70,15 @@ const getDefaultPlanRecipe = (module: Module) => (
     cookingOilDieselGameRecipeId,
   ))
   ?? cookingOilDieselRecipe
+)
+
+const getCrackingUnitDieselPlanRecipe = (module: Module) => (
+  module.recipes?.find(recipe => matchesGameRecipe(
+    recipe,
+    crackingUnitDieselGameBuildingId,
+    crackingUnitDieselGameRecipeId,
+  ))
+  ?? crackingUnitDieselRecipe
 )
 
 const getPreset = (module: Module) => (
@@ -149,6 +177,117 @@ const applyCookingOilDieselPlan = (module: Module): Module => {
         ...preset.dataSources,
         [recipeId]: planSatisfied ? 'synced' : 'planned',
       },
+      unplacedPlannedBuildings: {
+        ...Object.fromEntries(
+          Object.entries(preset.unplacedPlannedBuildings ?? {})
+            .filter(([plannedRecipeId]) => plannedRecipeId !== recipeId),
+        ),
+        ...(unplaced > 0 ? { [recipeId]: unplaced } : {}),
+      },
+      planMismatches: [
+        ...(preset.planMismatches ?? []).filter(mismatch => mismatch.recipeId !== recipeId),
+        ...planMismatch,
+      ],
+    })),
+  }
+}
+
+const applyCrackingUnitDieselPlan = (module: Module): Module => {
+  const sourcePreset = getPreset(module)
+
+  if (!sourcePreset) return module
+
+  const planRecipe = getCrackingUnitDieselPlanRecipe(module)
+  const recipeId = planRecipe.id
+  const built = sourcePreset.builtBuildings?.[recipeId]
+    ?? module.builtBuildings[recipeId]
+    ?? 0
+  const running = sourcePreset.currentActiveBuildings?.[recipeId]
+    ?? sourcePreset.activeBuildings[recipeId]
+    ?? 0
+  const constructionGhosts = sourcePreset.constructionGhosts?.[recipeId] ?? 0
+  const projected = Math.max(
+    sourcePreset.activeBuildings[recipeId] ?? 0,
+    running + constructionGhosts,
+  )
+  const planSatisfied = projected === plannedCrackingUnitDieselTarget
+  const direction = projected < plannedCrackingUnitDieselTarget
+    ? 'at-least' as const
+    : 'at-most' as const
+  const excess = Math.max(0, projected - plannedCrackingUnitDieselTarget)
+  const cancelBuildCount = Math.min(constructionGhosts, excess)
+  const pauseCount = excess - cancelBuildCount
+  const unplaced = Math.max(
+    0,
+    plannedCrackingUnitDieselTarget - built - constructionGhosts,
+  )
+  const planMismatch = planSatisfied
+    ? []
+    : [{
+        recipeId,
+        current: projected,
+        currentSource: 'synced' as const,
+        target: plannedCrackingUnitDieselTarget,
+        direction,
+        format: 'count' as const,
+        currentLabel: constructionGhosts > 0
+          ? `${running} running · ${constructionGhosts} under construction`
+          : undefined,
+        actions: direction === 'at-least'
+          ? createAtLeastBuildingActions({
+              built: built + constructionGhosts,
+              running: projected,
+              target: plannedCrackingUnitDieselTarget,
+              name: 'Cracking Unit',
+            })
+          : [
+              ...(cancelBuildCount > 0
+                ? [{
+                    type: 'cancel-build' as const,
+                    label: `Cancel construction of ${cancelBuildCount} Cracking Unit${
+                      cancelBuildCount === 1 ? '' : 's'
+                    }`,
+                  }]
+                : []),
+              ...(pauseCount > 0
+                ? createAtMostBuildingActions({
+                    running,
+                    target: running - pauseCount,
+                    name: 'Cracking Unit',
+                  })
+                : []),
+            ],
+      }]
+  const planRecipeIsRuntime = module.recipes?.some(recipe => recipe.id === recipeId) ?? false
+  const recipesWithPlan = planRecipeIsRuntime
+    ? module.recipes
+    : [...(module.recipes ?? []), planRecipe]
+
+  return {
+    ...module,
+    recipes: recipesWithPlan,
+    builtBuildings: {
+      ...module.builtBuildings,
+      [recipeId]: built,
+    },
+    presets: module.presets.map(preset => ({
+      ...preset,
+      builtBuildings: {
+        ...preset.builtBuildings,
+        [recipeId]: built,
+      },
+      activeBuildings: {
+        ...preset.activeBuildings,
+        [recipeId]: plannedCrackingUnitDieselTarget,
+      },
+      dataSources: {
+        ...preset.dataSources,
+        [recipeId]: 'planned',
+      },
+      fixed: [...new Set([...preset.fixed, recipeId])],
+      nonActionablePlanRecipeIds: [
+        ...new Set([...(preset.nonActionablePlanRecipeIds ?? []), recipeId]),
+      ],
       unplacedPlannedBuildings: {
         ...Object.fromEntries(
           Object.entries(preset.unplacedPlannedBuildings ?? {})
@@ -283,7 +422,9 @@ export const applyDefaultAreaPlan = (
   module: Module,
   researchMode: ResearchMode = baseConfig.researchMode,
 ) => applyResearchLabPlan(
-  applyCookingOilDieselPlan(applyObservedRailPartsLoad(module)),
+  applyCrackingUnitDieselPlan(
+    applyCookingOilDieselPlan(applyObservedRailPartsLoad(module)),
+  ),
   researchMode,
 )
 

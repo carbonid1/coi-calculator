@@ -40,6 +40,8 @@ export interface Preset {
   electricityDispatchTargets?: Record<string, number>;
   /** Sequenced reminders that remain after the projected operating plan is applied. */
   plannedFollowUps?: PlannedFollowUp[];
+  /** Planned calculation overrides that require no player action. */
+  nonActionablePlanRecipeIds?: string[];
   /** Unmet directional targets shown only in the consolidated Factory Total checklist. */
   planMismatches?: PlanMismatch[];
 }
@@ -96,6 +98,7 @@ export interface PlanMismatchAction {
   type:
     | "assign"
     | "build"
+    | "cancel-build"
     | "pause"
     | "unpause"
     | "upgrade"

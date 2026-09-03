@@ -4,12 +4,14 @@ import { buildModuleLines } from '../../helpers/build-module-lines/build-module-
 import { calculateBuildingDiagnostics } from '../../helpers/building-diagnostics/building-diagnostics'
 import { calculateBuildingStats } from '../../helpers/building-stats/building-stats'
 import { calculateNet } from '../../helpers/calculate/calculate'
+import { getPlannedConfigurationSummaries } from '../../helpers/planned-builds/planned-builds'
 import { getPresetResourceDemands } from '../../helpers/preset-resource-demands/preset-resource-demands'
 import { type Recipe } from '../recipes'
 import {
   applyDefaultAreaPlan,
   createDefaultModule,
   defaultArea,
+  plannedCrackingUnitDieselTarget,
   plannedNewDefaultBuildings,
 } from './default'
 import { type Module } from './modules'
@@ -41,6 +43,29 @@ const runtimeResearchLab: Recipe = {
   group: 'production',
   inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
   outputs: [{ resourceId: 'recyclables', quantity: 48 }],
+}
+
+const runtimeCrackingUnitDiesel: Recipe = {
+  id: 'general:HydroCrackerT1:FuelGasReforming',
+  gameBuildingId: 'HydroCrackerT1',
+  gameRecipeId: 'FuelGasReforming',
+  name: 'Fuel Gas reforming',
+  building: 'Cracking Unit',
+  group: 'production',
+  cycleDurationSeconds: 20,
+  balanceBy: 'input',
+  balanceInputIds: ['fuelGas'],
+  balanceOutputIds: ['diesel'],
+  allocation: 'surplus',
+  allocationPriority: 100,
+  inputs: [
+    { resourceId: 'fuelGas', quantity: 36 },
+    { resourceId: 'oxygen', quantity: 18 },
+  ],
+  outputs: [
+    { resourceId: 'diesel', quantity: 24 },
+    { resourceId: 'water', quantity: 6 },
+  ],
 }
 
 const runtimeRailParts: Recipe = {
@@ -132,25 +157,76 @@ const syncedDefaultWithResearchLabs = ({
   }
 }
 
+const syncedDefaultWithCrackingUnits = ({
+  built,
+  ghosts = 0,
+  running,
+}: {
+  built: number
+  ghosts?: number
+  running: number
+}): Module => {
+  const defaultModule = syncedDefault({ built: 1, running: 1 })
+  const preset = defaultModule.presets[0]
+
+  if (!preset) throw new Error('Missing synced Default preset')
+
+  return {
+    ...defaultModule,
+    builtBuildings: {
+      ...defaultModule.builtBuildings,
+      [runtimeCrackingUnitDiesel.id]: built,
+    },
+    recipes: [...(defaultModule.recipes ?? []), runtimeCrackingUnitDiesel],
+    presets: [{
+      ...preset,
+      activeBuildings: {
+        ...preset.activeBuildings,
+        [runtimeCrackingUnitDiesel.id]: running + ghosts,
+      },
+      currentActiveBuildings: {
+        ...preset.currentActiveBuildings,
+        [runtimeCrackingUnitDiesel.id]: running,
+      },
+      builtBuildings: {
+        ...preset.builtBuildings,
+        [runtimeCrackingUnitDiesel.id]: built,
+      },
+      dataSources: {
+        ...preset.dataSources,
+        [runtimeCrackingUnitDiesel.id]: 'synced',
+      },
+      constructionGhosts: {
+        ...preset.constructionGhosts,
+        [runtimeCrackingUnitDiesel.id]: ghosts,
+      },
+    }],
+  }
+}
+
 describe('Default area plans', () => {
   it('contains no manually modeled current production', () => {
     expect(defaultArea.builtBuildings).toEqual({
       'chemical-plant-ii-cooking-oil-diesel': 0,
+      'cracking-unit-fuel-gas-diesel': 0,
     })
     expect(plannedNewDefaultBuildings).toEqual({
       'chemical-plant-ii-cooking-oil-diesel': 1,
     })
     expect(defaultArea.presets[0]?.dataSources).toEqual({
       'chemical-plant-ii-cooking-oil-diesel': 'planned',
+      'cracking-unit-fuel-gas-diesel': 'planned',
     })
   })
 
   it('binds the plan to the equivalent runtime recipe', () => {
     const defaultModule = applyDefaultAreaPlan(syncedDefault({ built: 0, running: 0 }))
     const preset = defaultModule.presets[0]
-    const line = buildModuleLines(defaultModule, preset ?? null).lines[0]
+    const line = buildModuleLines(defaultModule, preset ?? null).lines.find(
+      candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
+    )
 
-    expect(defaultModule.recipes).toEqual([runtimeCookingOilDiesel])
+    expect(defaultModule.recipes).toContain(runtimeCookingOilDiesel)
     expect(line).toMatchObject({
       activeBuildings: 1,
       builtBuildings: 0,
@@ -159,14 +235,12 @@ describe('Default area plans', () => {
       recipe: { id: runtimeCookingOilDiesel.id },
       unplacedPlannedBuildings: 1,
     })
-    expect(preset?.planMismatches).toEqual([
-      expect.objectContaining({
-        recipeId: runtimeCookingOilDiesel.id,
-        current: 0,
-        target: 1,
-        actions: [{ type: 'build', label: 'Build 1 Chemical Plant II' }],
-      }),
-    ])
+    expect(preset?.planMismatches).toContainEqual(expect.objectContaining({
+      recipeId: runtimeCookingOilDiesel.id,
+      current: 0,
+      target: 1,
+      actions: [{ type: 'build', label: 'Build 1 Chemical Plant II' }],
+    }))
   })
 
   it('does not bind a matching recipe ID from a different building prototype', () => {
@@ -180,10 +254,10 @@ describe('Default area plans', () => {
     const defaultModule = applyDefaultAreaPlan(synced)
     const preset = defaultModule.presets[0]
 
-    expect(defaultModule.recipes).toEqual([
+    expect(defaultModule.recipes).toEqual(expect.arrayContaining([
       wrongBuildingRecipe,
       expect.objectContaining({ id: 'chemical-plant-ii-cooking-oil-diesel' }),
-    ])
+    ]))
     expect(preset?.activeBuildings[wrongBuildingRecipe.id]).toBe(1)
     expect(preset?.activeBuildings['chemical-plant-ii-cooking-oil-diesel']).toBe(1)
     expect(preset?.dataSources?.['chemical-plant-ii-cooking-oil-diesel']).toBe('planned')
@@ -199,7 +273,9 @@ describe('Default area plans', () => {
 
     const defaultModule = applyDefaultAreaPlan(synced)
     const preset = defaultModule.presets[0]
-    const line = buildModuleLines(defaultModule, preset ?? null).lines[0]
+    const line = buildModuleLines(defaultModule, preset ?? null).lines.find(
+      candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
+    )
 
     expect(line).toMatchObject({
       activeBuildings: 1,
@@ -208,14 +284,18 @@ describe('Default area plans', () => {
       dataSource: 'synced',
       unplacedPlannedBuildings: 0,
     })
-    expect(preset?.unplacedPlannedBuildings).toEqual({})
-    expect(preset?.planMismatches).toEqual([])
+    expect(preset?.unplacedPlannedBuildings?.[runtimeCookingOilDiesel.id]).toBeUndefined()
+    expect(preset?.planMismatches).not.toContainEqual(expect.objectContaining({
+      recipeId: runtimeCookingOilDiesel.id,
+    }))
   })
 
   it('accepts a synced construction ghost as projected capacity', () => {
     const defaultModule = applyDefaultAreaPlan(syncedDefault({ built: 0, running: 0, ghosts: 1 }))
     const preset = defaultModule.presets[0]
-    const line = buildModuleLines(defaultModule, preset ?? null).lines[0]
+    const line = buildModuleLines(defaultModule, preset ?? null).lines.find(
+      candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
+    )
 
     expect(line).toMatchObject({
       activeBuildings: 1,
@@ -223,7 +303,90 @@ describe('Default area plans', () => {
       dataSource: 'synced',
       unplacedPlannedBuildings: 0,
     })
-    expect(preset?.planMismatches).toEqual([])
+    expect(preset?.planMismatches).not.toContainEqual(expect.objectContaining({
+      recipeId: runtimeCookingOilDiesel.id,
+    }))
+  })
+
+  it('plans three synced Diesel Cracking Units at full load', () => {
+    const defaultModule = applyDefaultAreaPlan(
+      syncedDefaultWithCrackingUnits({ built: 3, running: 3 }),
+    )
+    const preset = defaultModule.presets[0]
+    const crackingLine = buildModuleLines(defaultModule, preset ?? null).lines.find(
+      line => line.recipe.id === runtimeCrackingUnitDiesel.id,
+    )
+
+    if (!crackingLine) throw new Error('Missing planned Cracking Unit line')
+
+    const calculation = calculateNet([crackingLine])
+    const diagnostics = calculateBuildingDiagnostics(
+      [defaultModule],
+      calculation.allResourceFlows,
+      calculation.regularResults,
+    )
+
+    expect(plannedCrackingUnitDieselTarget).toBe(3)
+    expect(crackingLine).toMatchObject({
+      activeBuildings: 3,
+      builtBuildings: 3,
+      currentActiveBuildings: 3,
+      dataSource: 'planned',
+      operatingMode: 'fixed',
+    })
+    expect(calculation.allResourceFlows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ resourceId: 'fuelGas', net: -108 }),
+      expect.objectContaining({ resourceId: 'oxygen', net: -54 }),
+      expect.objectContaining({ resourceId: 'diesel', net: 72 }),
+      expect.objectContaining({ resourceId: 'water', net: 18 }),
+    ]))
+    expect(preset?.planMismatches).not.toContainEqual(expect.objectContaining({
+      recipeId: runtimeCrackingUnitDiesel.id,
+    }))
+    expect(getPlannedConfigurationSummaries([defaultModule], diagnostics)).toEqual([])
+  })
+
+  it('keeps the planned Diesel Cracking Unit count at three', () => {
+    const defaultModule = applyDefaultAreaPlan(
+      syncedDefaultWithCrackingUnits({ built: 4, running: 4 }),
+    )
+    const preset = defaultModule.presets[0]
+    const crackingLine = buildModuleLines(defaultModule, preset ?? null).lines.find(
+      line => line.recipe.id === runtimeCrackingUnitDiesel.id,
+    )
+
+    expect(crackingLine).toMatchObject({
+      activeBuildings: 3,
+      currentActiveBuildings: 4,
+      dataSource: 'planned',
+      operatingMode: 'fixed',
+    })
+    expect(preset?.planMismatches).toContainEqual(expect.objectContaining({
+      recipeId: runtimeCrackingUnitDiesel.id,
+      current: 4,
+      target: 3,
+      direction: 'at-most',
+      actions: [{ type: 'pause', label: 'Pause 1 Cracking Unit' }],
+    }))
+  })
+
+  it('cancels excess Cracking Unit construction before pausing running capacity', () => {
+    const defaultModule = applyDefaultAreaPlan(
+      syncedDefaultWithCrackingUnits({ built: 3, running: 3, ghosts: 1 }),
+    )
+    const preset = defaultModule.presets[0]
+
+    expect(preset?.planMismatches).toContainEqual(expect.objectContaining({
+      recipeId: runtimeCrackingUnitDiesel.id,
+      current: 4,
+      currentLabel: '3 running · 1 under construction',
+      target: 3,
+      direction: 'at-most',
+      actions: [{
+        type: 'cancel-build',
+        label: 'Cancel construction of 1 Cracking Unit',
+      }],
+    }))
   })
 
   it('plans two paused Research Lab IV buildings as fixed consumption', () => {
