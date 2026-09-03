@@ -1,8 +1,8 @@
+import { type ValueSource } from "../data-source";
 import { isUnboundedDemandSourceMode } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type PassiveResult } from "../helpers/calculate/calculate";
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
 

@@ -69,14 +69,12 @@ const mismatchIcons = {
 
 const formatMismatchState = (mismatch: {
   current: number;
-  currentSource: "default" | "modeled" | "synced";
   target: number;
   direction: "at-least" | "at-most";
   format: "count" | "level" | "animals" | "configuration";
   currentLabel?: string;
   targetLabel?: string;
 }) => {
-  const source = mismatch.currentSource === "synced" ? "Synced" : "Modeled";
   const operator = mismatch.direction === "at-least" ? "≥" : "≤";
   const unit = {
     count: "",
@@ -93,7 +91,7 @@ const formatMismatchState = (mismatch: {
   const current = mismatch.currentLabel ?? formattedCurrent;
   const target = mismatch.targetLabel ?? formattedTarget;
 
-  return `${source} ${current} · planned ${target}`;
+  return `Synced ${current} · planned ${target}`;
 };
 
 export const PlannedBuildsView: React.FC<Props> = ({

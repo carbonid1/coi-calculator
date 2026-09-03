@@ -15,9 +15,7 @@ describe('production card groups', () => {
       emptyRocketInfrastructureConfig,
       {
         rocketRunningConfig: emptyRocketInfrastructureConfig,
-        rocketSource: 'synced',
-        stationPartsAssembly: { built: 1, running: 1, source: 'synced' },
-        stationSource: 'synced',
+        stationPartsAssembly: { built: 1, running: 1 },
       },
     )
     const { lines } = buildModuleLines(station, station.presets[0] ?? null)

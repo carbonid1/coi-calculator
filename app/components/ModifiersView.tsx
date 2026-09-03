@@ -1,6 +1,7 @@
 import { Card, cn } from "@carbonid1/design-system";
 import { Sparkles } from "lucide-react";
 
+import { type ValueSource } from "../data-source";
 import { type ComputingConfig, getRackAllocation } from "../db/computing";
 import { baseConfig } from "../db/config";
 import {
@@ -32,7 +33,6 @@ import { calculateSettlementWaterUse } from "../helpers/modifiers/calculate-sett
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-mine-output";
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {

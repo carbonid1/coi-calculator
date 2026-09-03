@@ -4,11 +4,7 @@ import {
   infiniteResearchCatalog,
   type InfiniteResearchId,
 } from './db/research'
-import {
-  mapReserveResources,
-  type ReserveBalances,
-  reserveResourceCatalog,
-} from './db/reserve-resources'
+import { type ReserveBalances } from './db/reserve-resources'
 
 export const syncedInfrastructureBuildingIds = [
   'electricLocomotiveII',
@@ -355,94 +351,30 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const ROCKET_INFRASTRUCTURE_SCHEMA_VERSION = 14 as const
-const SPACE_STATION_SCHEMA_VERSION = 15 as const
-const PRODUCTION_CONFIG_SCHEMA_VERSION = 16 as const
-
-export const MACHINE_INVENTORY_SCHEMA_VERSION = 17 as const
-export const MACHINE_ZONE_SCHEMA_VERSION = 18 as const
-const CROP_FARM_ENTITY_SCHEMA_VERSION = 19 as const
-const CHICKEN_FARM_ENTITY_SCHEMA_VERSION = 20 as const
-const SAVE_ID_SCHEMA_VERSION = 21 as const
-const PRODUCTION_ENTITY_SCHEMA_VERSION = 22 as const
-
-export const COMPUTING_ENTITY_SCHEMA_VERSION = 23 as const
-export const AREA_INVENTORY_SCHEMA_VERSION = 24 as const
-export const NAMED_AREA_ENTITY_SCHEMA_VERSION = 25 as const
-const GROUNDWATER_RESERVE_SCHEMA_VERSION = 26 as const
-
-export const MAINTENANCE_ENTITY_SCHEMA_VERSION = 27 as const
-export const AREA_GHOST_SCHEMA_VERSION = 28 as const
-const TRAIN_STATION_PRODUCT_SCHEMA_VERSION = 29 as const
-const CAPTAIN_OFFICE_SCHEMA_VERSION = 30 as const
-
-export const TERRAIN_SORTER_SCHEMA_VERSION = 31 as const
-const FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION = 33 as const
-const FORESTRY_CONFIGURATION_SCHEMA_VERSION = 34 as const
-
-export const CONTRACT_STATE_SCHEMA_VERSION = 35 as const
-export const DEFAULT_AREA_ENTITY_SCHEMA_VERSION = 36 as const
-export const OFFICE_CONFIGURATION_SCHEMA_VERSION = 37 as const
-export const COMPACT_AREA_RECIPE_SCHEMA_VERSION = 38 as const
-
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = COMPACT_AREA_RECIPE_SCHEMA_VERSION
-type SupportedGameStateSchemaVersion =
-  | 6
-  | 7
-  | 8
-  | 9
-  | 10
-  | 11
-  | 12
-  | 13
-  | 14
-  | 15
-  | 16
-  | 17
-  | 18
-  | 19
-  | 20
-  | 21
-  | 22
-  | 23
-  | 24
-  | 25
-  | 26
-  | 27
-  | 28
-  | 29
-  | 30
-  | 31
-  | 32
-  | 33
-  | 34
-  | typeof CONTRACT_STATE_SCHEMA_VERSION
-  | typeof DEFAULT_AREA_ENTITY_SCHEMA_VERSION
-  | typeof OFFICE_CONFIGURATION_SCHEMA_VERSION
-  | typeof CURRENT_GAME_STATE_SCHEMA_VERSION
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 38 as const
 
 export interface GameStateSnapshot {
-  schemaVersion: SupportedGameStateSchemaVersion
-  saveId: string | null
+  schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
+  saveId: string
   exportedAtUtc: string
   buildings: Record<SyncedBuildingId, SyncedBuildingCount>
-  spaceStation: SyncedSpaceStationState | null
-  computing: SyncedComputingState | null
+  spaceStation: SyncedSpaceStationState
+  computing: SyncedComputingState
   logisticsZones: SyncedLogisticsZoneRef[]
-  chickenFarms: SyncedChickenFarmState | null
-  cropFarms: SyncedCropFarmState | null
+  chickenFarms: SyncedChickenFarmState
+  cropFarms: SyncedCropFarmState
   machines: SyncedMachineInventoryItem[]
-  groundwater: SyncedGroundwaterState | null
-  contracts: SyncedContractState | null
-  productionEntities: SyncedProductionEntity[] | null
+  groundwater: SyncedGroundwaterState
+  contracts: SyncedContractState
+  productionEntities: SyncedProductionEntity[]
   areaEntities: SyncedAreaEntity[]
   mineTowers: SyncedMineTower[]
   vehicles: {
     workersAssigned: number
   }
-  research: SyncedResearchLevels | null
-  edicts: SyncedEdictStates | null
-  reserves: SyncedReserves | null
+  research: SyncedResearchLevels
+  edicts: SyncedEdictStates
+  reserves: SyncedReserves
   history: {
     windowMonths: 120
     maintenance: Record<'maintenanceI' | 'maintenanceII' | 'maintenanceIII', SyncedHistoryAverage>
@@ -480,11 +412,7 @@ const isSyncedProductRef = (value: unknown): value is SyncedProductRef =>
   typeof value.name === 'string' &&
   value.name.length > 0
 
-const normalizeContractState = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedContractState | null => {
-  if (schemaVersion < CONTRACT_STATE_SCHEMA_VERSION) return null
+const normalizeContractState = (value: unknown): SyncedContractState | null => {
   if (!isUnknownRecord(value)) return null
 
   const established = Array.isArray(value.established) ? value.established : null
@@ -641,10 +569,7 @@ const isChickenFarmEntity = (value: unknown): value is SyncedChickenFarmEntity =
   value.zones.every(isLogisticsZoneRef) &&
   new Set(value.zones.map(zone => zone.id)).size === value.zones.length
 
-const normalizeChickenFarmState = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedChickenFarmState | null => {
+const normalizeChickenFarmState = (value: unknown): SyncedChickenFarmState | null => {
   if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
 
   const configurations = value.configurations.filter(isChickenFarmConfiguration)
@@ -654,10 +579,6 @@ const normalizeChickenFarmState = (
     new Set(configurations.map(({ slaughtering }) => slaughtering)).size !== configurations.length
   )
     return null
-
-  if (schemaVersion < CHICKEN_FARM_ENTITY_SCHEMA_VERSION) {
-    return { configurations, entities: [] }
-  }
 
   if (!Array.isArray(value.entities)) return null
 
@@ -697,17 +618,11 @@ const isCropFarmFertilizerProductId = (
   value === 'Product_Fertilizer' ||
   value === 'Product_Fertilizer2'
 
-const hasValidCropFarmFertilizerProduct = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-) =>
-  schemaVersion < FARM_FERTILIZER_PRODUCT_SCHEMA_VERSION ||
-  value === null ||
-  isCropFarmFertilizerProductId(value)
+const hasValidCropFarmFertilizerProduct = (value: unknown) =>
+  value === null || isCropFarmFertilizerProductId(value)
 
 const isCropFarmConfiguration = (
   value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
 ): value is SyncedCropFarmConfiguration =>
   isUnknownRecord(value) &&
   (value.prototypeId === 'FarmT3' || value.prototypeId === 'FarmT4') &&
@@ -716,7 +631,7 @@ const isCropFarmConfiguration = (
   value.running <= value.built &&
   isNonNegativeInteger(value.fertilityTargetPercent) &&
   value.fertilityTargetPercent <= 200 &&
-  hasValidCropFarmFertilizerProduct(value.fertilizerProductId, schemaVersion) &&
+  hasValidCropFarmFertilizerProduct(value.fertilizerProductId) &&
   Array.isArray(value.schedule) &&
   value.schedule.length === 4 &&
   value.schedule.every(
@@ -725,7 +640,6 @@ const isCropFarmConfiguration = (
 
 const isCropFarmEntity = (
   value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
 ): value is SyncedCropFarmEntity =>
   isUnknownRecord(value) &&
   isNonNegativeInteger(value.entityId) &&
@@ -733,36 +647,26 @@ const isCropFarmEntity = (
   typeof value.running === 'boolean' &&
   isNonNegativeInteger(value.fertilityTargetPercent) &&
   value.fertilityTargetPercent <= 200 &&
-  hasValidCropFarmFertilizerProduct(value.fertilizerProductId, schemaVersion) &&
+  hasValidCropFarmFertilizerProduct(value.fertilizerProductId) &&
   Array.isArray(value.schedule) &&
   value.schedule.length === 4 &&
   value.schedule.every(
     cropId => cropId === null || (typeof cropId === 'string' && cropId.length > 0),
   ) &&
-  (schemaVersion < AREA_INVENTORY_SCHEMA_VERSION ||
-    (Array.isArray(value.zones) &&
-      value.zones.every(isLogisticsZoneRef) &&
-      new Set(value.zones.map(zone => zone.id)).size === value.zones.length))
+  Array.isArray(value.zones) &&
+  value.zones.every(isLogisticsZoneRef) &&
+  new Set(value.zones.map(zone => zone.id)).size === value.zones.length
 
-const normalizeCropFarmState = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedCropFarmState | null => {
+const normalizeCropFarmState = (value: unknown): SyncedCropFarmState | null => {
   if (!isUnknownRecord(value) || !Array.isArray(value.configurations)) return null
 
-  const configurations = value.configurations.filter(configuration =>
-    isCropFarmConfiguration(configuration, schemaVersion),
-  )
+  const configurations = value.configurations.filter(isCropFarmConfiguration)
 
   if (configurations.length !== value.configurations.length) return null
 
-  if (schemaVersion < CROP_FARM_ENTITY_SCHEMA_VERSION) {
-    return { configurations, entities: [] }
-  }
-
   if (!Array.isArray(value.entities)) return null
 
-  const entities = value.entities.filter(entity => isCropFarmEntity(entity, schemaVersion))
+  const entities = value.entities.filter(isCropFarmEntity)
 
   if (
     entities.length !== value.entities.length ||
@@ -809,20 +713,10 @@ const normalizeCropFarmState = (
   )
     return null
 
-  return {
-    configurations,
-    entities:
-      schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION
-        ? entities
-        : entities.map(entity => ({ ...entity, zones: [] })),
-  }
+  return { configurations, entities }
 }
 
-const normalizeLogisticsZones = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedLogisticsZoneRef[] | null => {
-  if (schemaVersion < AREA_INVENTORY_SCHEMA_VERSION) return []
+const normalizeLogisticsZones = (value: unknown): SyncedLogisticsZoneRef[] | null => {
   if (!Array.isArray(value)) return null
 
   const zones = value.filter(isLogisticsZoneRef)
@@ -875,10 +769,7 @@ const isGroundwaterState = (value: unknown): value is SyncedGroundwaterState =>
   isNonNegativeInteger(value.replenishWhenLowPercent) &&
   value.replenishWhenLowPercent <= 100
 
-const normalizeMachineInventory = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedMachineInventoryItem[] | null => {
+const normalizeMachineInventory = (value: unknown): SyncedMachineInventoryItem[] | null => {
   if (!Array.isArray(value)) return null
 
   const machines: SyncedMachineInventoryItem[] = []
@@ -887,25 +778,18 @@ const normalizeMachineInventory = (
     if (!isMachineInventoryItem(machine)) return null
 
     const rawZones = machine.zones
-    const zones =
-      schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION && Array.isArray(rawZones)
-        ? rawZones.filter(isLogisticsZoneRef)
-        : []
+    const zones = Array.isArray(rawZones) ? rawZones.filter(isLogisticsZoneRef) : []
 
     if (
-      schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION &&
-      (!Array.isArray(rawZones) ||
+      !Array.isArray(rawZones) ||
         zones.length !== rawZones.length ||
-        new Set(zones.map(({ id }) => id)).size !== zones.length)
+        new Set(zones.map(({ id }) => id)).size !== zones.length
     )
       return null
 
-    const aquifer =
-      schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && isGroundwaterAquifer(machine.aquifer)
-        ? machine.aquifer
-        : null
+    const aquifer = isGroundwaterAquifer(machine.aquifer) ? machine.aquifer : null
 
-    if (schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && !aquifer) return null
+    if (!aquifer) return null
 
     machines.push({ ...machine, aquifer, zones })
   }
@@ -963,12 +847,7 @@ const isTrainStationConfiguration = (value: unknown): value is SyncedTrainStatio
   typeof value.isForLoading === 'boolean' &&
   (value.selectedProduct === null || isProductRef(value.selectedProduct))
 
-const hasValidTrainStationConfiguration = (
-  value: Record<string, unknown>,
-  schemaVersion: SupportedGameStateSchemaVersion,
-) => {
-  if (schemaVersion < TRAIN_STATION_PRODUCT_SCHEMA_VERSION) return true
-
+const hasValidTrainStationConfiguration = (value: Record<string, unknown>) => {
   return trainStationPrototypeIds.has(String(value.prototypeId))
     ? value.trainStation === null || isTrainStationConfiguration(value.trainStation)
     : value.trainStation === null
@@ -976,7 +855,6 @@ const hasValidTrainStationConfiguration = (
 
 const isProductionEntity = (
   value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
 ): value is SyncedProductionEntity =>
   isUnknownRecord(value) &&
   isNonNegativeInteger(value.entityId) &&
@@ -992,19 +870,14 @@ const isProductionEntity = (
   (value.prototypeId === 'FastBreederReactor'
     ? isNuclearReactorConfiguration(value.nuclearReactor)
     : value.nuclearReactor === null) &&
-  (schemaVersion < COMPUTING_ENTITY_SCHEMA_VERSION ||
-    (value.prototypeId === 'DataCenter' && isNonNegativeInteger(value.dataCenterRacks)) ||
+  ((value.prototypeId === 'DataCenter' && isNonNegativeInteger(value.dataCenterRacks)) ||
     (value.prototypeId !== 'DataCenter' && value.dataCenterRacks === null)) &&
-  hasValidTrainStationConfiguration(value, schemaVersion)
+  hasValidTrainStationConfiguration(value)
 
-const normalizeProductionEntities = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedProductionEntity[] | null => {
-  if (schemaVersion < PRODUCTION_ENTITY_SCHEMA_VERSION) return null
+const normalizeProductionEntities = (value: unknown): SyncedProductionEntity[] | null => {
   if (!Array.isArray(value)) return null
 
-  const entities = value.filter(entity => isProductionEntity(entity, schemaVersion))
+  const entities = value.filter(isProductionEntity)
 
   return entities.length === value.length &&
     new Set(entities.map(entity => entity.entityId)).size === entities.length
@@ -1134,10 +1007,7 @@ const isOfficeConfiguration = (value: unknown): value is SyncedOfficeConfigurati
     value.computingBoostStep === 1 ||
     value.computingBoostStep === 2)
 
-const isAreaEntity = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): value is SyncedAreaEntity => {
+const isAreaEntity = (value: unknown): value is SyncedAreaEntity => {
   if (
     !isUnknownRecord(value) ||
     !isNonNegativeInteger(value.entityId) ||
@@ -1162,19 +1032,15 @@ const isAreaEntity = (
 
   const zones = value.zones.filter(isLogisticsZoneRef)
   const recipes = value.recipes.filter(isAreaRecipe)
-  const availableRecipeCount =
-    schemaVersion >= COMPACT_AREA_RECIPE_SCHEMA_VERSION
-      ? value.availableRecipeCount
-      : value.recipes.length
+  const availableRecipeCount = value.availableRecipeCount
   const hasValidCompactRecipes =
-    schemaVersion < COMPACT_AREA_RECIPE_SCHEMA_VERSION ||
-    (isNonNegativeInteger(availableRecipeCount) &&
-      availableRecipeCount >= recipes.length &&
-      (availableRecipeCount !== 0 || recipes.length === 0) &&
-      (availableRecipeCount !== 1 || recipes.length === 1) &&
-      (availableRecipeCount <= 1 ||
-        recipes.length === 0 ||
-        recipes.every(recipe => recipe.assigned)))
+    isNonNegativeInteger(availableRecipeCount) &&
+    availableRecipeCount >= recipes.length &&
+    (availableRecipeCount !== 0 || recipes.length === 0) &&
+    (availableRecipeCount !== 1 || recipes.length === 1) &&
+    (availableRecipeCount <= 1 ||
+      recipes.length === 0 ||
+      recipes.every(recipe => recipe.assigned))
 
   return (
     zones.length === value.zones.length &&
@@ -1182,30 +1048,23 @@ const isAreaEntity = (
     hasValidCompactRecipes &&
     new Set(zones.map(zone => zone.id)).size === zones.length &&
     new Set(recipes.map(recipe => recipe.id)).size === recipes.length &&
-    (schemaVersion < TERRAIN_SORTER_SCHEMA_VERSION ||
-      (oreSorterPrototypeIds.has(value.prototypeId)
-        ? isOreSorterConfiguration(value.oreSorter)
-        : value.oreSorter === null)) &&
-    hasValidTrainStationConfiguration(value, schemaVersion) &&
-    (schemaVersion < FORESTRY_CONFIGURATION_SCHEMA_VERSION ||
-      (value.prototypeId === 'ForestryTower'
-        ? isForestryConfiguration(value.forestry)
-        : value.forestry === null)) &&
-    (schemaVersion < OFFICE_CONFIGURATION_SCHEMA_VERSION ||
-      (officeBuildingPrototypeIds.has(value.prototypeId)
-        ? isOfficeConfiguration(value.office)
-        : value.office === null))
+    (oreSorterPrototypeIds.has(value.prototypeId)
+      ? isOreSorterConfiguration(value.oreSorter)
+      : value.oreSorter === null) &&
+    hasValidTrainStationConfiguration(value) &&
+    (value.prototypeId === 'ForestryTower'
+      ? isForestryConfiguration(value.forestry)
+      : value.forestry === null) &&
+    (officeBuildingPrototypeIds.has(value.prototypeId)
+      ? isOfficeConfiguration(value.office)
+      : value.office === null)
   )
 }
 
-const normalizeAreaEntities = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedAreaEntity[] | null => {
-  if (schemaVersion < AREA_GHOST_SCHEMA_VERSION) return []
+const normalizeAreaEntities = (value: unknown): SyncedAreaEntity[] | null => {
   if (!Array.isArray(value)) return null
 
-  const entities = value.filter(entity => isAreaEntity(entity, schemaVersion))
+  const entities = value.filter(isAreaEntity)
 
   return entities.length === value.length &&
     new Set(entities.map(entity => entity.entityId)).size === entities.length
@@ -1213,11 +1072,7 @@ const normalizeAreaEntities = (
     : null
 }
 
-const normalizeMineTowers = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedMineTower[] | null => {
-  if (schemaVersion < TERRAIN_SORTER_SCHEMA_VERSION) return []
+const normalizeMineTowers = (value: unknown): SyncedMineTower[] | null => {
   if (!Array.isArray(value)) return null
 
   const towers: SyncedMineTower[] = []
@@ -1245,57 +1100,12 @@ const normalizeMineTowers = (
   return new Set(towers.map(tower => tower.entityId)).size === towers.length ? towers : null
 }
 
-type LegacySyncedBuildingId = Exclude<
-  SyncedBuildingId,
-  | 'rocketAssemblyDepot'
-  | 'rocketLaunchPad'
-  | 'moltenStationModuleElectrified'
-  | 'trainDepot'
-  | 'vehiclesDepot'
-  | 'vehiclesDepotII'
-  | 'vehiclesDepotIII'
-  | 'captainOfficeI'
-  | 'captainOfficeII'
->
-type CompatibleBuildingCounts = Record<LegacySyncedBuildingId, SyncedBuildingCount> &
-  Partial<
-    Record<
-      | 'rocketAssemblyDepot'
-      | 'rocketLaunchPad'
-      | 'moltenStationModuleElectrified'
-      | 'trainDepot'
-      | 'vehiclesDepot'
-      | 'vehiclesDepotII'
-      | 'vehiclesDepotIII'
-      | 'captainOfficeI'
-      | 'captainOfficeII',
-      SyncedBuildingCount
-    >
-  >
-
-const isCompatibleBuildingCounts = (
+const isBuildingCounts = (
   value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): value is CompatibleBuildingCounts => {
+): value is Record<SyncedBuildingId, SyncedBuildingCount> => {
   if (!isUnknownRecord(value)) return false
 
-  return syncedBuildingIds.every(id => {
-    const count = value[id]
-
-    const isOptionalLegacyCount =
-      (schemaVersion < ROCKET_INFRASTRUCTURE_SCHEMA_VERSION &&
-        (id === 'rocketAssemblyDepot' || id === 'rocketLaunchPad')) ||
-      (schemaVersion === 6 && id === 'moltenStationModuleElectrified') ||
-      (schemaVersion <= 10 && id === 'trainDepot') ||
-      (schemaVersion <= 11 &&
-        (id === 'vehiclesDepot' || id === 'vehiclesDepotII' || id === 'vehiclesDepotIII')) ||
-      (schemaVersion < CAPTAIN_OFFICE_SCHEMA_VERSION &&
-        (id === 'captainOfficeI' || id === 'captainOfficeII'))
-
-    return isOptionalLegacyCount
-      ? count === undefined || isBuildingCount(count)
-      : isBuildingCount(count)
-  })
+  return syncedBuildingIds.every(id => isBuildingCount(value[id]))
 }
 
 const isHistoryAverage = (value: unknown, windowMonths: number): value is SyncedHistoryAverage => {
@@ -1381,29 +1191,13 @@ const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
   return states
 }
 
-const normalizeReserves = (
-  value: unknown,
-  schemaVersion: SupportedGameStateSchemaVersion,
-): SyncedReserves | null => {
+const normalizeReserves = (value: unknown): SyncedReserves | null => {
   if (!isUnknownRecord(value)) return null
+  const { fuelGas, gold } = value
 
-  for (const reserve of reserveResourceCatalog) {
-    if (schemaVersion < reserve.introducedInSchemaVersion) {
-      continue
-    }
+  if (!isNonNegativeInteger(fuelGas) || !isNonNegativeInteger(gold)) return null
 
-    const balance = value[reserve.key]
-
-    if (!isNonNegativeInteger(balance)) return null
-  }
-
-  return mapReserveResources(({ introducedInSchemaVersion, key }) => {
-    const balance = value[key]
-
-    return schemaVersion >= introducedInSchemaVersion && isNonNegativeInteger(balance)
-      ? balance
-      : null
-  })
+  return { fuelGas, gold }
 }
 
 export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | null => {
@@ -1412,43 +1206,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const snapshot = value
   const schemaVersion = snapshot.schemaVersion
 
-  if (
-    schemaVersion !== 6 &&
-    schemaVersion !== 7 &&
-    schemaVersion !== 8 &&
-    schemaVersion !== 9 &&
-    schemaVersion !== 10 &&
-    schemaVersion !== 11 &&
-    schemaVersion !== 12 &&
-    schemaVersion !== 13 &&
-    schemaVersion !== 14 &&
-    schemaVersion !== 15 &&
-    schemaVersion !== 16 &&
-    schemaVersion !== 17 &&
-    schemaVersion !== 18 &&
-    schemaVersion !== 19 &&
-    schemaVersion !== 20 &&
-    schemaVersion !== 21 &&
-    schemaVersion !== 22 &&
-    schemaVersion !== 23 &&
-    schemaVersion !== 24 &&
-    schemaVersion !== 25 &&
-    schemaVersion !== 26 &&
-    schemaVersion !== 27 &&
-    schemaVersion !== 28 &&
-    schemaVersion !== 29 &&
-    schemaVersion !== 30 &&
-    schemaVersion !== TERRAIN_SORTER_SCHEMA_VERSION &&
-    schemaVersion !== 32 &&
-    schemaVersion !== 33 &&
-    schemaVersion !== 34 &&
-    schemaVersion !== CONTRACT_STATE_SCHEMA_VERSION &&
-    schemaVersion !== DEFAULT_AREA_ENTITY_SCHEMA_VERSION &&
-    schemaVersion !== OFFICE_CONFIGURATION_SCHEMA_VERSION &&
-    schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION
-  ) {
-    return null
-  }
+  if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
 
   const syncedBuildings = snapshot.buildings
   const saveId =
@@ -1457,41 +1215,43 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
       : null
   const spaceStation = isSpaceStationState(snapshot.spaceStation) ? snapshot.spaceStation : null
   const computing = isComputingState(snapshot.computing) ? snapshot.computing : null
-  const logisticsZones = normalizeLogisticsZones(snapshot.logisticsZones, schemaVersion)
-  const chickenFarms = normalizeChickenFarmState(snapshot.chickenFarms, schemaVersion)
-  const cropFarms = normalizeCropFarmState(snapshot.cropFarms, schemaVersion)
-  const machines = normalizeMachineInventory(snapshot.machines, schemaVersion)
+  const logisticsZones = normalizeLogisticsZones(snapshot.logisticsZones)
+  const chickenFarms = normalizeChickenFarmState(snapshot.chickenFarms)
+  const cropFarms = normalizeCropFarmState(snapshot.cropFarms)
+  const machines = normalizeMachineInventory(snapshot.machines)
   const groundwater = isGroundwaterState(snapshot.groundwater) ? snapshot.groundwater : null
-  const contracts = normalizeContractState(snapshot.contracts, schemaVersion)
-  const productionEntities = normalizeProductionEntities(snapshot.productionEntities, schemaVersion)
-  const areaEntities = normalizeAreaEntities(snapshot.areaEntities, schemaVersion)
-  const mineTowers = normalizeMineTowers(snapshot.mineTowers, schemaVersion)
+  const contracts = normalizeContractState(snapshot.contracts)
+  const productionEntities = normalizeProductionEntities(snapshot.productionEntities)
+  const areaEntities = normalizeAreaEntities(snapshot.areaEntities)
+  const mineTowers = normalizeMineTowers(snapshot.mineTowers)
   const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
   const workersAssigned = vehicles?.workersAssigned
   const research = normalizeResearchLevels(snapshot.research)
   const edicts = normalizeEdictStates(snapshot.edicts)
-  const reserves = normalizeReserves(snapshot.reserves, schemaVersion)
+  const reserves = normalizeReserves(snapshot.reserves)
   const history = isUnknownRecord(snapshot.history) ? snapshot.history : null
 
   if (
     typeof snapshot.exportedAtUtc !== 'string' ||
     Number.isNaN(Date.parse(snapshot.exportedAtUtc)) ||
-    !isCompatibleBuildingCounts(syncedBuildings, schemaVersion) ||
-    (schemaVersion >= SPACE_STATION_SCHEMA_VERSION && !spaceStation) ||
-    (schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION &&
-      (!computing || !chickenFarms || !cropFarms)) ||
+    !isBuildingCounts(syncedBuildings) ||
+    !spaceStation ||
+    !computing ||
+    !chickenFarms ||
+    !cropFarms ||
     !logisticsZones ||
-    (schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION && !machines) ||
-    (schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION && !groundwater) ||
-    (schemaVersion >= CONTRACT_STATE_SCHEMA_VERSION && !contracts) ||
-    (schemaVersion >= SAVE_ID_SCHEMA_VERSION && !saveId) ||
-    (schemaVersion >= PRODUCTION_ENTITY_SCHEMA_VERSION && !productionEntities) ||
-    (schemaVersion >= AREA_GHOST_SCHEMA_VERSION && !areaEntities) ||
-    (schemaVersion >= TERRAIN_SORTER_SCHEMA_VERSION && !mineTowers) ||
+    !machines ||
+    !groundwater ||
+    !contracts ||
+    !saveId ||
+    !productionEntities ||
+    !areaEntities ||
+    !mineTowers ||
     !vehicles ||
     !isNonNegativeInteger(workersAssigned) ||
-    (schemaVersion >= 9 && (!research || !edicts)) ||
-    (schemaVersion >= 10 && !reserves) ||
+    !research ||
+    !edicts ||
+    !reserves ||
     !history ||
     history.windowMonths !== 120
   ) {
@@ -1548,64 +1308,26 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   return {
     schemaVersion,
-    saveId: schemaVersion >= SAVE_ID_SCHEMA_VERSION ? saveId : null,
+    saveId,
     exportedAtUtc: snapshot.exportedAtUtc,
-    buildings: {
-      ...syncedBuildings,
-      rocketAssemblyDepot: syncedBuildings.rocketAssemblyDepot ?? {
-        built: 0,
-        running: 0,
-      },
-      rocketLaunchPad: syncedBuildings.rocketLaunchPad ?? {
-        built: 0,
-        running: 0,
-      },
-      moltenStationModuleElectrified: syncedBuildings.moltenStationModuleElectrified ?? {
-        built: 0,
-        running: 0,
-      },
-      trainDepot: syncedBuildings.trainDepot ?? {
-        built: 0,
-        running: 0,
-      },
-      vehiclesDepot: syncedBuildings.vehiclesDepot ?? {
-        built: 0,
-        running: 0,
-      },
-      vehiclesDepotII: syncedBuildings.vehiclesDepotII ?? {
-        built: 0,
-        running: 0,
-      },
-      vehiclesDepotIII: syncedBuildings.vehiclesDepotIII ?? {
-        built: 0,
-        running: 0,
-      },
-      captainOfficeI: syncedBuildings.captainOfficeI ?? {
-        built: 0,
-        running: 0,
-      },
-      captainOfficeII: syncedBuildings.captainOfficeII ?? {
-        built: 0,
-        running: 0,
-      },
-    },
-    spaceStation: schemaVersion >= SPACE_STATION_SCHEMA_VERSION ? spaceStation : null,
-    computing: schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION ? computing : null,
+    buildings: syncedBuildings,
+    spaceStation,
+    computing,
     logisticsZones,
-    chickenFarms: schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION ? chickenFarms : null,
-    cropFarms: schemaVersion >= PRODUCTION_CONFIG_SCHEMA_VERSION ? cropFarms : null,
-    machines: schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION ? (machines ?? []) : [],
-    groundwater: schemaVersion >= GROUNDWATER_RESERVE_SCHEMA_VERSION ? groundwater : null,
-    contracts: schemaVersion >= CONTRACT_STATE_SCHEMA_VERSION ? contracts : null,
+    chickenFarms,
+    cropFarms,
+    machines,
+    groundwater,
+    contracts,
     productionEntities,
-    areaEntities: areaEntities ?? [],
-    mineTowers: mineTowers ?? [],
+    areaEntities,
+    mineTowers,
     vehicles: {
       workersAssigned,
     },
-    research: schemaVersion >= 9 ? research : null,
-    edicts: schemaVersion >= 9 ? edicts : null,
-    reserves: schemaVersion >= 10 ? reserves : null,
+    research,
+    edicts,
+    reserves,
     history: {
       windowMonths: 120,
       maintenance: { maintenanceI, maintenanceII, maintenanceIII },

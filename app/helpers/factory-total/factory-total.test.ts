@@ -131,7 +131,7 @@ const modulesWithSyncedHistory = modulesWithNuclear.map(module => {
   const maintenanceAssignment = maintenanceAssignments[module.id];
 
   if (maintenanceAssignment) {
-    module = attachMaintenanceDepotsToModule(module, maintenanceAssignment, "synced");
+    module = attachMaintenanceDepotsToModule(module, maintenanceAssignment);
   }
 
   return module;

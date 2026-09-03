@@ -1,6 +1,5 @@
 import { type SyncedProductionEntity } from "../../game-state";
 import { syncedBuildingPrototypeIds } from "../../helpers/area-building-sync/area-building-sync";
-import { type CurrentValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import {
   emptySolarPanelCounts,
   resolveSolarPanelPlan,
@@ -201,7 +200,6 @@ export const attachSolarPanelsToModule = (
   builtCounts: SolarPanelCounts,
   runningCounts: SolarPanelCounts,
   plannedTargets?: Partial<SolarPanelCounts>,
-  currentSource?: CurrentValueSource,
 ): Module => {
   const plan = resolveSolarPanelPlan(builtCounts, runningCounts, plannedTargets);
   const hasSolarPanels = solarPanelOrder.some(panel => (
@@ -223,8 +221,8 @@ export const attachSolarPanelsToModule = (
   for (const panel of solarPanelOrder) {
     if (plan.plannedPanels[panel]) {
       dataSources[solarPanels[panel].recipeId] = "planned";
-    } else if (currentSource) {
-      dataSources[solarPanels[panel].recipeId] = currentSource;
+    } else {
+      dataSources[solarPanels[panel].recipeId] = "synced";
     }
   }
 

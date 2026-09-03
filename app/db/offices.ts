@@ -1,7 +1,3 @@
-import {
-  type LayeredValue,
-  resolveLayeredValue,
-} from "../helpers/resolve-layered-value/resolve-layered-value";
 import { focusPointsResearch } from "./research";
 
 export type OfficeTierId = "officeI" | "officeII" | "officeIII";
@@ -137,7 +133,7 @@ export const defaultOfficePlan: OfficePlan = {
   focusSteps: { ...emptyFocusSteps },
 };
 
-const configuredOfficePlan: OfficePlan = {
+export const plannedOfficePlan: OfficePlan = {
   ...defaultOfficePlan,
   officeSuppliesAssemblyVCount: 1,
   offices: {
@@ -151,13 +147,6 @@ const configuredOfficePlan: OfficePlan = {
     contractsProfitability: 7,
   },
 };
-
-const officePlanLayers: LayeredValue<OfficePlan> = {
-  default: defaultOfficePlan,
-  planned: configuredOfficePlan,
-};
-
-export const resolvedOfficePlan = resolveLayeredValue(officePlanLayers);
 
 const clampBoostStep = (step: number): OfficeBoostStep => {
   const normalizedStep = Math.min(2, Math.max(0, Math.trunc(step)));

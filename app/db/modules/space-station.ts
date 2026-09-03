@@ -2,9 +2,6 @@ import {
   type SyncedLogisticsZoneRef,
   type SyncedProductionEntity,
 } from "../../game-state";
-import {
-  type CurrentValueSource,
-} from "../../helpers/resolve-layered-value/resolve-layered-value";
 import { recipes, type Recipe } from "../recipes";
 import {
   emptyRocketInfrastructureConfig,
@@ -77,57 +74,14 @@ const withoutHandledAreaPrototypeIds = <T>(values: Record<string, T> | undefined
     : undefined
 );
 
-export const createLegacySpaceStationArea = (
-  zone: SyncedLogisticsZoneRef,
-  productionEntities: readonly SyncedProductionEntity[],
-): Module => {
-  const zoneEntities = productionEntities.filter(entity => (
-    entity.zones.some(entityZone => entityZone.id === zone.id)
-  ));
-
-  return {
-    id: `live-area-${zone.id}`,
-    name: zone.name ?? SPACE_STATION_ZONE_NAME,
-    description: "",
-    capabilities: ["space-station"],
-    includedInFactoryTotals: false,
-    builtBuildings: {},
-    presets: [{
-      id: "live",
-      name: "Live area",
-      description: "",
-      activeBuildings: {},
-      currentActiveBuildings: {},
-      builtBuildings: {},
-      constructionGhosts: {},
-      capacityPools: {},
-      dataSources: {},
-      fixed: [],
-    }],
-    defaultPresetId: "live",
-    liveArea: {
-      zoneId: zone.id,
-      trackedBuildings: zoneEntities.length,
-      constructedBuildings: zoneEntities.length,
-      activeBuildings: zoneEntities.filter(entity => entity.running).length,
-      pausedBuildings: zoneEntities.filter(entity => !entity.running).length,
-      constructionGhosts: 0,
-      issues: [],
-    },
-  };
-};
-
 interface SpaceStationAreaBuildingState {
   built: number;
   running: number;
-  source: CurrentValueSource;
 }
 
 export interface SpaceStationCurrentState {
   rocketRunningConfig?: RocketInfrastructureConfig;
-  rocketSource?: CurrentValueSource;
   stationPartsAssembly?: SpaceStationAreaBuildingState;
-  stationSource?: CurrentValueSource;
 }
 
 export interface SpaceStationResearchPlan {
@@ -218,12 +172,9 @@ export const createSpaceStationModule = (
   const rocketRunning = normalizeRocketInfrastructureConfig(
     currentState.rocketRunningConfig ?? rocketBuilt,
   );
-  const stationSource = currentState.stationSource ?? "synced";
-  const rocketSource = currentState.rocketSource ?? "synced";
   const stationPartsAssembly = currentState.stationPartsAssembly ?? {
     built: 0,
     running: 0,
-    source: "synced" as const,
   };
   const stationActive = hasStation ? 1 : 0;
   const currentStationActive = currentlyHasStation ? 1 : 0;
@@ -258,13 +209,13 @@ export const createSpaceStationModule = (
     ...rocketCurrentActiveBuildings,
   };
   const dataSources = {
-    "space-station-operations": stationPlanPending ? "planned" as const : stationSource,
-    "space-station-orbital-research": stationPlanPending ? "planned" as const : stationSource,
-    [SPACE_STATION_PARTS_RECIPE_ID]: stationPartsAssembly.source,
+    "space-station-operations": stationPlanPending ? "planned" as const : "synced" as const,
+    "space-station-orbital-research": stationPlanPending ? "planned" as const : "synced" as const,
+    [SPACE_STATION_PARTS_RECIPE_ID]: "synced" as const,
     ...Object.fromEntries(
       rocketInfrastructureItems.map((item) => [
         item.recipeId,
-        rocketSource,
+        "synced" as const,
       ]),
     ),
   };
@@ -272,7 +223,6 @@ export const createSpaceStationModule = (
     ? [{
         recipeId: "space-station-operations",
         current: currentStation.level,
-        currentSource: stationSource,
         target: targetLevel,
         direction: "at-least",
         format: "level",

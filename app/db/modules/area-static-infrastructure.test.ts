@@ -184,7 +184,7 @@ it('places a station construction ghost in its live area without counting it as 
 
   if (!assignment) throw new Error('Missing Copper infrastructure assignment')
 
-  const configured = attachStaticInfrastructureToModule(copperModule, assignment, 'synced')
+  const configured = attachStaticInfrastructureToModule(copperModule, assignment)
   const line = buildModuleLines(configured, configured.presets[0] ?? null).lines[0]
 
   expect(line).toMatchObject({
@@ -224,7 +224,7 @@ it('groups stations by their synced selected product without adding material flo
 
   if (!assignment) throw new Error('Missing Copper infrastructure assignment')
 
-  const configured = attachStaticInfrastructureToModule(copperModule, assignment, 'synced')
+  const configured = attachStaticInfrastructureToModule(copperModule, assignment)
   const stationLine = buildModuleLines(configured, configured.presets[0] ?? null).lines[0]
 
   expect(stationLine).toMatchObject({
@@ -283,7 +283,7 @@ it('retains station direction when no product is selected yet', () => {
 
   if (!assignment) throw new Error('Missing Copper infrastructure assignment')
 
-  const configured = attachStaticInfrastructureToModule(copperModule, assignment, 'synced')
+  const configured = attachStaticInfrastructureToModule(copperModule, assignment)
   const [stationLine] = buildModuleLines(configured, configured.presets[0] ?? null).lines
 
   expect(stationLine?.recipe).toMatchObject({

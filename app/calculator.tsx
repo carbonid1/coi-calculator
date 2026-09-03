@@ -19,10 +19,7 @@ import { SinkCard } from './components/SinkCard'
 import { StationCardGroup } from './components/StationCardGroup'
 import { StorageCard } from './components/StorageCard'
 import { getBuildingData } from './db/buildings'
-import {
-  resolvedChickenFarmSettings,
-  resolvedCurrentChickenFarmSettings,
-} from './db/chicken-farm'
+import { plannedChickenFarmSettings } from './db/chicken-farm'
 import { baseConfig } from './db/config'
 import { contractRoutePlans } from './db/contract-plans'
 import { contracts } from './db/contracts'
@@ -60,7 +57,7 @@ import {
   resolveStaticInfrastructureModuleAssignments,
   selectStaticInfrastructureLines,
 } from './db/modules/area-static-infrastructure'
-import { createComputingModule, createLegacyComputingArea } from './db/modules/computing'
+import { createComputingModule } from './db/modules/computing'
 import {
   createCropFarmAreaModule,
   createDefaultCropFarmModule,
@@ -95,21 +92,18 @@ import {
   hasAttachedOfficeRecipes,
 } from './db/modules/offices'
 import {
-  createLegacyPopulationArea,
   createPopulationModule,
   resolvePopulationHousingPlanTargets,
 } from './db/modules/population'
 import { RESEARCH_MODULE_ID } from './db/modules/research'
 import { createReservesModule, RESERVES_MODULE_ID } from './db/modules/reserves'
 import {
-  createLegacySpaceStationArea,
   createSpaceStationModule,
   selectSpaceStationZone,
 } from './db/modules/space-station'
-import { calculateOfficePlan, defaultOfficePlan, resolvedOfficePlan } from './db/offices'
+import { calculateOfficePlan, defaultOfficePlan, plannedOfficePlan } from './db/offices'
 import { emptyPlanningBaselines, resolvePlanningBaselines } from './db/planning-baselines'
 import { type RecipeGroup } from './db/recipes'
-import { emptyInfiniteResearchLevels } from './db/research'
 import { mapReserveResources } from './db/reserve-resources'
 import { type ResourceId } from './db/resources'
 import {
@@ -134,17 +128,6 @@ import {
 } from './db/static-infrastructure'
 import { calculateUnityBudget } from './db/unity'
 import {
-  AREA_GHOST_SCHEMA_VERSION,
-  AREA_INVENTORY_SCHEMA_VERSION,
-  COMPUTING_ENTITY_SCHEMA_VERSION,
-  DEFAULT_AREA_ENTITY_SCHEMA_VERSION,
-  MACHINE_INVENTORY_SCHEMA_VERSION,
-  MACHINE_ZONE_SCHEMA_VERSION,
-  MAINTENANCE_ENTITY_SCHEMA_VERSION,
-  NAMED_AREA_ENTITY_SCHEMA_VERSION,
-  OFFICE_CONFIGURATION_SCHEMA_VERSION,
-  ROCKET_INFRASTRUCTURE_SCHEMA_VERSION,
-  TERRAIN_SORTER_SCHEMA_VERSION,
   syncedInfrastructureBuildingIds,
   syncedRocketBuildingIds,
 } from './game-state'
@@ -159,10 +142,7 @@ import {
 import { calculateBuildingStats } from './helpers/building-stats/building-stats'
 import { type ProductionLine } from './helpers/calculate/calculate'
 import { calculateLinkedModules } from './helpers/calculate-linked-modules/calculate-linked-modules'
-import {
-  getComputingZones,
-  resolveComputingEntityInventory,
-} from './helpers/computing-entity-sync/computing-entity-sync'
+import { resolveComputingEntityInventory } from './helpers/computing-entity-sync/computing-entity-sync'
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { resolveSyncedContracts } from './helpers/contracts/resolve-synced-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
@@ -195,18 +175,13 @@ import {
   createPooledLinkSourceShadows,
   hasPooledLinkSourceConnections,
 } from './helpers/pooled-link-source-shadows/pooled-link-source-shadows'
-import {
-  getPopulationZones,
-  resolvePopulationEntityInventory,
-} from './helpers/population-entity-sync/population-entity-sync'
+import { resolvePopulationEntityInventory } from './helpers/population-entity-sync/population-entity-sync'
 import { getPresetResourceDemands } from './helpers/preset-resource-demands/preset-resource-demands'
 import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import { createSpaceResearchAttention } from './helpers/space-research-attention/space-research-attention'
 import {
-  getSyncedChickenFarmConfigurations,
   getSyncedChickenFarmEntities,
-  getSyncedComputingConfigs,
   getSyncedCropFarmEntities,
 } from './helpers/synced-production-config/synced-production-config'
 import { transferTerrainMineOwnership } from './helpers/terrain-mine-ownership/terrain-mine-ownership'
@@ -347,6 +322,28 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     }
   }, [activeModuleId, buildingTarget])
 
+  const header = (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Captain of Industry</h1>
+        <p className="text-sm text-muted-foreground">Production Chain Calculator</p>
+      </div>
+      <GameSyncStatus
+        exportedAtUtc={gameState.exportedAtUtc}
+        isFresh={gameState.isFresh}
+        snapshot={gameState.snapshot}
+        source={gameState.source}
+        status={gameState.status}
+      />
+    </div>
+  )
+
+  if (!gameState.snapshot) {
+    return <div className="mx-auto max-w-7xl p-4 sm:p-5">{header}</div>
+  }
+
+  const snapshot = gameState.snapshot
+
   const openBuilding = (diagnostic: BuildingDiagnostic) => {
     setBuildingTarget({
       key: diagnostic.navigationKey ?? diagnostic.key,
@@ -356,17 +353,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   }
 
   const sharedMachineAllocation =
-    gameState.snapshot && gameState.snapshot.schemaVersion >= MACHINE_INVENTORY_SCHEMA_VERSION
-      ? allocateSharedMachines(
-          gameState.snapshot.machines,
-          groundwaterPumpClaims,
-          machineZoneAssignments,
-          gameState.snapshot.schemaVersion >= MACHINE_ZONE_SCHEMA_VERSION,
-        )
-      : null
-  const defaultGroundwaterResolution = sharedMachineAllocation?.claims[DEFAULT_GROUNDWATER_CLAIM_ID]
+    allocateSharedMachines(snapshot.machines, groundwaterPumpClaims, machineZoneAssignments, true)
+  const defaultGroundwaterResolution = sharedMachineAllocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]
   const groundwaterClaimLimits = calculateGroundwaterClaimLimits(
-    Object.values(sharedMachineAllocation?.claims ?? {}).map(resolution => ({
+    Object.values(sharedMachineAllocation.claims).map(resolution => ({
       claimId: resolution.claim.id,
       projectedPumpCount: resolution.running,
       machines: [
@@ -374,7 +364,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         ...resolution.suggestedMachines,
       ],
     })),
-    gameState.snapshot?.groundwater ?? null,
+    snapshot.groundwater,
   )
   const defaultGroundwaterConstraint = groundwaterClaimLimits[DEFAULT_GROUNDWATER_CLAIM_ID]
   const staticInfrastructureBuiltConfig: StaticInfrastructureConfig = {
@@ -390,14 +380,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     ...emptyRocketInfrastructureConfig,
   }
   const contractResolution = resolveSyncedContracts(
-    gameState.snapshot?.contracts ?? null,
+    snapshot.contracts,
     contractRoutePlans,
   )
   const enabledContracts = contractResolution.contracts
-  const productionEntities = (gameState.snapshot?.productionEntities ?? []).filter(
+  const productionEntities = snapshot.productionEntities.filter(
     entity => !contractResolution.claimedEntityIds.has(entity.entityId),
   )
-  const areaEntities = (gameState.snapshot?.areaEntities ?? []).filter(
+  const areaEntities = snapshot.areaEntities.filter(
     entity => !contractResolution.claimedEntityIds.has(entity.entityId),
   )
   const officeAreaZoneIds = getOfficeAreaZoneIds(areaEntities)
@@ -410,20 +400,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     ? [...nuclearReactorZoneIds][0]
     : undefined
   const spaceStationZone = selectSpaceStationZone(
-    gameState.snapshot?.logisticsZones ?? [],
+    snapshot.logisticsZones,
     productionEntities,
   )
   const usesSpaceStationArea = Boolean(spaceStationZone)
-  const hasAreaBuildingInventory = Boolean(
-    gameState.snapshot &&
-    gameState.snapshot.schemaVersion >= AREA_INVENTORY_SCHEMA_VERSION &&
-    gameState.snapshot.productionEntities,
-  )
-  const hasMaintenanceDepotInventory = Boolean(
-    gameState.snapshot &&
-    gameState.snapshot.schemaVersion >= MAINTENANCE_ENTITY_SCHEMA_VERSION &&
-    gameState.snapshot.productionEntities,
-  )
   const spaceStationAreaEntities = spaceStationZone
     ? productionEntities.filter(entity => (
         entity.zones.some(zone => zone.id === spaceStationZone.id)
@@ -433,8 +413,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     ? resolveAreaBuildingCounts(spaceStationAreaEntities, spaceStationZone.id)
     : {}
   const stationPartsAssemblyCount =
-    spaceStationZone &&
-    (gameState.snapshot?.schemaVersion ?? 0) >= NAMED_AREA_ENTITY_SCHEMA_VERSION
+    spaceStationZone
       ? resolveAreaRecipeBuildingCount(
           spaceStationAreaEntities,
           spaceStationZone.id,
@@ -443,39 +422,32 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         )
       : undefined
 
-  if (gameState.snapshot) {
-    for (const id of syncedInfrastructureBuildingIds) {
-      const count = gameState.snapshot.buildings[id]
+  for (const id of syncedInfrastructureBuildingIds) {
+    const count = snapshot.buildings[id]
 
-      staticInfrastructureBuiltConfig[id] = count.built
-      staticInfrastructureRunningConfig[id] = count.running
-    }
-
-    if (gameState.snapshot.schemaVersion >= ROCKET_INFRASTRUCTURE_SCHEMA_VERSION) {
-      for (const id of syncedRocketBuildingIds) {
-        const count = usesSpaceStationArea
-          ? (spaceStationAreaCounts[id] ?? { built: 0, running: 0 })
-          : gameState.snapshot.buildings[id]
-
-        rocketInfrastructureBuiltConfig[id] = count.built
-        rocketInfrastructureRunningConfig[id] = count.running
-      }
-    }
-
-    staticInfrastructureBuiltConfig.vehicles = gameState.snapshot.vehicles.workersAssigned
-    staticInfrastructureRunningConfig.vehicles = gameState.snapshot.vehicles.workersAssigned
+    staticInfrastructureBuiltConfig[id] = count.built
+    staticInfrastructureRunningConfig[id] = count.running
   }
 
-  const syncedSpaceStation = gameState.snapshot?.spaceStation
-  const spaceStationConfig = syncedSpaceStation
-    ? {
-        currentLevel: syncedSpaceStation.currentLevel,
-        highestLevelAchieved: syncedSpaceStation.highestLevelAchieved,
-      }
-    : null
+  for (const id of syncedRocketBuildingIds) {
+    const count = usesSpaceStationArea
+      ? (spaceStationAreaCounts[id] ?? { built: 0, running: 0 })
+      : snapshot.buildings[id]
+
+    rocketInfrastructureBuiltConfig[id] = count.built
+    rocketInfrastructureRunningConfig[id] = count.running
+  }
+
+  staticInfrastructureBuiltConfig.vehicles = snapshot.vehicles.workersAssigned
+  staticInfrastructureRunningConfig.vehicles = snapshot.vehicles.workersAssigned
+
+  const spaceStationConfig = {
+    currentLevel: snapshot.spaceStation.currentLevel,
+    highestLevelAchieved: snapshot.spaceStation.highestLevelAchieved,
+  }
   const currentSpaceStationLevel = calculateSpaceStationLevel(
-    spaceStationConfig?.currentLevel ?? 0,
-    spaceStationConfig?.highestLevelAchieved ?? 0,
+    spaceStationConfig.currentLevel,
+    spaceStationConfig.highestLevelAchieved,
   )
   const researchLabEntities = productionEntities.filter(entity => (
     entity.prototypeId === 'ResearchLab4' || entity.prototypeId === 'ResearchLab5'
@@ -488,10 +460,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     entity => entity.running,
   ).length
   const runningOtherResearchLabCount = runningResearchLabCount - runningDefaultResearchLabCount
-  const hasDefaultResearchLabInventory = (
-    (gameState.snapshot?.schemaVersion ?? 0) >= DEFAULT_AREA_ENTITY_SCHEMA_VERSION
-    && defaultResearchLabEntities.length > 0
-  )
+  const hasDefaultResearchLabInventory = defaultResearchLabEntities.length > 0
   const plannedResearchLabCount = baseConfig.researchMode === 'with-space'
     ? runningOtherResearchLabCount + (hasDefaultResearchLabInventory
         ? Math.max(runningDefaultResearchLabCount, plannedResearchLabTarget)
@@ -505,54 +474,43 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const projectedSpaceStationLevel = calculateSpaceStationLevel(
     projectedSpaceStationTargetLevel,
     Math.max(
-      spaceStationConfig?.highestLevelAchieved ?? 0,
+      spaceStationConfig.highestLevelAchieved,
       projectedSpaceStationTargetLevel,
     ),
   )
-  const planningBaselines = resolvePlanningBaselines(gameState.snapshot)
-  const syncedHistory = gameState.snapshot?.history
-  const syncedMaintenance = syncedHistory?.maintenance
+  const planningBaselines = resolvePlanningBaselines(snapshot)
+  const syncedHistory = snapshot.history
+  const syncedMaintenance = syncedHistory.maintenance
   const maintenanceDemand = {
-    maintenanceI: syncedMaintenance?.maintenanceI.averagePerCycle ?? 0,
-    maintenanceII: syncedMaintenance?.maintenanceII.averagePerCycle ?? 0,
-    maintenanceIII: syncedMaintenance?.maintenanceIII.averagePerCycle ?? 0,
+    maintenanceI: syncedMaintenance.maintenanceI.averagePerCycle,
+    maintenanceII: syncedMaintenance.maintenanceII.averagePerCycle,
+    maintenanceIII: syncedMaintenance.maintenanceIII.averagePerCycle,
   }
-  const hasMaintenanceHistory = Boolean(
-    syncedMaintenance && Object.values(syncedMaintenance).some(average => average.sampleMonths > 0),
+  const hasMaintenanceHistory = Object.values(syncedMaintenance).some(
+    average => average.sampleMonths > 0,
   )
-  const syncedResearchLevels = gameState.snapshot?.research
-  const researchLevels = syncedResearchLevels ?? emptyInfiniteResearchLevels
+  const researchLevels = snapshot.research
   const rocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
     projectedSpaceStationLevel,
     researchLevels.rocketsCapacity,
   )
-  const hasSyncedOfficeAreaInventory = (
-    (gameState.snapshot?.schemaVersion ?? 0) >= NAMED_AREA_ENTITY_SCHEMA_VERSION
-    && officeAreaZoneIds.size > 0
-  )
+  const hasSyncedOfficeAreaInventory = officeAreaZoneIds.size > 0
   const officePlan = hasSyncedOfficeAreaInventory
-    ? applySyncedOfficeInventory(resolvedOfficePlan.value, productionEntities)
-    : resolvedOfficePlan.value
+    ? applySyncedOfficeInventory(plannedOfficePlan, productionEntities)
+    : plannedOfficePlan
   const officeBuiltPlan = hasSyncedOfficeAreaInventory
-    ? applySyncedOfficeInventory(resolvedOfficePlan.value, productionEntities, 'built')
+    ? applySyncedOfficeInventory(plannedOfficePlan, productionEntities, 'built')
     : defaultOfficePlan
   const officeCurrentPlan = hasSyncedOfficeAreaInventory ? officePlan : defaultOfficePlan
-  const officeConfigurationFallbackSource = (
-    hasSyncedOfficeAreaInventory
-    && (gameState.snapshot?.schemaVersion ?? 0) < OFFICE_CONFIGURATION_SCHEMA_VERSION
-  ) ? 'modeled' : resolvedOfficePlan.source
-  const syncedOfficeConfigurations = (
-    (gameState.snapshot?.schemaVersion ?? 0) >= OFFICE_CONFIGURATION_SCHEMA_VERSION
-  ) ? getSyncedOfficeConfigurations(areaEntities) : undefined
+  const syncedOfficeConfigurations = getSyncedOfficeConfigurations(areaEntities)
   const officePlanCalculation = calculateOfficePlan(
     officePlan,
     researchLevels.focusPoints,
     syncedOfficeConfigurations,
   )
   const focusBonuses = officePlanCalculation.bonuses
-  const syncedEdictStates = gameState.snapshot?.edicts
   const resolvedEdictLevels = mapEdictValues(edictId =>
-    resolveEdictLevel(edictId, syncedEdictStates?.[edictId].activeLevel),
+    resolveEdictLevel(edictId, snapshot.edicts[edictId].activeLevel),
   )
   const edictLevels: Record<EdictId, EdictLevel> = mapEdictValues(
     edictId => resolvedEdictLevels[edictId].value,
@@ -569,47 +527,18 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const unityCapacityLevel = researchLevels.unityCapacity
   const housingCapacityLevel = researchLevels.housingCapacity
   const shipsFuelUseLevel = researchLevels.shipsFuelUse
-  const globalSyncedComputingConfigs = gameState.snapshot?.computing
-    ? getSyncedComputingConfigs(gameState.snapshot.computing)
-    : null
-  const hasComputingEntityInventory = Boolean(
-    gameState.snapshot &&
-    gameState.snapshot.schemaVersion >= COMPUTING_ENTITY_SCHEMA_VERSION &&
-    gameState.snapshot.productionEntities,
-  )
-  const syncedComputingConfigs =
-    hasComputingEntityInventory
-      ? resolveComputingEntityInventory(productionEntities)
-      : globalSyncedComputingConfigs
-  const currentChickenConfigurations = gameState.snapshot?.chickenFarms
-    ? getSyncedChickenFarmConfigurations(gameState.snapshot.chickenFarms)
-    : null
-  const currentChickenFarmEntities = gameState.snapshot?.chickenFarms
-    ? getSyncedChickenFarmEntities(gameState.snapshot.chickenFarms)
-    : null
-  const hasPopulationEntityInventory = Boolean(
-    gameState.snapshot &&
-    gameState.snapshot.schemaVersion >= NAMED_AREA_ENTITY_SCHEMA_VERSION &&
-    gameState.snapshot.productionEntities,
-  )
+  const syncedComputingConfigs = resolveComputingEntityInventory(productionEntities)
+  const currentChickenFarmEntities = getSyncedChickenFarmEntities(snapshot.chickenFarms)
 
   const createConfiguredSpaceStationModule = (generatedArea: Module) => {
-    if (
-      !spaceStationConfig
-      || (gameState.snapshot?.schemaVersion ?? 0) < NAMED_AREA_ENTITY_SCHEMA_VERSION
-    ) return generatedArea
-
     return createSpaceStationModule(
       spaceStationConfig,
       rocketInfrastructureBuiltConfig,
       {
         rocketRunningConfig: rocketInfrastructureRunningConfig,
-        rocketSource: 'synced',
         stationPartsAssembly: {
           ...(stationPartsAssemblyCount ?? { built: 0, running: 0 }),
-          source: 'synced',
         },
-        stationSource: 'synced',
       },
       generatedArea,
       plannedSpaceResearchPoints > 0
@@ -632,81 +561,34 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       if (module.id === CHICKEN_FARMS_MODULE_ID) {
         return createChickenFarmsModule(
-          resolvedChickenFarmSettings.value,
-          resolvedCurrentChickenFarmSettings.value,
-          resolvedChickenFarmSettings.source,
-          currentChickenConfigurations ? 'synced' : resolvedCurrentChickenFarmSettings.source,
-          currentChickenConfigurations ?? undefined,
-          undefined,
-          currentChickenFarmEntities ?? undefined,
+          plannedChickenFarmSettings,
+          currentChickenFarmEntities,
         )
       }
 
       if (module.id === RESERVES_MODULE_ID) {
-        return createReservesModule(gameState.snapshot?.reserves ?? null)
+        return createReservesModule(snapshot.reserves)
       }
 
       return module
     })
   const configuredAreaModules = configureModules()
-  const syncsDefaultArea = (
-    gameState.snapshot?.schemaVersion ?? 0
-  ) >= DEFAULT_AREA_ENTITY_SCHEMA_VERSION
-  const syncedAreaZones = syncsDefaultArea
-    ? [
-        { id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' },
-        ...(gameState.snapshot?.logisticsZones ?? []),
-      ]
-    : (gameState.snapshot?.logisticsZones ?? [])
-  const generatedLiveAreaModules =
-    (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
-      ? createLiveAreaModules(
-          syncedAreaZones,
-          areaEntities,
-          configuredAreaModules,
-          getLiveAreaPlans(gameState.snapshot?.saveId),
-          (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
-            ? gameState.snapshot?.mineTowers
-            : undefined,
-        )
-      : []
-  const terrainSorterEntityIds =
-    (gameState.snapshot?.schemaVersion ?? 0) >= TERRAIN_SORTER_SCHEMA_VERSION
-      ? getModeledTerrainSorterEntityIds(
-          areaEntities,
-          gameState.snapshot?.mineTowers ?? [],
-          generatedLiveAreaModules,
-        )
-      : new Set<number>()
-  const generatedLiveAreaZoneIds = new Set(
-    generatedLiveAreaModules.flatMap(module => (
-      module.liveArea ? [module.liveArea.zoneId] : []
-    )),
+  const generatedLiveAreaModules = createLiveAreaModules(
+    [
+      { id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' },
+      ...snapshot.logisticsZones,
+    ],
+    areaEntities,
+    configuredAreaModules,
+    getLiveAreaPlans(snapshot.saveId),
+    snapshot.mineTowers,
   )
-  const legacyComputingAreas =
-    hasComputingEntityInventory
-      ? getComputingZones(productionEntities)
-          .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
-          .map(zone => createLegacyComputingArea(zone, productionEntities))
-      : []
-  const legacyPopulationAreas =
-    hasPopulationEntityInventory
-      ? getPopulationZones(productionEntities)
-          .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
-          .map(zone => createLegacyPopulationArea(zone, productionEntities))
-      : []
-  const legacySpaceStationAreas =
-    hasAreaBuildingInventory && spaceStationZone
-      ? [spaceStationZone]
-          .filter(zone => !generatedLiveAreaZoneIds.has(zone.id))
-          .map(zone => createLegacySpaceStationArea(zone, productionEntities))
-      : []
-  const unconfiguredLiveAreaModules = [
-    ...generatedLiveAreaModules,
-    ...legacyComputingAreas,
-    ...legacyPopulationAreas,
-    ...legacySpaceStationAreas,
-  ]
+  const terrainSorterEntityIds = getModeledTerrainSorterEntityIds(
+    areaEntities,
+    snapshot.mineTowers,
+    generatedLiveAreaModules,
+  )
+  const unconfiguredLiveAreaModules = generatedLiveAreaModules
   const populationInventoriesByZone = new Map(
     unconfiguredLiveAreaModules.flatMap(module => (
       hasModuleCapability(module, 'population') && module.liveArea
@@ -737,19 +619,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         defaultGroundwaterConstraint,
       )
     } else if (hasModuleCapability(module, 'chicken-farming')) {
-      const areaChickenFarms = currentChickenFarmEntities?.filter(entity => (
+      const areaChickenFarms = currentChickenFarmEntities.filter(entity => (
         entity.zones.some(zone => zone.id === module.liveArea?.zoneId)
       ))
 
-      if (areaChickenFarms?.length) {
+      if (areaChickenFarms.length) {
         configuredModule = createChickenFarmsModule(
-          resolvedChickenFarmSettings.value,
-          resolvedCurrentChickenFarmSettings.value,
-          resolvedChickenFarmSettings.source,
-          resolvedCurrentChickenFarmSettings.source,
-          undefined,
-          undefined,
+          plannedChickenFarmSettings,
           areaChickenFarms,
+          undefined,
           module,
         )
       }
@@ -767,7 +645,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       && module.liveArea.zoneId === spaceStationZone?.id
     ) {
       configuredModule = createConfiguredSpaceStationModule(module)
-    } else if (hasModuleCapability(module, 'population') && hasPopulationEntityInventory) {
+    } else if (hasModuleCapability(module, 'population')) {
       const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
 
       if (syncedInventory) {
@@ -779,22 +657,16 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         )
       }
     } else if (hasModuleCapability(module, 'computing')) {
-      const areaComputingConfigs =
-        hasComputingEntityInventory
-          ? resolveComputingEntityInventory(
-              productionEntities,
-              module.liveArea.zoneId,
-            )
-          : syncedComputingConfigs
+      const areaComputingConfigs = resolveComputingEntityInventory(
+        productionEntities,
+        module.liveArea.zoneId,
+      )
 
-      if (areaComputingConfigs) {
-        configuredModule = createComputingModule(
-          areaComputingConfigs.built,
-          areaComputingConfigs.running,
-          'synced',
-          module,
-        )
-      }
+      configuredModule = createComputingModule(
+        areaComputingConfigs.built,
+        areaComputingConfigs.running,
+        module,
+      )
     }
 
     if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId)) {
@@ -810,7 +682,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           configuredModule,
           areaEntities,
           officePlan,
-          officeConfigurationFallbackSource,
         )
       : configuredModule
   })
@@ -826,21 +697,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         officePlan,
         officeBuiltPlan,
         officeCurrentPlan,
-        resolvedOfficePlan.source,
-        hasSyncedOfficeAreaInventory ? 'synced' : 'default',
       )]
     : []
   const hasGeneratedChickenFarmModule = configuredLiveAreaModules.some(module => (
     hasModuleCapability(module, 'chicken-farming')
   ))
-  const baseAreaModules = syncsDefaultArea
-    ? configuredAreaModules.filter(module => (
-        module.id !== DEFAULT_MODULE_ID
-        && (!hasGeneratedChickenFarmModule || module.id !== CHICKEN_FARMS_MODULE_ID)
-      ))
-    : configuredAreaModules.filter(module => (
-        !hasGeneratedChickenFarmModule || module.id !== CHICKEN_FARMS_MODULE_ID
-      ))
+  const baseAreaModules = configuredAreaModules.filter(module => (
+    module.id !== DEFAULT_MODULE_ID
+    && (!hasGeneratedChickenFarmModule || module.id !== CHICKEN_FARMS_MODULE_ID)
+  ))
   const modulesWithLiveAreas = [
     ...transferTerrainMineOwnership(baseAreaModules, configuredLiveAreaModules),
     ...officeFallbackModules,
@@ -850,7 +715,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     defaultModuleId: DEFAULT_MODULE_ID,
     demand: maintenanceDemand,
     modules: modulesWithLiveAreas,
-    productionEntities: hasMaintenanceDepotInventory ? productionEntities : undefined,
+    productionEntities,
   })
   const configuredModulesWithoutSolar = modulesWithLiveAreas.map(module => {
     const assignment = maintenanceAssignments[module.id]
@@ -859,7 +724,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       ? attachMaintenanceDepotsToModule(
           module,
           assignment,
-          hasMaintenanceDepotInventory ? 'synced' : 'modeled',
         )
       : module
   })
@@ -867,17 +731,17 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     defaultModuleId: DEFAULT_MODULE_ID,
     fallbackInventory: {
       builtCounts: {
-        standard: gameState.snapshot?.buildings.solarPanel?.built ?? 0,
-        mono: gameState.snapshot?.buildings.solarPanelMono?.built ?? 0,
+        standard: snapshot.buildings.solarPanel.built,
+        mono: snapshot.buildings.solarPanelMono.built,
       },
       runningCounts: {
-        standard: gameState.snapshot?.buildings.solarPanel?.running ?? 0,
-        mono: gameState.snapshot?.buildings.solarPanelMono?.running ?? 0,
+        standard: snapshot.buildings.solarPanel.running,
+        mono: snapshot.buildings.solarPanelMono.running,
       },
     },
     modules: configuredModulesWithoutSolar,
     plannedTargets: plannedSolarPanelTargets,
-    productionEntities: hasAreaBuildingInventory ? productionEntities : undefined,
+    productionEntities,
   })
   const configuredBaseModules = configuredModulesWithoutSolar.map(module => {
     const solarAssignment = solarAssignments[module.id]
@@ -889,19 +753,15 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       solarAssignment.builtCounts,
       solarAssignment.runningCounts,
       solarAssignment.plannedTargets,
-      gameState.snapshot ? 'synced' : 'modeled',
     )
   })
   const staticInfrastructureAssignments = resolveStaticInfrastructureModuleAssignments({
-    areaEntities:
-      (gameState.snapshot?.schemaVersion ?? 0) >= AREA_GHOST_SCHEMA_VERSION
-        ? areaEntities
-        : undefined,
+    areaEntities,
     builtConfig: staticInfrastructureBuiltConfig,
     defaultModuleId: DEFAULT_MODULE_ID,
     modules: configuredBaseModules,
     managedEntityIds: terrainSorterEntityIds,
-    productionEntities: hasAreaBuildingInventory ? productionEntities : undefined,
+    productionEntities,
     runningConfig: staticInfrastructureRunningConfig,
   })
   const configuredModules = configuredBaseModules.map(module => {
@@ -911,7 +771,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       ? attachStaticInfrastructureToModule(
           module,
           assignment,
-          gameState.snapshot ? 'synced' : 'modeled',
         )
       : module
   })
@@ -1007,11 +866,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   }
   const resolvedModuleResourceLinks = resolveModuleResourceLinks(
     configuredModules,
-    gameState.snapshot?.saveId,
+    snapshot.saveId,
     moduleResourceLinkDefinitions,
   )
   const calculationRevision = `${
-    gameState.revision ?? gameState.snapshot?.exportedAtUtc ?? 'modeled'
+    gameState.revision ?? snapshot.exportedAtUtc
   }:${JSON.stringify(machineZoneAssignments)}`
   const calculateFactoryCalculation = (): FactoryCalculation => {
     const calculateFactory = (
@@ -1413,19 +1272,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Captain of Industry</h1>
-          <p className="text-sm text-muted-foreground">Production Chain Calculator</p>
-        </div>
-        <GameSyncStatus
-          exportedAtUtc={gameState.exportedAtUtc}
-          isFresh={gameState.isFresh}
-          snapshot={gameState.snapshot}
-          source={gameState.source}
-          status={gameState.status}
-        />
-      </div>
+      {header}
 
       <ModuleSwitcher
         modules={configuredModules}
@@ -1449,7 +1296,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <ModifiersView
           computingCapacityTflops={computingCapacityTflops}
           computingConfig={configuredComputingModules.length > 0
-            ? syncedComputingConfigs?.running
+            ? syncedComputingConfigs.running
             : undefined}
           populationCapacity={configuredPopulationModules.length > 0 ? populationCapacity : undefined}
           spaceStation={spaceStationIncludedInFactoryTotals
@@ -1503,10 +1350,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             ...linkedRegularResults,
           ]}
           buildingDiagnostics={factoryBuildingDiagnostics}
-          machineAllocationIssues={sharedMachineAllocation?.issues}
-          machineInventory={sharedMachineAllocation?.inventory}
+          machineAllocationIssues={sharedMachineAllocation.issues}
+          machineInventory={sharedMachineAllocation.inventory}
           machineZoneClaims={groundwaterPumpClaims}
-          machineZones={sharedMachineAllocation?.zones}
+          machineZones={sharedMachineAllocation.zones}
           plannedModules={configuredModules}
           onAssignMachineZone={assignMachineZone}
           onOpenBuilding={openBuilding}
@@ -1521,13 +1368,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <FocusView
           calculation={officePlanCalculation}
           plan={officePlan}
-          source={resolvedOfficePlan.source}
+          source="planned"
         />
       )}
 
       {activeModule?.id === RESERVES_MODULE_ID && (
         <ReservesView
-          balances={gameState.snapshot?.reserves ?? null}
+          balances={snapshot.reserves}
           drawsPerProductionCycle={reserveDrawsPerProductionCycle}
         />
       )}
@@ -1779,7 +1626,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <InfiniteResearchSettings
           levels={researchLevels}
           mode={baseConfig.researchMode}
-          synced={Boolean(syncedResearchLevels)}
         />
       )}
     </div>

@@ -1,9 +1,4 @@
 import {
-  type SyncedLogisticsZoneRef,
-  type SyncedProductionEntity,
-} from "../../game-state";
-import { type CurrentValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
-import {
   computingRecipeIds,
   type ComputingConfig,
   getDataCenterCount,
@@ -11,46 +6,6 @@ import {
 import { type Module } from "./modules";
 
 const COMPUTING_MODULE_ID = "computing";
-
-export const createLegacyComputingArea = (
-  zone: SyncedLogisticsZoneRef,
-  productionEntities: readonly SyncedProductionEntity[],
-): Module => {
-  const zoneEntities = productionEntities.filter(entity => (
-    entity.zones.some(entityZone => entityZone.id === zone.id)
-  ));
-
-  return {
-    id: `live-area-${zone.id}`,
-    name: zone.name ?? "Computing",
-    description: "",
-    capabilities: ["computing"],
-    includedInFactoryTotals: false,
-    builtBuildings: {},
-    presets: [{
-      id: "live",
-      name: "Live area",
-      description: "",
-      activeBuildings: {},
-      currentActiveBuildings: {},
-      builtBuildings: {},
-      constructionGhosts: {},
-      capacityPools: {},
-      dataSources: {},
-      fixed: [],
-    }],
-    defaultPresetId: "live",
-    liveArea: {
-      zoneId: zone.id,
-      trackedBuildings: zoneEntities.length,
-      constructedBuildings: zoneEntities.length,
-      activeBuildings: zoneEntities.filter(entity => entity.running).length,
-      pausedBuildings: zoneEntities.filter(entity => !entity.running).length,
-      constructionGhosts: 0,
-      issues: [],
-    },
-  };
-};
 
 const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
   const rackCount = Math.max(0, Math.trunc(config.rackCount));
@@ -68,7 +23,6 @@ const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
 export const createComputingModule = (
   builtConfig: ComputingConfig,
   runningConfig: ComputingConfig = builtConfig,
-  currentSource: CurrentValueSource = "synced",
   generatedArea?: Module,
 ): Module => {
   const built = normalizeComputingConfig(builtConfig);
@@ -101,7 +55,7 @@ export const createComputingModule = (
   ]));
   const dataSources = Object.fromEntries(items.map((item) => [
     item.recipeId,
-    currentSource,
+    "synced" as const,
   ]));
 
   const computingModule: Module = {

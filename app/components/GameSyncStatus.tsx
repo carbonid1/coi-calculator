@@ -1,5 +1,4 @@
 import {
-  CURRENT_GAME_STATE_SCHEMA_VERSION,
   type GameStateConnectionStatus,
   type GameStateDataSource,
   type GameStateSnapshot,
@@ -40,9 +39,6 @@ export const GameSyncStatus: React.FC<Props> = ({
   status,
 }) => {
   const isLive = source === "live" && isFresh;
-  const updatePending = snapshot
-    ? snapshot.schemaVersion < CURRENT_GAME_STATE_SCHEMA_VERSION
-    : false;
   const label = getStatusLabel(Boolean(snapshot), isLive, status);
 
   return (
@@ -52,7 +48,6 @@ export const GameSyncStatus: React.FC<Props> = ({
         : "min-h-4 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:text-right"}
     >
       {label}
-      {updatePending && " · Exporter update pending"}
       {snapshot && exportedAtUtc && (
         <>
           {" · "}

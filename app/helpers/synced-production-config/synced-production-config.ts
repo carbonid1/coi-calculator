@@ -1,15 +1,10 @@
 import { type CurrentChickenFarmEntity } from "../../db/chicken-farm";
-import { type ComputingConfig } from "../../db/computing";
 import {
   type CurrentCropFarmEntity,
   type FertilizerId,
 } from "../../db/crop-farming";
 import {
-  type CurrentChickenFarmConfiguration,
-} from "../../db/modules/farms";
-import {
   type SyncedChickenFarmState,
-  type SyncedComputingState,
   type SyncedCropFarmState,
 } from "../../game-state";
 
@@ -40,27 +35,6 @@ const getSyncedFertilizerId = (
 ) => fertilizerProductId == null
   ? null
   : gameFertilizerIds[fertilizerProductId] ?? null;
-
-export const getSyncedComputingConfigs = (
-  state: SyncedComputingState,
-): { built: ComputingConfig; running: ComputingConfig } => ({
-  built: {
-    dataCenterCount: state.dataCenters.built,
-    rackCount: state.racks.built,
-    waterChillers: state.waterChillers.built,
-  },
-  running: {
-    dataCenterCount: state.dataCenters.running,
-    rackCount: state.racks.running,
-    waterChillers: state.waterChillers.running,
-  },
-});
-
-export const getSyncedChickenFarmConfigurations = (
-  state: SyncedChickenFarmState,
-): CurrentChickenFarmConfiguration[] => state.configurations.map(configuration => ({
-  ...configuration,
-}));
 
 export const getSyncedChickenFarmEntities = (
   state: SyncedChickenFarmState,

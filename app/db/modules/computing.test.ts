@@ -1,17 +1,16 @@
 import { expect, it } from "vitest";
 
-import { type SyncedProductionEntity } from "../../game-state";
 import {
   computingRecipeIds,
   dataCenter,
   getRackAllocation,
 } from "../computing";
-import { createComputingModule, createLegacyComputingArea } from "./computing";
+import { createComputingModule } from "./computing";
 import { type Module } from "./modules";
 
 it("calculates a synced two-data-center configuration", () => {
   const config = { dataCenterCount: 2, rackCount: 96, waterChillers: 2 };
-  const computing = createComputingModule(config, config, "synced");
+  const computing = createComputingModule(config, config);
   const preset = computing.presets.at(0);
 
   expect(getRackAllocation(config.rackCount)).toEqual([48, 48]);
@@ -29,7 +28,6 @@ it("keeps built and running synced computing inventory separate", () => {
   const computingModule = createComputingModule(
     { dataCenterCount: 5, rackCount: 202, waterChillers: 5 },
     { dataCenterCount: 1, rackCount: 48, waterChillers: 4 },
-    "synced",
   );
   const preset = computingModule.presets[0];
 
@@ -113,7 +111,6 @@ it("preserves the generated area identity and removes handled recipe issues", ()
   const computing = createComputingModule(
     { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
     { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
-    "synced",
     generatedArea,
   );
 
@@ -149,57 +146,5 @@ it("preserves the generated area identity and removes handled recipe issues", ()
     [computingRecipeIds.dataCenter]: "synced",
     [computingRecipeIds.basicRack]: "synced",
     [computingRecipeIds.waterChiller]: "synced",
-  });
-});
-
-it("creates a generated-style Computing area for pre-ghost synced snapshots", () => {
-  const productionEntities: SyncedProductionEntity[] = [
-    {
-      entityId: 1,
-      prototypeId: "DataCenter",
-      running: true,
-      recipeIds: [],
-      zones: [{ id: 15, name: "Computing" }],
-      nuclearReactor: null,
-      dataCenterRacks: 48,
-    },
-    {
-      entityId: 2,
-      prototypeId: "WaterChiller",
-      running: false,
-      recipeIds: ["WaterChilling"],
-      zones: [{ id: 15, name: "Computing" }],
-      nuclearReactor: null,
-    },
-  ];
-  const area = createLegacyComputingArea(
-    { id: 15, name: "Computing" },
-    productionEntities,
-  );
-  const computing = createComputingModule(
-    { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
-    { dataCenterCount: 1, rackCount: 48, waterChillers: 0 },
-    "synced",
-    area,
-  );
-
-  expect(computing).toMatchObject({
-    id: "live-area-15",
-    name: "Computing",
-    includedInFactoryTotals: true,
-    liveArea: {
-      zoneId: 15,
-      trackedBuildings: 2,
-      constructedBuildings: 2,
-      activeBuildings: 1,
-      pausedBuildings: 1,
-      constructionGhosts: 0,
-      issues: [],
-    },
-  });
-  expect(computing.presets[0].activeBuildings).toMatchObject({
-    [computingRecipeIds.dataCenter]: 1,
-    [computingRecipeIds.basicRack]: 48,
-    [computingRecipeIds.waterChiller]: 0,
   });
 });

@@ -8,7 +8,7 @@ import {
   focusCatalog,
   defaultOfficePlan,
   officeCatalog,
-  resolvedOfficePlan,
+  plannedOfficePlan,
 } from "./offices";
 
 describe("offices and focuses", () => {
@@ -61,9 +61,8 @@ describe("offices and focuses", () => {
   });
 
   it("plans one maximally boosted Office III around contracts", () => {
-    const result = calculateOfficePlan(resolvedOfficePlan.value, 5);
+    const result = calculateOfficePlan(plannedOfficePlan, 5);
 
-    expect(resolvedOfficePlan.source).toBe("planned");
     expect(result).toMatchObject({
       computingTflops: 192,
       electricityKw: 600,
@@ -111,7 +110,7 @@ describe("offices and focuses", () => {
   });
 
   it("calculates mixed synced computing boosts exactly", () => {
-    const result = calculateOfficePlan(resolvedOfficePlan.value, 5, [
+    const result = calculateOfficePlan(plannedOfficePlan, 5, [
       { tierId: "officeIII", computingBoostStep: 0, count: 1 },
       { tierId: "officeIII", computingBoostStep: 2, count: 1 },
     ]);

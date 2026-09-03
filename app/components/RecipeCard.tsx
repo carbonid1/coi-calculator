@@ -1,3 +1,4 @@
+import { type ValueSource } from "../data-source";
 import { getBuildingData } from "../db/buildings";
 import { type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
@@ -10,7 +11,6 @@ import {
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
 

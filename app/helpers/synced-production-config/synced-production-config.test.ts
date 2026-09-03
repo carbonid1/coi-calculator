@@ -1,22 +1,9 @@
 import { expect, it } from "vitest";
 
 import {
-  getSyncedChickenFarmConfigurations,
   getSyncedChickenFarmEntities,
-  getSyncedComputingConfigs,
   getSyncedCropFarmEntities,
 } from "./synced-production-config";
-
-it("maps computing built and running capacity independently", () => {
-  expect(getSyncedComputingConfigs({
-    dataCenters: { built: 5, running: 1 },
-    racks: { built: 202, running: 48 },
-    waterChillers: { built: 5, running: 4 },
-  })).toEqual({
-    built: { dataCenterCount: 5, rackCount: 202, waterChillers: 5 },
-    running: { dataCenterCount: 1, rackCount: 48, waterChillers: 4 },
-  });
-});
 
 it("preserves chicken modes, population, identities, and areas", () => {
   const state = {
@@ -37,7 +24,6 @@ it("preserves chicken modes, population, identities, and areas", () => {
     }],
   };
 
-  expect(getSyncedChickenFarmConfigurations(state)).toEqual(state.configurations);
   expect(getSyncedChickenFarmEntities(state)).toEqual([{
     entityId: 84,
     running: false,

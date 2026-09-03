@@ -2,7 +2,6 @@ import {
   type SyncedAreaEntity,
   type SyncedProductionEntity,
 } from '../../game-state'
-import { type ValueSource } from '../../helpers/resolve-layered-value/resolve-layered-value'
 import {
   defaultOfficePlan,
   getOfficeRecipeId,
@@ -134,8 +133,6 @@ export const createPlannedOfficeModule = (
   plan: OfficePlan,
   builtPlan: OfficePlan = defaultOfficePlan,
   currentPlan: OfficePlan = builtPlan,
-  planSource: ValueSource = 'planned',
-  currentSource: ValueSource = 'default',
 ): Module => {
   const normalizeCount = (count: number) => Math.max(0, Math.trunc(count))
   const officeEntries = officeCatalog.map(office => ({
@@ -164,8 +161,8 @@ export const createPlannedOfficeModule = (
     ...Object.fromEntries(officeEntries.map(entry => [entry.recipeId, entry.current])),
   }
   const dataSources: NonNullable<Preset['dataSources']> = {
-    [assemblyRecipeId]: assemblyCount === assemblyCurrent ? currentSource : planSource,
-    ...Object.fromEntries(officeEntries.map(entry => [entry.recipeId, planSource])),
+    [assemblyRecipeId]: 'planned',
+    ...Object.fromEntries(officeEntries.map(entry => [entry.recipeId, 'planned' as const])),
   }
 
   return {
@@ -192,7 +189,6 @@ export const createOfficeAreaModule = (
   generatedArea: Module,
   entities: readonly SyncedAreaEntity[],
   plan: OfficePlan,
-  planSource: ValueSource,
 ): Module => {
   const zoneId = generatedArea.liveArea?.zoneId
 
@@ -218,7 +214,6 @@ export const createOfficeAreaModule = (
   const officeConstructionGhosts: Record<string, number> = {}
   const officeDataSources: NonNullable<Preset['dataSources']> = {}
   const officeRecipeIds: string[] = []
-  const fallbackOfficeSource = planSource === 'default' ? 'synced' : planSource
 
   for (const tierId of officeTierIds) {
     const prototypeId = officePrototypeIdByTier[tierId]
@@ -256,7 +251,7 @@ export const createOfficeAreaModule = (
       officeConstructionGhosts[recipeId] = constructionGhosts
       officeDataSources[recipeId] = configuredEntities.every(entity => entity.office)
         ? 'synced'
-        : fallbackOfficeSource
+        : 'planned'
     }
   }
 

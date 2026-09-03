@@ -1,7 +1,7 @@
 import { Card, cn, type CardRootProps } from "@carbonid1/design-system";
 
+import { type ValueSource } from "../data-source";
 import { type OperatingMode } from "../helpers/calculate/calculate";
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props extends CardRootProps {

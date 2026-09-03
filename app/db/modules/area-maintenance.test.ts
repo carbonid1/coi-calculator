@@ -168,7 +168,7 @@ it('adds synced depot cards and observed targets to the owning module', () => {
     modules: [defaultModule],
     productionEntities: [depotEntity(1, 'MaintenanceDepotT1', ['MaintenanceT1Recycling'])],
   }).general!
-  const configured = attachMaintenanceDepotsToModule(defaultModule, assignment, 'synced')
+  const configured = attachMaintenanceDepotsToModule(defaultModule, assignment)
   const line = buildModuleLines(configured, configured.presets[0]).lines.find(
     candidate => candidate.recipe.id === 'maintenance-i-recycling',
   )

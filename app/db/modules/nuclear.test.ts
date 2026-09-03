@@ -67,7 +67,6 @@ it("layers a pending operation target over exact synced inventory", () => {
     expect.objectContaining({
       recipeId: "hydrogen-reformer-super",
       current: 1,
-      currentSource: "synced",
       target: 6,
       actions: [
         { type: "unpause", label: "Unpause 4 Hydrogen Reformers" },
@@ -152,7 +151,6 @@ it("returns reached operation targets to synced state", () => {
   const preset = nuclearModule.presets[0];
 
   expect(preset?.planMismatches).toBeUndefined();
-  expect(Object.values(preset?.dataSources ?? {})).not.toContain("modeled");
   expect(preset?.dataSources).toMatchObject({
     "hydrogen-reformer-super": "synced",
     "electrolyzer-ii-chlorine": "synced",

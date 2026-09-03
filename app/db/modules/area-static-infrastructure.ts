@@ -4,7 +4,6 @@ import {
   type SyncedTrainStationConfiguration,
 } from '../../game-state'
 import { syncedBuildingPrototypeIds } from '../../helpers/area-building-sync/area-building-sync'
-import { type CurrentValueSource } from '../../helpers/resolve-layered-value/resolve-layered-value'
 import { recipes, type Recipe } from '../recipes'
 import {
   normalizeStaticInfrastructureConfig,
@@ -321,7 +320,6 @@ export const resolveStaticInfrastructureModuleAssignments = ({
 export const attachStaticInfrastructureToModule = (
   module: Module,
   assignment: StaticInfrastructureModuleAssignment,
-  currentSource: CurrentValueSource,
 ): Module => {
   const assignedRecipeIds = [...new Set([
     ...Object.keys(assignment.builtBuildings),
@@ -352,7 +350,7 @@ export const attachStaticInfrastructureToModule = (
     assignment.constructionGhosts[recipeId] ?? 0,
   ]))
   const dataSources: NonNullable<Preset['dataSources']> = Object.fromEntries(
-    assignedRecipeIds.map(recipeId => [recipeId, currentSource]),
+    assignedRecipeIds.map(recipeId => [recipeId, 'synced']),
   )
 
   return {

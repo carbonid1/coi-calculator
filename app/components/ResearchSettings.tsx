@@ -19,7 +19,6 @@ interface ResearchSettingsProps {
 interface InfiniteResearchSettingsProps {
   levels: Readonly<Record<InfiniteResearchId, number>>;
   mode: ResearchMode;
-  synced: boolean;
 }
 
 const formatResearchPoints = (value: number) => value.toLocaleString("en-US");
@@ -169,7 +168,6 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({ efficiency }
 export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> = ({
   levels,
   mode,
-  synced,
 }) => {
   const completedCount = infiniteResearchCatalog.filter((research) => (
     levels[research.id] >= getResearchTarget(research, mode)
@@ -183,9 +181,7 @@ export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> =
             Infinite research
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {synced
-              ? `${completedCount} of ${infiniteResearchCatalog.length} targets reached · Synced from game`
-              : "Waiting for research data from the exporter"}
+            {completedCount} of {infiniteResearchCatalog.length} targets reached · Synced from game
           </p>
         </div>
 

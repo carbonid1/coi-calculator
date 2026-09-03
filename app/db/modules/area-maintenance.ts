@@ -1,5 +1,4 @@
 import { type SyncedProductionEntity } from '../../game-state'
-import { type CurrentValueSource } from '../../helpers/resolve-layered-value/resolve-layered-value'
 import { recipes } from '../recipes'
 import { type ResourceId } from '../resources'
 import { type Module, type Preset } from './modules'
@@ -197,13 +196,12 @@ export const resolveMaintenanceDepotModuleAssignments = ({
 export const attachMaintenanceDepotsToModule = (
   module: Module,
   assignment: MaintenanceDepotModuleAssignment,
-  currentSource: CurrentValueSource,
 ): Module => {
   const recipeIds = Object.keys(assignment.builtBuildings)
 
   if (recipeIds.length === 0) return module
 
-  const dataSources = Object.fromEntries(recipeIds.map(recipeId => [recipeId, currentSource]))
+  const dataSources = Object.fromEntries(recipeIds.map(recipeId => [recipeId, 'synced' as const]))
 
   return {
     ...module,

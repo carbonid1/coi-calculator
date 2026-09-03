@@ -41,7 +41,6 @@ export interface PlanMismatchSummary {
   buildingName: string;
   recipeName: string;
   current: number;
-  currentSource: "default" | "modeled" | "synced";
   target: number;
   direction: "at-least" | "at-most";
   format: "count" | "level" | "animals" | "configuration";

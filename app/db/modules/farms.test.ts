@@ -2,39 +2,25 @@ import { describe, expect, it } from "vitest";
 
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import {
-  emptyChickenFarmSettings,
   plannedChickenFarmSettings,
-  resolvedChickenFarmSettings,
-  resolvedCurrentChickenFarmSettings,
 } from "../chicken-farm";
 import { baseConfig } from "../config";
 import { recipes } from "../recipes";
-import { chickenFarms, createChickenFarmsModule } from "./farms";
+import { createChickenFarmsModule } from "./farms";
 import { type Module } from "./modules";
 
 describe("Chicken Farms", () => {
-  it("supports disabling chicken farms completely", () => {
-    const farmModule = createChickenFarmsModule({ totalChickenCount: 0, slaughtering: true });
-    const preset = farmModule.presets[0];
-
-    expect(farmModule.builtBuildings["chicken-farm-slaughtering"]).toBe(0);
-    expect(preset?.speedLevels?.["chicken-farm-slaughtering"]).toBe(0);
-  });
-
   it("uses synced current settings instead of inventing a baseline", () => {
     const current = { totalChickenCount: 1_950, slaughtering: true };
     const farmModule = createChickenFarmsModule(
       current,
-      current,
-      "synced",
-      "synced",
-      [{
+      [500, 500, 500, 450].map((chickens, index) => ({
+        entityId: index + 1,
+        running: true,
         slaughtering: true,
-        built: 4,
-        running: 4,
-        chickens: 1_950,
-        runningChickens: 1_950,
-      }],
+        chickens,
+        zones: [],
+      })),
     );
     const preset = farmModule.presets[0];
 
@@ -44,31 +30,9 @@ describe("Chicken Farms", () => {
     expect(preset?.dataSources?.["chicken-farm-slaughtering"]).toBe("synced");
   });
 
-  it("keeps the target explicitly planned when no game state exists", () => {
-    const preset = chickenFarms.presets[0];
-
-    expect(resolvedCurrentChickenFarmSettings).toEqual({
-      source: "default",
-      value: emptyChickenFarmSettings,
-    });
-    expect(resolvedChickenFarmSettings).toEqual({
-      source: "planned",
-      value: plannedChickenFarmSettings,
-    });
-    expect(chickenFarms.builtBuildings["chicken-farm-slaughtering"]).toBe(0);
-    expect(preset?.activeBuildings["chicken-farm-slaughtering"]).toBe(5);
-    expect(preset?.dataSources?.["chicken-farm-slaughtering"]).toBe("planned");
-    expect(preset?.unplacedPlannedBuildings?.["chicken-farm-slaughtering"]).toBe(5);
-  });
-
   it("layers the plan over synced farms without duplicating their capacity", () => {
     const farmModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
-      plannedChickenFarmSettings,
-      "planned",
-      "synced",
-      [],
-      undefined,
       [500, 500, 500, 450].map((chickens, index) => ({
         entityId: index + 1,
         running: true,
@@ -127,12 +91,8 @@ describe("Chicken Farms", () => {
     }));
     const farmArea = createChickenFarmsModule(
       plannedChickenFarmSettings,
-      plannedChickenFarmSettings,
-      "planned",
-      "synced",
-      undefined,
-      undefined,
       currentEntities,
+      undefined,
       syncedArea,
     );
 
@@ -152,23 +112,20 @@ describe("Chicken Farms", () => {
   it("keeps extra synced operating modes after the minimum plan is reached", () => {
     const farmModule = createChickenFarmsModule(
       plannedChickenFarmSettings,
-      plannedChickenFarmSettings,
-      "planned",
-      "synced",
       [
-        {
+        ...[500, 500, 500, 500, 350].map((chickens, index) => ({
+          entityId: index + 1,
+          running: true,
           slaughtering: true,
-          built: 5,
-          running: 5,
-          chickens: 2_350,
-          runningChickens: 2_350,
-        },
+          chickens,
+          zones: [],
+        })),
         {
+          entityId: 6,
+          running: true,
           slaughtering: false,
-          built: 1,
-          running: 1,
           chickens: 500,
-          runningChickens: 500,
+          zones: [],
         },
       ],
     );

@@ -424,7 +424,7 @@ describe("planned capacity diagnostics", () => {
   it("treats a mixed shared-capacity pool as acknowledged when one recipe is planned", () => {
     const currentResult = {
       ...plannedResult(0.5),
-      dataSource: "modeled" as const,
+      dataSource: "synced" as const,
       activeBuildings: 1,
       builtBuildings: 1,
       capacityPoolId: "chemical-plant-ii",

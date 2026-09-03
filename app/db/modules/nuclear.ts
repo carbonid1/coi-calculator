@@ -3,7 +3,7 @@ import {
   nuclearHandledPrototypeIds,
   resolveNuclearEntityInventory,
 } from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
-import { resolveDirectionalPlan } from "../../helpers/resolve-layered-value/resolve-directional-plan";
+import { resolveDirectionalPlan } from "../../helpers/resolve-directional-plan";
 import { type PlanningBaselines } from "../planning-baselines";
 import {
   type Module,
@@ -135,7 +135,7 @@ export const createNuclearModule = (
   for (const target of operationTargets) {
     const current = currentActiveBuildings[target.recipeId] ?? 0;
     const resolved = resolveDirectionalPlan(
-      { default: 0, synced: current },
+      current,
       { direction: "at-least", target: target.target },
     );
 
@@ -145,8 +145,7 @@ export const createNuclearModule = (
     dataSources[target.recipeId] = "planned";
     planMismatches.push({
       recipeId: target.recipeId,
-      current: resolved.current.value,
-      currentSource: resolved.current.source,
+      current,
       target: resolved.target,
       direction: resolved.direction,
       format: "count",
@@ -169,7 +168,7 @@ export const createNuclearModule = (
     const tallRunning = currentActiveBuildings[tallRecipeId] ?? 0;
     const current = standardRunning + tallRunning;
     const resolved = resolveDirectionalPlan(
-      { default: 0, synced: current },
+      current,
       { direction: "at-least", target: plan.seawaterPumpCount },
     );
 
@@ -199,7 +198,6 @@ export const createNuclearModule = (
         planMismatches.push({
           recipeId: standardRecipeId,
           current: standardRunning,
-          currentSource: resolved.current.source,
           target: standardTarget,
           direction: resolved.direction,
           format: "count",
@@ -216,7 +214,6 @@ export const createNuclearModule = (
         planMismatches.push({
           recipeId: tallRecipeId,
           current: tallRunning,
-          currentSource: resolved.current.source,
           target: tallTarget,
           direction: resolved.direction,
           format: "count",

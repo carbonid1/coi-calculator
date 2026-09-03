@@ -1,3 +1,4 @@
+import { type ValueSource } from "../../data-source";
 import { baseConfig } from "../../db/config";
 import {
   isModuleScopedSourceMode,
@@ -10,7 +11,6 @@ import {
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../modifiers/recipe-output";
-import { type ValueSource } from "../resolve-layered-value/resolve-layered-value";
 import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface ProductionLine {

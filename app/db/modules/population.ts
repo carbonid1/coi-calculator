@@ -1,14 +1,10 @@
-import {
-  type SyncedLogisticsZoneRef,
-  type SyncedProductionEntity,
-} from "../../game-state";
+import { type ValueSource } from "../../data-source";
 import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
 import {
   ignoredPopulationPrototypeIds,
   populationEntityMatchers,
   type ResolvedPopulationEntityInventory,
 } from "../../helpers/population-entity-sync/population-entity-sync";
-import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
 import {
   activeHousingType,
   calculatePopulationCapacity,
@@ -70,46 +66,6 @@ export const resolvePopulationHousingPlanTargets = (
   return pendingHousing > 0 && candidate
     ? new Map([[candidate.zoneId, candidate.projectedHousing + pendingHousing]])
     : new Map();
-};
-
-export const createLegacyPopulationArea = (
-  zone: SyncedLogisticsZoneRef,
-  productionEntities: readonly SyncedProductionEntity[],
-): Module => {
-  const zoneEntities = productionEntities.filter(entity => (
-    entity.zones.some(entityZone => entityZone.id === zone.id)
-  ));
-
-  return {
-    id: `live-area-${zone.id}`,
-    name: zone.name ?? "Population",
-    description: "",
-    capabilities: ["population"],
-    includedInFactoryTotals: false,
-    builtBuildings: {},
-    presets: [{
-      id: "live",
-      name: "Live area",
-      description: "",
-      activeBuildings: {},
-      currentActiveBuildings: {},
-      builtBuildings: {},
-      constructionGhosts: {},
-      capacityPools: {},
-      dataSources: {},
-      fixed: [],
-    }],
-    defaultPresetId: "live",
-    liveArea: {
-      zoneId: zone.id,
-      trackedBuildings: zoneEntities.length,
-      constructedBuildings: zoneEntities.length,
-      activeBuildings: zoneEntities.filter(entity => entity.running).length,
-      pausedBuildings: zoneEntities.filter(entity => !entity.running).length,
-      constructionGhosts: 0,
-      issues: [],
-    },
-  };
 };
 
 export const createPopulationModule = (
@@ -312,7 +268,6 @@ export const createPopulationModule = (
           {
             recipeId: settlementRecipeIds.residents,
             current: currentHousingCount,
-            currentSource: "synced" as const,
             target: plannedHousingTarget,
             direction: "at-least" as const,
             format: "configuration" as const,

@@ -25,7 +25,7 @@ export interface FactoryTotalResult {
 export interface FactoryTotalOptions {
   /** Contracts enabled for this specific calculation scenario. */
   contracts?: ActiveContract[];
-  /** Effective recycling efficiency after synced, modeled, and planned modifiers. */
+  /** Effective recycling efficiency after synced values and planned modifiers. */
   recyclingEfficiencyPercent: number;
   outputModifiers?: RecipeModifierMultipliers;
   shipsFuelUseMultiplier?: number;

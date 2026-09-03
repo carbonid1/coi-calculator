@@ -51,7 +51,6 @@ const maintenanceAssignment = resolveMaintenanceDepotModuleAssignments({
 const maintenance = attachMaintenanceDepotsToModule(
   maintenanceFixture,
   maintenanceAssignment,
-  "synced",
 );
 
 it("treats Toxic Slurry created by demand-driven production after the primary pass", () => {

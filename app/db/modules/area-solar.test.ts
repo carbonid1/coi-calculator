@@ -135,7 +135,6 @@ it("adds live solar buildings to their owning area module", () => {
     { standard: 10, mono: 20 },
     { standard: 8, mono: 15 },
     undefined,
-    "synced",
   );
   const { lines } = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]);
 
@@ -157,7 +156,6 @@ it("keeps a fixed target planned until enough built panels are running", () => {
     { standard: 10, mono: 25 },
     { standard: 8, mono: 23 },
     { mono: 25 },
-    "synced",
   );
   const mono = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]).lines.find(
     line => line.recipe.id === "solar-panel-mono",
@@ -187,7 +185,6 @@ it("uses the live count after a solar target is complete", () => {
     { standard: 38, mono: 423 },
     { standard: 38, mono: 423 },
     { mono: 245 },
-    "synced",
   );
   const mono = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]).lines.find(
     line => line.recipe.id === "solar-panel-mono",

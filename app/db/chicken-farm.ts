@@ -1,9 +1,3 @@
-import {
-  type LayeredValue,
-  resolveCurrentLayeredValue,
-  resolveLayeredValue,
-} from "../helpers/resolve-layered-value/resolve-layered-value";
-
 export interface ChickenFarmSettings {
   totalChickenCount: number;
   slaughtering: boolean;
@@ -34,25 +28,10 @@ export const chickenFarm = {
   carcassPerSlaughteredChicken: 0.5,
 } as const;
 
-export const emptyChickenFarmSettings: ChickenFarmSettings = {
-  totalChickenCount: 0,
+export const plannedChickenFarmSettings: ChickenFarmSettings = {
+  totalChickenCount: 2_350,
   slaughtering: true,
 };
-
-export const plannedChickenFarmSettings: ChickenFarmSettings = {
-  ...emptyChickenFarmSettings,
-  totalChickenCount: 2_350,
-};
-
-const chickenFarmSettingsLayers: LayeredValue<ChickenFarmSettings> = {
-  default: emptyChickenFarmSettings,
-  planned: plannedChickenFarmSettings,
-};
-
-export const resolvedCurrentChickenFarmSettings = resolveCurrentLayeredValue(
-  chickenFarmSettingsLayers,
-);
-export const resolvedChickenFarmSettings = resolveLayeredValue(chickenFarmSettingsLayers);
 
 export const getChickenFarmLayout = (totalChickenCount: number) => {
   const roundedChickenCount = Math.round(

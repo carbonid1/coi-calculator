@@ -21,8 +21,8 @@ When updating database files, verify numerical values and mechanics against the 
 
 ## Data states
 
-These states identify where an actionable value or setting comes from and determine its UI treatment.
+Only actionable values from a compatible game snapshot or a future plan receive state treatment.
+Calculator-derived values remain neutral. Without a compatible snapshot, current-state calculations are unavailable.
 
-- **Modeled:** Use for calculator-owned assumptions or manually configured current values.
 - **Synced:** Use for current values read from a compatible game snapshot.
-- **Planned:** Use for future changes that override modeled and synced values while exposing their projected resource pressure.
+- **Planned:** Use for future changes that override synced values while exposing their projected resource pressure.

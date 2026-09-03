@@ -10,7 +10,6 @@ import {
 } from "../helpers/planned-builds/planned-builds";
 import { baseConfig } from "./config";
 import {
-  createLegacySpaceStationArea,
   createSpaceStationModule,
   selectSpaceStationZone,
 } from "./modules/space-station";
@@ -35,9 +34,7 @@ const createTestSpaceStationModule = () => createSpaceStationModule(
   emptyRocketInfrastructureConfig,
   {
     rocketRunningConfig: emptyRocketInfrastructureConfig,
-    rocketSource: "synced",
-    stationPartsAssembly: { built: 1, running: 1, source: "synced" },
-    stationSource: "synced",
+    stationPartsAssembly: { built: 1, running: 1 },
   },
 );
 const spaceStation = createTestSpaceStationModule();
@@ -214,9 +211,7 @@ describe("Space Station", () => {
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
-        rocketSource: "synced",
-        stationPartsAssembly: { built: 1, running: 1, source: "synced" },
-        stationSource: "synced",
+        stationPartsAssembly: { built: 1, running: 1 },
       },
     );
     const preset = stationModule.presets[0];
@@ -237,8 +232,6 @@ describe("Space Station", () => {
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 0 },
-        rocketSource: "synced",
-        stationSource: "synced",
       },
       undefined,
       { requiredPoints: 96 },
@@ -304,8 +297,6 @@ describe("Space Station", () => {
       { rocketAssemblyDepot: 2, rocketLaunchPad: 2 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 2, rocketLaunchPad: 2 },
-        rocketSource: "synced",
-        stationSource: "synced",
       },
     );
     const result = calculateFactoryTotal(
@@ -402,9 +393,7 @@ describe("Space Station", () => {
       { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 0 },
-        rocketSource: "synced",
-        stationPartsAssembly: { built: 1, running: 1, source: "synced" },
-        stationSource: "synced",
+        stationPartsAssembly: { built: 1, running: 1 },
       },
       generatedArea,
     );
@@ -459,53 +448,12 @@ describe("Space Station", () => {
     expect(liveStation.liveArea?.issues).toEqual([]);
   });
 
-  it("creates a generated-style Space Station area for pre-ghost snapshots", () => {
-    const area = createLegacySpaceStationArea(
-      { id: 15, name: "Space Station" },
-      [
-        {
-          entityId: 1,
-          prototypeId: "RocketAssemblyDepot",
-          running: false,
-          recipeIds: [],
-          zones: [{ id: 15, name: "Space Station" }],
-          nuclearReactor: null,
-        },
-        {
-          entityId: 2,
-          prototypeId: "RocketLaunchPad",
-          running: true,
-          recipeIds: [],
-          zones: [{ id: 15, name: "Space Station" }],
-          nuclearReactor: null,
-        },
-      ],
-    );
-
-    expect(area).toMatchObject({
-      id: "live-area-15",
-      name: "Space Station",
-      includedInFactoryTotals: false,
-      liveArea: {
-        zoneId: 15,
-        trackedBuildings: 2,
-        constructedBuildings: 2,
-        activeBuildings: 1,
-        pausedBuildings: 1,
-        constructionGhosts: 0,
-        issues: [],
-      },
-    });
-  });
-
   it("keeps rocket infrastructure synced and exposes paused capacity as attention", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
-        rocketSource: "synced",
-        stationSource: "synced",
       },
     );
     const result = calculateFactoryTotal(

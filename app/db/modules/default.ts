@@ -140,7 +140,6 @@ const applyCookingOilDieselPlan = (module: Module): Module => {
     : [{
         recipeId,
         current: running,
-        currentSource: 'synced' as const,
         target: cookingOilDieselTarget,
         direction: 'at-least' as const,
         format: 'count' as const,
@@ -226,7 +225,6 @@ const applyCrackingUnitDieselPlan = (module: Module): Module => {
     : [{
         recipeId,
         current: projected,
-        currentSource: 'synced' as const,
         target: plannedCrackingUnitDieselTarget,
         direction,
         format: 'count' as const,
@@ -340,7 +338,6 @@ const applyResearchLabPlan = (
     : [{
         recipeId,
         current: running,
-        currentSource: 'synced' as const,
         target: plannedResearchLabTarget,
         direction: 'at-least' as const,
         format: 'count' as const,

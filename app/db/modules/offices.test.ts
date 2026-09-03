@@ -72,7 +72,7 @@ describe('synced Office areas', () => {
 
     if (!generatedArea) throw new Error('Missing generated Office area')
 
-    const officeAreaModule = createOfficeAreaModule(generatedArea, entities, plan, 'planned')
+    const officeAreaModule = createOfficeAreaModule(generatedArea, entities, plan)
     const result = calculateFactoryTotal(
       [officeAreaModule],
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
@@ -131,7 +131,7 @@ describe('synced Office areas', () => {
 
     if (!generatedArea) throw new Error('Missing generated Office area')
 
-    const officeAreaModule = createOfficeAreaModule(generatedArea, entities, plan, 'planned')
+    const officeAreaModule = createOfficeAreaModule(generatedArea, entities, plan)
     const preset = officeAreaModule.presets.find(({ id }) => (
       id === officeAreaModule.defaultPresetId
     ))
@@ -238,7 +238,7 @@ describe('synced Office areas', () => {
       modules,
     )
     const configuredAreas = generatedAreas.map(generatedArea => (
-      createOfficeAreaModule(generatedArea, [overlappingOffice], plan, 'planned')
+      createOfficeAreaModule(generatedArea, [overlappingOffice], plan)
     ))
 
     expect(configuredAreas.filter(hasAttachedOfficeRecipes).map(area => area.id)).toEqual([
@@ -267,7 +267,6 @@ describe('synced Office areas', () => {
       generatedDefault,
       [unzonedOffice],
       plan,
-      'planned',
     )
 
     expect(getOfficeAreaZoneIds([unzonedOffice])).toEqual(new Set([-1]))

@@ -10,7 +10,7 @@ const snapshot = (exportedAtUtc: string, saveId = 'test-save') =>
   ({
     exportedAtUtc,
     saveId,
-    schemaVersion: 31,
+    schemaVersion: 38,
   })
 
 it('keeps the snapshot revision stable when only the export time changes', () => {

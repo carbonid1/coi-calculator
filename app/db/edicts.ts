@@ -1,5 +1,5 @@
-import { resolveDirectionalPlan } from "../helpers/resolve-layered-value/resolve-directional-plan";
-import { resolveCurrentLayeredValue, type ResolvedValue } from "../helpers/resolve-layered-value/resolve-layered-value";
+import { type ValueSource } from "../data-source";
+import { resolveDirectionalPlan } from "../helpers/resolve-directional-plan";
 
 const edictLevelOrder = [0, 1, 2, 3, 4, 5] as const;
 const cleanPanelsLevelOrder = [0, 1, 2, 3] as const;
@@ -145,29 +145,6 @@ export const defaultEdictLevels: Record<EdictId, EdictLevel> = {
   researchEfficiency: 5,
 };
 
-/** Inactive state used until the exporter has supplied save-owned edicts. */
-const inactiveEdictLevels: Record<EdictId, EdictLevel> = {
-  growthPause: 0,
-  growthBoost: 0,
-  eviction: 0,
-  quarantine: 0,
-  foodSaver: 0,
-  healthBoost: 0,
-  plentyOfFood: 0,
-  moreHouseholdGoods: 0,
-  moreAirConditioners: 0,
-  moreConsumerElectronics: 0,
-  vehiclesFuelSaver: 0,
-  shipsFuelSaver: 0,
-  overloadedTrucks: 0,
-  maintenanceReducer: 0,
-  recyclingIncrease: 0,
-  farmingBoost: 0,
-  waterSaver: 0,
-  cleanPanels: 0,
-  researchEfficiency: 0,
-};
-
 /** Future policy levels applied until the current synced value reaches them. */
 export const plannedEdictLevels: Partial<Record<EdictId, EdictLevel>> = {
   recyclingIncrease: 5,
@@ -175,21 +152,17 @@ export const plannedEdictLevels: Partial<Record<EdictId, EdictLevel>> = {
 
 export const resolveEdictLevel = (
   id: EdictId,
-  synced?: EdictLevel,
-): ResolvedValue<EdictLevel> => {
-  const layers = {
-    default: inactiveEdictLevels[id],
-    synced,
-  };
+  synced: EdictLevel,
+): { source: ValueSource; value: EdictLevel } => {
   const target = plannedEdictLevels[id];
 
-  if (target === undefined) return resolveCurrentLayeredValue(layers);
+  if (target === undefined) return { source: "synced" as const, value: synced };
 
-  const resolved = resolveDirectionalPlan(layers, {
+  const resolved = resolveDirectionalPlan(synced, {
     direction: "at-least",
     target,
   });
-  const value = edictLevelOrder.find((level) => level === resolved.value) ?? layers.default;
+  const value = edictLevelOrder.find((level) => level === resolved.value) ?? synced;
 
   return { source: resolved.source, value };
 };

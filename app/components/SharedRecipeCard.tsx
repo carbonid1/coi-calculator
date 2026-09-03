@@ -1,5 +1,6 @@
 import { cn } from '@carbonid1/design-system'
 
+import { type ValueSource } from '../data-source'
 import { resources } from '../db/resources'
 import { type BuildingDiagnostic } from '../helpers/building-diagnostics/building-diagnostics'
 import {
@@ -14,7 +15,6 @@ import {
 } from '../helpers/modifiers/recipe-output'
 import { calculateProductionCardLoad } from '../helpers/production-card-groups/production-card-groups'
 import { getRecipeDisplayName } from '../helpers/recipe-display/recipe-display'
-import { type ValueSource } from '../helpers/resolve-layered-value/resolve-layered-value'
 import { BuildingCount } from './BuildingCount'
 import { ProductionCard } from './ProductionCard'
 

@@ -1,45 +1,17 @@
 import { cn } from "@carbonid1/design-system";
 
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
+import { type ValueSource } from "../data-source";
 
-export type DataSourceMode = "modeled" | "synced" | "planned";
-
-interface DataSourcePresentation {
-  description: string;
-  surfaceClassName: string;
-}
-
-export const getDataSourceMode = (source: ValueSource): DataSourceMode => (
-  source === "default" ? "modeled" : source
-);
-
-const dataSourcePresentations: Record<DataSourceMode, DataSourcePresentation> = {
-  modeled: {
-    description: "Calculator-owned assumption",
-    surfaceClassName: cn(
-      "border-muted-foreground/30",
-      "bg-[color-mix(in_oklab,var(--card)_96%,var(--muted-foreground))]",
-    ),
-  },
-  synced: {
-    description: "Current value synced from the game",
-    surfaceClassName: cn(
-      "border-success/40",
-      "bg-[color-mix(in_oklab,var(--card)_94%,var(--success))]",
-    ),
-  },
-  planned: {
-    description: "Future override of synced and modeled values",
-    surfaceClassName: cn(
-      "border-dashed border-highlight/70",
-      "bg-[color-mix(in_oklab,var(--card)_94%,var(--highlight))] shadow-none",
-    ),
-  },
+const dataSourceSurfaceClassNames: Record<ValueSource, string> = {
+  synced: cn(
+    "border-success/40",
+    "bg-[color-mix(in_oklab,var(--card)_94%,var(--success))]",
+  ),
+  planned: cn(
+    "border-dashed border-highlight/70",
+    "bg-[color-mix(in_oklab,var(--card)_94%,var(--highlight))] shadow-none",
+  ),
 };
-
-export const getDataSourcePresentation = (source: ValueSource) => (
-  dataSourcePresentations[getDataSourceMode(source)]
-);
 
 interface DataSourceSurfaceOptions {
   className?: string;
@@ -50,7 +22,7 @@ export const getDataSourceSurfaceClassName = (
   source: ValueSource,
   { className, inactive = false }: DataSourceSurfaceOptions = {},
 ) => cn(
-  getDataSourcePresentation(source).surfaceClassName,
-  inactive && getDataSourceMode(source) === "synced" && "border-success/20",
+  dataSourceSurfaceClassNames[source],
+  inactive && source === "synced" && "border-success/20",
   className,
 );

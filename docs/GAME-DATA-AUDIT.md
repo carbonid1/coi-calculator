@@ -525,8 +525,8 @@ explicit planned setting.
 
 If no generated area can own the Office inventory, the same explicit plan is
 kept as an `Office plan` preset. This preserves its projected workers, power,
-computing, and recurring material pressure without restoring a modeled current
-state. An Office that overlaps multiple generated areas is assigned to one
+computing, and recurring material pressure without inventing a current state.
+An Office that overlaps multiple generated areas is assigned to one
 stable area so its physical load is never counted twice.
 
 The current plan uses computing boost step 2 and allocates 1,695 Focus Points to

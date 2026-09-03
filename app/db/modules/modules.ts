@@ -1,5 +1,5 @@
-import { type PlanDirection } from "../../helpers/resolve-layered-value/resolve-directional-plan";
-import { type ValueSource } from "../../helpers/resolve-layered-value/resolve-layered-value";
+import { type ValueSource } from "../../data-source";
+import { type PlanDirection } from "../../helpers/resolve-directional-plan";
 import { type Recipe } from "../recipes";
 import { type ResourceId } from "../resources";
 import { defaultArea } from "./default";
@@ -85,7 +85,6 @@ export type ModuleCapability =
 export interface PlanMismatch {
   recipeId: string;
   current: number;
-  currentSource: Exclude<ValueSource, "planned">;
   target: number;
   direction: PlanDirection;
   format: "count" | "level" | "animals" | "configuration";

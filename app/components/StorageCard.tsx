@@ -1,9 +1,9 @@
 import { Card } from "@carbonid1/design-system";
 
+import { type ValueSource } from "../data-source";
 import { type DecayStorage, type Recipe } from "../db/recipes";
 import { resources } from "../db/resources";
 import { type OperatingMode } from "../helpers/calculate/calculate";
-import { type ValueSource } from "../helpers/resolve-layered-value/resolve-layered-value";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
 

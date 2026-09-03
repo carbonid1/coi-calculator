@@ -1,6 +1,5 @@
 import { expect, it } from "vitest";
 
-import { type SyncedProductionEntity } from "../../game-state";
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
@@ -11,7 +10,6 @@ import { defaultInfiniteResearchLevels } from "../research";
 import { settlementRecipeIds } from "../settlement";
 import { type Module } from "./modules";
 import {
-  createLegacyPopulationArea,
   createPopulationModule,
   resolvePopulationHousingPlanTargets,
 } from "./population";
@@ -174,7 +172,6 @@ it("preserves the generated area while supplying recipe-less settlement calculat
     planMismatches: [{
       recipeId: settlementRecipeIds.residents,
       current: 17,
-      currentSource: "synced",
       target: 18,
       direction: "at-least",
       format: "configuration",
@@ -356,65 +353,13 @@ it("preserves configuration issues for configurable machine ghosts", () => {
   ]);
 });
 
-it("falls back to known waste recipes for supported pre-ghost Population snapshots", () => {
-  const productionEntities: SyncedProductionEntity[] = [
-    {
-      entityId: 1,
-      prototypeId: "HousingT3",
-      running: true,
-      recipeIds: [],
-      zones: [{ id: 14, name: "Population" }],
-      nuclearReactor: null,
-    },
-    {
-      entityId: 2,
-      prototypeId: "WaterTreatmentPlant",
-      running: true,
-      recipeIds: ["WaterTreatmentT2"],
-      zones: [{ id: 14, name: "Population" }],
-      nuclearReactor: null,
-    },
-  ];
-  const area = createLegacyPopulationArea(
-    { id: 14, name: "Population" },
-    productionEntities,
-  );
-  const population = createPopulationModule(
-    inventory({
-      [settlementRecipeIds.residents]: { built: 1, running: 1 },
-      [settlementRecipeIds.wastewaterTreatment]: { built: 1, running: 1 },
-    }),
-    area,
-    syncedHousingCapacityLevel,
-  );
-
-  expect(population).toMatchObject({
-    id: "live-area-14",
-    includedInFactoryTotals: true,
-    liveArea: {
-      trackedBuildings: 2,
-      activeBuildings: 2,
-      pausedBuildings: 0,
-      issues: [],
-    },
-  });
-  expect(population.presets[0].activeBuildings).toMatchObject({
-    [settlementRecipeIds.residents]: 1,
-    [settlementRecipeIds.wastewaterTreatment]: 1,
-  });
-  expect(population.presets[0].fixed).toContain(settlementRecipeIds.residents);
-  expect(population.presets[0].fixed).not.toContain(
-    settlementRecipeIds.wastewaterTreatment,
-  );
-});
-
 it("scales full-population housing electricity with capacity research", () => {
   const build = (level: number) => {
     const populationModule = createPopulationModule(
       inventory({
         [settlementRecipeIds.residents]: { built: 11, running: 11 },
       }),
-      createLegacyPopulationArea({ id: 14, name: "Population" }, []),
+      generatedPopulationArea(),
       level,
     );
     const { lines } = buildModuleLines(

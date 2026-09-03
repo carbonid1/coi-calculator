@@ -1,13 +1,13 @@
 import { Card } from '@carbonid1/design-system'
 import { TriangleAlert } from 'lucide-react'
 
+import { type ValueSource } from '../data-source'
 import {
   calculateFocusPointsCost,
   focusCatalog,
   type OfficePlan,
   type OfficePlanCalculation,
 } from '../db/offices'
-import { type ValueSource } from '../helpers/resolve-layered-value/resolve-layered-value'
 import { getDataSourceSurfaceClassName } from './DataSourceState'
 
 interface Props {

@@ -1,3 +1,4 @@
+import { type ValueSource } from "../../data-source";
 import {
   getChickenFarmLayout,
   type ChickenFarmSettings,
@@ -7,11 +8,7 @@ import {
   type PlanMismatch,
   type PlanMismatchAction,
 } from "../../db/modules/modules";
-import { type PlanDirection } from "../resolve-layered-value/resolve-directional-plan";
-import {
-  type CurrentValueSource,
-  type ValueSource,
-} from "../resolve-layered-value/resolve-layered-value";
+import { type PlanDirection } from "../resolve-directional-plan";
 
 interface EffectiveChickenFarmMode {
   slaughtering: boolean;
@@ -33,14 +30,7 @@ interface EffectiveEntity extends CurrentChickenFarmEntity {
 const pluralize = (name: string, count: number) => `${name}${count === 1 ? "" : "s"}`;
 
 const higherSource = (left: ValueSource, right: ValueSource): ValueSource => {
-  const priority: Record<ValueSource, number> = {
-    default: 0,
-    modeled: 1,
-    synced: 2,
-    planned: 3,
-  };
-
-  return priority[right] > priority[left] ? right : left;
+  return left === "planned" ? left : right;
 };
 
 const aggregateModes = (
@@ -100,7 +90,6 @@ const aggregateModes = (
 
 const createMismatch = (
   settings: ChickenFarmSettings,
-  currentSource: CurrentValueSource,
   direction: PlanDirection,
   currentFarms: number,
   currentChickens: number,
@@ -111,7 +100,6 @@ const createMismatch = (
     ? "chicken-farm-slaughtering"
     : "chicken-farm-eggs-only",
   current: currentChickens,
-  currentSource,
   target: settings.totalChickenCount,
   direction,
   format: "animals",
@@ -123,7 +111,6 @@ const createMismatch = (
 export const resolveChickenFarmEntityPlan = (
   settings: ChickenFarmSettings,
   currentEntities: readonly CurrentChickenFarmEntity[],
-  currentSource: CurrentValueSource,
   direction: PlanDirection,
 ): ResolvedChickenFarmEntityPlan => {
   const targetLayout = getChickenFarmLayout(settings.totalChickenCount);
@@ -143,7 +130,7 @@ export const resolveChickenFarmEntityPlan = (
   if (farmSatisfied && chickensSatisfied) {
     return {
       modes: aggregateModes(
-        entities.map(entity => ({ ...entity, source: currentSource })),
+        entities.map(entity => ({ ...entity, source: "synced" as const })),
         null,
         settings.slaughtering,
       ),
@@ -153,7 +140,7 @@ export const resolveChickenFarmEntityPlan = (
 
   const effective: EffectiveEntity[] = entities.map(entity => ({
     ...entity,
-    source: currentSource,
+    source: "synced",
   }));
 
   if (direction === "at-most") {
@@ -201,7 +188,6 @@ export const resolveChickenFarmEntityPlan = (
       planMismatches: [
         createMismatch(
           settings,
-          currentSource,
           direction,
           currentFarms,
           currentChickens,
@@ -277,7 +263,6 @@ export const resolveChickenFarmEntityPlan = (
     planMismatches: [
       createMismatch(
         settings,
-        currentSource,
         direction,
         currentFarms,
         currentChickens,

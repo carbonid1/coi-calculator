@@ -155,7 +155,6 @@ it("uses the building-card inactive treatment for level-zero edicts", () => {
 });
 
 it.each([
-  ["default", "border-muted-foreground/30"],
   ["synced", "border-success/40"],
   ["planned", "border-dashed"],
 ] as const)("applies the %s source surface", (source, surfaceClass) => {

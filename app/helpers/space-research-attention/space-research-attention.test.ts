@@ -73,7 +73,6 @@ describe('Space Research attention', () => {
           planMismatches: [{
             recipeId: 'space-station-operations',
             current: 0,
-            currentSource: 'synced',
             target: 4,
             direction: 'at-least',
             format: 'level',
