@@ -31,7 +31,13 @@ $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Pat
 $modSource = Join-Path $repositoryRoot "game-mod\CoiCalculatorExporter"
 $outputDirectory = Join-Path $modSource "bin\Release"
 $outputDll = Join-Path $outputDirectory "CoiCalculatorExporter.dll"
-$sourceFile = Join-Path $modSource "CoiCalculatorExporterMod.cs"
+$sourceFiles = Get-ChildItem -LiteralPath $modSource -Filter "*.cs" -File |
+    Sort-Object -Property FullName |
+    ForEach-Object { $_.FullName }
+
+if ($sourceFiles.Count -eq 0) {
+    throw "No C# source files found in $modSource"
+}
 
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 
@@ -55,7 +61,7 @@ $compilerArguments = @(
     "/out:$outputDll"
 )
 $compilerArguments += $references | ForEach-Object { "/reference:$_" }
-$compilerArguments += $sourceFile
+$compilerArguments += $sourceFiles
 
 & $compiler @compilerArguments
 if ($LASTEXITCODE -ne 0) {
