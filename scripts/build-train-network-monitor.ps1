@@ -33,7 +33,14 @@ $modId = "TrainNetworkMonitor"
 $modSource = Join-Path $repositoryRoot "game-mod\$modId"
 $outputDirectory = Join-Path $modSource "bin\Release"
 $outputDll = Join-Path $outputDirectory "$modId.dll"
-$sourceFile = Join-Path $modSource "TrainNetworkMonitorMod.cs"
+$sourceFiles = Get-ChildItem -LiteralPath $modSource -Filter "*.cs" -File |
+    Sort-Object -Property FullName |
+    ForEach-Object { $_.FullName }
+
+if ($sourceFiles.Count -eq 0) {
+    throw "No C# source files found in $modSource"
+}
+
 $sharedSettingsSource = Join-Path $repositoryRoot "game-mod\Shared\CoI.AutoHelpers.Settings.cs"
 $sharedSettingsLicense = Join-Path $repositoryRoot "game-mod\Shared\CoI.AutoHelpers.Settings.LICENSE.txt"
 $modLicense = Join-Path $modSource "LICENSE.txt"
@@ -69,7 +76,8 @@ $compilerArguments = @(
     "/out:$outputDll"
 )
 $compilerArguments += $references | ForEach-Object { "/reference:$_" }
-$compilerArguments += @($sourceFile, $sharedSettingsSource)
+$compilerArguments += $sourceFiles
+$compilerArguments += $sharedSettingsSource
 
 & $compiler @compilerArguments
 if ($LASTEXITCODE -ne 0) {
