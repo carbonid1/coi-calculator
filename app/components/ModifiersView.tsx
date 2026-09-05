@@ -36,6 +36,7 @@ import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-m
 import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {
+  averageSunIntensityPercent: number;
   computingCapacityTflops: number;
   computingConfig?: ComputingConfig;
   electricityGenerationCapacityMw: number;
@@ -59,7 +60,9 @@ interface Props {
   };
 }
 
-const formatUnity = (value: number) => parseFloat(value.toFixed(3)).toLocaleString("en-US");
+const formatUnity = (value: number | null) => value === null
+  ? 'Unavailable'
+  : parseFloat(value.toFixed(3)).toLocaleString("en-US");
 
 export const formatSignedPercent = (value: number) => {
   const rounded = parseFloat(value.toFixed(2));
@@ -228,6 +231,7 @@ export const EdictCard = ({
 };
 
 export const ModifiersView: React.FC<Props> = ({
+  averageSunIntensityPercent,
   computingCapacityTflops,
   computingConfig,
   electricityGenerationCapacityMw,
@@ -260,7 +264,7 @@ export const ModifiersView: React.FC<Props> = ({
     maintenanceOutputLevel,
     focusBonuses.maintenanceProduction,
   );
-  const solarPower = calculateSolarPower(solarPowerLevel, normalizeCleanPanelsLevel(edictLevels.cleanPanels));
+  const solarPower = calculateSolarPower(solarPowerLevel, normalizeCleanPanelsLevel(edictLevels.cleanPanels), averageSunIntensityPercent);
   const cropFarming = calculateCropFarmingModifiers(
     cropYieldLevel,
     normalizeFarmingBoostLevel(edictLevels.farmingBoost),
@@ -301,7 +305,7 @@ export const ModifiersView: React.FC<Props> = ({
         <Card.Root>
           <Card.Content className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div><p className="text-sm text-muted-foreground">Electricity generation capacity</p><p className="font-mono font-semibold text-foreground">{formatPower(electricityGenerationCapacityMw)}</p></div>
-            <div><p className="text-sm text-muted-foreground">Average sunlight ({planningWeather.horizonYears}Y)</p><p className="font-mono font-semibold text-foreground">{planningWeather.averageSunIntensityPercent}%</p></div>
+            <div><p className="text-sm text-muted-foreground">Average sunlight ({planningWeather.horizonYears}Y)</p><p className="font-mono font-semibold text-foreground">{parseFloat(averageSunIntensityPercent.toFixed(2))}%</p></div>
             <div><p className="text-sm text-muted-foreground">Base recycling</p><p className="font-mono font-semibold text-foreground">{baseConfig.recyclingEfficiencyPercent}%</p></div>
             {populationCapacity != null && (
               <PopulationCapacityOverview capacity={populationCapacity} />
@@ -331,7 +335,7 @@ export const ModifiersView: React.FC<Props> = ({
                 ["Recurring demand", unityBudget.consumptionPerCycle],
                 ["Net", unityBudget.netPerCycle],
                 ["Storage capacity", unityBudget.storageCapacity],
-              ] satisfies [string, number][]).map(([label, amount]) => (
+              ] satisfies [string, number | null][]).map(([label, amount]) => (
                 <div key={label} className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
                   <p className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Sparkles aria-hidden="true" className="size-3.5" />

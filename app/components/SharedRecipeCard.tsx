@@ -17,6 +17,7 @@ import { calculateProductionCardLoad } from '../helpers/production-card-groups/p
 import { getRecipeDisplayName } from '../helpers/recipe-display/recipe-display'
 import { BuildingCount } from './BuildingCount'
 import { ProductionCard } from './ProductionCard'
+import { StandbyPlan } from './StandbyPlan'
 
 interface Props {
   lines: ProductionLine[]
@@ -87,6 +88,9 @@ export const SharedRecipeCard: React.FC<Props> = ({
         />
       </div>
 
+      {lines.filter(line => line.recipe.standbyPlan).map(line => (
+        <StandbyPlan key={line.recipe.id} plan={line.recipe.standbyPlan} />
+      ))}
       <div className="space-y-1">
         {lines.map((line, index) => {
           const result = results[index]

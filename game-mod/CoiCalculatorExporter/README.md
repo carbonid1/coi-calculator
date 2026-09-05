@@ -2,10 +2,10 @@
 
 Local, read-only Captain of Industry mod for the calculator in this repository.
 
-Version 0.39 exports the current game state to `coi-calculator-state.json` in
-the installed mod folder. Schema 39 removes duplicate aggregate counts for
-buildings, Data Centers, Water Chillers, Chicken Farms, and crop farms. The
-calculator now derives those totals from each exported building record.
+Version 0.40 exports the current game state to `coi-calculator-state.json` in
+the installed mod folder. It adds occupied housing, configured foods and
+services, settlement Unity, and the island's weather seed and difficulty.
+The calculator requires schema 40. Restart the game after installing this update.
 
 The snapshot includes factory areas, building settings and construction ghosts,
 contracts, reserves, research, edicts, groundwater, and up to 120 completed

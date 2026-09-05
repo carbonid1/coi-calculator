@@ -4,12 +4,13 @@ import {
   type OutputModifierId,
   type Recipe,
 } from "../../db/recipes";
+import { type WeatherConfig } from "../../db/weather";
 import { calculateFarmIrrigationRates } from "../weather/calculate-farm-irrigation";
 
 export type RecipeModifierMultipliers = Partial<Record<
   InputModifierId | OutputModifierId | "rainwaterYield",
   number
->>;
+>> & { weather?: WeatherConfig };
 
 const GAME_PERCENT_SCALE = 100_000;
 
@@ -93,6 +94,7 @@ export const getRecipeInputQuantity = (
       farmGroup,
       multiplier,
       modifiers.rainwaterYield ?? 1,
+      modifiers.weather,
     ).importedWaterPerMonth;
   }
 

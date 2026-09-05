@@ -13,6 +13,7 @@ import {
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { BuildingCount } from "./BuildingCount";
 import { ProductionCard } from "./ProductionCard";
+import { StandbyPlan } from './StandbyPlan';
 
 interface Props {
   recipe: Recipe;
@@ -134,6 +135,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
         />
       </div>
 
+      <StandbyPlan plan={recipe.standbyPlan} />
       {displaysFlows && (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="min-w-0 space-y-1">

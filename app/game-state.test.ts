@@ -7,6 +7,7 @@ import {
   isGameStateSnapshot,
   normalizeGameStateSnapshot,
 } from './game-state'
+import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
 const edicts = Object.fromEntries(edictCatalog.map(edict => {
@@ -17,6 +18,8 @@ const edicts = Object.fromEntries(edictCatalog.map(edict => {
 
 const currentSnapshot = {
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
+  settlement: emptySettlement,
+  weather: testWeather,
   saveId: 'Test Island',
   exportedAtUtc: '2026-09-04T00:00:00.000Z',
   spaceStation: { currentLevel: 0, highestLevelAchieved: 0 },
@@ -61,11 +64,13 @@ describe('game-state snapshot validation', () => {
   })
 
   it('rejects every non-current exporter schema', () => {
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 38 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 40 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 39 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
   })
 
   it.each([
+    'settlement',
+    'weather',
     'saveId',
     'spaceStation',
     'logisticsZones',

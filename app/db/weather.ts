@@ -10,31 +10,29 @@ export const weatherTypes = {
   heavyRain: { sunIntensityPercent: 20, rainIntensityPercent: 100 },
 } as const satisfies Record<string, WeatherDefinition>;
 
-/**
- * Planning weather for the current island. Captain of Industry v0.8.6c seeds
- * an independent weather RNG from the game seed. The sunlight value is the
- * 100-year average produced by that scheduler under the stable Standard
- * climate. This keeps production balancing stable instead of making it depend
- * on the current 15-day weather period.
- */
+export interface WeatherConfig {
+  gameSeed: string;
+  difficulty: 'Easy' | 'Standard' | 'Dry';
+  weatherRngInitialState: { state0: string; state1: string; warmupSteps: 100 };
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+);
+
+export const isWeatherConfig = (config: unknown): config is WeatherConfig => {
+  if (!isRecord(config)) return false;
+  const state = config.weatherRngInitialState;
+
+  return typeof config.gameSeed === 'string' && config.gameSeed.length > 0
+    && typeof config.difficulty === 'string' && ['Easy', 'Standard', 'Dry'].includes(config.difficulty)
+    && isRecord(state) && typeof state.state0 === 'string' && /^0x[0-9a-f]{16}$/i.test(state.state0)
+    && typeof state.state1 === 'string' && /^0x[0-9a-f]{16}$/i.test(state.state1) && state.warmupSteps === 100
+    && (BigInt(state.state0) !== 0n || BigInt(state.state1) !== 0n);
+};
+
+/** Simulation horizon; island settings come exclusively from the exporter. */
 export const planningWeather = {
-  gameVersion: "0.8.6c",
-  gameBuild: "b612",
-  gameSeed: "ywaruuxpx8oo",
-  difficulty: "Standard",
   horizonYears: 100,
   weatherPeriodDays: 15,
-  /**
-   * MD5-derived xoroshiro128+ state for
-   * `ywaruuxpx8ooWeatherDefaultWeatherProvider`, before the game's 100-step
-   * RNG warm-up. Recorded from Captain of Industry v0.8.6 game files.
-   */
-  weatherRngInitialState: {
-    state0: "0x7277e8ad6570007d",
-    state1: "0xeb4586d79675008d",
-    warmupSteps: 100,
-  },
-  averageSunIntensityPercent: 81.6,
-  /** Potential rainfall before a farm's finite soil buffer and dry spells are simulated. */
-  averageRainIntensityPercent: 13.6,
 } as const;

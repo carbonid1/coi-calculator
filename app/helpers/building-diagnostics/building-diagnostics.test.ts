@@ -52,6 +52,27 @@ const resourceFlow = (resourceId: ResourceId, net: number): ResourceFlow => ({
   net,
 });
 
+it.each([
+  { running: 1, built: 1, shortage: 0, expected: null },
+  { running: 2, built: 2, shortage: 0, expected: null },
+  { running: 1, built: 1, shortage: -0.62, expected: null },
+  { running: 0, built: 1, shortage: 0, expected: "unpause" },
+  { running: 0, built: 0, shortage: -0.62, expected: "build" },
+])("keeps intermittent Rail Parts ready ($running running, $built built)", ({ running, built, shortage, expected }) => {
+  const result: RegularResult = {
+    ...createChickenResult(0),
+    recipe: { id: "rail", name: "Rail Parts", building: "Assembly V", group: "production",
+      inputs: [], outputs: [{ resourceId: "railParts", quantity: 64 }],
+      standbyPlan: { resourceId: "railParts", quantity: 0.62 } },
+    activeBuildings: running, currentActiveBuildings: running, builtBuildings: built,
+    supplyRatio: 0, speedLevel: 1,
+  };
+  const [diagnostic] = calculateBuildingDiagnostics([farmsModule], [resourceFlow("railParts", shortage)], [result]);
+
+  expect(diagnostic?.attention).toBe(expected);
+  if (expected) expect(diagnostic?.attentionCount).toBe(1);
+});
+
 describe("chicken farm building diagnostics", () => {
   it("recommends chickens in 50-animal steps when flock output is short", () => {
     const [diagnostic] = calculateBuildingDiagnostics(

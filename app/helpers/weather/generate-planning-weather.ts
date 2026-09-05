@@ -1,4 +1,4 @@
-import { planningWeather, weatherTypes } from "../../db/weather";
+import { planningWeather, weatherTypes, type WeatherConfig } from "../../db/weather";
 
 export type PlanningWeatherId = keyof typeof weatherTypes;
 
@@ -16,13 +16,13 @@ class WeatherRandom {
   private state0: bigint;
   private state1: bigint;
 
-  constructor() {
-    this.state0 = BigInt(planningWeather.weatherRngInitialState.state0);
-    this.state1 = BigInt(planningWeather.weatherRngInitialState.state1);
+  constructor(config: WeatherConfig) {
+    this.state0 = BigInt(config.weatherRngInitialState.state0);
+    this.state1 = BigInt(config.weatherRngInitialState.state1);
 
     for (
       let step = 0;
-      step < planningWeather.weatherRngInitialState.warmupSteps;
+      step < config.weatherRngInitialState.warmupSteps;
       step += 1
     ) {
       this.nextUlong();
@@ -56,7 +56,16 @@ class WeatherRandom {
   }
 }
 
-const getRainTargetPercent = (year: number) => {
+const getRainTargetPercent = (year: number, difficulty: WeatherConfig['difficulty']) => {
+  if (difficulty === 'Easy') {
+    if (year < 15) return 450;
+    return year < 50 ? 400 : 350;
+  }
+  if (difficulty === 'Dry') {
+    if (year < 10) return 350;
+    if (year < 25) return 325;
+    return year < 50 ? 300 : 250;
+  }
   if (year < 10) return 400;
   if (year < 50) return 350;
   return 300;
@@ -214,8 +223,9 @@ const generateYear = (
   year: number,
   previousWeather: PlanningWeatherId | null,
   random: WeatherRandom,
+  difficulty: WeatherConfig['difficulty'],
 ) => {
-  const rainTargetPercent = getRainTargetPercent(year);
+  const rainTargetPercent = getRainTargetPercent(year, difficulty);
   let schedule = generateScheduleAttempt(rainTargetPercent, previousWeather, random);
   let retry = 0;
 
@@ -231,23 +241,33 @@ const generateYear = (
   return schedule;
 };
 
-let cachedPlanningWeather: readonly PlanningWeatherId[] | null = null;
+let cachedPlanningWeather: { key: string; periods: readonly PlanningWeatherId[] } | null = null;
+
+export const getWeatherConfigKey = (config: WeatherConfig) => JSON.stringify(config);
 
 /** Exact 15-day weather periods for the configured v0.8.6 seed. */
-export const getPlanningWeather = () => {
-  if (cachedPlanningWeather) return cachedPlanningWeather;
+export const getPlanningWeather = (config: WeatherConfig) => {
+  const key = getWeatherConfigKey(config);
 
-  const random = new WeatherRandom();
+  if (cachedPlanningWeather?.key === key) return cachedPlanningWeather.periods;
+
+  const random = new WeatherRandom(config);
   const periods: PlanningWeatherId[] = [];
   let previousWeather: PlanningWeatherId | null = null;
 
   for (let year = 1; year <= planningWeather.horizonYears; year += 1) {
-    const annualSchedule = generateYear(year, previousWeather, random);
+    const annualSchedule = generateYear(year, previousWeather, random, config.difficulty);
 
     periods.push(...annualSchedule);
     previousWeather = annualSchedule.at(-1) ?? null;
   }
 
-  cachedPlanningWeather = periods;
-  return cachedPlanningWeather;
+  cachedPlanningWeather = { key, periods };
+  return periods;
+};
+
+export const getAverageSunIntensityPercent = (config: WeatherConfig) => {
+  const periods = getPlanningWeather(config);
+
+  return periods.reduce((total, id) => total + weatherTypes[id].sunIntensityPercent, 0) / periods.length;
 };

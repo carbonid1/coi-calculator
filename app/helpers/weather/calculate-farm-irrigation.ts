@@ -4,7 +4,7 @@ import {
   crops,
   type CropFarmGroup,
 } from "../../db/crop-farming";
-import { planningWeather, weatherTypes } from "../../db/weather";
+import { planningWeather, weatherTypes, type WeatherConfig } from "../../db/weather";
 import { getPlanningWeather } from "./generate-planning-weather";
 
 export interface FarmIrrigationRates {
@@ -84,19 +84,20 @@ export const calculateFarmIrrigationRates = (
   group: CropFarmGroup,
   cropWaterMultiplier: number,
   rainwaterYieldMultiplier = 1,
+  weatherConfig?: WeatherConfig,
 ): FarmIrrigationRates => {
-  const cacheKey = `${group.id}:${cropWaterMultiplier}:${rainwaterYieldMultiplier}`;
+  const grossWaterPerMonth = calculateGrossWaterPerMonth(group, cropWaterMultiplier);
+
+  // Without island weather, retain gross demand instead of inventing rain savings.
+  if (!weatherConfig) return { grossWaterPerMonth, importedWaterPerMonth: grossWaterPerMonth };
+  const cacheKey = `${JSON.stringify(weatherConfig)}:${JSON.stringify(group)}:${cropWaterMultiplier}:${rainwaterYieldMultiplier}`;
   const cached = irrigationCache.get(cacheKey);
 
   if (cached) return cached;
 
-  const weatherPeriods = getPlanningWeather();
+  const weatherPeriods = getPlanningWeather(weatherConfig);
   const tier = cropFarmTiers[group.tierId];
   const horizonDays = planningWeather.horizonYears * 12 * cropFarmSimulation.daysPerMonth;
-  const grossWaterPerMonth = calculateGrossWaterPerMonth(
-    group,
-    cropWaterMultiplier,
-  );
   let soilWater = cropFarmSimulation.soilWaterCapacity;
   let waterCredit = 0;
   let rainPartial = 0;

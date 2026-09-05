@@ -20,6 +20,8 @@ internal sealed class SnapshotDocument
     public readonly HistoryAverage MaintenanceIII;
     public readonly FuelHistory HydrogenFuel;
     public readonly List<GenerationHistory> GenerationByType;
+    public readonly SettlementStateSnapshot Settlement;
+    public readonly WeatherConfigSnapshot Weather;
 
     public SnapshotDocument(
         string saveId,
@@ -38,7 +40,9 @@ internal sealed class SnapshotDocument
         HistoryAverage maintenanceII,
         HistoryAverage maintenanceIII,
         FuelHistory hydrogenFuel,
-        List<GenerationHistory> generationByType)
+        List<GenerationHistory> generationByType,
+        SettlementStateSnapshot settlement,
+        WeatherConfigSnapshot weather)
     {
         SaveId = saveId;
         ExportedAtUtc = exportedAtUtc;
@@ -57,5 +61,7 @@ internal sealed class SnapshotDocument
         MaintenanceIII = maintenanceIII;
         HydrogenFuel = hydrogenFuel;
         GenerationByType = generationByType;
+        Settlement = settlement;
+        Weather = weather;
     }
 }

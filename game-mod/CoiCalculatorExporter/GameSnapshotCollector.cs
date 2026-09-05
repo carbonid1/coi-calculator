@@ -60,6 +60,9 @@ internal sealed partial class GameSnapshotCollector
         m_edictsManager = resolver.Resolve<EdictsManager>();
         m_orbitManager = resolver.Resolve<OrbitManager>();
         m_contractsManager = resolver.Resolve<ContractsManager>();
+        m_settlementsManager = resolver.Resolve<Mafi.Core.Buildings.Settlements.SettlementsManager>();
+        m_upointsManager = resolver.Resolve<UpointsManager>();
+        m_weatherConfig = getWeatherConfig(resolver);
     }
 
     public static GameSnapshotCollector Create(DependencyResolver resolver)

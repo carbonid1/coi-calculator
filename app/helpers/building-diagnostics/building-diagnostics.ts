@@ -363,7 +363,10 @@ export const calculateBuildingDiagnostics = (
       ? 0
       : Math.max(0, active - Math.ceil(Math.max(0, load - EPSILON)));
     const hasShortage = affectedResourceIds.size > 0;
-    const attention = getAttention({
+    const standbyPlan = results.some(result => result.recipe.standbyPlan != null);
+    const attention = standbyPlan && !plannedCapacity
+      ? getStandbyAttention(currentActive, built)
+      : getAttention({
       tracksPhysicalCapacity,
       plannedCapacity,
       hasShortage,
@@ -437,4 +440,9 @@ export const calculateBuildingDiagnostics = (
   }
 
   return diagnostics;
+};
+
+const getStandbyAttention = (running: number, built: number): BuildingAttention | null => {
+  if (running > 0) return null;
+  return built > 0 ? "unpause" : "build";
 };

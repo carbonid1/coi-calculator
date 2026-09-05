@@ -1,5 +1,5 @@
 import { cropFarmSimulation } from "../../db/crop-farming";
-import { planningWeather, weatherTypes } from "../../db/weather";
+import { planningWeather, weatherTypes, type WeatherConfig } from "../../db/weather";
 import { type SyncedGroundwaterAquifer, type SyncedGroundwaterState, type SyncedMachineInventoryItem } from "../../game-state";
 import { getPlanningWeather } from "../weather/generate-planning-weather";
 
@@ -50,18 +50,20 @@ const multiplyPercentRaw = (left: number, right: number) => Math.trunc(
 export const calculateAquiferSustainableCeiling = (
   aquifer: SyncedGroundwaterAquifer,
   groundwater: SyncedGroundwaterState,
+  weatherConfig: WeatherConfig,
 ) => {
   const cacheKey = [
     aquifer.capacity,
     aquifer.configuredCapacity,
     groundwater.depletedPumpSpeedPercent,
     groundwater.replenishWhenLowPercent,
+    JSON.stringify(weatherConfig),
   ].join(":");
   const cached = aquiferCeilingCache.get(cacheKey);
 
   if (cached != null) return cached;
 
-  const weather = getPlanningWeather();
+  const weather = getPlanningWeather(weatherConfig);
   const emergencyOutputPerDryDay = groundwater.depletedPumpSpeedPercent > 0
     ? Math.min(
         MAX_EMERGENCY_WATER,
@@ -108,6 +110,7 @@ export const calculateAquiferSustainableOutput = (
   aquifer: SyncedGroundwaterAquifer,
   pumpCount: number,
   groundwater: SyncedGroundwaterState,
+  weatherConfig: WeatherConfig,
 ) => {
   if (pumpCount <= 0) return 0;
 
@@ -117,12 +120,13 @@ export const calculateAquiferSustainableOutput = (
     pumpCount,
     groundwater.depletedPumpSpeedPercent,
     groundwater.replenishWhenLowPercent,
+    JSON.stringify(weatherConfig),
   ].join(":");
   const cached = simulationCache.get(cacheKey);
 
   if (cached != null) return cached;
 
-  const weather = getPlanningWeather();
+  const weather = getPlanningWeather(weatherConfig);
   const daysPerCycle = cropFarmSimulation.daysPerMonth;
   const pumpCapacityPerDay = GROUNDWATER_PUMP_OUTPUT_PER_CYCLE
     * pumpCount
@@ -239,6 +243,7 @@ const assignProjectedPumps = (plan: GroundwaterClaimPlan) => {
 export const calculateGroundwaterClaimLimits = (
   plans: readonly GroundwaterClaimPlan[],
   groundwater: SyncedGroundwaterState | null,
+  weatherConfig: WeatherConfig,
 ) => {
   const limits: Record<string, GroundwaterSourceConstraint | undefined> = {};
 
@@ -281,6 +286,7 @@ export const calculateGroundwaterClaimLimits = (
         allocation.aquifer,
         totalPumps,
         groundwater,
+        weatherConfig,
       );
 
       return total + aquiferOutput * claimPumps / totalPumps;
@@ -299,7 +305,7 @@ export const calculateGroundwaterClaimLimits = (
       projectedPumpCount: plan.projectedPumpCount,
       aquiferSustainableCeilingPerCycle: ownedAquifers.reduce(
         (total, { aquifer }) => (
-          total + calculateAquiferSustainableCeiling(aquifer, groundwater)
+          total + calculateAquiferSustainableCeiling(aquifer, groundwater, weatherConfig)
         ),
         0,
       ),

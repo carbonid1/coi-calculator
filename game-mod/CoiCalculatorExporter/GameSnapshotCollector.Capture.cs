@@ -48,6 +48,8 @@ internal sealed partial class GameSnapshotCollector
             m_maintenanceII,
             m_maintenanceIII,
             m_hydrogenFuel,
-            m_generationByType);
+            m_generationByType,
+            getSettlementState(),
+            m_weatherConfig);
     }
 }

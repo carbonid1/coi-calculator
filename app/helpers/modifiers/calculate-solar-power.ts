@@ -1,6 +1,5 @@
 import { cleanPanelsEdict, type CleanPanelsLevel } from "../../db/edicts";
 import { solarPowerResearch } from "../../db/research";
-import { planningWeather } from "../../db/weather";
 
 export interface SolarPowerResult {
   bonusPercent: number;
@@ -10,6 +9,7 @@ export interface SolarPowerResult {
 export const calculateSolarPower = (
   researchLevel: number,
   cleanPanelsLevel: CleanPanelsLevel,
+  averageSunIntensityPercent: number,
 ): SolarPowerResult => {
   const normalizedResearchLevel = Math.min(
     solarPowerResearch.maxLevel,
@@ -19,7 +19,7 @@ export const calculateSolarPower = (
   const edictBonusPercent = cleanPanelsEdict.levels[cleanPanelsLevel].powerIncreasePercent;
   const bonusPercent = researchBonusPercent + edictBonusPercent;
   const peakMultiplier = 1 + bonusPercent / 100;
-  const weatherPercent = planningWeather.averageSunIntensityPercent;
+  const weatherPercent = averageSunIntensityPercent;
   const weatherMultiplier = weatherPercent / 100;
 
   return {

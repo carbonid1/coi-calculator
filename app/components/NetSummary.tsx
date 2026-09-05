@@ -21,7 +21,7 @@ import {
 import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
 import { PlannedBuildsView } from "./PlannedBuildsView";
-import { isReportedFactoryDeficit } from "./net-summary-flows";
+import { isReadyStandbyAllowance, isReportedFactoryDeficit } from "./net-summary-flows";
 
 interface Props {
   flows: ResourceFlow[];
@@ -195,6 +195,7 @@ export const NetSummary: React.FC<Props> = ({
     : materialFlows
         .filter((flow) => (
           flow.net < -BALANCE_THRESHOLD
+          && !isReadyStandbyAllowance(flow, regularResults)
           && !requestedImportIds.has(flow.resourceId)
           && !requestedExportIds.has(flow.resourceId)
         ))
@@ -205,7 +206,7 @@ export const NetSummary: React.FC<Props> = ({
   const balanceGroups = [
     {
       label: "Deficit",
-      flows: regularFlows.filter(isReportedFactoryDeficit),
+      flows: regularFlows.filter(flow => isReportedFactoryDeficit(flow) && !isReadyStandbyAllowance(flow, regularResults)),
       valueClassName: "text-destructive",
     },
     {
@@ -524,7 +525,7 @@ export const NetSummary: React.FC<Props> = ({
                   Unity demand / generation
                 </span>
                 <span className="font-mono font-semibold tabular-nums text-foreground">
-                  {formatCapacity(unityBudget.consumptionPerCycle)} / {formatCapacity(unityBudget.generationPerCycle)}
+                  {formatCapacity(unityBudget.consumptionPerCycle)} / {unityBudget.generationPerCycle === null ? 'Unavailable' : formatCapacity(unityBudget.generationPerCycle)}
                 </span>
               </div>
             )}

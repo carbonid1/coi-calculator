@@ -173,6 +173,7 @@ import {
   createPooledLinkSourceShadows,
   hasPooledLinkSourceConnections,
 } from './helpers/pooled-link-source-shadows/pooled-link-source-shadows'
+import { applySettlementState } from './helpers/population-entity-sync/apply-settlement-state'
 import { resolvePopulationEntityInventory } from './helpers/population-entity-sync/population-entity-sync'
 import { getPresetResourceDemands } from './helpers/preset-resource-demands/preset-resource-demands'
 import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
@@ -183,6 +184,7 @@ import {
   getSyncedCropFarmEntities,
 } from './helpers/synced-production-config/synced-production-config'
 import { transferTerrainMineOwnership } from './helpers/terrain-mine-ownership/terrain-mine-ownership'
+import { getAverageSunIntensityPercent } from './helpers/weather/generate-planning-weather'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 
 const groupLabels: Record<RecipeGroup, string> = {
@@ -341,6 +343,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   }
 
   const snapshot = gameState.snapshot
+  const averageSunIntensityPercent = getAverageSunIntensityPercent(snapshot.weather)
 
   const openBuilding = (diagnostic: BuildingDiagnostic) => {
     setBuildingTarget({
@@ -363,6 +366,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       ],
     })),
     snapshot.groundwater,
+    snapshot.weather,
   )
   const defaultGroundwaterConstraint = groundwaterClaimLimits[DEFAULT_GROUNDWATER_CLAIM_ID]
   const staticInfrastructureBuiltConfig: StaticInfrastructureConfig = {
@@ -636,12 +640,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
 
       if (syncedInventory) {
-        configuredModule = createPopulationModule(
+        configuredModule = applySettlementState(createPopulationModule(
           syncedInventory,
           module,
           housingCapacityLevel,
           populationHousingPlanTargets.get(module.liveArea.zoneId) ?? null,
-        )
+        ), snapshot.settlement, productionEntities)
       }
     } else if (hasModuleCapability(module, 'computing')) {
       const areaComputingConfigs = resolveComputingEntityInventory(
@@ -795,7 +799,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const researchEfficiency = calculateResearchEfficiency({
     edictLevel: edictLevels.researchEfficiency,
     focusBonusPercent: focusBonuses.researchEfficiency,
-    population: populationCapacity,
+    population: snapshot.settlement.population,
     stationBonusPercent: spaceStationIncludedInFactoryTotals
       ? currentSpaceStationLevel.researchEfficiencyBonusPercent
       : 0,
@@ -817,6 +821,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const solarPowerOutput = calculateSolarPower(
     solarPowerLevel,
     normalizeCleanPanelsLevel(edictLevels.cleanPanels),
+    averageSunIntensityPercent,
   )
   const cropFarming = calculateCropFarmingModifiers(
     cropYieldLevel,
@@ -835,6 +840,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel)
   const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel)
   const outputModifiers = {
+    weather: snapshot.weather,
     foodConsumption: foodConsumption.multiplier,
     maintenanceOutput: maintenanceOutput.multiplier,
     solarPower: solarPowerOutput.multiplier,
@@ -1005,8 +1011,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     housing: activeHousingType,
     housingCount,
     additionalHousing: [{ housing: housingTypes.housingII, housingCount: housingIiCount }],
-    housingCapacityMultiplier: housingCapacity.multiplier,
     unityCapacityMultiplier: unityCapacity.multiplier,
+    settlementUnity: snapshot.settlement.unity,
     edictLevels,
     buildingConsumption:
       activeResearchLabCount > 0
@@ -1038,7 +1044,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       unityPer100Imported: result.contract.unity.per100Imported,
     })),
     contractsUnityCostPercent: focusBonuses.contractsUnityCost,
-    settlementUnityBonusPercent: focusBonuses.unityProduction,
   })
   const activeModuleFactoryResult =
     activeModule?.includedInFactoryTotals === false && !activeLinkedModuleResult
@@ -1281,6 +1286,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
       {isModifiers && (
         <ModifiersView
+          averageSunIntensityPercent={averageSunIntensityPercent}
           computingCapacityTflops={computingCapacityTflops}
           computingConfig={configuredComputingModules.length > 0
             ? syncedComputingConfigs.running
@@ -1381,6 +1387,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           {activeModule.id !== MINES_MODULE_ID && activeModule.id !== RESERVES_MODULE_ID && (
             <NetSummary
               flows={displayedResourceFlows}
+              regularResults={moduleResult.regularResults}
               moduleId={activeModule.id}
               requestedImports={preset?.requestedImports}
               requestedExports={preset?.requestedExports}

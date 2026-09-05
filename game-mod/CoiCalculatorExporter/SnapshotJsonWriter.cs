@@ -8,7 +8,9 @@ internal static partial class SnapshotJsonWriter
     {
         StringBuilder json = new StringBuilder(3600);
         json.Append('{');
-        json.Append("\"schemaVersion\":39,");
+        json.Append("\"schemaVersion\":40,");
+        appendSettlementState(json, snapshot.Settlement);
+        appendWeatherConfig(json, snapshot.Weather);
         appendString(json, "saveId", snapshot.SaveId, true);
         json.Append("\"exportedAtUtc\":\"");
         json.Append(snapshot.ExportedAtUtc.ToString("O", CultureInfo.InvariantCulture));

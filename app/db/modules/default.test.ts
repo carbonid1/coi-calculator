@@ -465,7 +465,7 @@ describe('Default area plans', () => {
     ])
   })
 
-  it('keeps the observed Rail Parts Assembly V at a small working load', () => {
+  it('keeps the Rail Parts construction allowance as a plan with a ready assembly', () => {
     const expectedDemandPerCycle = 0.62
     const synced = syncedDefault({ built: 1, running: 1 })
     const sourcePreset = synced.presets[0]
@@ -507,7 +507,9 @@ describe('Default area plans', () => {
       calculation.regularResults,
     ).find(candidate => candidate.buildingName === 'Assembly V')
 
-    expect(preset?.fixedDemands?.railParts).toBe(expectedDemandPerCycle)
+    expect(preset?.fixedDemands?.railParts).toBeUndefined()
+    expect(preset?.plannedDemands?.railParts).toBe(expectedDemandPerCycle)
+    expect(railPartsResult?.recipe.standbyPlan).toEqual({ resourceId: 'railParts', quantity: expectedDemandPerCycle })
     expect(railPartsResult?.actualOutputs).toContainEqual({
       resourceId: 'railParts',
       quantity: expectedDemandPerCycle,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { type SyncedGroundwaterAquifer, type SyncedMachineInventoryItem } from "../../game-state";
+import { testWeather } from "../../test-fixtures/synced-island-settings";
 import {
   calculateAquiferSustainableCeiling,
   calculateAquiferSustainableOutput,
@@ -41,6 +42,7 @@ describe("groundwater sustainable production", () => {
       aquifer,
       5,
       normalGroundwater,
+      testWeather,
     );
 
     expect(output).toBeGreaterThan(0);
@@ -48,11 +50,12 @@ describe("groundwater sustainable production", () => {
   });
 
   it("reports the physical aquifer ceiling independently of pump count", () => {
-    const ceiling = calculateAquiferSustainableCeiling(aquifer, normalGroundwater);
+    const ceiling = calculateAquiferSustainableCeiling(aquifer, normalGroundwater, testWeather);
     const onePumpOutput = calculateAquiferSustainableOutput(
       aquifer,
       1,
       normalGroundwater,
+      testWeather,
     );
 
     expect(ceiling).toBeGreaterThan(onePumpOutput);
@@ -60,7 +63,7 @@ describe("groundwater sustainable production", () => {
       claimId: "general",
       projectedPumpCount: 1,
       machines: [machine(1, true)],
-    }], normalGroundwater).general?.aquiferSustainableCeilingPerCycle).toBe(ceiling);
+    }], normalGroundwater, testWeather).general?.aquiferSustainableCeilingPerCycle).toBe(ceiling);
   });
 
   it("does not charge the one-time depleted startup against the steady-state rate", () => {
@@ -68,6 +71,7 @@ describe("groundwater sustainable production", () => {
       { ...aquifer, quantity: aquifer.capacity },
       1,
       normalGroundwater,
+      testWeather,
     )).toBeCloseTo(48, 10);
   });
 
@@ -77,7 +81,7 @@ describe("groundwater sustainable production", () => {
       claimId: "general",
       projectedPumpCount: 0,
       machines: [machine(1, false, fullAquifer), machine(2, false, fullAquifer)],
-    }], normalGroundwater).general;
+    }], normalGroundwater, testWeather).general;
 
     expect(constraint).toMatchObject({
       aquiferCount: 1,
@@ -95,11 +99,12 @@ describe("groundwater sustainable production", () => {
       aquifer,
       5,
       normalGroundwater,
+      testWeather,
     );
     const hardOutput = calculateAquiferSustainableOutput(aquifer, 5, {
       depletedPumpSpeedPercent: 0,
       replenishWhenLowPercent: 0,
-    });
+    }, testWeather);
 
     expect(hardOutput).toBeGreaterThan(0);
     expect(hardOutput).toBeLessThan(normalOutput);
@@ -117,11 +122,12 @@ describe("groundwater sustainable production", () => {
         projectedPumpCount: 1,
         machines: [machine(5, true)],
       },
-    ], normalGroundwater);
+    ], normalGroundwater, testWeather);
     const sharedOutput = calculateAquiferSustainableOutput(
       aquifer,
       5,
       normalGroundwater,
+      testWeather,
     );
     const greenhouseOutput = limits.greenhouses?.sustainableOutputPerCycle ?? 0;
     const generalOutput = limits.general?.sustainableOutputPerCycle ?? 0;
@@ -137,6 +143,7 @@ describe("groundwater sustainable production", () => {
       aquiferSustainableCeilingPerCycle: calculateAquiferSustainableCeiling(
         aquifer,
         normalGroundwater,
+        testWeather,
       ),
       pumpCapacityPerCycle: 192,
     });

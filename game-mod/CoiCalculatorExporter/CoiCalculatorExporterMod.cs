@@ -21,7 +21,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private DateTime m_nextExportUtc = DateTime.MinValue;
 
     public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 28; } }
+    public int Version { get { return 40; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }

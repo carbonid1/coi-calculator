@@ -534,9 +534,39 @@ Contracts Profitability step 7 (+14%), Maintenance Production step 5 (+5%), and
 Recycling Efficiency step 2 (+2%). The Focus view calculates generated capacity
 from running synced Offices, then shows allocated and available points. Office
 III's 192 TFLOPS demand remains visible in its owning area and Factory Total.
-The supporting Housing III configuration models all 15 blocks as physically
-built and exposes their full-population settlement demand.
+An explicit Housing expansion exposes full projected occupancy. Otherwise,
+settlement demand follows the residents reported for each housing block.
 
 Verified against the installed v0.8.7 `OfficeBuilding.ComputingBoostStep`, Office
 prototypes, `OfficeFocusProto`, Focus property implementations, Focus Points
 infinite research, and Assembly V Office Supplies recipe bindings.
+
+## Settlement and island settings (schema 40)
+
+Verified against the installed Captain of Industry v0.8.7 assemblies:
+
+- `SettlementsManager`, `Settlement.HousingModules`, and each housing module's
+  `Population`/`Capacity` provide current occupancy. Food choices come from the
+  maintained `FoodTypesMap` entries with configured capacity. Services come from
+  unpaused `PopNeed.ModulesProvidingTheNeed`; hospitals have a separate
+  `Settlement.AllHospitals` collection.
+- `UpointsManager.Stats.ThisMonthRecords` contains the monthly settlement and
+  health exchanges. Settlement generation already includes housing, food,
+  service coverage, quality, and game modifiers. The calculator uses signed
+  amounts directly; it no longer inserts +1 quality or +1 health Unity. Missing
+  records remain unavailable. Planned recurring costs remain calculated.
+- `RandomSeedConfig.MasterRandomSeed` and `GameDifficultyConfig.WeatherDifficulty`
+  select the island weather model. `RandomProvider` initializes its weather RNG
+  from MD5(seed + `WeatherDefaultWeatherProvider`), split into two little-endian
+  64-bit values, with 100 warm-up steps. Reading this configuration does not
+  advance the game's RNG.
+- `DefaultWeatherProvider` rain targets are Easy: 450/400/350 from years
+  1/15/50; Standard: 400/350/300 from years 1/10/50; Dry: 350/325/300/250 from
+  years 1/10/25/50. Solar, farm irrigation, and groundwater calculations use the
+  same cached 100-year simulation for the exported configuration.
+
+The exporter reads maintained settlement collections and caches the weather
+configuration once at initialization. Weather simulation runs in the calculator.
+Rail Parts' 0.62 per production cycle is an explicit long-run construction plan,
+not an observed continuous rate. A running Assembly remains ready without an
+underuse warning; a paused Assembly receives an Unpause action.

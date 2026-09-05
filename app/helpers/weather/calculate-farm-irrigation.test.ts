@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 
 import { type CropFarmGroup } from "../../db/crop-farming";
+import { testWeather } from "../../test-fixtures/synced-island-settings";
 import { calculateFarmIrrigationRates } from "./calculate-farm-irrigation";
 
 it("applies Rainwater Yield to the finite-buffer farm simulation", () => {
@@ -13,8 +14,8 @@ it("applies Rainwater Yield to the finite-buffer farm simulation", () => {
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
   };
 
-  const base = calculateFarmIrrigationRates(group, 1, 1);
-  const improved = calculateFarmIrrigationRates(group, 1, 1.5);
+  const base = calculateFarmIrrigationRates(group, 1, 1, testWeather);
+  const improved = calculateFarmIrrigationRates(group, 1, 1.5, testWeather);
 
   expect(improved.grossWaterPerMonth).toBe(base.grossWaterPerMonth);
   expect(improved.importedWaterPerMonth).toBeLessThan(base.importedWaterPerMonth);

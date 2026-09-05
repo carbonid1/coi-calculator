@@ -30,9 +30,9 @@ export const plannedCrackingUnitDieselTarget = 3
 const railPartsGameBuildingId = 'AssemblyRoboticT2'
 const railPartsGameRecipeId = 'RailPartsAssembly'
 
-// Last 1,000 years: 7,618 produced and 7,366 consumed. Their rough midpoint is
-// 0.62 Rail Parts per production cycle, or about 0.01 Assembly V load.
-const modeledRailPartsDemandPerCycle = 0.62
+// Long-run allowance for intermittent construction across 1,000 in-game years.
+// This is a plan, not an observed steady consumption rate.
+export const plannedRailPartsDemandPerCycle = 0.62
 
 export const plannedResearchLabTarget = 2
 
@@ -393,7 +393,7 @@ const applyResearchLabPlan = (
   }
 }
 
-const applyObservedRailPartsLoad = (module: Module): Module => {
+const applyRailPartsPlan = (module: Module): Module => {
   const hasRailPartsRecipe = module.recipes?.some(recipe => matchesGameRecipe(
     recipe,
     railPartsGameBuildingId,
@@ -404,11 +404,14 @@ const applyObservedRailPartsLoad = (module: Module): Module => {
 
   return {
     ...module,
+    recipes: module.recipes?.map(recipe => matchesGameRecipe(
+      recipe, railPartsGameBuildingId, railPartsGameRecipeId,
+    ) ? { ...recipe, standbyPlan: { resourceId: 'railParts', quantity: plannedRailPartsDemandPerCycle } } : recipe),
     presets: module.presets.map(preset => ({
       ...preset,
-      fixedDemands: {
-        railParts: modeledRailPartsDemandPerCycle,
-        ...preset.fixedDemands,
+      plannedDemands: {
+        ...preset.plannedDemands,
+        railParts: plannedRailPartsDemandPerCycle,
       },
     })),
   }
@@ -420,7 +423,7 @@ export const applyDefaultAreaPlan = (
   researchMode: ResearchMode = baseConfig.researchMode,
 ) => applyResearchLabPlan(
   applyCrackingUnitDieselPlan(
-    applyCookingOilDieselPlan(applyObservedRailPartsLoad(module)),
+    applyCookingOilDieselPlan(applyRailPartsPlan(module)),
   ),
   researchMode,
 )

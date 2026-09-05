@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { testWeather } from "../../test-fixtures/synced-island-settings";
 import { type CurrentCropFarmEntity } from "../crop-farming";
 import { type Recipe } from "../recipes";
 import {
@@ -157,7 +158,7 @@ describe("synced crop-farm areas", () => {
 
   it("calculates synced farm flows without a fixed Greenhouses module", () => {
     const farmModule = createCropFarmAreaModule(area(17), [farm(), farm({ entityId: 2 })]);
-    const result = calculateFactoryTotal([farmModule], { recyclingEfficiencyPercent: 0 });
+    const result = calculateFactoryTotal([farmModule], { recyclingEfficiencyPercent: 0, outputModifiers: { weather: testWeather } });
     const recipe = farmModule.recipes?.find(candidate => candidate.farmFertilizer);
     const line = result.calculation.regularResults.find(candidate => (
       candidate.recipe.id === recipe?.id

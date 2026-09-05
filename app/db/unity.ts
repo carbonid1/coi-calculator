@@ -1,190 +1,101 @@
-import { type EdictId, type EdictLevel, edictCatalog } from "./edicts";
-import { activeHousingServices, type HousingType } from "./housing";
-import { settlementFoods } from "./settlement";
+import { type EdictId, type EdictLevel, edictCatalog } from './edicts'
+import { type HousingType } from './housing'
 
-const baseUnityStorage = 20;
-/** Planning assumption: settlement quality is kept perfect. */
-const settlementQualityUnityPerCycle = 1;
-/** Conservative planning baseline; positive health is variable and can generate more. */
-const healthUnityPerCycleBaseline = 1;
-
-interface UnityServiceDefinition {
-  id: "food" | "electricity" | "water" | "householdGoods" | "householdAppliances" | "luxuryGoods" | "consumerElectronics" | "computing" | "medicalI" | "medicalII" | "medicalIII";
-  name: string;
-  baseUnityPerCycle: number;
-  active: boolean;
-}
-
-const unityServiceDefinitions: readonly UnityServiceDefinition[] = [
-  { id: "food", name: "Food", baseUnityPerCycle: 1, active: true },
-  { id: "electricity", name: "Electricity", baseUnityPerCycle: 1.2, active: true },
-  { id: "water", name: "Water", baseUnityPerCycle: 1, active: true },
-  { id: "householdGoods", name: "Household Goods", baseUnityPerCycle: 1.4, active: activeHousingServices.householdGoods },
-  { id: "householdAppliances", name: "Household Appliances", baseUnityPerCycle: 1.4, active: activeHousingServices.householdAppliances },
-  { id: "luxuryGoods", name: "Luxury Goods", baseUnityPerCycle: 1, active: false },
-  { id: "consumerElectronics", name: "Consumer Electronics", baseUnityPerCycle: 1.4, active: activeHousingServices.consumerElectronics },
-  { id: "medicalI", name: "Hospitals", baseUnityPerCycle: 0.5, active: true },
-  { id: "medicalII", name: "Hospitals", baseUnityPerCycle: 0.75, active: false },
-  { id: "medicalIII", name: "Hospitals", baseUnityPerCycle: 1, active: false },
-  { id: "computing", name: "Computing", baseUnityPerCycle: 1, active: true },
-] as const;
+const baseUnityStorage = 20
 
 export interface UnityBreakdownItem {
-  id: string;
-  name: string;
-  amount: number;
+  id: string
+  name: string
+  amount: number
 }
 
 export interface UnityBudget {
-  generationPerCycle: number;
-  consumptionPerCycle: number;
-  netPerCycle: number;
-  storageCapacity: number;
-  housingMultiplier: number;
-  generation: UnityBreakdownItem[];
-  consumption: UnityBreakdownItem[];
+  generationPerCycle: number | null
+  consumptionPerCycle: number
+  netPerCycle: number | null
+  storageCapacity: number
+  generation: UnityBreakdownItem[]
+  consumption: UnityBreakdownItem[]
 }
 
 interface ContractUnityInput {
-  id: string;
-  name: string;
-  importedPerCycle: number;
-  fixedUnityPerCycle: number;
-  unityPer100Imported: number;
+  id: string
+  name: string
+  importedPerCycle: number
+  fixedUnityPerCycle: number
+  unityPer100Imported: number
 }
 
+/** Observed settlement income with the current plan's recurring costs. */
 export const calculateUnityBudget = ({
   housing,
   housingCount,
   additionalHousing = [],
-  housingCapacityMultiplier,
   unityCapacityMultiplier,
+  settlementUnity,
   edictLevels,
   contracts,
   contractsUnityCostPercent = 0,
-  settlementUnityBonusPercent = 0,
   buildingConsumption = [],
   buildingGeneration = [],
 }: {
-  housing: HousingType;
-  housingCount: number;
-  additionalHousing?: { housing: HousingType; housingCount: number }[];
-  housingCapacityMultiplier: number;
-  unityCapacityMultiplier: number;
-  edictLevels: Record<EdictId, EdictLevel>;
-  contracts: ContractUnityInput[];
-  contractsUnityCostPercent?: number;
-  settlementUnityBonusPercent?: number;
-  buildingConsumption?: UnityBreakdownItem[];
-  buildingGeneration?: UnityBreakdownItem[];
+  housing: HousingType
+  housingCount: number
+  additionalHousing?: { housing: HousingType; housingCount: number }[]
+  unityCapacityMultiplier: number
+  settlementUnity: readonly UnityBreakdownItem[] | null
+  edictLevels: Record<EdictId, EdictLevel>
+  contracts: ContractUnityInput[]
+  contractsUnityCostPercent?: number
+  buildingConsumption?: UnityBreakdownItem[]
+  buildingGeneration?: UnityBreakdownItem[]
 }): UnityBudget => {
-  const normalizedHousingCount = Math.max(0, Math.trunc(housingCount));
-  const normalizedAdditionalHousing = additionalHousing.map(group => ({
-    housing: group.housing,
-    housingCount: Math.max(0, Math.trunc(group.housingCount)),
-  }));
-  const population = normalizedHousingCount
-    * Math.round(housing.populationCapacity * housingCapacityMultiplier)
-    + normalizedAdditionalHousing.reduce(
-      (total, group) => total + group.housingCount
-        * Math.round(group.housing.populationCapacity * housingCapacityMultiplier),
-      0,
-    );
-  const activeServices = unityServiceDefinitions.filter((service) => service.active);
-  const activeServiceNames = new Set(activeServices.map((service) => service.name));
-  const housingMultiplier = housing.unityBonusTiers
-    .filter((tier) => tier.requirements.every((requirement) => activeServiceNames.has(requirement)))
-    .at(-1)?.multiplier ?? 1;
-  const foodVariety = population > 0
-    ? settlementFoods.reduce((total, food) => total + food.unityPerCycleWhenSupplied, 0)
-    : 0;
-  const settlementUnityMultiplier = 1 + Math.max(0, settlementUnityBonusPercent) / 100;
-  const contractsUnityCostMultiplier = 1 + Math.min(0, contractsUnityCostPercent) / 100;
-  const serviceGeneration = activeServices.map((service) => {
-    const unityIncreasePercent = edictCatalog.reduce((total, edict) => {
-      const active = edict.levels.find((candidate) => candidate.level === edictLevels[edict.id]);
-
-      return active?.unityProductionServiceId === service.id
-        ? total + (active.unityProductionIncreasePercent ?? 0)
-        : total;
-    }, 0);
-    const serviceWithEdict = service.baseUnityPerCycle * (1 + unityIncreasePercent / 100);
-    const serviceUnity = serviceWithEdict * housingMultiplier
-      + (service.id === "food" ? foodVariety : 0);
-
-    return {
-      id: service.id,
-      name: service.name,
-      amount: population > 0
-        ? serviceUnity * settlementUnityMultiplier
-        : 0,
-    };
-  });
   const edictGeneration = edictCatalog.reduce((total, edict) => {
-    const active = edict.levels.find((candidate) => candidate.level === edictLevels[edict.id]);
+    const active = edict.levels.find(candidate => candidate.level === edictLevels[edict.id])
 
-    return total + (active?.unityProductionPerCycle ?? 0);
-  }, 0);
-  const generation = [
-    ...serviceGeneration,
-    {
-      id: "settlement-quality",
-      name: "Settlements quality",
-      amount: population > 0
-        ? settlementQualityUnityPerCycle * settlementUnityMultiplier
-        : 0,
-    },
-    {
-      id: "health",
-      name: "Health",
-      amount: population > 0
-        ? healthUnityPerCycleBaseline * settlementUnityMultiplier
-        : 0,
-    },
-    ...(edictGeneration > 0
-      ? [{
-          id: "production-edicts",
-          name: `${parseFloat(edictGeneration.toFixed(3))}x Edicts`,
-          amount: edictGeneration,
-        }]
-      : []),
-    ...buildingGeneration.filter((item) => item.amount > 0),
-  ];
+    return total + (active?.unityProductionPerCycle ?? 0)
+  }, 0)
   const edictConsumption = edictCatalog.reduce((total, edict) => {
-    const active = edict.levels.find((candidate) => candidate.level === edictLevels[edict.id]);
+    const active = edict.levels.find(candidate => candidate.level === edictLevels[edict.id])
 
-    return total + (active?.unityCostPerCycle ?? 0);
-  }, 0);
-  const contractConsumption: UnityBreakdownItem[] = contracts.map((contract) => {
-    const variable = contract.unityPer100Imported * contract.importedPerCycle / 100;
-
-    return {
+    return total + (active?.unityCostPerCycle ?? 0)
+  }, 0)
+  // Synced amounts already include housing tiers, coverage, variety and modifiers.
+  const generation = [
+    ...(settlementUnity ?? []).filter(item => item.amount > 0),
+    ...(edictGeneration > 0
+      ? [{ id: 'production-edicts', name: 'Edicts', amount: edictGeneration }]
+      : []),
+    ...buildingGeneration.filter(item => item.amount > 0),
+  ]
+  const consumption = [
+    ...(settlementUnity ?? []).filter(item => item.amount < 0)
+      .map(item => ({ ...item, amount: -item.amount })),
+    ...(edictConsumption > 0
+      ? [{ id: 'edicts', name: 'Edicts', amount: edictConsumption }]
+      : []),
+    ...contracts.map(contract => ({
       id: `contract-${contract.id}`,
       name: contract.name,
-      amount: (contract.fixedUnityPerCycle + variable) * contractsUnityCostMultiplier,
-    };
-  });
-  const consumption: UnityBreakdownItem[] = [
-    ...(edictConsumption > 0 ? [{ id: "edicts", name: "Edicts", amount: edictConsumption }] : []),
-    ...contractConsumption.filter((item) => item.amount > 0),
-    ...buildingConsumption.filter((item) => item.amount > 0),
-  ];
-  const generationPerCycle = generation.reduce((total, item) => total + item.amount, 0);
-  const consumptionPerCycle = consumption.reduce((total, item) => total + item.amount, 0);
+      amount: (contract.fixedUnityPerCycle + contract.unityPer100Imported * contract.importedPerCycle / 100)
+        * (1 + Math.min(0, contractsUnityCostPercent) / 100),
+    })).filter(item => item.amount > 0),
+    ...buildingConsumption.filter(item => item.amount > 0),
+  ]
+  const generationPerCycle = settlementUnity === null
+    ? null
+    : generation.reduce((total, item) => total + item.amount, 0)
+  const consumptionPerCycle = consumption.reduce((total, item) => total + item.amount, 0)
+  const housingGroups = [{ housing, housingCount }, ...additionalHousing]
 
   return {
     generationPerCycle,
     consumptionPerCycle,
-    netPerCycle: generationPerCycle - consumptionPerCycle,
-    storageCapacity: (
-      baseUnityStorage + housing.unityStorage * normalizedHousingCount
-      + normalizedAdditionalHousing.reduce(
-        (total, group) => total + group.housing.unityStorage * group.housingCount,
-        0,
-      )
-    ) * unityCapacityMultiplier,
-    housingMultiplier,
+    netPerCycle: generationPerCycle === null ? null : generationPerCycle - consumptionPerCycle,
+    storageCapacity: (baseUnityStorage + housingGroups.reduce((total, group) => (
+      total + group.housing.unityStorage * Math.max(0, Math.trunc(group.housingCount))
+    ), 0)) * unityCapacityMultiplier,
     generation,
     consumption,
-  };
-};
+  }
+}

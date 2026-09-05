@@ -81,42 +81,53 @@ export interface SettlementPopulationFlows {
   electricityKw: number;
 }
 
+export interface SettlementSupply {
+  foodResourceIds: ReadonlySet<ResourceId>
+  householdGoods: boolean
+  healthcare: boolean
+}
+
 export const calculateSettlementPopulationFlows = (
   population: number,
   housing: HousingType,
+  supply?: SettlementSupply,
 ): SettlementPopulationFlows => {
   const normalizedPopulation = Math.max(0, population);
+  const suppliedFoods = supply
+    ? settlementFoods.filter(food => supply.foodResourceIds.has(food.resourceId))
+    : settlementFoods;
+  const householdGoodsEnabled = supply?.householdGoods ?? activeHousingServices.householdGoods;
   const foodsPerCategory = new Map<FoodCategoryId, number>();
 
-  for (const food of settlementFoods) {
+  for (const food of suppliedFoods) {
     foodsPerCategory.set(
       food.categoryId,
       (foodsPerCategory.get(food.categoryId) ?? 0) + 1,
     );
   }
 
-  const foodInputs = settlementFoods.map((food) => ({
+  const foodInputs = suppliedFoods.map((food) => ({
     resourceId: food.resourceId,
     inputModifierId: "foodConsumption" as const,
     quantity: food.consumedPerHundredPopsPerMonth
       * (normalizedPopulation / 100)
-      / settlementConfig.activeFoodCategoryCount
+      / Math.max(1, foodsPerCategory.size)
       / (foodsPerCategory.get(food.categoryId) ?? 1),
   }));
   const medicalSupplies = settlementConfig.medicalSuppliesPerHundredPopsPerMonth
     * normalizedPopulation
-    / 100;
+    / 100 * (supply?.healthcare === false ? 0 : 1);
   const householdGoods = settlementConfig.householdGoodsPerThousandPopsPerMonth
     * normalizedPopulation
     / 1000
     * housing.serviceDemandMultipliers.householdGoods;
-  const householdGoodsBiomass = activeHousingServices.householdGoods
+  const householdGoodsBiomass = householdGoodsEnabled
     ? householdGoods * settlementConfig.biomassPerHouseholdGood
     : 0;
   const biomass = foodInputs.reduce((total, input, index) => (
     total
     + input.quantity
-      * (settlementFoods[index]?.biomassSourcePerUnit ?? 0)
+      * (suppliedFoods[index]?.biomassSourcePerUnit ?? 0)
       * settlementConfig.biomassRecoveryRatio
   ), 0);
 
@@ -135,7 +146,7 @@ export const calculateSettlementPopulationFlows = (
         inputModifierId: "settlementConsumption",
         quantity: medicalSupplies,
       },
-      ...(activeHousingServices.householdGoods
+      ...(householdGoodsEnabled
         ? [{
             resourceId: "householdGoods" as const,
             inputModifierId: "settlementConsumption" as const,
@@ -169,7 +180,7 @@ export const calculateSettlementPopulationFlows = (
         outputModifierId: "settlementConsumption",
         quantity:
           medicalSupplies * settlementConfig.recyclablesPerMedicalSupply
-          + (activeHousingServices.householdGoods
+          + (householdGoodsEnabled
             ? householdGoods * settlementConfig.recyclablesPerHouseholdGood
             : 0),
       },

@@ -5,6 +5,8 @@ import {
   type InfiniteResearchId,
 } from './db/research'
 import { type ReserveBalances } from './db/reserve-resources'
+import { isWeatherConfig, type WeatherConfig } from './db/weather'
+import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
 
 interface SyncedSpaceStationState {
   currentLevel: number
@@ -282,11 +284,13 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 39 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 40 as const
 
 export interface GameStateSnapshot {
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
   saveId: string
+  settlement: SyncedSettlementState
+  weather: WeatherConfig
   exportedAtUtc: string
   spaceStation: SyncedSpaceStationState
   logisticsZones: SyncedLogisticsZoneRef[]
@@ -1014,6 +1018,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const schemaVersion = snapshot.schemaVersion
 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
+  if (!isSyncedSettlementState(snapshot.settlement) || !isWeatherConfig(snapshot.weather)) return null
 
   const saveId =
     typeof snapshot.saveId === 'string' && snapshot.saveId.trim().length > 0
@@ -1112,6 +1117,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   return {
     schemaVersion,
     saveId,
+    settlement: snapshot.settlement,
+    weather: snapshot.weather,
     exportedAtUtc: snapshot.exportedAtUtc,
     spaceStation,
     logisticsZones,

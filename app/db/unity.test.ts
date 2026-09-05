@@ -1,109 +1,62 @@
 import { expect, it } from "vitest";
 
-import { activeContracts } from "../test-fixtures/active-contracts";
-import { defaultEdictLevels } from "./edicts";
+import { defaultEdictLevels, edictCatalog } from "./edicts";
 import { activeHousingType, housingTypes } from "./housing";
 import { calculateUnityBudget } from "./unity";
 
-it("includes recurring Unity for every active contract", () => {
-  const contract = activeContracts[0];
+const edictLevels = { ...defaultEdictLevels };
 
-  expect(contract).toBeDefined();
+for (const edict of edictCatalog) edictLevels[edict.id] = 0;
+const input = {
+  housing: activeHousingType,
+  housingCount: 1,
+  unityCapacityMultiplier: 1.25,
+  edictLevels,
+  contracts: [],
+  settlementUnity: [
+    { id: "food", name: "Food", amount: 2.75 },
+    { id: "quality", name: "Settlement quality", amount: 0.23 },
+    { id: "health", name: "Health", amount: -0.4 },
+  ],
+};
 
-  const budget = calculateUnityBudget({
-    housing: activeHousingType,
-    housingCount: 1,
-    housingCapacityMultiplier: 1,
-    unityCapacityMultiplier: 1.25,
-    edictLevels: defaultEdictLevels,
-    contracts: contract
-      ? [{
-          id: contract.id,
-          name: contract.name,
-          importedPerCycle: contract.routes[0]?.importedPerProductionCycle ?? 0,
-          fixedUnityPerCycle: contract.unity.perProductionCycle,
-          unityPer100Imported: contract.unity.per100Imported,
-        }]
-      : [],
-    buildingGeneration: [{
-      id: "space-station",
-      name: "Space Station level 4",
-      amount: 0.3,
-    }],
-  });
+it("uses signed settlement records without inventing quality or health income", () => {
+  const budget = calculateUnityBudget(input);
 
-  const contractCost = budget.consumption.find(
-    (item) => item.id === `contract-${contract?.id}`,
-  );
-
-  expect(contractCost?.name).toBe("Food Pack → Uranium Ore");
-  expect(contractCost?.amount).toBeCloseTo(0.354, 10);
-  expect(budget.housingMultiplier).toBe(1.75);
+  expect(budget.generationPerCycle).toBeCloseTo(2.98);
+  expect(budget.consumptionPerCycle).toBeCloseTo(0.4);
+  expect(budget.netPerCycle).toBeCloseTo(2.58);
   expect(budget.storageCapacity).toBe(47.5);
-  expect(budget.generation).toContainEqual({
-    id: "space-station",
-    name: "Space Station level 4",
-    amount: 0.3,
-  });
-  expect(budget.netPerCycle).toBeCloseTo(0.621, 10);
 });
 
-it("applies Office Focuses to settlement generation and contract cost", () => {
-  const contract = activeContracts[0];
-  const input = {
-    housing: activeHousingType,
-    housingCount: 1,
-    housingCapacityMultiplier: 1,
-    unityCapacityMultiplier: 1,
-    edictLevels: defaultEdictLevels,
-    contracts: contract
-      ? [{
-          id: contract.id,
-          name: contract.name,
-          importedPerCycle: contract.routes[0]?.importedPerProductionCycle ?? 0,
-          fixedUnityPerCycle: contract.unity.perProductionCycle,
-          unityPer100Imported: contract.unity.per100Imported,
-        }]
-      : [],
-  };
-  const baseline = calculateUnityBudget(input);
-  const focused = calculateUnityBudget({
+it("retains planned building and contract costs without multiplying synced income again", () => {
+  const budget = calculateUnityBudget({
     ...input,
+    contracts: [{ id: "uranium", name: "Uranium", importedPerCycle: 54,
+      fixedUnityPerCycle: 0.3, unityPer100Imported: 0.1 }],
     contractsUnityCostPercent: -25,
-    settlementUnityBonusPercent: 10,
+    buildingGeneration: [{ id: "station", name: "Space Station", amount: 0.3 }],
+    buildingConsumption: [{ id: "lab", name: "Research Lab", amount: 0.5 }],
   });
 
-  const nonSettlementGeneration = baseline.generation
-    .filter((item) => item.id === "production-edicts")
-    .reduce((total, item) => total + item.amount, 0);
-  const contractConsumption = baseline.consumption
-    .filter((item) => item.id.startsWith("contract-"))
-    .reduce((total, item) => total + item.amount, 0);
+  expect(budget.generationPerCycle).toBeCloseTo(3.28);
+  expect(budget.consumptionPerCycle).toBeCloseTo(0.4 + 0.354 * 0.75 + 0.5);
+});
 
-  expect(focused.generationPerCycle).toBeCloseTo(
-    (baseline.generationPerCycle - nonSettlementGeneration) * 1.1
-      + nonSettlementGeneration,
-    10,
-  );
-  expect(focused.consumptionPerCycle).toBeCloseTo(
-    baseline.consumptionPerCycle - contractConsumption
-      + contractConsumption * 0.75,
-    10,
-  );
+it("keeps missing monthly records unavailable rather than replacing them with defaults", () => {
+  const budget = calculateUnityBudget({ ...input, settlementUnity: null });
+
+  expect(budget.generationPerCycle).toBeNull();
+  expect(budget.netPerCycle).toBeNull();
+  expect(budget.generation).toEqual([]);
+  expect(calculateUnityBudget({ ...input, settlementUnity: [] }).generationPerCycle).toBe(0);
 });
 
 it("includes additional synced housing tiers in Unity storage", () => {
   const budget = calculateUnityBudget({
-    housing: activeHousingType,
-    housingCount: 1,
+    ...input, unityCapacityMultiplier: 1,
     additionalHousing: [{ housing: housingTypes.housingII, housingCount: 2 }],
-    housingCapacityMultiplier: 1,
-    unityCapacityMultiplier: 1,
-    edictLevels: defaultEdictLevels,
-    contracts: [],
   });
 
-  expect(budget.storageCapacity).toBe(
-    20 + activeHousingType.unityStorage + 2 * housingTypes.housingII.unityStorage,
-  );
+  expect(budget.storageCapacity).toBe(20 + activeHousingType.unityStorage + 2 * housingTypes.housingII.unityStorage);
 });
