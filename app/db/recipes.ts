@@ -717,6 +717,9 @@ export const recipes: Recipe[] = [
     // one 60-second production cycle. An empty output-demand list prevents
     // Diesel demand from starting this disposal route; Cooking Oil surplus is
     // its only driver, with Ethanol demand-propagated as supporting production.
+    // Fuel is the last claimant on shared inputs: the route runs in the final
+    // surplus pass so Hydrogen serves every other recipe, fallback Ammonia
+    // included, before Ethanol for Diesel.
     id: 'chemical-plant-ii-cooking-oil-diesel',
     gameBuildingId: 'ChemicalPlant2',
     gameRecipeId: 'EthanolCookingOilReforming',
@@ -728,7 +731,6 @@ export const recipes: Recipe[] = [
     balanceOutputIds: [],
     consumeSurplusInputIds: ['cookingOil'],
     surplusConsumptionPriority: 110,
-    surplusConsumptionPhase: 'before-fallback',
     inputs: [
       { resourceId: 'ethanol', quantity: 15 },
       { resourceId: 'cookingOil', quantity: 30 },

@@ -210,7 +210,6 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceBy: "output",
     balanceOutputIds: [],
     consumeSurplusInputIds: ["cookingOil"],
-    surplusConsumptionPhase: "before-fallback",
     surplusConsumptionPriority: 110,
   },
   "ChemicalPlant2:GraphiteProduction": {

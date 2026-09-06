@@ -50,6 +50,8 @@ it("plans the paused Cooking Oil reforming plant with verified v0.8.7 rates", ()
       { resourceId: "animalFeed", quantity: 4 },
     ],
   });
+  // Fuel runs in the final surplus pass so it never reserves Hydrogen ahead of fallback recipes.
+  expect(line?.recipe.surplusConsumptionPhase).toBeUndefined();
   expect(line).toMatchObject({
     activeBuildings: 1,
     currentActiveBuildings: 0,
@@ -63,7 +65,6 @@ it("plans the paused Cooking Oil reforming plant with verified v0.8.7 rates", ()
       balanceOutputIds: [],
       consumeSurplusInputIds: ["cookingOil"],
       surplusConsumptionPriority: 110,
-      surplusConsumptionPhase: "before-fallback",
       inputs: [
         { resourceId: "ethanol", quantity: 15 },
         { resourceId: "cookingOil", quantity: 30 },
@@ -163,4 +164,70 @@ it("uses Canola and Cooking Oil only after useful Cooking Oil demand", () => {
   expect(idleReformer?.supplyRatio).toBe(0);
   expect(noSurplusResult.allResourceFlows.find((flow) => flow.resourceId === "diesel")?.net)
     .toBe(-100);
+});
+
+it("gives Hydrogen to fallback Ammonia before Cooking Oil reforming for Diesel", () => {
+  const hydrogenSource: Recipe = {
+    id: "test-hydrogen-source",
+    name: "Test Hydrogen Source",
+    building: "Test Source",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "hydrogen", quantity: 30 }],
+  };
+  const cookingOilSource: Recipe = {
+    id: "test-cooking-oil-source",
+    name: "Test Cooking Oil Source",
+    building: "Test Source",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "cookingOil", quantity: 30 }],
+  };
+  const ammoniaConsumer: Recipe = {
+    id: "test-ammonia-consumer",
+    name: "Test Ammonia Consumer",
+    building: "Test Consumer",
+    group: "production",
+    inputs: [{ resourceId: "ammonia", quantity: 20 }],
+    outputs: [],
+  };
+  const ammoniaFallback: Recipe = {
+    id: "test-ammonia-fallback",
+    name: "Test Ammonia Fallback",
+    building: "Test Producer",
+    group: "production",
+    balanceBy: "output",
+    balanceInputIds: [],
+    allocation: "fallback",
+    inputs: [{ resourceId: "hydrogen", quantity: 20 }],
+    outputs: [{ resourceId: "ammonia", quantity: 20 }],
+  };
+  const ethanolProducer: Recipe = {
+    id: "test-ethanol-from-hydrogen",
+    name: "Test Ethanol Producer",
+    building: "Test Producer",
+    group: "production",
+    balanceBy: "output",
+    inputs: [{ resourceId: "hydrogen", quantity: 15 }],
+    outputs: [{ resourceId: "ethanol", quantity: 15 }],
+  };
+  const reformer = getRecipe("chemical-plant-ii-cooking-oil-diesel");
+  const result = calculateNet([
+    fixedLine(hydrogenSource),
+    fixedLine(cookingOilSource),
+    fixedLine(ammoniaConsumer),
+    balancedLine(ammoniaFallback),
+    balancedLine(ethanolProducer),
+    balancedLine(reformer),
+  ]);
+  const flow = (resourceId: string) => result.allResourceFlows.find(
+    (candidate) => candidate.resourceId === resourceId,
+  );
+  const reformerResult = result.regularResults.find(
+    (candidate) => candidate.recipe.id === reformer.id,
+  );
+
+  expect(flow("ammonia")?.net).toBeCloseTo(0);
+  expect(flow("hydrogen")?.net).toBeCloseTo(0);
+  expect(reformerResult?.supplyRatio).toBeCloseTo(10 / 15);
 });
