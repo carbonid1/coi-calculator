@@ -11,9 +11,12 @@ import {
   housingTypes,
 } from "../housing";
 import { settlementRecipeIds } from "../settlement";
-import { type Module, type PlanMismatchAction } from "./modules";
+import { type Module, type PlanMismatch, type PlanMismatchAction } from "./modules";
 
 const plannedHousingCount = 18;
+const householdGoodsModuleName = "Household Goods Module";
+/** One unpaused module covers the settlement's whole Household Goods need. */
+const plannedHouseholdGoodsModuleCount = 1;
 
 interface PopulationHousingPlanArea {
   generatedArea: Module;
@@ -177,6 +180,22 @@ export const createPopulationModule = (
     specialDataSources[settlementRecipeIds.residentsII] = "planned";
   }
 
+  const householdGoodsRecipeId = settlementRecipeIds.householdGoodsModule;
+  const builtHouseholdGoodsCount = specialBuiltBuildings[householdGoodsRecipeId] ?? 0;
+  const runningHouseholdGoodsCount = specialCurrentActiveBuildings[householdGoodsRecipeId] ?? 0;
+  // Pausing every module drops HouseholdGoodsNeed from the settlement, which would
+  // retire the demand instead of exposing it. The plan keeps one module running.
+  const hasHouseholdGoodsPlan = builtHouseholdGoodsCount > 0
+    && runningHouseholdGoodsCount < plannedHouseholdGoodsModuleCount;
+
+  if (hasHouseholdGoodsPlan) {
+    specialActiveBuildings[householdGoodsRecipeId] = Math.max(
+      specialActiveBuildings[householdGoodsRecipeId] ?? 0,
+      plannedHouseholdGoodsModuleCount,
+    );
+    specialDataSources[householdGoodsRecipeId] = "planned";
+  }
+
   const housingPlanActions: PlanMismatchAction[] = hasHousingPlan
     ? [
         ...(unpausePromotionCount > 0
@@ -200,6 +219,33 @@ export const createPopulationModule = (
           : []),
       ]
     : [];
+  const settlementPlanMismatches: PlanMismatch[] = [
+    ...(hasHousingPlan && plannedHousingTarget != null
+      ? [{
+          recipeId: settlementRecipeIds.residents,
+          current: currentHousingCount,
+          target: plannedHousingTarget,
+          direction: "at-least" as const,
+          format: "configuration" as const,
+          actions: housingPlanActions,
+        }]
+      : []),
+    ...(hasHouseholdGoodsPlan
+      ? [{
+          recipeId: householdGoodsRecipeId,
+          current: runningHouseholdGoodsCount,
+          target: plannedHouseholdGoodsModuleCount,
+          direction: "at-least" as const,
+          format: "count" as const,
+          actions: [{
+            type: "unpause" as const,
+            label: `Unpause ${
+              plannedHouseholdGoodsModuleCount - runningHouseholdGoodsCount
+            } ${householdGoodsModuleName}`,
+          }],
+        }]
+      : []),
+  ];
   const projectedCurrentActiveBuildings = hasHousingPlan
     ? Object.fromEntries(Object.entries(specialCurrentActiveBuildings).filter(([recipeId]) => (
         recipeId !== settlementRecipeIds.residents
@@ -260,19 +306,12 @@ export const createPopulationModule = (
       [settlementRecipeIds.residentsII]: capacityMultiplier,
       [settlementRecipeIds.internetModule]: populationCapacity / 100,
     },
-    planMismatches: hasHousingPlan
+    planMismatches: settlementPlanMismatches.length > 0
       ? [
           ...(rawGeneratedPreset.planMismatches ?? []).filter(mismatch => (
-            mismatch.recipeId !== settlementRecipeIds.residents
+            !settlementPlanMismatches.some(item => item.recipeId === mismatch.recipeId)
           )),
-          {
-            recipeId: settlementRecipeIds.residents,
-            current: currentHousingCount,
-            target: plannedHousingTarget,
-            direction: "at-least" as const,
-            format: "configuration" as const,
-            actions: housingPlanActions,
-          },
+          ...settlementPlanMismatches,
         ]
       : rawGeneratedPreset.planMismatches,
   };

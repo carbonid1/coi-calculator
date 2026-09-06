@@ -382,3 +382,46 @@ it("scales full-population housing electricity with capacity research", () => {
     baseElectricityKw * (multiplier - 1),
   );
 });
+
+it("plans a paused Household Goods Module back on instead of retiring its demand", () => {
+  const population = createPopulationModule(
+    inventory({
+      [settlementRecipeIds.residents]: { built: 17, running: 17 },
+      [settlementRecipeIds.householdGoodsModule]: { built: 2, running: 0 },
+    }),
+    generatedPopulationArea(),
+    syncedHousingCapacityLevel,
+    null,
+  );
+
+  expect(population.presets[0]).toMatchObject({
+    activeBuildings: { [settlementRecipeIds.householdGoodsModule]: 1 },
+    currentActiveBuildings: { [settlementRecipeIds.householdGoodsModule]: 0 },
+    builtBuildings: { [settlementRecipeIds.householdGoodsModule]: 2 },
+    dataSources: { [settlementRecipeIds.householdGoodsModule]: "planned" },
+    planMismatches: [{
+      recipeId: settlementRecipeIds.householdGoodsModule,
+      current: 0,
+      target: 1,
+      actions: [{ type: "unpause", label: "Unpause 1 Household Goods Module" }],
+    }],
+  });
+});
+
+it("leaves a running Household Goods Module synced and unplanned", () => {
+  const population = createPopulationModule(
+    inventory({
+      [settlementRecipeIds.residents]: { built: 17, running: 17 },
+      [settlementRecipeIds.householdGoodsModule]: { built: 2, running: 1 },
+    }),
+    generatedPopulationArea(),
+    syncedHousingCapacityLevel,
+    null,
+  );
+
+  expect(population.presets[0]).toMatchObject({
+    activeBuildings: { [settlementRecipeIds.householdGoodsModule]: 1 },
+    dataSources: { [settlementRecipeIds.householdGoodsModule]: "synced" },
+  });
+  expect(population.presets[0]?.planMismatches ?? []).toEqual([]);
+});

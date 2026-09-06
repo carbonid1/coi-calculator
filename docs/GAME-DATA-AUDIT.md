@@ -559,7 +559,9 @@ Verified against the installed Captain of Industry v0.8.7 assemblies:
   `Population`/`Capacity` provide current occupancy. Food choices come from the
   maintained `FoodTypesMap` entries with configured capacity. Services come from
   unpaused `PopNeed.ModulesProvidingTheNeed`; hospitals have a separate
-  `Settlement.AllHospitals` collection.
+  `Settlement.AllHospitals` collection. One unpaused module covers the whole
+  need, so a fully paused Household Goods Module is planned back on rather than
+  retiring the settlement's Household Goods demand.
 - `UpointsManager.Stats.ThisMonthRecords` contains the monthly settlement and
   health exchanges. Settlement generation already includes housing, food,
   service coverage, quality, and game modifiers. The calculator uses signed

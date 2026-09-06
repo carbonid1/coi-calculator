@@ -9,6 +9,7 @@ import { calculateNet } from "../calculate/calculate";
 import { applySettlementState } from "./apply-settlement-state";
 
 const residents = settlementRecipeIds.residents;
+const householdGoodsModule = settlementRecipeIds.householdGoodsModule;
 const populationModule: Module = {
   id: "population", name: "Population", description: "",
   builtBuildings: { [residents]: 2 }, defaultPresetId: "live",
@@ -66,4 +67,15 @@ it("validates signed Unity, unavailable records, and unique housing assignments"
   expect(isSyncedSettlementState({ ...state, settlements: [...state.settlements, ...state.settlements] })).toBe(false);
   expect(isSyncedSettlementState({ ...state, population: 1 })).toBe(false);
   expect(isSyncedSettlementState({ ...state, unity: [{ id: "health", name: "Health", amount: NaN }] })).toBe(false);
+});
+
+it("keeps household goods demand while the module is planned back on", () => {
+  const result = calculate({ ...populationModule, presets: populationModule.presets.map(preset => ({
+    ...preset,
+    activeBuildings: { ...preset.activeBuildings, [householdGoodsModule]: 1 },
+    dataSources: { ...preset.dataSources, [householdGoodsModule]: "planned" },
+  })) });
+
+  expect(result?.actualInputs.find(item => item.resourceId === "householdGoods")?.quantity)
+    .toBeCloseTo(1.26);
 });

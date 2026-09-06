@@ -16,6 +16,10 @@ export const applySettlementState = (
 
   if (!preset || !module.liveArea) return module
   const zoneId = module.liveArea.zoneId
+  // A planned Household Goods Module keeps its demand while the module is paused.
+  const plannedHouseholdGoods = preset.dataSources?.[
+    settlementRecipeIds.householdGoodsModule
+  ] === 'planned'
   const ownedIds = new Set(entities.filter(entity => (
     entity.running && entity.zones.some(zone => zone.id === zoneId)
   )).map(entity => entity.entityId))
@@ -88,7 +92,8 @@ export const applySettlementState = (
         housing,
         {
           foodResourceIds,
-          householdGoods: settlement.serviceIds.includes('HouseholdGoodsNeed'),
+          householdGoods: plannedHouseholdGoods
+            || settlement.serviceIds.includes('HouseholdGoodsNeed'),
           healthcare: settlement.serviceIds.includes('HealthCareNeed'),
         },
       )
