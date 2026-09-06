@@ -260,7 +260,18 @@ const calculateWithDispatch = (
 
           if (!flow || capacity <= 0) return [];
 
-          return [Math.max(0, flow.consumed - (flow.produced - currentProduced)) / capacity];
+          // A surplus route the solver refused for this output is demand the
+          // flows do not show yet. Dispatching for it lets the next pass
+          // accept the route instead of settling on the refusal.
+          const latentDemand = currentCalculation.blockedRoutes.reduce((total, route) => (
+            route.blockedBy?.resourceId === output.resourceId
+              ? total + route.blockedBy.deficitIncrease
+              : total
+          ), 0);
+
+          return [
+            Math.max(0, flow.consumed + latentDemand - (flow.produced - currentProduced)) / capacity,
+          ];
         });
 
         desiredRatio = outputRatios.length > 0 ? Math.max(...outputRatios) : 0;

@@ -52,6 +52,23 @@ describe('runtime recipe behaviors', () => {
       balanceBy: 'output',
       balanceInputIds: [],
       balanceOutputIds: ['foodPack'],
+      consumeSurplusInputIds: ['meat'],
+      surplusConsumptionPriority: 120,
+    })
+  })
+
+  it('routes Chicken Carcass left by the Trimmings fallback into Meat', () => {
+    expect(runtimeRecipeBehaviors['FoodProcessor:MeatProcessing']).toEqual({
+      balanceBy: 'output',
+      balanceOutputIds: ['meat'],
+      consumeSurplusInputIds: ['chickenCarcass'],
+      surplusConsumptionPriority: 100,
+    })
+    expect(runtimeRecipeBehaviors['FoodProcessor:MeatProcessingTrimmings']).toEqual({
+      allocation: 'fallback',
+      allocationPriority: 10,
+      balanceBy: 'input',
+      balanceInputIds: ['chickenCarcass'],
     })
   })
 

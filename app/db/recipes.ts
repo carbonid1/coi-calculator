@@ -2025,6 +2025,11 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 20,
     balanceBy: 'output',
     balanceOutputIds: ['meat'],
+    // Ordinary Meat demand runs first and the Trimmings fallback keeps its
+    // share for Sausages. Spare Food Processor capacity then takes the carcass
+    // that would otherwise end as Fuel Gas into Meat, so it reaches Food Packs.
+    consumeSurplusInputIds: ['chickenCarcass'],
+    surplusConsumptionPriority: 100,
     inputs: [
       { resourceId: 'chickenCarcass', quantity: 30 },
       { resourceId: 'water', quantity: 9 },
@@ -2044,9 +2049,9 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 20,
     balanceBy: 'input',
     balanceInputIds: ['chickenCarcass'],
-    // The dedicated Meat processor runs first. This separate fallback building
-    // then consumes every remaining carcass; downstream fallbacks route excess
-    // Trimmings to Fuel Gas and excess Fuel Gas to Diesel.
+    // Runs after ordinary Meat demand and feeds Sausages. Carcass it cannot
+    // absorb goes back to spare Meat capacity; downstream fallbacks route
+    // excess Trimmings to Fuel Gas and excess Fuel Gas to Diesel.
     allocation: 'fallback',
     allocationPriority: 10,
     inputs: [{ resourceId: 'chickenCarcass', quantity: 30 }],
@@ -2611,6 +2616,10 @@ export const recipes: Recipe[] = [
     // that upstream demand after the higher-priority Eggs recipe takes its share.
     balanceInputIds: [],
     balanceOutputIds: ['foodPack'],
+    // Carcass surplus arrives here as Meat the settlement does not eat. Spare
+    // Assembly capacity turns it into stockpiled Food Packs.
+    consumeSurplusInputIds: ['meat'],
+    surplusConsumptionPriority: 120,
     sharedCapacity: {
       id: 'assembly-v-food-pack',
       label: 'Assembly V — Food Pack',

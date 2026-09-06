@@ -1,23 +1,23 @@
 import { Tooltip } from "@carbonid1/design-system";
 import { ArrowLeft, ArrowRight, Cpu, Sparkles } from "lucide-react";
 
-import { cropProductResourceIds } from "../db/crop-farming";
 import { type ModuleResourceTransfer } from "../db/module-resource-links";
 import { type Module } from "../db/modules/modules";
 import { resources, type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
+  type BlockedSurplusRoute,
   type RegularResult,
   type ResourceFlow,
 } from "../helpers/calculate/calculate";
-import { getSurplusCapacityLimit } from "../helpers/capacity-limit/capacity-limit";
 import {
   type MachineAllocationIssue,
   type MachineInventorySummary,
   type MachineZoneSummary,
   type SharedMachineClaim,
 } from "../helpers/machine-allocation/machine-allocation";
+import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
 import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
 import { type KeepReadyChange } from "./KeepReadyMenu";
@@ -35,6 +35,7 @@ interface Props {
   unityBudget?: UnityBudget;
   groupByBalance?: boolean;
   regularResults?: RegularResult[];
+  blockedRoutes?: BlockedSurplusRoute[];
   buildingDiagnostics?: BuildingDiagnostic[];
   machineAllocationIssues?: MachineAllocationIssue[];
   machineInventory?: MachineInventorySummary[];
@@ -148,6 +149,7 @@ export const NetSummary: React.FC<Props> = ({
   unityBudget,
   groupByBalance = false,
   regularResults = [],
+  blockedRoutes = [],
   buildingDiagnostics = [],
   machineAllocationIssues = [],
   machineInventory = [],
@@ -230,15 +232,16 @@ export const NetSummary: React.FC<Props> = ({
   const capacityLimitedIds = new Set(
     capacityLimitedDeficits.map(({ flow }) => flow.resourceId),
   );
-  const capacityLimitedSurpluses = balanceGroups
+  // A surplus that an active line could consume is unrouted, not an end product.
+  const unroutedSurpluses = balanceGroups
     .find((group) => group.label === "Surplus")
     ?.flows.flatMap((flow) => {
-      const capacityLimit = getSurplusCapacityLimit(flow.resourceId, regularResults);
+      const rootCause = getSurplusRootCause(flow.resourceId, regularResults, blockedRoutes);
 
-      return capacityLimit ? [{ flow, capacityLimit }] : [];
+      return rootCause.kind === "terminal" ? [] : [{ flow, detail: rootCause.detail }];
     }) ?? [];
-  const capacityLimitedSurplusIds = new Set(
-    capacityLimitedSurpluses.map(({ flow }) => flow.resourceId),
+  const unroutedSurplusIds = new Set(
+    unroutedSurpluses.map(({ flow }) => flow.resourceId),
   );
   const hasOperationalSummary = (
     electricityFlow != null
@@ -301,79 +304,48 @@ export const NetSummary: React.FC<Props> = ({
       return <p className="text-sm text-muted-foreground">None</p>;
     }
 
-    if (group.label === "Surplus") {
-      const farmFlows = group.flows.filter(
-        (flow) => (
-          cropProductResourceIds.has(flow.resourceId)
-          && !capacityLimitedSurplusIds.has(flow.resourceId)
-        ),
-      );
+    if (group.label === "Surplus" && unroutedSurpluses.length > 0) {
       const otherFlows = group.flows.filter(
-        (flow) => (
-          !cropProductResourceIds.has(flow.resourceId)
-          && !capacityLimitedSurplusIds.has(flow.resourceId)
-        ),
+        (flow) => !unroutedSurplusIds.has(flow.resourceId),
       );
 
-      if (capacityLimitedSurpluses.length > 0 || farmFlows.length > 0) {
-        return (
-          <div className="space-y-4">
-            {capacityLimitedSurpluses.length > 0 && (
-              <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
-                <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground">
-                  Capacity limited
-                </h5>
-                <div className="space-y-1">
-                  {capacityLimitedSurpluses.map(({ flow, capacityLimit }) => (
-                    <div key={flow.resourceId} className="-mx-1 flex items-start justify-between gap-3 rounded px-1 py-1 text-sm hover:bg-accent">
-                      <span className="flex flex-col text-foreground">
-                        <span className="font-medium">{flow.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {capacityLimit}
-                        </span>
-                      </span>
-                      <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                        {formatNet(flow.net)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {otherFlows.length > 0 && (
-              <div className="space-y-1">
-                {otherFlows.map((flow) => (
-                  <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
-                    <span className="text-foreground">{flow.name}</span>
-                    <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                      {formatNet(flow.net)}
+      return (
+        <div className="space-y-4">
+          <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
+            <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground">
+              Unrouted
+            </h5>
+            <div className="space-y-1">
+              {unroutedSurpluses.map(({ flow, detail }) => (
+                <div key={flow.resourceId} className="-mx-1 flex items-start justify-between gap-3 rounded px-1 py-1 text-sm hover:bg-accent">
+                  <span className="flex flex-col text-foreground">
+                    <span className="font-medium">{flow.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {detail}
                     </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {farmFlows.length > 0 && (
-              <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
-                <h5 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Farm surplus
-                </h5>
-                <div className="space-y-1">
-                  {farmFlows.map((flow) => (
-                    <div key={flow.resourceId} className="-mx-1 flex justify-between rounded px-1 py-0.5 text-sm hover:bg-accent">
-                      <span className="text-muted-foreground">{flow.name}</span>
-                      <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                        {formatNet(flow.net)}
-                      </span>
-                    </div>
-                  ))}
+                  </span>
+                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                    {formatNet(flow.net)}
+                  </span>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
-        );
-      }
+
+          {otherFlows.length > 0 && (
+            <div className="space-y-1">
+              {otherFlows.map((flow) => (
+                <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
+                  <span className="text-foreground">{flow.name}</span>
+                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                    {formatNet(flow.net)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
     }
 
     return (
@@ -667,9 +639,9 @@ export const NetSummary: React.FC<Props> = ({
       ) : (
         <div className="space-y-1">
           {regularFlows.map((flow) => {
-            const capacityLimit = capacityLimitedSurpluses.find(
+            const capacityLimit = unroutedSurpluses.find(
               candidate => candidate.flow.resourceId === flow.resourceId,
-            )?.capacityLimit;
+            )?.detail;
 
             return (
               <div

@@ -671,6 +671,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             ...factoryResult.calculation.regularResults,
             ...linkedRegularResults,
           ]}
+          blockedRoutes={factoryResult.calculation.blockedRoutes}
           buildingDiagnostics={factoryBuildingDiagnostics}
           machineAllocationIssues={sharedMachineAllocation.issues}
           machineInventory={sharedMachineAllocation.inventory}
@@ -718,6 +719,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             <NetSummary
               flows={displayedResourceFlows}
               regularResults={moduleResult.regularResults}
+              blockedRoutes={moduleResult.blockedRoutes}
               moduleId={activeModule.id}
               requestedImports={preset?.requestedImports}
               requestedExports={preset?.requestedExports}

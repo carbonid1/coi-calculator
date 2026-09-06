@@ -1,5 +1,6 @@
 import { resources, type ResourceId } from "../../db/resources";
 import type {
+  BlockedSurplusRoute,
   calculateNet,
   PassiveResult,
   RegularResult,
@@ -14,6 +15,7 @@ export interface ModuleResult {
   regularResults: RegularResult[];
   sourceResults: PassiveResult[];
   sinkResults: PassiveResult[];
+  blockedRoutes: BlockedSurplusRoute[];
 }
 
 export const extractModuleResult = (
@@ -25,6 +27,7 @@ export const extractModuleResult = (
   const regularResults = calculation.regularResults.filter((result) => result.moduleId === moduleId);
   const sourceResults = calculation.sourceResults.filter((result) => result.moduleId === moduleId);
   const sinkResults = calculation.sinkResults.filter((result) => result.moduleId === moduleId);
+  const blockedRoutes = calculation.blockedRoutes.filter((route) => route.moduleId === moduleId);
   const flows = new Map<ResourceId, { consumed: number; produced: number }>();
   const getFlow = (resourceId: ResourceId) => {
     const flow = flows.get(resourceId) ?? { consumed: 0, produced: 0 };
@@ -70,5 +73,5 @@ export const extractModuleResult = (
     }];
   });
 
-  return { resourceFlows, regularResults, sourceResults, sinkResults };
+  return { resourceFlows, regularResults, sourceResults, sinkResults, blockedRoutes };
 };

@@ -106,6 +106,8 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceBy: "output",
     balanceInputIds: [],
     balanceOutputIds: ["foodPack"],
+    consumeSurplusInputIds: ["meat"],
+    surplusConsumptionPriority: 120,
   },
   "BakingUnit:CakeProduction": {
     balanceBy: "output",
@@ -280,6 +282,8 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
   "FoodProcessor:MeatProcessing": {
     balanceBy: "output",
     balanceOutputIds: ["meat"],
+    consumeSurplusInputIds: ["chickenCarcass"],
+    surplusConsumptionPriority: 100,
   },
   "FoodProcessor:MeatProcessingTrimmings": {
     allocation: "fallback",

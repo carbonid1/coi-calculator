@@ -60,6 +60,22 @@ export interface ResourceFlow {
 
 export type OperatingMode = "fixed" | "balanced";
 
+/**
+ * A surplus route the deficit guard cut below the utilization it could reach.
+ * `blockedBy` is the resource whose deficit grew the most at `wantedRatio`.
+ */
+export interface BlockedSurplusRoute {
+  recipe: Recipe;
+  moduleId: string;
+  activeBuildings: number;
+  surplusResourceIds: ResourceId[];
+  /** Line utilization (0–1) the route could reach on surplus input and capacity alone. */
+  wantedRatio: number;
+  /** Utilization the guard allowed, in the same units as `wantedRatio`. */
+  appliedRatio: number;
+  blockedBy: { resourceId: ResourceId; deficitIncrease: number } | null;
+}
+
 export interface RegularResult {
   recipe: Recipe;
   moduleId: string;
@@ -583,9 +599,14 @@ export const calculateNet = (
   const ownedModuleSupplyCapacityByResource = new Map<string, number>();
   const ownedModuleSupplyKeysByResource = new Map<ResourceId, Set<string>>();
   const moduleScopedInputKeysByResource = new Map<ResourceId, Set<string>>();
-  const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => (
-    `${moduleId}:${resourceId}`
-  );
+  const moduleKeyResourceIds = new Map<string, ResourceId>();
+  const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => {
+    const key = `${moduleId}:${resourceId}`;
+
+    moduleKeyResourceIds.set(key, resourceId);
+
+    return key;
+  };
 
   for (const line of lines) {
     if (line.recipe.balanceInputScope !== "module") continue;
@@ -1396,6 +1417,9 @@ export const calculateNet = (
     [...ownedModuleSupplyKeysByResource.values()].some(keys => keys.has(key))
     || [...moduleScopedInputKeysByResource.values()].some(keys => keys.has(key))
   );
+  // Demand propagation settles to within rounding; anything under this is not
+  // a shortage a surplus route should be refused for.
+  const DEFICIT_TOLERANCE = 1e-3;
   const getDeficitIncrease = (
     before: { consumed: number; produced: number } | undefined,
     after: { consumed: number; produced: number } | undefined,
@@ -1410,6 +1434,66 @@ export const calculateNet = (
     );
 
     return Math.max(0, afterDeficit - beforeDeficit);
+  };
+  // Slack the finished factory is known to leave on a resource. Surplus routes
+  // evaluated before late producers (surplus-allocated lines, sources) have
+  // settled may draw on it instead of being refused for a deficit that the
+  // rest of the pipeline goes on to cover.
+  let slackAllowance = new Map<ResourceId, number>();
+  let moduleSlackAllowance = new Map<string, number>();
+  // Only routes the retry is for may draw on the allowance; anything else
+  // could shift consumption the first run had already settled.
+  let allowanceLines = new Set<ProductionLine>();
+  // Slack already visible in the baseline is counted by the deficit measure
+  // itself; the allowance covers only what later passes add on top of it.
+  const getSlackAllowance = (
+    line: ProductionLine,
+    resourceId: ResourceId,
+    baseline: { consumed: number; produced: number } | undefined,
+  ) => (
+    allowanceLines.has(line)
+      ? Math.max(0, (slackAllowance.get(resourceId) ?? 0)
+        - Math.max(0, (baseline?.produced ?? 0) - (baseline?.consumed ?? 0)))
+      : 0
+  );
+  const getModuleSlackAllowance = (
+    line: ProductionLine,
+    key: string,
+    baseline: { consumed: number; produced: number } | undefined,
+  ) => (
+    allowanceLines.has(line)
+      ? Math.max(0, (moduleSlackAllowance.get(key) ?? 0)
+        - Math.max(0, (baseline?.produced ?? 0) - (baseline?.consumed ?? 0)))
+      : 0
+  );
+  // A module drawing past its own supply is served from the global pool.
+  const getModuleKeySlackAllowance = (
+    line: ProductionLine,
+    key: string,
+    baseline: ReturnType<typeof snapshotAllocationState>,
+  ) => {
+    const resourceId = moduleKeyResourceIds.get(key);
+
+    return resourceId
+      ? getSlackAllowance(line, resourceId, baseline.flows.get(resourceId))
+      : 0;
+  };
+  const consumeSlackAllowance = (
+    baseline: ReturnType<typeof snapshotAllocationState>,
+  ) => {
+    for (const [resourceId, allowance] of slackAllowance) {
+      const increase = getDeficitIncrease(baseline.flows.get(resourceId), flows.get(resourceId));
+
+      if (increase > 0) slackAllowance.set(resourceId, Math.max(0, allowance - increase));
+    }
+    for (const [key, allowance] of moduleSlackAllowance) {
+      const increase = getDeficitIncrease(
+        baseline.actualModuleFlows.get(key),
+        actualModuleFlows.get(key),
+      );
+
+      if (increase > 0) moduleSlackAllowance.set(key, Math.max(0, allowance - increase));
+    }
   };
   const allocationIntroducedDeficit = (
     baseline: ReturnType<typeof snapshotAllocationState>,
@@ -1428,7 +1512,10 @@ export const calculateNet = (
         flows.get(resourceId),
       );
 
-      if (globalIncrease <= 1e-7) continue;
+      if (
+        globalIncrease
+          <= getSlackAllowance(line, resourceId, baseline.flows.get(resourceId)) + DEFICIT_TOLERANCE
+      ) continue;
       if (!plannedSupportingIds.has(resourceId)) return true;
 
       const supportedIncrease = [...effectivePlannedSupportingResourceIds]
@@ -1453,10 +1540,59 @@ export const calculateNet = (
         !isModuleRestrictedKey(key)
         || plannedSupportingModuleKeys.has(key)
         || [...suppliedIds].some(resourceId => key.endsWith(`:${resourceId}`))
+        || getDeficitIncrease(baseline.actualModuleFlows.get(key), actualModuleFlows.get(key))
+          <= getModuleSlackAllowance(line, key, baseline.actualModuleFlows.get(key))
+            + getModuleKeySlackAllowance(line, key, baseline)
+            + DEFICIT_TOLERANCE
       ),
     );
   };
+  const blockedRoutes: BlockedSurplusRoute[] = [];
+  const blockedRouteLines = new WeakMap<BlockedSurplusRoute, ProductionLine>();
+  const findBlockingResource = (
+    baseline: ReturnType<typeof snapshotAllocationState>,
+    line: ProductionLine,
+  ): BlockedSurplusRoute["blockedBy"] => {
+    let blockedBy: BlockedSurplusRoute["blockedBy"] = null;
+
+    for (const resourceId of new Set([...baseline.flows.keys(), ...flows.keys()])) {
+      const deficitIncrease = getDeficitIncrease(
+        baseline.flows.get(resourceId),
+        flows.get(resourceId),
+      ) - getSlackAllowance(line, resourceId, baseline.flows.get(resourceId));
+
+      if (deficitIncrease > (blockedBy?.deficitIncrease ?? DEFICIT_TOLERANCE)) {
+        blockedBy = { resourceId, deficitIncrease };
+      }
+    }
+
+    if (blockedBy) return blockedBy;
+
+    // Nothing moved globally, so a module-restricted supply must have run short.
+    for (const key of new Set([...baseline.actualModuleFlows.keys(), ...actualModuleFlows.keys()])) {
+      const resourceId = moduleKeyResourceIds.get(key);
+
+      if (!resourceId) continue;
+
+      const deficitIncrease = getDeficitIncrease(
+        baseline.actualModuleFlows.get(key),
+        actualModuleFlows.get(key),
+      ) - getModuleSlackAllowance(line, key, baseline.actualModuleFlows.get(key))
+        - getModuleKeySlackAllowance(line, key, baseline);
+
+      if (deficitIncrease > (blockedBy?.deficitIncrease ?? DEFICIT_TOLERANCE)) {
+        blockedBy = { resourceId, deficitIncrease };
+      }
+    }
+
+    return blockedBy;
+  };
   const applyAdditionalSurplusConsumption = (surplusConsumerLines: ProductionLine[]) => {
+    // Settle demand-balanced production first. Without it the baseline below
+    // still carries unpropagated demand, and the deficit guard would charge
+    // that pre-existing pressure to the first surplus route it evaluates.
+    propagateAdditionalDemand();
+
     for (const line of surplusConsumerLines) {
       const currentRatio = allocationRatios.get(line) ?? 0;
       const remainingLineRatio = Math.max(0, 1 - currentRatio);
@@ -1511,8 +1647,13 @@ export const calculateNet = (
       applyRegularLine(line, ratio, true);
       if (hasSupportingInputs) propagateAdditionalDemand();
 
-      if (!allocationIntroducedDeficit(baseline, line)) continue;
+      if (!allocationIntroducedDeficit(baseline, line)) {
+        consumeSlackAllowance(baseline);
+        continue;
+      }
 
+      // Record the blocker while the state still reflects the wanted ratio.
+      const blockedBy = findBlockingResource(baseline, line);
       let feasibleRatio = 0;
       let infeasibleRatio = ratio;
 
@@ -1535,7 +1676,23 @@ export const calculateNet = (
       if (feasibleRatio > 1e-9) {
         applyRegularLine(line, feasibleRatio, true);
         if (hasSupportingInputs) propagateAdditionalDemand();
+        consumeSlackAllowance(baseline);
       }
+
+      if (ratio - feasibleRatio <= DEFICIT_TOLERANCE) continue;
+
+      const blockedRoute: BlockedSurplusRoute = {
+        recipe: line.recipe,
+        moduleId: line.moduleId,
+        activeBuildings: line.activeBuildings,
+        surplusResourceIds: [...surplusInputIds],
+        wantedRatio: ratio,
+        appliedRatio: feasibleRatio,
+        blockedBy,
+      };
+
+      blockedRoutes.push(blockedRoute);
+      blockedRouteLines.set(blockedRoute, line);
     }
   };
   const propagateAdditionalDemand = () => {
@@ -1725,172 +1882,31 @@ export const calculateNet = (
     }
   };
 
-  // Some last-priority material routes need to reserve ordinary supporting
-  // inputs before fallback byproducts consume them. Their declared surplus
-  // inputs still ensure that primary demand is satisfied first.
-  applyAdditionalSurplusConsumption(beforeFallbackSurplusConsumerLines);
+  const settleSurplusAndFallbackRoutes = () => {
+    // Some last-priority material routes need to reserve ordinary supporting
+    // inputs before fallback byproducts consume them. Their declared surplus
+    // inputs still ensure that primary demand is satisfied first.
+    applyAdditionalSurplusConsumption(beforeFallbackSurplusConsumerLines);
 
-  // Fallbacks may create supporting demand (for example Sour Water recovery
-  // needs Steam). Resolve that demand before final surplus converters run.
-  settleFallbackDemand();
-  reservePlannedSourceInputs();
-  applyLowerPriorityLines(surplusLines);
-  propagateAdditionalDemand();
-  applyAdditionalSurplusConsumption(finalSurplusConsumerLines);
-  // Final surplus conversion can create inputs for local fallback cleanup.
-  // Run those fallbacks once more so chained routes settle in the same cycle.
-  settleFallbackDemand();
-  propagateAdditionalDemand();
+    // Fallbacks may create supporting demand (for example Sour Water recovery
+    // needs Steam). Resolve that demand before final surplus converters run.
+    settleFallbackDemand();
+    reservePlannedSourceInputs();
+    applyLowerPriorityLines(surplusLines);
+    propagateAdditionalDemand();
+    applyAdditionalSurplusConsumption(finalSurplusConsumerLines);
+    // Final surplus conversion can create inputs for local fallback cleanup.
+    // Run those fallbacks once more so chained routes settle in the same cycle.
+    settleFallbackDemand();
+    propagateAdditionalDemand();
+  };
+  const beforeSurplusRoutes = snapshotAllocationState();
 
-  // Regular results
-  const regularResults: RegularResult[] = regularLines.map((line) => ({
-    recipe: line.recipe,
-    moduleId: line.moduleId,
-    dataSource: line.dataSource,
-    capacityPoolId: line.capacityPoolId,
-    capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
-    capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
-    capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
-    capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
-    capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
-    activeBuildings: line.activeBuildings,
-    currentActiveBuildings: line.currentActiveBuildings,
-    builtBuildings: line.builtBuildings,
-    constructionGhosts: line.constructionGhosts,
-    unplacedPlannedBuildings: line.unplacedPlannedBuildings,
-    operatingMode: line.operatingMode,
-    supplyRatio: allocationRatios.get(line) ?? 0,
-    speedLevel: line.speedLevel,
-    actualInputs: line.recipe.inputs.map((input) => ({
-      resourceId: input.resourceId,
-      quantity: getRecipeInputQuantity(input, outputModifiers)
-        * lineFactor(line)
-        * (allocationRatios.get(line) ?? 0),
-    })),
-    actualOutputs: line.recipe.outputs.map((output) => {
-      const recyclableInput = line.recipe.sortsRecyclableSources
-        ? line.recipe.inputs.find((input) => input.resourceId === "recyclables")
-        : undefined;
-      const quantity = recyclableInput
-        ? (sortedRecyclableSources.get(line)?.get(output.resourceId) ?? 0)
-        : getRecipeOutputQuantity(line.recipe, output, outputModifiers)
-          * lineFactor(line)
-          * (allocationRatios.get(line) ?? 0);
+  settleSurplusAndFallbackRoutes();
 
-      return { resourceId: output.resourceId, quantity };
-    }),
-    recyclableSourceValueProduced: [
-      ...(createdRecyclableSources.get(line)?.values() ?? []),
-    ].reduce((total, quantity) => total + quantity, 0),
-  }));
-
-  // Sources are fallback streams: internal production is retained first, then
-  // sources are allocated in declaration order to cover only what remains.
-  const remainingSourceDemand = new Map<ResourceId, number>();
-  const remainingModuleSourceDemand = new Map<string, number>();
-
-  for (const line of sourceLines) {
-    if (!isModuleScopedSourceMode(line.recipe.sourceMode)) continue;
-
-    for (const output of line.recipe.outputs) {
-      const key = moduleResourceKey(line.moduleId, output.resourceId);
-
-      if (remainingModuleSourceDemand.has(key)) continue;
-
-      const moduleConsumed = regularResults.reduce((total, result) => (
-        result.moduleId === line.moduleId
-          ? total + result.actualInputs.reduce((inputTotal, input) => (
-              input.resourceId === output.resourceId
-                ? inputTotal + input.quantity
-                : inputTotal
-            ), 0)
-          : total
-      ), moduleFixedDemands.get(line.moduleId)?.[output.resourceId] ?? 0);
-      const moduleProduced = regularResults.reduce((total, result) => (
-        result.moduleId === line.moduleId
-          ? total + result.actualOutputs.reduce((outputTotal, actualOutput) => (
-              actualOutput.resourceId === output.resourceId
-                ? outputTotal + actualOutput.quantity
-                : outputTotal
-            ), 0)
-          : total
-      ), 0);
-
-      remainingModuleSourceDemand.set(
-        key,
-        Math.max(0, moduleConsumed - moduleProduced),
-      );
-    }
-  }
-
-  for (const line of sourceLines) {
-    for (const output of line.recipe.outputs) {
-      if (remainingSourceDemand.has(output.resourceId)) continue;
-
-      const flow = getFlow(output.resourceId);
-      const totalSourceCapacity = sourceLines.reduce((total, source) => {
-        return total + (sourceOutputCapacities.get(source)?.get(output.resourceId) ?? 0);
-      }, 0);
-      const internallyProduced = flow.produced - totalSourceCapacity;
-
-      remainingSourceDemand.set(
-        output.resourceId,
-        Math.max(0, flow.consumed - internallyProduced),
-      );
-    }
-  }
-
-  const sourceResults: PassiveResult[] = sourceLines.map((line) => {
-    const actualOutputs = line.recipe.outputs.map((output) => {
-      const flow = getFlow(output.resourceId);
-      const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
-      const moduleKey = moduleResourceKey(line.moduleId, output.resourceId);
-      const moduleScoped = isModuleScopedSourceMode(line.recipe.sourceMode);
-      const remaining = moduleScoped
-        ? remainingModuleSourceDemand.get(moduleKey) ?? 0
-        : remainingSourceDemand.get(output.resourceId) ?? 0;
-      const actualUsed = Math.min(capacity, remaining);
-
-      flow.produced -= capacity - actualUsed;
-      getActualModuleFlow(line.moduleId, output.resourceId).produced -= capacity - actualUsed;
-      if (moduleScoped) {
-        remainingModuleSourceDemand.set(moduleKey, remaining - actualUsed);
-        remainingSourceDemand.set(
-          output.resourceId,
-          Math.max(
-            0,
-            (remainingSourceDemand.get(output.resourceId) ?? 0) - actualUsed,
-          ),
-        );
-      } else {
-        remainingSourceDemand.set(output.resourceId, remaining - actualUsed);
-      }
-
-      return { resourceId: output.resourceId, quantity: actualUsed };
-    });
-    const sourceScale = actualOutputs.reduce((maximum, actual) => {
-      const declared = line.recipe.outputs.find(
-        (output) => output.resourceId === actual.resourceId,
-      );
-      const declaredQuantity = declared
-        ? getRecipeOutputQuantity(line.recipe, declared, outputModifiers)
-        : 0;
-
-      return declaredQuantity > 0
-        ? Math.max(maximum, actual.quantity / declaredQuantity)
-        : maximum;
-    }, 0);
-    const actualInputs = line.recipe.inputs.map((input) => {
-      const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
-      const reserved = reservedSourceInputs.get(line)?.get(input.resourceId) ?? 0;
-
-      getFlow(input.resourceId).consumed += quantity - reserved;
-      getActualModuleFlow(line.moduleId, input.resourceId).consumed += quantity - reserved;
-
-      return { resourceId: input.resourceId, quantity };
-    });
-
-    return {
+  const finalizeAllocation = () => {
+    // Regular results
+    const regularResults: RegularResult[] = regularLines.map((line) => ({
       recipe: line.recipe,
       moduleId: line.moduleId,
       dataSource: line.dataSource,
@@ -1905,122 +1921,335 @@ export const calculateNet = (
       builtBuildings: line.builtBuildings,
       constructionGhosts: line.constructionGhosts,
       unplacedPlannedBuildings: line.unplacedPlannedBuildings,
-      supplyRatio: line.activeBuildings > 0
-        ? Math.min(1, sourceScale / line.activeBuildings)
-        : 0,
-      actualInputs,
-      actualOutputs,
-    };
-  });
+      operatingMode: line.operatingMode,
+      supplyRatio: allocationRatios.get(line) ?? 0,
+      speedLevel: line.speedLevel,
+      actualInputs: line.recipe.inputs.map((input) => ({
+        resourceId: input.resourceId,
+        quantity: getRecipeInputQuantity(input, outputModifiers)
+          * lineFactor(line)
+          * (allocationRatios.get(line) ?? 0),
+      })),
+      actualOutputs: line.recipe.outputs.map((output) => {
+        const recyclableInput = line.recipe.sortsRecyclableSources
+          ? line.recipe.inputs.find((input) => input.resourceId === "recyclables")
+          : undefined;
+        const quantity = recyclableInput
+          ? (sortedRecyclableSources.get(line)?.get(output.resourceId) ?? 0)
+          : getRecipeOutputQuantity(line.recipe, output, outputModifiers)
+            * lineFactor(line)
+            * (allocationRatios.get(line) ?? 0);
 
-  // Recovery sinks such as Cooling Towers can produce useful resources after
-  // demand sources have already been allocated. Displace those fallback
-  // sources immediately so a later disposal sink cannot consume recovered
-  // material while an avoidable source is still running.
-  const displaceDemandSources = () => {
-    for (const [resourceId, flow] of flows) {
-      let excess = Math.max(0, flow.produced - flow.consumed);
+        return { resourceId: output.resourceId, quantity };
+      }),
+      recyclableSourceValueProduced: [
+        ...(createdRecyclableSources.get(line)?.values() ?? []),
+      ].reduce((total, quantity) => total + quantity, 0),
+    }));
 
-      if (excess <= 1e-9) continue;
+    // Sources are fallback streams: internal production is retained first, then
+    // sources are allocated in declaration order to cover only what remains.
+    const remainingSourceDemand = new Map<ResourceId, number>();
+    const remainingModuleSourceDemand = new Map<string, number>();
 
-      // Reverse order preserves declaration priority: later fallback sources
-      // (Groundwater Pumps) are reduced before earlier sources.
-      for (const result of sourceResults.toReversed()) {
-        if (
-          !result.recipe.sourceMode
-          || isModuleScopedSourceMode(result.recipe.sourceMode)
-          || excess <= 1e-9
-        ) continue;
+    for (const line of sourceLines) {
+      if (!isModuleScopedSourceMode(line.recipe.sourceMode)) continue;
 
-        const actualOutput = result.actualOutputs.find(
-          (output) => output.resourceId === resourceId,
+      for (const output of line.recipe.outputs) {
+        const key = moduleResourceKey(line.moduleId, output.resourceId);
+
+        if (remainingModuleSourceDemand.has(key)) continue;
+
+        const moduleConsumed = regularResults.reduce((total, result) => (
+          result.moduleId === line.moduleId
+            ? total + result.actualInputs.reduce((inputTotal, input) => (
+                input.resourceId === output.resourceId
+                  ? inputTotal + input.quantity
+                  : inputTotal
+              ), 0)
+            : total
+        ), moduleFixedDemands.get(line.moduleId)?.[output.resourceId] ?? 0);
+        const moduleProduced = regularResults.reduce((total, result) => (
+          result.moduleId === line.moduleId
+            ? total + result.actualOutputs.reduce((outputTotal, actualOutput) => (
+                actualOutput.resourceId === output.resourceId
+                  ? outputTotal + actualOutput.quantity
+                  : outputTotal
+              ), 0)
+            : total
+        ), 0);
+
+        remainingModuleSourceDemand.set(
+          key,
+          Math.max(0, moduleConsumed - moduleProduced),
         );
-
-        if (!actualOutput || actualOutput.quantity <= 0) continue;
-
-        const previousScale = result.actualOutputs.reduce((maximum, actual) => {
-          const declared = result.recipe.outputs.find(
-            (output) => output.resourceId === actual.resourceId,
-          );
-          const declaredQuantity = declared
-            ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
-            : 0;
-
-          return declaredQuantity > 0
-            ? Math.max(maximum, actual.quantity / declaredQuantity)
-            : maximum;
-        }, 0);
-        const reduction = Math.min(actualOutput.quantity, excess);
-
-        actualOutput.quantity -= reduction;
-        flow.produced -= reduction;
-        getActualModuleFlow(result.moduleId, resourceId).produced -= reduction;
-        excess -= reduction;
-
-        const nextScale = result.actualOutputs.reduce((maximum, actual) => {
-          const declared = result.recipe.outputs.find(
-            (output) => output.resourceId === actual.resourceId,
-          );
-          const declaredQuantity = declared
-            ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
-            : 0;
-
-          return declaredQuantity > 0
-            ? Math.max(maximum, actual.quantity / declaredQuantity)
-            : maximum;
-        }, 0);
-
-        result.supplyRatio = result.activeBuildings > 0
-          ? Math.min(1, nextScale / result.activeBuildings)
-          : 0;
-
-        if (nextScale >= previousScale) continue;
-
-        for (const actualInput of result.actualInputs) {
-          const declared = result.recipe.inputs.find(
-            (input) => input.resourceId === actualInput.resourceId,
-          );
-
-          if (!declared) continue;
-
-          const nextQuantity = getRecipeInputQuantity(declared, outputModifiers) * nextScale;
-          const inputReduction = actualInput.quantity - nextQuantity;
-
-          getFlow(actualInput.resourceId).consumed -= inputReduction;
-          getActualModuleFlow(result.moduleId, actualInput.resourceId).consumed -= inputReduction;
-          actualInput.quantity = nextQuantity;
-        }
       }
     }
-  };
 
-  // Sinks absorb excess (sequential priority)
-  const sinkResults: PassiveResult[] = [];
-  const sinkCapacityTracker = createCapacityTracker(sinkLines);
+    for (const line of sourceLines) {
+      for (const output of line.recipe.outputs) {
+        if (remainingSourceDemand.has(output.resourceId)) continue;
 
-  const orderedSinkLines = orderSharedCapacity(sinkLines).toSorted((a, b) => (
-    (a.recipe.sinkPriority ?? 0) - (b.recipe.sinkPriority ?? 0)
-  ));
-  const getModuleExcess = (moduleId: string, resourceId: ResourceId) => {
-    let produced = 0;
-    let consumed = 0;
+        const flow = getFlow(output.resourceId);
+        const totalSourceCapacity = sourceLines.reduce((total, source) => {
+          return total + (sourceOutputCapacities.get(source)?.get(output.resourceId) ?? 0);
+        }, 0);
+        const internallyProduced = flow.produced - totalSourceCapacity;
 
-    for (const result of [...regularResults, ...sourceResults, ...sinkResults]) {
-      if (result.moduleId !== moduleId) continue;
-
-      produced += result.actualOutputs.reduce((total, output) => (
-        output.resourceId === resourceId ? total + output.quantity : total
-      ), 0);
-      consumed += result.actualInputs.reduce((total, input) => (
-        input.resourceId === resourceId ? total + input.quantity : total
-      ), 0);
+        remainingSourceDemand.set(
+          output.resourceId,
+          Math.max(0, flow.consumed - internallyProduced),
+        );
+      }
     }
 
-    return Math.max(0, produced - consumed);
-  };
+    const sourceResults: PassiveResult[] = sourceLines.map((line) => {
+      const actualOutputs = line.recipe.outputs.map((output) => {
+        const flow = getFlow(output.resourceId);
+        const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
+        const moduleKey = moduleResourceKey(line.moduleId, output.resourceId);
+        const moduleScoped = isModuleScopedSourceMode(line.recipe.sourceMode);
+        const remaining = moduleScoped
+          ? remainingModuleSourceDemand.get(moduleKey) ?? 0
+          : remainingSourceDemand.get(output.resourceId) ?? 0;
+        const actualUsed = Math.min(capacity, remaining);
 
-  for (const line of orderedSinkLines) {
-    if (line.activeBuildings === 0) {
+        flow.produced -= capacity - actualUsed;
+        getActualModuleFlow(line.moduleId, output.resourceId).produced -= capacity - actualUsed;
+        if (moduleScoped) {
+          remainingModuleSourceDemand.set(moduleKey, remaining - actualUsed);
+          remainingSourceDemand.set(
+            output.resourceId,
+            Math.max(
+              0,
+              (remainingSourceDemand.get(output.resourceId) ?? 0) - actualUsed,
+            ),
+          );
+        } else {
+          remainingSourceDemand.set(output.resourceId, remaining - actualUsed);
+        }
+
+        return { resourceId: output.resourceId, quantity: actualUsed };
+      });
+      const sourceScale = actualOutputs.reduce((maximum, actual) => {
+        const declared = line.recipe.outputs.find(
+          (output) => output.resourceId === actual.resourceId,
+        );
+        const declaredQuantity = declared
+          ? getRecipeOutputQuantity(line.recipe, declared, outputModifiers)
+          : 0;
+
+        return declaredQuantity > 0
+          ? Math.max(maximum, actual.quantity / declaredQuantity)
+          : maximum;
+      }, 0);
+      const actualInputs = line.recipe.inputs.map((input) => {
+        const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
+        const reserved = reservedSourceInputs.get(line)?.get(input.resourceId) ?? 0;
+
+        getFlow(input.resourceId).consumed += quantity - reserved;
+        getActualModuleFlow(line.moduleId, input.resourceId).consumed += quantity - reserved;
+
+        return { resourceId: input.resourceId, quantity };
+      });
+
+      return {
+        recipe: line.recipe,
+        moduleId: line.moduleId,
+        dataSource: line.dataSource,
+        capacityPoolId: line.capacityPoolId,
+        capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
+        capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
+        capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
+        capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
+        capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
+        activeBuildings: line.activeBuildings,
+        currentActiveBuildings: line.currentActiveBuildings,
+        builtBuildings: line.builtBuildings,
+        constructionGhosts: line.constructionGhosts,
+        unplacedPlannedBuildings: line.unplacedPlannedBuildings,
+        supplyRatio: line.activeBuildings > 0
+          ? Math.min(1, sourceScale / line.activeBuildings)
+          : 0,
+        actualInputs,
+        actualOutputs,
+      };
+    });
+
+    // Recovery sinks such as Cooling Towers can produce useful resources after
+    // demand sources have already been allocated. Displace those fallback
+    // sources immediately so a later disposal sink cannot consume recovered
+    // material while an avoidable source is still running.
+    const displaceDemandSources = () => {
+      for (const [resourceId, flow] of flows) {
+        let excess = Math.max(0, flow.produced - flow.consumed);
+
+        if (excess <= 1e-9) continue;
+
+        // Reverse order preserves declaration priority: later fallback sources
+        // (Groundwater Pumps) are reduced before earlier sources.
+        for (const result of sourceResults.toReversed()) {
+          if (
+            !result.recipe.sourceMode
+            || isModuleScopedSourceMode(result.recipe.sourceMode)
+            || excess <= 1e-9
+          ) continue;
+
+          const actualOutput = result.actualOutputs.find(
+            (output) => output.resourceId === resourceId,
+          );
+
+          if (!actualOutput || actualOutput.quantity <= 0) continue;
+
+          const previousScale = result.actualOutputs.reduce((maximum, actual) => {
+            const declared = result.recipe.outputs.find(
+              (output) => output.resourceId === actual.resourceId,
+            );
+            const declaredQuantity = declared
+              ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
+              : 0;
+
+            return declaredQuantity > 0
+              ? Math.max(maximum, actual.quantity / declaredQuantity)
+              : maximum;
+          }, 0);
+          const reduction = Math.min(actualOutput.quantity, excess);
+
+          actualOutput.quantity -= reduction;
+          flow.produced -= reduction;
+          getActualModuleFlow(result.moduleId, resourceId).produced -= reduction;
+          excess -= reduction;
+
+          const nextScale = result.actualOutputs.reduce((maximum, actual) => {
+            const declared = result.recipe.outputs.find(
+              (output) => output.resourceId === actual.resourceId,
+            );
+            const declaredQuantity = declared
+              ? getRecipeOutputQuantity(result.recipe, declared, outputModifiers)
+              : 0;
+
+            return declaredQuantity > 0
+              ? Math.max(maximum, actual.quantity / declaredQuantity)
+              : maximum;
+          }, 0);
+
+          result.supplyRatio = result.activeBuildings > 0
+            ? Math.min(1, nextScale / result.activeBuildings)
+            : 0;
+
+          if (nextScale >= previousScale) continue;
+
+          for (const actualInput of result.actualInputs) {
+            const declared = result.recipe.inputs.find(
+              (input) => input.resourceId === actualInput.resourceId,
+            );
+
+            if (!declared) continue;
+
+            const nextQuantity = getRecipeInputQuantity(declared, outputModifiers) * nextScale;
+            const inputReduction = actualInput.quantity - nextQuantity;
+
+            getFlow(actualInput.resourceId).consumed -= inputReduction;
+            getActualModuleFlow(result.moduleId, actualInput.resourceId).consumed -= inputReduction;
+            actualInput.quantity = nextQuantity;
+          }
+        }
+      }
+    };
+
+    // Sinks absorb excess (sequential priority)
+    const sinkResults: PassiveResult[] = [];
+    const sinkCapacityTracker = createCapacityTracker(sinkLines);
+
+    const orderedSinkLines = orderSharedCapacity(sinkLines).toSorted((a, b) => (
+      (a.recipe.sinkPriority ?? 0) - (b.recipe.sinkPriority ?? 0)
+    ));
+    const getModuleExcess = (moduleId: string, resourceId: ResourceId) => {
+      let produced = 0;
+      let consumed = 0;
+
+      for (const result of [...regularResults, ...sourceResults, ...sinkResults]) {
+        if (result.moduleId !== moduleId) continue;
+
+        produced += result.actualOutputs.reduce((total, output) => (
+          output.resourceId === resourceId ? total + output.quantity : total
+        ), 0);
+        consumed += result.actualInputs.reduce((total, input) => (
+          input.resourceId === resourceId ? total + input.quantity : total
+        ), 0);
+      }
+
+      return Math.max(0, produced - consumed);
+    };
+
+    for (const line of orderedSinkLines) {
+      if (line.activeBuildings === 0) {
+        sinkResults.push({
+          recipe: line.recipe,
+          moduleId: line.moduleId,
+          dataSource: line.dataSource,
+          capacityPoolId: line.capacityPoolId,
+          capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
+          capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
+          capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
+          capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
+          capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
+          activeBuildings: 0,
+          currentActiveBuildings: line.currentActiveBuildings,
+          builtBuildings: line.builtBuildings,
+          constructionGhosts: line.constructionGhosts,
+          unplacedPlannedBuildings: line.unplacedPlannedBuildings,
+          supplyRatio: 0,
+          actualInputs: [],
+          actualOutputs: [],
+        });
+        continue;
+      }
+
+      const capacity = lineFactor(line);
+      let utilizationRatio = line.recipe.sinkMode === "unbounded" && !line.capacityPoolId
+        ? Number.POSITIVE_INFINITY
+        : sinkCapacityTracker.availableRatio(line);
+
+      for (const input of line.recipe.inputs) {
+        const f = getFlow(input.resourceId);
+        const factoryExcess = f.produced - f.consumed;
+        const excess = line.recipe.sinkScope === "module"
+          ? Math.min(factoryExcess, getModuleExcess(line.moduleId, input.resourceId))
+          : factoryExcess;
+
+        if (excess <= 0) { utilizationRatio = 0; break; }
+        utilizationRatio = Math.min(
+          utilizationRatio,
+          excess / (getRecipeInputQuantity(input, outputModifiers) * capacity),
+        );
+      }
+
+      if (utilizationRatio <= 1e-9) utilizationRatio = 0;
+      sinkCapacityTracker.use(line, utilizationRatio);
+
+      const actualInputs: PassiveResult["actualInputs"] = [];
+      const actualOutputs: PassiveResult["actualOutputs"] = [];
+
+      if (utilizationRatio > 0) {
+        for (const input of line.recipe.inputs) {
+          const actual = getRecipeInputQuantity(input, outputModifiers)
+            * capacity
+            * utilizationRatio;
+
+          getFlow(input.resourceId).consumed += actual;
+          actualInputs.push({ resourceId: input.resourceId, quantity: actual });
+        }
+        for (const output of line.recipe.outputs) {
+          const actual = getRecipeOutputQuantity(line.recipe, output, outputModifiers)
+            * capacity
+            * utilizationRatio;
+
+          getFlow(output.resourceId).produced += actual;
+          actualOutputs.push({ resourceId: output.resourceId, quantity: actual });
+        }
+      }
+
       sinkResults.push({
         recipe: line.recipe,
         moduleId: line.moduleId,
@@ -2031,84 +2260,102 @@ export const calculateNet = (
         capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
         capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
         capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
-        activeBuildings: 0,
+        activeBuildings: line.activeBuildings,
         currentActiveBuildings: line.currentActiveBuildings,
         builtBuildings: line.builtBuildings,
         constructionGhosts: line.constructionGhosts,
         unplacedPlannedBuildings: line.unplacedPlannedBuildings,
-        supplyRatio: 0,
-        actualInputs: [],
-        actualOutputs: [],
+        supplyRatio: utilizationRatio,
+        actualInputs,
+        actualOutputs,
       });
-      continue;
+
+      if (actualOutputs.length > 0) displaceDemandSources();
     }
+    return { regularResults, sourceResults, sinkResults };
+  };
 
-    const capacity = lineFactor(line);
-    let utilizationRatio = line.recipe.sinkMode === "unbounded" && !line.capacityPoolId
-      ? Number.POSITIVE_INFINITY
-      : sinkCapacityTracker.availableRatio(line);
+  let finalized = finalizeAllocation();
 
-    for (const input of line.recipe.inputs) {
-      const f = getFlow(input.resourceId);
-      const factoryExcess = f.produced - f.consumed;
-      const excess = line.recipe.sinkScope === "module"
-        ? Math.min(factoryExcess, getModuleExcess(line.moduleId, input.resourceId))
-        : factoryExcess;
+  // Disposal sinks hide slack: what they absorb is still available to a
+  // consumer that asks for it. Recovery sinks (Cooling Towers) are producers.
+  const projectSlack = (sinkResults: PassiveResult[]) => {
+    const global = new Map<ResourceId, number>();
+    const byModule = new Map<string, number>();
 
-      if (excess <= 0) { utilizationRatio = 0; break; }
-      utilizationRatio = Math.min(
-        utilizationRatio,
-        excess / (getRecipeInputQuantity(input, outputModifiers) * capacity),
-      );
-    }
+    for (const [resourceId, flow] of flows) global.set(resourceId, flow.produced - flow.consumed);
+    for (const [key, flow] of actualModuleFlows) byModule.set(key, flow.produced - flow.consumed);
+    for (const sink of sinkResults) {
+      if (sink.actualOutputs.length > 0) continue;
 
-    if (utilizationRatio <= 1e-9) utilizationRatio = 0;
-    sinkCapacityTracker.use(line, utilizationRatio);
-
-    const actualInputs: PassiveResult["actualInputs"] = [];
-    const actualOutputs: PassiveResult["actualOutputs"] = [];
-
-    if (utilizationRatio > 0) {
-      for (const input of line.recipe.inputs) {
-        const actual = getRecipeInputQuantity(input, outputModifiers)
-          * capacity
-          * utilizationRatio;
-
-        getFlow(input.resourceId).consumed += actual;
-        actualInputs.push({ resourceId: input.resourceId, quantity: actual });
-      }
-      for (const output of line.recipe.outputs) {
-        const actual = getRecipeOutputQuantity(line.recipe, output, outputModifiers)
-          * capacity
-          * utilizationRatio;
-
-        getFlow(output.resourceId).produced += actual;
-        actualOutputs.push({ resourceId: output.resourceId, quantity: actual });
+      for (const input of sink.actualInputs) {
+        global.set(input.resourceId, (global.get(input.resourceId) ?? 0) + input.quantity);
+        // Sinks report factory-wide; only global scope tracks their intake.
       }
     }
 
-    sinkResults.push({
-      recipe: line.recipe,
-      moduleId: line.moduleId,
-      dataSource: line.dataSource,
-      capacityPoolId: line.capacityPoolId,
-      capacityPoolActiveBuildings: line.capacityPoolActiveBuildings,
-      capacityPoolBuiltBuildings: line.capacityPoolBuiltBuildings,
-      capacityPoolCurrentActiveBuildings: line.capacityPoolCurrentActiveBuildings,
-      capacityPoolConstructionGhosts: line.capacityPoolConstructionGhosts,
-      capacityPoolUnplacedPlannedBuildings: line.capacityPoolUnplacedPlannedBuildings,
-      activeBuildings: line.activeBuildings,
-      currentActiveBuildings: line.currentActiveBuildings,
-      builtBuildings: line.builtBuildings,
-      constructionGhosts: line.constructionGhosts,
-      unplacedPlannedBuildings: line.unplacedPlannedBuildings,
-      supplyRatio: utilizationRatio,
-      actualInputs,
-      actualOutputs,
-    });
+    return { global, byModule };
+  };
+  const firstSlack = projectSlack(finalized.sinkResults);
+  // Routes refused for an input that the finished factory still leaves in
+  // surplus were judged too early: the producer that covers that input only
+  // settles later in the pipeline. Rerun with that slack as an allowance.
+  const retryableRoutes = blockedRoutes.filter((route) => (
+    route.blockedBy != null
+    && (firstSlack.global.get(route.blockedBy.resourceId) ?? 0) > 1e-7
+  ));
 
-    if (actualOutputs.length > 0) displaceDemandSources();
+  if (retryableRoutes.length > 0) {
+    const firstRun = snapshotAllocationState();
+    const firstRunRoutes = [...blockedRoutes];
+    const firstFinalized = finalized;
+
+    // Every leftover is an allowance, because the shortfall can surface one
+    // hop downstream of the slack (an idle Evaporation Pond starved of dumped
+    // Brine reports as a Salt deficit). Only the retried routes may draw on it.
+    for (const [resourceId, slack] of firstSlack.global) {
+      if (slack > 1e-7) slackAllowance.set(resourceId, slack);
+    }
+    for (const [key, slack] of firstSlack.byModule) {
+      if (slack > 1e-7) moduleSlackAllowance.set(key, slack);
+    }
+    allowanceLines = new Set(
+      retryableRoutes.flatMap((route) => blockedRouteLines.get(route) ?? []),
+    );
+
+    restoreAllocationState(beforeSurplusRoutes);
+    blockedRoutes.length = 0;
+    settleSurplusAndFallbackRoutes();
+    slackAllowance = new Map();
+    moduleSlackAllowance = new Map();
+    allowanceLines = new Set();
+    finalized = finalizeAllocation();
+
+    // The allowance was a projection. Keep the first run if drawing on it
+    // left any resource materially shorter than before.
+    let leftShorter: BlockedSurplusRoute["blockedBy"] = null;
+
+    for (const [resourceId, flow] of flows) {
+      const deficitIncrease = getDeficitIncrease(firstRun.flows.get(resourceId), flow);
+
+      if (deficitIncrease > Math.max(10 * DEFICIT_TOLERANCE, leftShorter?.deficitIncrease ?? 0)) {
+        leftShorter = { resourceId, deficitIncrease };
+      }
+    }
+
+    if (leftShorter) {
+      restoreAllocationState(firstRun);
+      finalized = firstFinalized;
+      // The routes that drew on the allowance are what made the factory
+      // shorter, so that trade-off is the reason they stay refused, not the
+      // input the first pass named.
+      blockedRoutes.splice(0, blockedRoutes.length, ...firstRunRoutes.map((route) => (
+        retryableRoutes.includes(route) ? { ...route, blockedBy: leftShorter } : route
+      )));
+    }
   }
+
+  const { regularResults, sourceResults, sinkResults } = finalized;
 
   // Identify source-produced resources
   const sourceResourceIds = new Set<ResourceId>();
@@ -2153,5 +2400,5 @@ export const calculateNet = (
     }
   }
 
-  return { resourceFlows, allResourceFlows, regularResults, sourceResults, sinkResults };
+  return { resourceFlows, allResourceFlows, regularResults, sourceResults, sinkResults, blockedRoutes };
 };
