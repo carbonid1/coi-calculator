@@ -109,10 +109,21 @@ const createMismatch = (
 });
 
 export const resolveChickenFarmEntityPlan = (
-  settings: ChickenFarmSettings,
+  settings: ChickenFarmSettings | null,
   currentEntities: readonly CurrentChickenFarmEntity[],
   direction: PlanDirection,
 ): ResolvedChickenFarmEntityPlan => {
+  if (!settings) {
+    return {
+      modes: aggregateModes(
+        currentEntities.map(entity => ({ ...entity, source: "synced" as const })),
+        null,
+        true,
+      ),
+      planMismatches: [],
+    };
+  }
+
   const targetLayout = getChickenFarmLayout(settings.totalChickenCount);
   const entities = [...currentEntities].toSorted((left, right) => left.entityId - right.entityId);
   const matchingRunning = entities.filter(entity => (

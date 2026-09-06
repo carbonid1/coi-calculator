@@ -94,12 +94,20 @@ When the pipe has no known product, a non-empty, unambiguous farm buffer is used
 as a fallback. Cards group identical synced configurations while workers,
 inputs, and outputs count every physical farm exactly once.
 
-Schema 20 applies the same entity overlay to Chicken Farms. Every completed
-Chicken Farm belongs to the single Chicken Farms calculator module, regardless
-of vehicle-area membership. Farm identity, pause state, and slaughtering mode
-are matched per entity, while chicken population remains a pooled target across
-the active matching farms. Plans reuse paused or differently configured farms
-before proposing construction, without requiring an area assignment.
+Chicken farms belong to their named vehicle area, using the lowest named area
+ID when areas overlap; unassigned farms belong to Default. Completed farms use
+their synced population, pause state, and slaughtering mode. Area discovery does
+not apply the historical 2,350-chicken plan or unpause farms. Construction ghosts
+remain visible and project 500 chickens with slaughtering on per farm, marked
+Planned. Completing a ghost replaces its projection with the actual farm state.
+
+Installed v0.8.7 `AnimalFarmsData`, `Fix32.FromDouble`, `AnimalFarm`, and
+`AnimalFarmInspector` confirm fixed chicken rates with no research or edict
+multipliers. The per-chicken feed, water, and egg quantities are stored as
+31/1024, 37/1024, and 15/1024. At 500 chickens the displayed recipe therefore
+uses 15.1 feed and 18.1 water and produces 7.32 eggs plus 10 carcasses per cycle
+with slaughtering on. These are the inspector rates, before daily accumulation
+and whole-product buffer timing.
 
 | Farms | Rotation | Fertilizer II target |
 | ---: | --- | ---: |

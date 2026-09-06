@@ -33,9 +33,18 @@ describe("chicken farm totals", () => {
   it("calculates aggregate rates from the total flock", () => {
     const rates = getChickenFarmRates({ totalChickenCount: 1_100, slaughtering: true });
 
-    expect(rates.animalFeed).toBe(33);
-    expect(rates.water).toBeCloseTo(39.6);
-    expect(rates.eggs).toBe(16.5);
+    expect(rates.animalFeed).toBe(33.30078125);
+    expect(rates.water).toBe(39.74609375);
+    expect(rates.eggs).toBe(16.11328125);
     expect(rates.chickenCarcass).toBe(22);
+  });
+
+  it("matches the installed game's 500-chicken slaughtering display", () => {
+    expect(getChickenFarmRates({ totalChickenCount: 500, slaughtering: true })).toEqual({
+      animalFeed: 15.13671875,
+      water: 18.06640625,
+      eggs: 7.32421875,
+      chickenCarcass: 10,
+    });
   });
 });

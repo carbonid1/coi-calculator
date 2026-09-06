@@ -20,7 +20,6 @@ import { SinkCard } from './components/SinkCard'
 import { StationCardGroup } from './components/StationCardGroup'
 import { StorageCard } from './components/StorageCard'
 import { getBuildingData } from './db/buildings'
-import { plannedChickenFarmSettings } from './db/chicken-farm'
 import { baseConfig } from './db/config'
 import { contractRoutePlans } from './db/contract-plans'
 import { contracts } from './db/contracts'
@@ -74,8 +73,7 @@ import {
   spaceResearchPointsPerLab,
 } from './db/modules/default'
 import {
-  createChickenFarmsModule,
-  CHICKEN_FARMS_MODULE_ID,
+  createChickenFarmAreaModule,
 } from './db/modules/farms'
 import { mines, MINES_MODULE_ID } from './db/modules/mines'
 import { hasModuleCapability, type Module } from './db/modules/modules'
@@ -584,10 +582,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       ),
       currentCropFarmEntities,
     ),
-    createChickenFarmsModule(
-      plannedChickenFarmSettings,
-      currentChickenFarmEntities,
-    ),
     mines,
     createReservesModule(snapshot.reserves),
   ]
@@ -635,19 +629,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         currentCropFarmEntities,
         defaultGroundwaterConstraint,
       )
-    } else if (hasModuleCapability(module, 'chicken-farming')) {
-      const areaChickenFarms = currentChickenFarmEntities.filter(entity => (
-        entity.zones.some(zone => zone.id === module.liveArea?.zoneId)
-      ))
-
-      if (areaChickenFarms.length) {
-        configuredModule = createChickenFarmsModule(
-          plannedChickenFarmSettings,
-          areaChickenFarms,
-          undefined,
-          module,
-        )
-      }
     } else if (nuclearReactorZoneIds.has(module.liveArea.zoneId)) {
       const appliesPlan = module.liveArea.zoneId === plannedNuclearZoneId
 
@@ -686,6 +667,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
       )
     }
 
+    configuredModule = createChickenFarmAreaModule(
+      configuredModule,
+      currentChickenFarmEntities,
+      areaEntities,
+    )
+
     if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId)) {
       configuredModule = createCropFarmAreaModule(
         configuredModule,
@@ -716,12 +703,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         officeCurrentPlan,
       )]
     : []
-  const hasGeneratedChickenFarmModule = configuredLiveAreaModules.some(module => (
-    hasModuleCapability(module, 'chicken-farming')
-  ))
   const baseAreaModules = configuredAreaModules.filter(module => (
     module.id !== DEFAULT_MODULE_ID
-    && (!hasGeneratedChickenFarmModule || module.id !== CHICKEN_FARMS_MODULE_ID)
   ))
   const modulesWithLiveAreas = [
     ...transferTerrainMineOwnership(baseAreaModules, configuredLiveAreaModules),

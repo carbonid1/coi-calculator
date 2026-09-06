@@ -139,7 +139,7 @@ describe("Chicken Farms", () => {
       "chicken-farm-slaughtering": "synced",
       "chicken-farm-eggs-only": "synced",
     });
-    expect(eggs?.produced).toBeCloseTo(42.75);
+    expect(eggs?.produced).toBeCloseTo(41.748046875);
   });
 
   it("keeps both carcass-processing recipes available to synced modules", () => {

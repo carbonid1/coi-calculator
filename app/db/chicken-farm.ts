@@ -15,15 +15,16 @@ export interface CurrentChickenFarmEntity {
 }
 
 /**
- * Captain of Industry v0.8.6 AnimalFarmsData and AnimalFarm runtime values.
+ * Captain of Industry v0.8.7 AnimalFarmsData and AnimalFarmInspector values.
+ * Fix32 stores the per-animal rates rounded to the nearest 1/1024 before scaling.
  * One in-game month is the calculator's 60-second production cycle.
  */
 export const chickenFarm = {
   capacity: 500,
   countStep: 50,
-  feedPerChicken: 0.03,
-  waterPerChicken: 0.036,
-  eggsPerChicken: 0.015,
+  feedPerChicken: 31 / 1024,
+  waterPerChicken: 37 / 1024,
+  eggsPerChicken: 15 / 1024,
   birthsPer100Chickens: 4,
   carcassPerSlaughteredChicken: 0.5,
 } as const;

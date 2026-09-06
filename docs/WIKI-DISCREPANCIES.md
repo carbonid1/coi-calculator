@@ -6,6 +6,14 @@ Wiki login and submission workflow: to be decided.
 
 ## Pending
 
+### Water Saver and chicken farms
+
+- Game version: 0.8.7
+- Wiki wording: [Water Saver](https://wiki.coigame.com/Edicts) reduces water consumed in settlements and farms
+- Verified game behavior: the edict changes settlement and crop-farm water multipliers; `AnimalFarm.onNewDay` reads its fixed per-animal water quantity without either multiplier. Chicken farms are unaffected, as are their feed and outputs by Food Saver, Farming Boost, or Crop Yield research.
+- Verification: installed `EdictsData`, `IncrementalResearchData`, `AnimalFarm`, and `AnimalFarmProto`
+- Status: ready for a future wiki clarification distinguishing crop farms from chicken farms
+
 ### World Mine Output research
 
 - Game version: 0.8.7
