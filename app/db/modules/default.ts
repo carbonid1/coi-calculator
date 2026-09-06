@@ -27,13 +27,6 @@ const crackingUnitDieselGameRecipeId = 'FuelGasReforming'
 
 export const plannedCrackingUnitDieselTarget = 3
 
-const railPartsGameBuildingId = 'AssemblyRoboticT2'
-const railPartsGameRecipeId = 'RailPartsAssembly'
-
-// Long-run allowance for intermittent construction across 1,000 in-game years.
-// This is a plan, not an observed steady consumption rate.
-export const plannedRailPartsDemandPerCycle = 0.62
-
 export const plannedResearchLabTarget = 2
 
 export const spaceResearchPointsPerLab = 48
@@ -393,37 +386,13 @@ const applyResearchLabPlan = (
   }
 }
 
-const applyRailPartsPlan = (module: Module): Module => {
-  const hasRailPartsRecipe = module.recipes?.some(recipe => matchesGameRecipe(
-    recipe,
-    railPartsGameBuildingId,
-    railPartsGameRecipeId,
-  )) ?? false
-
-  if (!hasRailPartsRecipe) return module
-
-  return {
-    ...module,
-    recipes: module.recipes?.map(recipe => matchesGameRecipe(
-      recipe, railPartsGameBuildingId, railPartsGameRecipeId,
-    ) ? { ...recipe, standbyPlan: { resourceId: 'railParts', quantity: plannedRailPartsDemandPerCycle } } : recipe),
-    presets: module.presets.map(preset => ({
-      ...preset,
-      plannedDemands: {
-        ...preset.plannedDemands,
-        railParts: plannedRailPartsDemandPerCycle,
-      },
-    })),
-  }
-}
-
 /** Applies calculator-owned Default plans over the current synced inventory. */
 export const applyDefaultAreaPlan = (
   module: Module,
   researchMode: ResearchMode = baseConfig.researchMode,
 ) => applyResearchLabPlan(
   applyCrackingUnitDieselPlan(
-    applyCookingOilDieselPlan(applyRailPartsPlan(module)),
+    applyCookingOilDieselPlan(module),
   ),
   researchMode,
 )

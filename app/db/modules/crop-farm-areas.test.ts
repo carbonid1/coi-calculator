@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { getSyncedCropFarmEntities } from "../../helpers/synced-production-config/synced-production-config";
 import { testWeather } from "../../test-fixtures/synced-island-settings";
 import { type CurrentCropFarmEntity } from "../crop-farming";
 import { type Recipe } from "../recipes";
@@ -116,12 +117,49 @@ describe("synced crop-farm areas", () => {
 
   it("ignores empty rotations instead of inventing production", () => {
     const farmModule = createCropFarmAreaModule(area(17), [farm({
-      schedule: ["none", "none", "none", "none"],
+      schedule: [],
       fertilizerId: null,
       fertilityTargetPercent: 0,
     })]);
 
     expect(farmModule.recipes).toHaveLength(0);
+    expect(farmModule.liveArea?.issues).toEqual([]);
+  });
+
+  it.each([
+    { schedule: ["Crop_Wheat", null, null, null], months: 6 },
+    { schedule: ["Crop_Wheat", null, "Crop_Corn", null], months: 10 },
+    { schedule: ["Crop_Wheat", "Crop_Corn", "Crop_NoCrop", null], months: 13 },
+  ])("uses only selected crops in the synced rotation's $months-month output average", ({ schedule, months }) => {
+    const entities = getSyncedCropFarmEntities([{
+      entityId: 42,
+      prototypeId: "FarmT4",
+      running: true,
+      fertilityTargetPercent: 140,
+      fertilizerProductId: "Product_Fertilizer2",
+      schedule,
+      zones: [{ id: 17, name: "Random agriculture" }],
+    }]);
+    const farmModule = createCropFarmAreaModule(area(17), entities);
+    const result = calculateFactoryTotal([farmModule], { recyclingEfficiencyPercent: 0 });
+    const wheat = result.flows.find(flow => flow.resourceId === "wheat");
+
+    expect(farmModule.liveArea?.issues).toEqual([]);
+    expect(wheat?.produced).toBeCloseTo(58 * 1.5 * 1.4 / months);
+  });
+
+  it("retains explicitly selected No Crop as a configured rotation", () => {
+    const farmModule = createCropFarmAreaModule(area(17), [farm({
+      schedule: ["none"],
+      fertilizerId: null,
+      fertilityTargetPercent: 0,
+    })]);
+
+    expect(farmModule.recipes).toHaveLength(1);
+    expect(farmModule.recipes?.[0]).toMatchObject({
+      name: "Greenhouse II (No Crop)",
+      outputs: [],
+    });
     expect(farmModule.liveArea?.issues).toEqual([]);
   });
 

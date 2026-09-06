@@ -46,8 +46,9 @@ export const getSyncedChickenFarmEntities = (
   zones: entity.zones,
 }));
 
-const mapCropSchedule = (schedule: readonly (string | null)[]) => schedule.map(cropId => (
-  cropId === null ? "none" : (gameCropIds[cropId] ?? cropId)
+// Farm.onNewDay skips unassigned slots; Crop_NoCrop is an actual timed crop.
+const mapCropSchedule = (schedule: readonly (string | null)[]) => schedule.flatMap(cropId => (
+  cropId === null ? [] : [gameCropIds[cropId] ?? cropId]
 ));
 
 export const getSyncedCropFarmEntities = (

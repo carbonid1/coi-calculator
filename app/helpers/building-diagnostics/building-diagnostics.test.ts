@@ -53,24 +53,79 @@ const resourceFlow = (resourceId: ResourceId, net: number): ResourceFlow => ({
 });
 
 it.each([
-  { running: 1, built: 1, shortage: 0, expected: null },
-  { running: 2, built: 2, shortage: 0, expected: null },
-  { running: 1, built: 1, shortage: -0.62, expected: null },
-  { running: 0, built: 1, shortage: 0, expected: "unpause" },
-  { running: 0, built: 0, shortage: -0.62, expected: "build" },
-])("keeps intermittent Rail Parts ready ($running running, $built built)", ({ running, built, shortage, expected }) => {
+  { running: 1, built: 1, shortage: 0, supplyRatio: 0, expected: null },
+  { running: 2, built: 2, shortage: 0, supplyRatio: 0, expected: null },
+  { running: 0, built: 1, shortage: 0, supplyRatio: 0, expected: "unpause" },
+  { running: 0, built: 0, shortage: 0, supplyRatio: 0, expected: "build" },
+  { running: 1, built: 1, shortage: -0.1, supplyRatio: 1, expected: "build" },
+  { running: 1, built: 2, shortage: -0.1, supplyRatio: 1, expected: "unpause" },
+])("keeps intermittent capacity ready without hiding shortages ($running running, $built built, $shortage net)", ({ running, built, shortage, supplyRatio, expected }) => {
   const result: RegularResult = {
     ...createChickenResult(0),
     recipe: { id: "rail", name: "Rail Parts", building: "Assembly V", group: "production",
       inputs: [], outputs: [{ resourceId: "railParts", quantity: 64 }],
-      standbyPlan: { resourceId: "railParts", quantity: 0.62 } },
+      keepReady: true },
     activeBuildings: running, currentActiveBuildings: running, builtBuildings: built,
-    supplyRatio: 0, speedLevel: 1,
+    supplyRatio, speedLevel: 1,
   };
   const [diagnostic] = calculateBuildingDiagnostics([farmsModule], [resourceFlow("railParts", shortage)], [result]);
 
   expect(diagnostic?.attention).toBe(expected);
   if (expected) expect(diagnostic?.attentionCount).toBe(1);
+});
+
+describe("user Keep ready preferences", () => {
+  const result: RegularResult = {
+    ...createChickenResult(0),
+    recipe: {
+      id: "assembly", name: "Rail Parts", building: "Assembly V", group: "production",
+      inputs: [], outputs: [{ resourceId: "railParts", quantity: 64 }],
+    },
+    activeBuildings: 1, currentActiveBuildings: 1, builtBuildings: 1,
+    supplyRatio: 0, speedLevel: 1,
+  };
+  const key = `${result.moduleId}:${result.recipe.id}`;
+
+  it("dismisses pause advice for the selected line and can restore it", () => {
+    const diagnostics = (enabled: boolean) => calculateBuildingDiagnostics(
+      [farmsModule], [], [result], [], [], { [key]: enabled },
+    );
+
+    expect(diagnostics(true)[0]).toMatchObject({ keepReady: true, attention: null });
+    expect(diagnostics(false)[0]).toMatchObject({ keepReady: false, attention: "can-pause" });
+    expect(result.recipe.keepReady).toBeUndefined();
+    expect(result.supplyRatio).toBe(0);
+  });
+
+  it("allows a saved off choice to override the default parts policy", () => {
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [farmsModule], [], [{ ...result, recipe: { ...result.recipe, keepReady: true } }],
+      [], [], { [key]: false },
+    );
+
+    expect(diagnostic).toMatchObject({ keepReady: false, attention: "can-pause" });
+  });
+
+  it("applies to a shared machine pool without hiding its shortages or other lines", () => {
+    const poolId = "farms:assembly-pool";
+    const pooled = { ...result, capacityPoolId: poolId };
+    const other = { ...result, moduleId: "other" };
+    const preferences = { [poolId]: true };
+    const diagnostics = calculateBuildingDiagnostics(
+      [farmsModule], [], [pooled, { ...pooled, recipe: { ...result.recipe, id: "second" } }, other],
+      [], [], preferences,
+    );
+
+    expect(diagnostics.find(item => item.key === poolId)?.attention).toBeNull();
+    expect(diagnostics.find(item => item.moduleId === "other")?.attention).toBe("can-pause");
+
+    const [shortage] = calculateBuildingDiagnostics(
+      [farmsModule], [resourceFlow("railParts", -1)], [{ ...pooled, supplyRatio: 1 }],
+      [], [], preferences,
+    );
+
+    expect(shortage?.attention).toBe("build");
+  });
 });
 
 describe("chicken farm building diagnostics", () => {
@@ -317,6 +372,81 @@ describe("cost-free capacity diagnostics", () => {
     );
 
     expect(diagnostic).toMatchObject({ attention: "build", attentionCount: 1 });
+  });
+});
+
+describe("Smoke stack (large) diagnostics", () => {
+  const smokeStackRecipe = recipes.find(
+    (recipe) => recipe.id === "nuclear-smoke-stack-large-oxygen",
+  );
+
+  if (!smokeStackRecipe) throw new Error("Large Smoke Stack recipe is missing");
+
+  const disposalModule: Module = {
+    id: "disposal",
+    name: "Disposal",
+    description: "",
+    builtBuildings: { [smokeStackRecipe.id]: 2 },
+    presets: [],
+    defaultPresetId: null,
+  };
+
+  it.each([
+    { active: 2, supplyRatio: 0, surplus: 0, expected: null },
+    { active: 2, supplyRatio: 0.04, surplus: 0, expected: null },
+    { active: 2, supplyRatio: 1, surplus: 1, expected: "build" },
+    { active: 1, supplyRatio: 1, surplus: 1, expected: "unpause" },
+  ])("omits pause advice but retains disposal capacity advice ($active active, $supplyRatio load, $surplus surplus)", ({ active, supplyRatio, surplus, expected }) => {
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [disposalModule],
+      [resourceFlow("oxygen", surplus)],
+      [],
+      [],
+      [{
+        recipe: smokeStackRecipe,
+        moduleId: disposalModule.id,
+        dataSource: "synced",
+        activeBuildings: active,
+        builtBuildings: 2,
+        supplyRatio,
+        actualInputs: [],
+        actualOutputs: [],
+      }],
+      { [`${disposalModule.id}:${smokeStackRecipe.id}`]: false },
+    );
+
+    expect(diagnostic).toMatchObject({
+      keepReady: false,
+      attention: expected,
+      attentionCount: expected == null ? 0 : 1,
+    });
+  });
+
+  it("still recommends pausing an idle sink that uses workers", () => {
+    const liquidDumpRecipe = recipes.find(
+      (recipe) => recipe.id === "nuclear-liquid-dump-water",
+    );
+
+    if (!liquidDumpRecipe) throw new Error("Liquid Dump recipe is missing");
+
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [disposalModule],
+      [],
+      [],
+      [],
+      [{
+        recipe: liquidDumpRecipe,
+        moduleId: disposalModule.id,
+        dataSource: "synced",
+        activeBuildings: 1,
+        builtBuildings: 1,
+        supplyRatio: 0,
+        actualInputs: [],
+        actualOutputs: [],
+      }],
+    );
+
+    expect(diagnostic).toMatchObject({ attention: "can-pause", attentionCount: 1 });
   });
 });
 

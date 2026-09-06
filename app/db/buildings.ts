@@ -121,7 +121,11 @@ const buildings: Record<string, BuildingData> = {
   "Rotary Kiln (gas)": { workers: 10, electricityKw: 100 },
   "Compactor": { workers: 1, electricityKw: 100 },
   "Liquid Dump": { workers: 1, electricityKw: 0 },
-  "Smoke stack (large)": { workers: 0, electricityKw: 0 },
+  "Smoke stack (large)": {
+    workers: 0,
+    electricityKw: 0,
+    suppressPauseAttention: true,
+  },
   "Glass Maker II": { workers: 8, electricityKw: 500 },
   "Oxygen Furnace": { workers: 4, electricityKw: 120 },
   "Oxygen Furnace II": { workers: 6, electricityKw: 200 },

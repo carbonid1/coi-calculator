@@ -6,7 +6,7 @@ Research target: Captain of Industry v0.8.6. Numerical values below were verifie
 
 A crop farm is a daily stateful simulation:
 
-- Each farm has four schedule slots. One to four can be configured, and the schedule repeats in a circle.
+- Each farm has four schedule slots. One to four can be configured, and the schedule repeats in a circle. Unassigned slots are skipped; an explicitly selected No Crop remains part of the rotation.
 - The previous crop matters. Repeating the same fertility-consuming crop adds a 50% fertility-demand penalty, including from the final slot back to the first.
 - Yield is based on the average fertility recorded across the crop's actual growth days.
 - Rain arrives in 15-day weather blocks and fills a 50-unit soil-water buffer. Overflow is lost, so average rainfall alone cannot determine imported-water demand.
@@ -64,9 +64,10 @@ target receives one card. Running farms produce at their synced configuration;
 paused farms remain installed with zero production. Farms without a rotation
 remain visible as unconfigured inventory.
 
-The current save has nine running Greenhouse IIs with Fertilizer II at 140% and
-15 paused, unconfigured Greenhouse IIs. The running rotations cover the current
-Factory Total demand, including Poppy for Morphine and Tree Saplings.
+The earlier layout used nine running Greenhouse IIs with Fertilizer II at 140%
+and 15 paused, unconfigured Greenhouse IIs. It was sized against the Factory
+Total demand and Crop Yield level 20 recorded at the time, including Poppy for
+Morphine and Tree Saplings. Current counts, rotations, and research come from sync.
 Carcass processing belongs to the Default module, not Chicken Farms: one
 dedicated Food Processor makes Meat + Trimmings, and a second dedicated Food
 Processor converts only surplus Carcasses into Trimmings. Surplus Trimmings
@@ -110,10 +111,12 @@ before proposing construction, without requiring an area assignment.
 | 1 | Wheat / Corn / Wheat / Vegetables | 140% |
 | 1 | Corn / Wheat / Canola / Poppy | 140% |
 | 1 | Vegetables / Fruit / Wheat / Sugar Cane | 140% |
-| 1 | Tree Sapling / Wheat / No Crop / Poppy | 140% |
+| 1 | Tree Sapling / Wheat / Poppy (one unassigned slot) | 140% |
 
 Crop output and fertilizer are long-run cycle averages on the calculator's
 100-year horizon. Each farm card keeps gross crop demand visible for comparison
 with the game UI, then reports the weather-adjusted imported water used by
-module and factory balances. The synced no-crop slot still participates in
-the same long-run soil and weather simulation.
+module and factory balances. Only explicitly selected No Crop slots participate
+in the soil and weather simulation. The earlier mapping incorrectly treated
+unassigned slots as No Crop, lengthening partial rotations and understating output.
+Installed v0.8.7 `Farm.onNewDay` confirms that unassigned slots are skipped.

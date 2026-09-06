@@ -52,23 +52,8 @@ const isCropId = (value: unknown): value is CropId => (
   typeof value === 'string' && value in crops
 )
 
-const getSchedule = (entity: CurrentCropFarmEntity): CropSchedule | null => {
-  if (entity.schedule.length !== 4) return null
-
-  const [first, second, third, fourth] = entity.schedule
-
-  if (
-    !isCropId(first)
-    || !isCropId(second)
-    || !isCropId(third)
-    || !isCropId(fourth)
-  ) return null
-
-  return [first, second, third, fourth]
-}
-
-const isUnconfiguredSchedule = (schedule: CropSchedule) => (
-  schedule.every(cropId => cropId === 'none')
+const isCropSchedule = (schedule: readonly string[]): schedule is CropSchedule => (
+  schedule.length >= 1 && schedule.length <= 4 && schedule.every(isCropId)
 )
 
 const cropFarmGroupId = (
@@ -177,15 +162,15 @@ const attachCropFarms = (
   }
 
   for (const entity of entities) {
-    const schedule = getSchedule(entity)
+    const schedule = entity.schedule
 
-    if (!schedule) {
-      issueCounts.unsupportedCrop++
-      recordStatus(entity, 'unsupported-crop')
+    if (schedule.length === 0) {
+      recordStatus(entity, 'unconfigured')
       continue
     }
-    if (isUnconfiguredSchedule(schedule)) {
-      recordStatus(entity, 'unconfigured')
+    if (!isCropSchedule(schedule)) {
+      issueCounts.unsupportedCrop++
+      recordStatus(entity, 'unsupported-crop')
       continue
     }
 

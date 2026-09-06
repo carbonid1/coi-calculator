@@ -1,5 +1,6 @@
 'use client'
 
+import { Toaster, toast } from '@carbonid1/design-system'
 import { useEffect, useState } from 'react'
 
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
@@ -186,6 +187,7 @@ import {
 import { transferTerrainMineOwnership } from './helpers/terrain-mine-ownership/terrain-mine-ownership'
 import { getAverageSunIntensityPercent } from './helpers/weather/generate-planning-weather'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
+import { useKeepReadyPreferences } from './hooks/use-keep-ready-preferences'
 
 const groupLabels: Record<RecipeGroup, string> = {
   source: 'Sources',
@@ -216,6 +218,30 @@ interface Props {
 
 export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   const gameState = useGameState(initialGameState)
+  const { preferences: keepReadyPreferences, canSave: canSaveKeepReady, setKeepReady } = useKeepReadyPreferences(gameState.snapshot?.saveId)
+  const changeKeepReady = canSaveKeepReady ? (diagnostic: BuildingDiagnostic, enabled: boolean) => {
+    if (!setKeepReady(diagnostic.key, enabled)) {
+      toast.error('Could not save Keep ready. Check browser storage and try again.')
+      return
+    }
+
+    const toastId = `keep-ready:${diagnostic.key}`
+
+    toast(enabled ? 'Keep ready enabled' : 'Pause suggestions restored', {
+      id: toastId,
+      description: `${diagnostic.recipeName} · ${diagnostic.moduleName}`,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          if (setKeepReady(diagnostic.key, diagnostic.keepReady === true)) {
+            toast.dismiss(toastId)
+          } else {
+            toast.error('Could not undo Keep ready. Check browser storage and try again.')
+          }
+        },
+      },
+    })
+  } : undefined
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID)
   const [machineZoneAssignments, setMachineZoneAssignments] = useState<MachineZoneAssignments>({})
   const [buildingTarget, setBuildingTarget] = useState<{
@@ -1142,6 +1168,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     [...factoryResult.calculation.regularResults, ...linkedRegularResults],
     [...factoryResult.calculation.sourceResults, ...linkedSourceResults],
     [...factoryResult.calculation.sinkResults, ...linkedSinkResults],
+    keepReadyPreferences,
   )
   const defaultResearchLine = factoryResult.allLines.find(line => (
     line.moduleId === DEFAULT_MODULE_ID
@@ -1177,6 +1204,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           moduleResult.regularResults,
           moduleResult.sourceResults,
           moduleResult.sinkResults,
+          keepReadyPreferences,
         )
       : factoryBuildingDiagnostics
   const calculateGenerationCapacityMw = (lines: ProductionLine[]) =>
@@ -1264,6 +1292,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
+      <Toaster />
       {header}
 
       <ModuleSwitcher
@@ -1350,6 +1379,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
           plannedModules={configuredModules}
           onAssignMachineZone={assignMachineZone}
           onOpenBuilding={openBuilding}
+          onKeepReadyChange={changeKeepReady}
         />
       )}
 
@@ -1443,6 +1473,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {groupProductionCardLines(items).map(({ key, targetKey, lines }) => {
                       const line = lines[0]
+                      const diagnostic = activeBuildingDiagnostics.find(candidate => candidate.key === targetKey)
 
                       if (!line) return null
 
@@ -1457,7 +1488,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
-                            <SinkCard dataSource={line.dataSource} result={result} role="source" />
+                            <SinkCard dataSource={line.dataSource} result={result} role="source" diagnostic={diagnostic} onKeepReadyChange={changeKeepReady} />
                           </BuildingCardTarget>
                         ) : null
                       }
@@ -1472,7 +1503,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
-                            <SinkCard dataSource={line.dataSource} result={result} role="sink" />
+                            <SinkCard dataSource={line.dataSource} result={result} role="sink" diagnostic={diagnostic} onKeepReadyChange={changeKeepReady} />
                           </BuildingCardTarget>
                         ) : null
                       }
@@ -1493,9 +1524,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                                 ),
                               )}
                               outputModifiers={outputModifiers}
-                              diagnostic={activeBuildingDiagnostics.find(
-                                diagnostic => diagnostic.key === targetKey,
-                              )}
+                              diagnostic={diagnostic}
+                              onKeepReadyChange={changeKeepReady}
                             />
                           </BuildingCardTarget>
                         )
@@ -1522,6 +1552,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                               constructionGhosts={line.constructionGhosts}
                               unplacedPlannedBuildings={line.unplacedPlannedBuildings}
                               operatingMode={result?.operatingMode ?? 'balanced'}
+                              diagnostic={diagnostic}
+                              onKeepReadyChange={changeKeepReady}
                             />
                           </BuildingCardTarget>
                         )
@@ -1541,9 +1573,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                             builtBuildings={line.builtBuildings}
                             constructionGhosts={line.constructionGhosts}
                             unplacedPlannedBuildings={line.unplacedPlannedBuildings}
-                            diagnostic={activeBuildingDiagnostics.find(
-                              diagnostic => diagnostic.key === targetKey,
-                            )}
+                            diagnostic={diagnostic}
+                            onKeepReadyChange={changeKeepReady}
                             supplyRatio={result?.supplyRatio ?? 1}
                             operatingMode={result?.operatingMode ?? 'balanced'}
                             speedLevel={line.speedLevel}
@@ -1591,6 +1622,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
                         diagnostic={activeBuildingDiagnostics.find(
                           candidate => candidate.key === targetKey,
                         )}
+                        onKeepReadyChange={changeKeepReady}
                         supplyRatio={result?.supplyRatio ?? 1}
                         operatingMode={result?.operatingMode ?? 'balanced'}
                         speedLevel={line.speedLevel}

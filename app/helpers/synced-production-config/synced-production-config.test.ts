@@ -40,7 +40,25 @@ it("maps exact crop-farm configuration and supplied fertilizer", () => {
     running: false,
     fertilityTargetPercent: 110,
     fertilizerId: "fertilizerII",
-    schedule: ["corn", "wheat", "none", "none"],
+    schedule: ["corn", "wheat"],
     zones: [{ id: 10, name: "Any farming area" }],
   }]);
+});
+
+it.each([
+  { schedule: [null, "Crop_Wheat", null, "Crop_Corn"], expected: ["wheat", "corn"] },
+  { schedule: ["Crop_Wheat", "Crop_NoCrop", null, null], expected: ["wheat", "none"] },
+  { schedule: [null, null, null, null], expected: [] },
+])("distinguishes skipped slots from a selected No Crop ($schedule)", ({ schedule, expected }) => {
+  const [farm] = getSyncedCropFarmEntities([{
+    entityId: 42,
+    prototypeId: "FarmT4",
+    running: true,
+    fertilityTargetPercent: 140,
+    fertilizerProductId: "Product_Fertilizer2",
+    schedule,
+    zones: [],
+  }]);
+
+  expect(farm.schedule).toEqual(expected);
 });

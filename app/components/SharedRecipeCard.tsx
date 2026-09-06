@@ -16,8 +16,8 @@ import {
 import { calculateProductionCardLoad } from '../helpers/production-card-groups/production-card-groups'
 import { getRecipeDisplayName } from '../helpers/recipe-display/recipe-display'
 import { BuildingCount } from './BuildingCount'
+import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from './KeepReadyMenu'
 import { ProductionCard } from './ProductionCard'
-import { StandbyPlan } from './StandbyPlan'
 
 interface Props {
   lines: ProductionLine[]
@@ -25,6 +25,7 @@ interface Props {
   results: (RegularResult | PassiveResult | undefined)[]
   outputModifiers?: RecipeModifierMultipliers
   diagnostic?: BuildingDiagnostic
+  onKeepReadyChange?: KeepReadyChange
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2))
@@ -35,6 +36,7 @@ export const SharedRecipeCard: React.FC<Props> = ({
   results,
   outputModifiers,
   diagnostic,
+  onKeepReadyChange,
 }) => {
   const firstLine = lines[0]
 
@@ -62,11 +64,11 @@ export const SharedRecipeCard: React.FC<Props> = ({
     ? 'fixed'
     : 'balanced'
 
-  return (
+  const card = (
     <ProductionCard
       dataSource={dataSource}
       operatingMode={operatingMode}
-      inactive={effective === 0}
+      inactive={effective === 0 && !diagnostic?.keepReady && diagnostic?.attention !== 'can-pause'}
       className="p-3"
     >
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -88,9 +90,7 @@ export const SharedRecipeCard: React.FC<Props> = ({
         />
       </div>
 
-      {lines.filter(line => line.recipe.standbyPlan).map(line => (
-        <StandbyPlan key={line.recipe.id} plan={line.recipe.standbyPlan} />
-      ))}
+      <KeepReadyNote enabled={diagnostic?.keepReady} />
       <div className="space-y-1">
         {lines.map((line, index) => {
           const result = results[index]
@@ -104,13 +104,13 @@ export const SharedRecipeCard: React.FC<Props> = ({
               key={line.recipe.id}
               className={cn(
                 'rounded-lg p-2.5',
-                inactive
+                inactive && !diagnostic?.keepReady
                   ? 'border border-border/50 bg-transparent [&>*]:opacity-40'
                   : 'bg-surface-inset inset-shadow-surface',
               )}
             >
               <div className="mb-2 flex items-center justify-between gap-3">
-                <h4 className="text-sm font-medium text-foreground">
+                <h4 className="min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
                   {getRecipeDisplayName(line.recipe)}
                 </h4>
                 <span className="shrink-0 text-xs text-muted-foreground">
@@ -162,4 +162,6 @@ export const SharedRecipeCard: React.FC<Props> = ({
       </div>
     </ProductionCard>
   )
+
+  return <KeepReadyMenu diagnostic={diagnostic} onChange={onKeepReadyChange}>{card}</KeepReadyMenu>
 }

@@ -567,6 +567,16 @@ Verified against the installed Captain of Industry v0.8.7 assemblies:
 
 The exporter reads maintained settlement collections and caches the weather
 configuration once at initialization. Weather simulation runs in the calculator.
-Rail Parts' 0.62 per production cycle is an explicit long-run construction plan,
-not an observed continuous rate. A running Assembly remains ready without an
-underuse warning; a paused Assembly receives an Unpause action.
+
+Rail Parts and Vehicle Parts I–III use a calculator-owned Keep ready policy on
+their synced Assembly V recipes. There is no assumed continuous consumption.
+Idle capacity does not receive Can pause advice; paused capacity and real
+shortages still receive attention. The former 0.62 Rail Parts allowance is removed.
+
+Each Can pause notice and its building card offer Keep ready in a context menu.
+The checked menu item can restore pause advice. The choice is stored in browser storage
+per save ID and diagnostic building group, so independent lines and game saves
+keep separate settings. Shared machine pools share one setting. A saved false
+value overrides the four default parts policies. The confirmation offers Undo.
+These preferences affect diagnostics only;
+production calculations and resource pressure are unchanged.

@@ -20,8 +20,9 @@ import {
 } from "../helpers/machine-allocation/machine-allocation";
 import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
+import { type KeepReadyChange } from "./KeepReadyMenu";
 import { PlannedBuildsView } from "./PlannedBuildsView";
-import { isReadyStandbyAllowance, isReportedFactoryDeficit } from "./net-summary-flows";
+import { isReportedFactoryDeficit } from "./net-summary-flows";
 
 interface Props {
   flows: ResourceFlow[];
@@ -46,6 +47,7 @@ interface Props {
   resourceTransfers?: readonly ModuleResourceTransfer[];
   onAssignMachineZone?: (zoneId: number, claimId: string | null) => void;
   onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
+  onKeepReadyChange?: KeepReadyChange;
 }
 
 const BALANCE_THRESHOLD = 0.001;
@@ -158,6 +160,7 @@ export const NetSummary: React.FC<Props> = ({
   resourceTransfers = [],
   onAssignMachineZone,
   onOpenBuilding,
+  onKeepReadyChange,
 }) => {
   const requestedImportRows = typedEntries(requestedImports)
     .filter(([, quantity]) => quantity > 0)
@@ -195,7 +198,6 @@ export const NetSummary: React.FC<Props> = ({
     : materialFlows
         .filter((flow) => (
           flow.net < -BALANCE_THRESHOLD
-          && !isReadyStandbyAllowance(flow, regularResults)
           && !requestedImportIds.has(flow.resourceId)
           && !requestedExportIds.has(flow.resourceId)
         ))
@@ -206,7 +208,7 @@ export const NetSummary: React.FC<Props> = ({
   const balanceGroups = [
     {
       label: "Deficit",
-      flows: regularFlows.filter(flow => isReportedFactoryDeficit(flow) && !isReadyStandbyAllowance(flow, regularResults)),
+      flows: regularFlows.filter(isReportedFactoryDeficit),
       valueClassName: "text-destructive",
     },
     {
@@ -647,6 +649,7 @@ export const NetSummary: React.FC<Props> = ({
               <BuildingAttentionView
                 diagnostics={buildingDiagnostics}
                 onOpenBuilding={onOpenBuilding}
+                onKeepReadyChange={onKeepReadyChange}
               />
             </>
           )}
@@ -663,25 +666,34 @@ export const NetSummary: React.FC<Props> = ({
         </>
       ) : (
         <div className="space-y-1">
-          {regularFlows.map((flow) => (
-            <div
-              key={flow.resourceId}
-              className="flex justify-between text-sm rounded px-2 -mx-2 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-            >
-              <span className="text-foreground">
-                {flow.name}
-              </span>
-              <span
-                className={`font-mono font-semibold ${
-                  flow.net > 0
-                    ? "text-success"
-                    : "text-destructive"
-                }`}
+          {regularFlows.map((flow) => {
+            const capacityLimit = capacityLimitedSurpluses.find(
+              candidate => candidate.flow.resourceId === flow.resourceId,
+            )?.capacityLimit;
+
+            return (
+              <div
+                key={flow.resourceId}
+                className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-0.5 text-sm hover:bg-accent"
               >
-                {flow.net > 0 ? `+${parseFloat(flow.net.toFixed(2))}` : parseFloat(flow.net.toFixed(2))}
-              </span>
-            </div>
-          ))}
+                <span className="flex min-w-0 flex-col text-foreground">
+                  <span>{flow.name}</span>
+                  {capacityLimit && (
+                    <span className="text-xs text-muted-foreground">{capacityLimit}</span>
+                  )}
+                </span>
+                <span
+                  className={`shrink-0 font-mono font-semibold ${
+                    flow.net > 0
+                      ? "text-success"
+                      : "text-destructive"
+                  }`}
+                >
+                  {flow.net > 0 ? `+${parseFloat(flow.net.toFixed(2))}` : parseFloat(flow.net.toFixed(2))}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

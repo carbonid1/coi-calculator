@@ -12,8 +12,8 @@ import {
 } from "../helpers/modifiers/recipe-output";
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { BuildingCount } from "./BuildingCount";
+import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from './KeepReadyMenu';
 import { ProductionCard } from "./ProductionCard";
-import { StandbyPlan } from './StandbyPlan';
 
 interface Props {
   recipe: Recipe;
@@ -30,6 +30,7 @@ interface Props {
   actualOutputs?: { resourceId: keyof typeof resources; quantity: number }[];
   outputModifiers?: RecipeModifierMultipliers;
   diagnostic?: BuildingDiagnostic;
+  onKeepReadyChange?: KeepReadyChange;
   showConfigurationSummary?: boolean;
 }
 
@@ -43,7 +44,7 @@ export const isCompactSyncedElectricitySource = (
   && recipe.outputs[0]?.resourceId === "electricity"
 );
 
-export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, showConfigurationSummary = true }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, onKeepReadyChange, showConfigurationSummary = true }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -62,11 +63,11 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
     && recipe.showConfigurationSummary !== false
     && !compactSyncedElectricitySource;
 
-  return (
+  const card = (
     <ProductionCard
       dataSource={dataSource}
       operatingMode={operatingMode}
-      inactive={inactive}
+      inactive={inactive && !diagnostic?.keepReady && diagnostic?.attention !== 'can-pause'}
       className="p-3"
     >
       <div className={displaysFlows
@@ -74,11 +75,11 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
         : "flex items-start justify-between gap-3"}
       >
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+          <h3 className="font-semibold text-foreground">
             {recipe.building}
           </h3>
           {displaysConfiguration && recipeDisplayName !== recipe.building && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               {recipeDisplayName}
             </p>
           )}
@@ -135,7 +136,7 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
         />
       </div>
 
-      <StandbyPlan plan={recipe.standbyPlan} />
+      <KeepReadyNote enabled={diagnostic?.keepReady} />
       {displaysFlows && (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="min-w-0 space-y-1">
@@ -203,4 +204,6 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
       )}
     </ProductionCard>
   );
+
+  return <KeepReadyMenu diagnostic={diagnostic} onChange={onKeepReadyChange}>{card}</KeepReadyMenu>;
 };

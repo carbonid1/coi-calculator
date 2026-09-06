@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { type SyncedAreaEntity } from '../../game-state'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
+import { calculateBuildingDiagnostics } from '../building-diagnostics/building-diagnostics'
 import { calculateBuildingStats } from '../building-stats/building-stats'
 import { calculateNet } from '../calculate/calculate'
+import { parseKeepReadyPreferences } from '../keep-ready-preferences/keep-ready-preferences'
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
 import {
   createLiveAreaModules,
@@ -41,6 +43,102 @@ const entity = (
 })
 
 describe('createLiveAreaModules', () => {
+  it.each([
+    { enabled: false, savedWithShared: false },
+    { enabled: true, savedWithShared: false },
+    { enabled: false, savedWithShared: true },
+    { enabled: true, savedWithShared: true },
+  ])('preserves Keep ready=$enabled when a separate shared assembly is added or removed (saved with shared=$savedWithShared)', ({ enabled, savedWithShared }) => {
+    const rail = {
+      id: 'RailPartsAssembly', name: 'Rail Parts', durationSeconds: 60, assigned: true,
+      inputs: [], outputs: [{ productId: 'Product_RailParts', name: 'Rail Parts', quantity: 10 }],
+    }
+    const parts = {
+      ...rail, id: 'VehicleParts1Assembly', name: 'Vehicle Parts I',
+      outputs: [{ productId: 'Product_VehicleParts1', name: 'Vehicle Parts I', quantity: 10 }],
+    }
+    const dedicated: SyncedAreaEntity = {
+      ...entity(1, true, true, [rail]),
+      prototypeId: 'AssemblyRoboticT2', prototypeName: 'Assembly V',
+    }
+    const shared = { ...dedicated, entityId: 2, recipes: [rail, parts] }
+    const diagnose = (withShared: boolean, stored: string | null = null) => {
+      const [module] = createLiveAreaModules(
+        [{ id: 16, name: 'Test' }], withShared ? [dedicated, shared] : [dedicated],
+      )
+
+      if (!module) throw new Error('Missing live area')
+
+      const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+      const result = calculateNet(lines)
+
+      return calculateBuildingDiagnostics(
+        [module], result.allResourceFlows, result.regularResults, [], [],
+        parseKeepReadyPreferences(stored),
+      )
+    }
+    const original = diagnose(savedWithShared).find(item => item.recipeName === 'Rail Parts')
+
+    if (!original) throw new Error('Missing dedicated assembly')
+
+    // Include both legacy key forms, as already stored by earlier app versions.
+    const stored = JSON.stringify({ [original.key]: enabled })
+
+    for (const withShared of [false, true, false]) {
+      const diagnostics = diagnose(withShared, stored)
+      const current = diagnostics.find(item => item.recipeName === 'Rail Parts')
+
+      expect(current).toMatchObject({ keepReady: enabled, attention: enabled ? null : 'can-pause' })
+      if (withShared) {
+        expect(diagnostics.find(item => item.key !== current?.key))
+          .toMatchObject({ keepReady: true, attention: null })
+      }
+    }
+  })
+
+  it.each([
+    ['RailPartsAssembly', 'RailParts', 'Rail Parts', 'railParts'],
+    ['VehicleParts1Assembly', 'VehicleParts1', 'Vehicle Parts I', 'vehiclePartsI'],
+    ['VehicleParts2Assembly', 'VehicleParts2', 'Vehicle Parts II', 'vehiclePartsII'],
+    ['VehicleParts3Assembly', 'VehicleParts3', 'Vehicle Parts III', 'vehiclePartsIII'],
+  ] as const)('keeps synced %s ready in any area without adding consumption', (recipeId, productId, name, resourceId) => {
+    for (const running of [true, false]) {
+      for (const zone of [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }, { id: 16, name: 'Test' }]) {
+        const [module] = createLiveAreaModules([zone], [{
+          ...entity(1, true, running, [{
+            id: recipeId,
+            name,
+            durationSeconds: 60,
+            assigned: true,
+            inputs: [],
+            outputs: [{ productId: `Product_${productId}`, name, quantity: 10 }],
+          }]),
+          prototypeId: 'AssemblyRoboticT2',
+          prototypeName: 'Assembly V',
+          zones: zone.id === DEFAULT_LIVE_AREA_ZONE_ID ? [] : [zone],
+        }])
+
+        if (!module) throw new Error('Missing live area')
+
+        const preset = module.presets[0]
+        const { lines } = buildModuleLines(module, preset ?? null)
+        const demands = getPresetResourceDemands(preset)
+        const idle = calculateNet(lines, {}, undefined, {}, demands)
+        const [diagnostic] = calculateBuildingDiagnostics([module], idle.allResourceFlows, idle.regularResults)
+
+        expect(demands[resourceId]).toBeUndefined()
+        expect(idle.regularResults[0]?.supplyRatio).toBe(0)
+        expect(diagnostic?.attention).toBe(running ? null : 'unpause')
+
+        if (running) {
+          const demanded = calculateNet(lines, {}, undefined, {}, { [resourceId]: 4 })
+
+          expect(demanded.regularResults[0]?.actualOutputs).toContainEqual({ resourceId, quantity: 4 })
+        }
+      }
+    }
+  })
+
   it('builds Default from every entity that has no named area owner', () => {
     const unzoned = { ...entity(1, true, true), zones: [] }
     const unnamedZone = {

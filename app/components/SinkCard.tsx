@@ -1,15 +1,19 @@
 import { type ValueSource } from "../data-source";
 import { isUnboundedDemandSourceMode } from "../db/recipes";
 import { resources } from "../db/resources";
+import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import { type PassiveResult } from "../helpers/calculate/calculate";
 import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
 import { BuildingCount } from "./BuildingCount";
+import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from "./KeepReadyMenu";
 import { ProductionCard } from "./ProductionCard";
 
 interface Props {
   result: PassiveResult;
   role: "source" | "sink";
   dataSource?: ValueSource;
+  diagnostic?: BuildingDiagnostic;
+  onKeepReadyChange?: KeepReadyChange;
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
@@ -17,6 +21,8 @@ const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
 export const SinkCard: React.FC<Props> = ({
   dataSource,
   result,
+  diagnostic,
+  onKeepReadyChange,
 }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.activeBuildings === 0 || !hasWork;
@@ -46,11 +52,11 @@ export const SinkCard: React.FC<Props> = ({
       })()
     : 0;
 
-  return (
+  const card = (
     <ProductionCard
       dataSource={dataSource}
       operatingMode="balanced"
-      inactive={inactive}
+      inactive={inactive && !diagnostic?.keepReady && diagnostic?.attention !== "can-pause"}
       passive
       className="p-3"
     >
@@ -72,9 +78,12 @@ export const SinkCard: React.FC<Props> = ({
           built={result.builtBuildings}
           ghosts={result.constructionGhosts}
           planned={result.unplacedPlannedBuildings}
+          attention={diagnostic?.attention}
+          attentionCount={diagnostic?.attentionCount}
         />
       </div>
 
+      <KeepReadyNote enabled={diagnostic?.keepReady} />
       {!inactive && (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="space-y-1">
@@ -136,4 +145,6 @@ export const SinkCard: React.FC<Props> = ({
       )}
     </ProductionCard>
   );
+
+  return <KeepReadyMenu diagnostic={diagnostic} onChange={onKeepReadyChange}>{card}</KeepReadyMenu>;
 };

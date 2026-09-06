@@ -17,6 +17,7 @@ type RuntimeRecipeBehavior = Partial<Pick<
   | "electricityMultiplier"
   | "group"
   | "inputPriorities"
+  | "keepReady"
   | "sinkScope"
   | "surplusConsumptionPhase"
   | "surplusConsumptionPriority"
@@ -91,6 +92,10 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
   "AssemblyRoboticT2:OfficeSuppliesAssembly": {
     displayName: "Office Supplies",
   },
+  "AssemblyRoboticT2:RailPartsAssembly": { displayName: "Rail Parts", keepReady: true },
+  "AssemblyRoboticT2:VehicleParts1Assembly": { displayName: "Vehicle Parts I", keepReady: true },
+  "AssemblyRoboticT2:VehicleParts2Assembly": { displayName: "Vehicle Parts II", keepReady: true },
+  "AssemblyRoboticT2:VehicleParts3Assembly": { displayName: "Vehicle Parts III", keepReady: true },
   "AssemblyRoboticT2:FoodPackEggsAssembly": {
     balanceBy: "output",
     balanceInputIds: ["eggs"],

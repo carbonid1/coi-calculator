@@ -2,6 +2,8 @@ import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 
+import { type RegularResult } from "../helpers/calculate/calculate";
+
 vi.mock("@carbonid1/design-system", () => ({
   Tooltip: ({
     children,
@@ -15,6 +17,35 @@ vi.mock("./BuildingAttentionView", () => ({ BuildingAttentionView: () => null })
 vi.mock("./PlannedBuildsView", () => ({ PlannedBuildsView: () => null }));
 
 import { NetSummary } from "./NetSummary";
+
+it.each([1, 0.5])("shows an area surplus bottleneck only when its converter is full (load %s)", supplyRatio => {
+  const result: RegularResult = {
+    recipe: {
+      id: "biomass-compost", name: "Biomass compost", building: "Mixer II", group: "production",
+      allocation: "surplus", balanceBy: "input", balanceInputIds: ["biomass"],
+      inputs: [{ resourceId: "biomass", quantity: 12 }],
+      outputs: [{ resourceId: "compost", quantity: 12 }],
+    },
+    moduleId: "live-area-14", activeBuildings: 2, builtBuildings: 2,
+    operatingMode: "balanced", supplyRatio, speedLevel: 1,
+    actualInputs: [], actualOutputs: [], recyclableSourceValueProduced: 0,
+  };
+  const html = renderToStaticMarkup(
+    <NetSummary
+      moduleId={result.moduleId}
+      flows={[{ resourceId: "biomass", name: "Biomass", produced: 25, consumed: 24, net: 1 }]}
+      regularResults={[result]}
+    />,
+  );
+
+  expect(html).toContain("Biomass");
+  expect(html).toContain("+1");
+  if (supplyRatio === 1) {
+    expect(html).toContain("Mixer II · at capacity 2/2");
+  } else {
+    expect(html).not.toContain("at capacity");
+  }
+});
 
 it("shows module inputs without leaking a zero-worker value or redundant label", () => {
   const html = renderToStaticMarkup(

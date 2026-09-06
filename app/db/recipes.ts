@@ -87,8 +87,8 @@ export interface DecayStorage {
 }
 
 export interface Recipe {
-  /** Intermittent production plan: keep its building available, regardless of average load. */
-  standbyPlan?: { resourceId: ResourceId; quantity: number }
+  /** Keep intermittent capacity available without inventing demand or suggesting it can pause. */
+  keepReady?: boolean
   id: string
   /** Exact stable prototype ID exported by the game for an in-game building. */
   gameBuildingId?: string

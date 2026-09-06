@@ -465,8 +465,7 @@ describe('Default area plans', () => {
     ])
   })
 
-  it('keeps the Rail Parts construction allowance as a plan with a ready assembly', () => {
-    const expectedDemandPerCycle = 0.62
+  it('does not invent continuous demand for Rail Parts', () => {
     const synced = syncedDefault({ built: 1, running: 1 })
     const sourcePreset = synced.presets[0]
 
@@ -501,26 +500,13 @@ describe('Default area plans', () => {
     const railPartsResult = calculation.regularResults.find(result => (
       result.recipe.id === runtimeRailParts.id
     ))
-    const diagnostic = calculateBuildingDiagnostics(
-      [defaultModule],
-      calculation.allResourceFlows,
-      calculation.regularResults,
-    ).find(candidate => candidate.buildingName === 'Assembly V')
 
-    expect(preset?.fixedDemands?.railParts).toBeUndefined()
-    expect(preset?.plannedDemands?.railParts).toBe(expectedDemandPerCycle)
-    expect(railPartsResult?.recipe.standbyPlan).toEqual({ resourceId: 'railParts', quantity: expectedDemandPerCycle })
+    expect(getPresetResourceDemands(preset).railParts).toBeUndefined()
     expect(railPartsResult?.actualOutputs).toContainEqual({
       resourceId: 'railParts',
-      quantity: expectedDemandPerCycle,
+      quantity: 0,
     })
-    expect(railPartsResult?.supplyRatio).toBeCloseTo(
-      expectedDemandPerCycle / 64,
-    )
-    expect(diagnostic).toMatchObject({
-      attention: null,
-      load: expectedDemandPerCycle / 64,
-    })
+    expect(railPartsResult?.supplyRatio).toBe(0)
   })
 
   it('lets downstream demand drive Composite Panel and Titanium Alloy production', () => {

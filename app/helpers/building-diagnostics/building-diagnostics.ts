@@ -7,6 +7,7 @@ import {
   type RegularResult,
   type ResourceFlow,
 } from "../calculate/calculate";
+import { getKeepReadyPreferenceKey, type KeepReadyPreferences } from "../keep-ready-preferences/keep-ready-preferences";
 import { getRecipeDisplayName } from "../recipe-display/recipe-display";
 
 export type BuildingAttention =
@@ -39,6 +40,8 @@ export interface BuildingDiagnostic {
   buildingName: string;
   recipeName: string;
   plannedCapacity: boolean;
+  /** Effective preference for this physical building group, including user overrides. */
+  keepReady?: boolean;
   load: number;
   active: number;
   built: number;
@@ -176,6 +179,7 @@ const getAttention = ({
   canPause,
   requiresRunningCapacity,
   currentActive,
+  keepReady,
 }: {
   tracksPhysicalCapacity: boolean;
   plannedCapacity: boolean;
@@ -187,9 +191,11 @@ const getAttention = ({
   canPause: number;
   requiresRunningCapacity: boolean;
   currentActive: number;
+  keepReady: boolean;
 }): BuildingAttention | null => {
   if (!tracksPhysicalCapacity) return null;
   if (plannedCapacity) return null;
+  if (keepReady && currentActive <= EPSILON) return built > 0 ? "unpause" : "build";
   if (requiresRunningCapacity && currentActive + EPSILON < active) {
     return built > currentActive + EPSILON ? "unpause" : "build";
   }
@@ -229,6 +235,7 @@ export const calculateBuildingDiagnostics = (
   regularResults: RegularResult[],
   sourceResults: PassiveResult[] = [],
   sinkResults: PassiveResult[] = [],
+  keepReadyPreferences: KeepReadyPreferences = {},
 ): BuildingDiagnostic[] => {
   const moduleNames = new Map(modules.map((module) => [module.id, module.name]));
   const flowsById = new Map(flows.map((flow) => [flow.resourceId, flow]));
@@ -255,7 +262,7 @@ export const calculateBuildingDiagnostics = (
     cropKeysByModule.set(firstCropResult.moduleId, keys);
   }
 
-  const diagnostics = [...groups.entries()].map(([key, results]) => {
+  const diagnostics: BuildingDiagnostic[] = [...groups.entries()].map(([key, results]) => {
     const first = results[0];
 
     if (!first) throw new Error(`Building group ${key} has no results`);
@@ -355,18 +362,17 @@ export const calculateBuildingDiagnostics = (
     const requiresRunningCapacity = physicalCapacityResults.some(
       result => result.recipe.requiresRunningCapacity === true,
     );
-    const paused = Math.max(0, built - (requiresRunningCapacity ? currentActive : active));
-    const suppressPauseAttention = results.every((result) => (
+    const keepReady = tracksPhysicalCapacity && (keepReadyPreferences[getKeepReadyPreferenceKey(key)]
+      ?? physicalCapacityResults.some(result => result.recipe.keepReady === true));
+    const paused = Math.max(0, built - (requiresRunningCapacity || keepReady ? currentActive : active));
+    const suppressPauseAttention = keepReady || results.every((result) => (
       getBuildingData(result.recipe.building)?.suppressPauseAttention === true
     ));
     const canPause = suppressPauseAttention
       ? 0
       : Math.max(0, active - Math.ceil(Math.max(0, load - EPSILON)));
     const hasShortage = affectedResourceIds.size > 0;
-    const standbyPlan = results.some(result => result.recipe.standbyPlan != null);
-    const attention = standbyPlan && !plannedCapacity
-      ? getStandbyAttention(currentActive, built)
-      : getAttention({
+    const attention = getAttention({
       tracksPhysicalCapacity,
       plannedCapacity,
       hasShortage,
@@ -377,6 +383,7 @@ export const calculateBuildingDiagnostics = (
       canPause,
       requiresRunningCapacity,
       currentActive,
+      keepReady,
     });
     const attentionCount = getAttentionCount(
       attention,
@@ -396,6 +403,7 @@ export const calculateBuildingDiagnostics = (
         : first.recipe.building,
       recipeName: getDiagnosticRecipeName(results),
       plannedCapacity,
+      keepReady,
       load,
       active,
       built,
@@ -440,9 +448,4 @@ export const calculateBuildingDiagnostics = (
   }
 
   return diagnostics;
-};
-
-const getStandbyAttention = (running: number, built: number): BuildingAttention | null => {
-  if (running > 0) return null;
-  return built > 0 ? "unpause" : "build";
 };
