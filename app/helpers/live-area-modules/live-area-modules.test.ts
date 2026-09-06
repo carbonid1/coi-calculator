@@ -1016,11 +1016,7 @@ describe('createLiveAreaModules', () => {
     expect(result.allResourceFlows.find(flow => flow.resourceId === 'dirt')?.net).toBe(-40)
     expect(result.allResourceFlows.find(flow => flow.resourceId === 'rock')?.net).toBe(-80)
     expect(
-      getModeledTerrainSorterEntityIds(
-        [coalSorter],
-        [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
-        [module],
-      ),
+      getModeledTerrainSorterEntityIds([coalSorter], [module]),
     ).toEqual(new Set([1]))
   })
 
@@ -1056,10 +1052,10 @@ describe('createLiveAreaModules', () => {
     expect(lines.map(line => line.recipe.outputs[0]?.resourceId)).toEqual(['rock'])
     expect(result.regularResults[0]?.actualOutputs).toEqual([{ resourceId: 'rock', quantity: 80 }])
     expect(result.allResourceFlows.find(flow => flow.resourceId === 'dirt')?.net).toBe(-20)
-    expect(getModeledTerrainSorterEntityIds([rockSorter], towers, [module])).toEqual(new Set([1]))
+    expect(getModeledTerrainSorterEntityIds([rockSorter], [module])).toEqual(new Set([1]))
   })
 
-  it('does not create terrain supply until a mine tower links the sorter', () => {
+  it('creates terrain supply for a sorter no mine tower feeds directly', () => {
     const unlinkedSorter: SyncedAreaEntity = {
       ...entity(1, true, true, []),
       prototypeId: 'OreSortingPlantT1',
@@ -1083,11 +1079,46 @@ describe('createLiveAreaModules', () => {
       [],
     )
 
-    expect(module?.includedInFactoryTotals).toBe(false)
-    expect(module?.recipes).toEqual([])
+    expect(module?.includedInFactoryTotals).toBe(true)
+    expect(module?.recipes.map(recipe => recipe.outputs)).toEqual([[{ resourceId: 'coal', quantity: 144 }]])
+    expect(getModeledTerrainSorterEntityIds([unlinkedSorter], module ? [module] : [])).toEqual(
+      new Set([1]),
+    )
+    expect(module?.liveArea?.issues).toEqual([
+      {
+        id: 'OreSortingPlantT1:mine-tower',
+        building: 'Ore sorting plant',
+        count: 1,
+        message: 'No mine tower is assigned; supply is projected from the configured throughput.',
+      },
+    ])
   })
 
-  it('keeps an incidental-only linked sorter out of the terrain supply model', () => {
+  it('drops the unassigned sorter warning once a mine tower feeds the plant', () => {
+    const sorter: SyncedAreaEntity = {
+      ...entity(1, true, true, []),
+      prototypeId: 'OreSortingPlantT1',
+      prototypeName: 'Ore sorting plant',
+      oreSorter: {
+        throughputPerCycle: 160,
+        conversionLossPercent: 10,
+        products: [{ productId: 'Product_Coal', name: 'Coal', canBeWasted: true }],
+      },
+    }
+    const pausedSorter: SyncedAreaEntity = { ...sorter, entityId: 2, running: false }
+    const [linked] = createLiveAreaModules(
+      [{ id: 16, name: 'Test' }],
+      [sorter],
+      undefined,
+      [{ entityId: 99, assignedOreSorterEntityIds: [1] }],
+    )
+    const [paused] = createLiveAreaModules([{ id: 16, name: 'Test' }], [pausedSorter], undefined, [])
+
+    expect(linked?.liveArea?.issues).toEqual([])
+    expect(paused?.liveArea?.issues).toEqual([])
+  })
+
+  it('keeps an incidental-only sorter out of the terrain supply model', () => {
     const dirtSorter: SyncedAreaEntity = {
       ...entity(1, true, true, []),
       prototypeId: 'OreSortingPlantT1',
@@ -1112,9 +1143,7 @@ describe('createLiveAreaModules', () => {
 
     expect(module?.includedInFactoryTotals).toBe(false)
     expect(module?.recipes).toEqual([])
-    expect(getModeledTerrainSorterEntityIds([dirtSorter], towers, module ? [module] : [])).toEqual(
-      new Set(),
-    )
+    expect(getModeledTerrainSorterEntityIds([dirtSorter], module ? [module] : [])).toEqual(new Set())
   })
 
   it('keeps synced area ownership when a configured module has the same name', () => {
@@ -1144,7 +1173,7 @@ describe('createLiveAreaModules', () => {
     )
 
     expect(liveModules).toHaveLength(1)
-    expect(getModeledTerrainSorterEntityIds([sorter], towers, liveModules)).toEqual(new Set([1]))
+    expect(getModeledTerrainSorterEntityIds([sorter], liveModules)).toEqual(new Set([1]))
   })
 
   it('routes a configured ore through the selected crusher recipe when applicable', () => {

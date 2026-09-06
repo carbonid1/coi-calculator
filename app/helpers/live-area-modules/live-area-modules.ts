@@ -96,10 +96,8 @@ const resolveTerrainSourceProducts = (products: readonly OreSorterProduct[]) => 
 
 export const getModeledTerrainSorterEntityIds = (
   entities: readonly SyncedAreaEntity[],
-  mineTowers: readonly SyncedMineTower[],
   liveModules: readonly Module[],
 ): ReadonlySet<number> => {
-  const assignedSorterIds = new Set(mineTowers.flatMap(tower => tower.assignedOreSorterEntityIds))
   const modeledZoneIds = new Set(
     liveModules.flatMap(module => (module.liveArea ? [module.liveArea.zoneId] : [])),
   )
@@ -107,7 +105,6 @@ export const getModeledTerrainSorterEntityIds = (
 
   return new Set(
     entities.flatMap(entity =>
-      assignedSorterIds.has(entity.entityId) &&
       entity.oreSorter &&
       (entity.zones.some(zone => modeledZoneIds.has(zone.id)) ||
         (modelsDefaultArea && !hasNamedZone(entity))) &&
@@ -231,12 +228,12 @@ export const createLiveAreaModules = (
     const modeledZoneEntities = zoneEntities.filter(
       entity => !isNonProductionAreaInfrastructurePrototype(entity.prototypeId),
     )
+    // Sorting plants only ever receive mixed terrain, whether a mine tower feeds
+    // them directly or trucks and stackers deliver it. Their configured products
+    // establish the mine supply; the tower link does not.
     const terrainSorterEntities = mineTowers
       ? zoneEntities.filter(
-          entity =>
-            oreSortingPlantPrototypeIds.has(entity.prototypeId) &&
-            entity.oreSorter &&
-            assignedTerrainSorterIds.has(entity.entityId),
+          entity => oreSortingPlantPrototypeIds.has(entity.prototypeId) && entity.oreSorter,
         )
       : []
     const productionEntities = zoneEntities.filter(
@@ -563,6 +560,17 @@ export const createLiveAreaModules = (
       }
 
       if (sourceProducts.length === 0) continue
+
+      // Supply is projected whether or not a tower feeds the plant, so an
+      // unlinked plant that nothing delivers to would balance silently.
+      if (!assignedTerrainSorterIds.has(sorter.entityId) && sorter.constructed && sorter.running) {
+        addIssue(
+          issues,
+          `${sorter.prototypeId}:mine-tower`,
+          sorter.prototypeName,
+          'No mine tower is assigned; supply is projected from the configured throughput.',
+        )
+      }
 
       const capacityPoolId = `terrain-sorter:${sorter.entityId}`
       const built = Number(sorter.constructed)

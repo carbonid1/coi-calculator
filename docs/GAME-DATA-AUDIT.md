@@ -267,14 +267,24 @@ Default. Installed v0.8.7 worker values are:
 | Ore sorting plant         |       6 |
 | Ore sorting plant (large) |      30 |
 
-Verified in `OreSortingPlantData` and `Costs.Buildings`. The calculator represents
-the plant itself as a no-flow static load because material sorting is not a
-production recipe. An operating sorter also identifies a named area as a terrain
-mine: assigned Crusher recipes in that same area receive module-local terrain
-inputs when the input is a supported terrain resource. Area names and resource
-IDs are not configured manually, and two areas mining the same material retain
-separate extraction flows. A crusher without an operating sorter receives no
-implicit terrain supply; contract-delivered mine inputs remain future work.
+Verified in `OreSortingPlantData` and `Costs.Buildings`. From schema 31 a sorter's
+own configuration is the mine supply: its synced focus-adjusted throughput and
+conversion loss produce the configured terrain resources, shared across one
+capacity pool per plant. Dirt, Slag, and Waste never establish supply, and Rock
+does so only for a dedicated rock pit. A paused plant supplies nothing.
+
+`MineTower.AssignedInputOreSorters` covers only plants a tower feeds directly.
+Trucks, excavators, and stackers deliver mixed terrain to plants that link lists
+never mention, and mixed terrain reaches a plant no other way, so the tower link
+is recorded but is not required for supply. An unlinked running plant raises an
+area warning instead, because nothing else would reveal supply projected for a
+plant no longer being fed. Area names and resource IDs are not configured
+manually, and two areas mining the same material retain separate extraction
+flows. Contract-delivered mine inputs remain future work.
+
+Snapshots older than schema 31 carry no sorter configuration. They keep the
+legacy fallback: an operating plant marks its area as a terrain mine and the
+area's Crusher recipes draw unbounded module-local terrain inputs.
 
 Exporter schema v7 supplies completed and non-paused entity counts from the
 loaded save; without synced data the counts are zero. Their power use is

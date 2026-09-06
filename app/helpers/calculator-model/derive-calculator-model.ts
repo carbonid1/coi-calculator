@@ -374,7 +374,6 @@ export const deriveCalculatorModel = ({
   )
   const terrainSorterEntityIds = getModeledTerrainSorterEntityIds(
     areaEntities,
-    snapshot.mineTowers,
     generatedLiveAreaModules,
   )
   const unconfiguredLiveAreaModules = generatedLiveAreaModules
