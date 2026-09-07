@@ -8,7 +8,7 @@ internal static partial class SnapshotJsonWriter
     {
         StringBuilder json = new StringBuilder(3600);
         json.Append('{');
-        json.Append("\"schemaVersion\":40,");
+        json.Append("\"schemaVersion\":41,");
         appendSettlementState(json, snapshot.Settlement);
         appendWeatherConfig(json, snapshot.Weather);
         appendString(json, "saveId", snapshot.SaveId, true);
@@ -388,16 +388,14 @@ internal static partial class SnapshotJsonWriter
             }
         }
         json.Append("},");
-        json.Append("\"reserves\":{");
-        for (int i = 0; i < SnapshotTracking.TrackedReserves.Length; i++)
+        appendWorldState(json, snapshot.World);
+        json.Append(",\"storages\":[");
+        for (int i = 0; i < snapshot.Storages.Count; i++)
         {
-            appendNumber(
-                json,
-                SnapshotTracking.TrackedReserves[i].Key,
-                snapshot.Reserves[i],
-                i < SnapshotTracking.TrackedReserves.Length - 1);
+            if (i > 0) json.Append(',');
+            appendStorageSnapshot(json, snapshot.Storages[i]);
         }
-        json.Append("},");
+        json.Append("],");
         json.Append("\"history\":{");
         appendNumber(json, "windowMonths", SnapshotTracking.HistoryWindowMonths, true);
         json.Append("\"maintenance\":{");

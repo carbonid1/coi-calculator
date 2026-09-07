@@ -317,12 +317,12 @@ describe("NetSummary passive capacity", () => {
     });
   });
 
-  it("does not treat an unbounded world mine as a capacity limit", () => {
+  it("does not treat reserve draw as installed production capacity", () => {
     expect(getDeficitRootCause(
       "sulfur",
       [],
       [{ resourceId: "sulfur", name: "Sulfur", produced: 0, consumed: 10, net: -10 }],
-      [passive("sulfur-world-mine")],
+      [passive("sulfur-virtual-provision")],
     )).toEqual({ kind: "no-producer", detail: "No producer · 10 outside recipes" });
   });
 

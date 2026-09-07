@@ -8,7 +8,8 @@ export interface PlanningBaselines {
 export interface PlanningHistorySnapshot {
   history: {
     electricityGeneration: GameStateSnapshot["history"]["electricityGeneration"];
-    hydrogenFuel: Pick<GameStateSnapshot["history"]["hydrogenFuel"], "total">;
+    hydrogenFuel: Pick<GameStateSnapshot["history"]["hydrogenFuel"], "total">
+      & Partial<Pick<GameStateSnapshot["history"]["hydrogenFuel"], "byUse">>;
   };
 }
 
@@ -24,6 +25,7 @@ const isSeparatelyModeledGenerationPrototype = (prototypeId: string) =>
 
 export const resolvePlanningBaselines = (
   snapshot: PlanningHistorySnapshot,
+  replaceCargoFuel = false,
 ): PlanningBaselines => {
   const generationTypes = snapshot.history.electricityGeneration.byType.filter(
     generation =>
@@ -31,6 +33,12 @@ export const resolvePlanningBaselines = (
       !isSeparatelyModeledGenerationPrototype(generation.prototypeId),
   );
   const hydrogenFuel = snapshot.history.hydrogenFuel.total;
+  const cargoFuel = snapshot.history.hydrogenFuel.byUse?.cargoShips;
+  // The exporter weights the aggregate over a common window. Subtract the
+  // cargo contribution in that same window before inserting current routes.
+  const cargoContribution = replaceCargoFuel && cargoFuel && hydrogenFuel.sampleMonths > 0
+    ? cargoFuel.averagePerCycle * cargoFuel.sampleMonths / hydrogenFuel.sampleMonths
+    : 0;
   const generationWindowCycles = generationTypes.reduce(
     (window, generation) => Math.max(window, generation.sampleMonths),
     0,
@@ -46,6 +54,6 @@ export const resolvePlanningBaselines = (
         ) / generationWindowCycles
       : 0,
     hydrogenFuelDemandPerCycle:
-      hydrogenFuel.sampleMonths > 0 ? hydrogenFuel.averagePerCycle : 0,
+      hydrogenFuel.sampleMonths > 0 ? Math.max(0, hydrogenFuel.averagePerCycle - cargoContribution) : 0,
   };
 };

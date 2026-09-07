@@ -30,6 +30,9 @@ export interface FactoryTotalOptions {
   outputModifiers?: RecipeModifierMultipliers;
   shipsFuelUseMultiplier?: number;
   contractsProfitMultiplier?: number;
+  /** Synced world-cargo projections and their operating costs. */
+  externalSupplies?: Partial<Record<ResourceId, number>>;
+  externalDemands?: Partial<Record<ResourceId, number>>;
   /** Unlinked output crossing into the factory from isolated live modules. */
   boundarySupplies?: Partial<Record<ResourceId, number>>;
   /** Unlinked input drawn by isolated live modules from the global factory. */
@@ -594,6 +597,8 @@ export const calculateFactoryTotal = (
     outputModifiers = {},
     shipsFuelUseMultiplier = 1,
     contractsProfitMultiplier = 1,
+    externalSupplies = {},
+    externalDemands = {},
     boundarySupplies = {},
     boundaryDemands = {},
     moduleFixedDemands = new Map(),
@@ -602,11 +607,15 @@ export const calculateFactoryTotal = (
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
-  const fixedDemands: Partial<Record<ResourceId, number>> = {};
+  const fixedDemands: Partial<Record<ResourceId, number>> = { ...externalDemands };
   const deferredDemands: Partial<Record<ResourceId, number>> = {};
   const suppliedResources: Partial<Record<ResourceId, number>> = {
     ...boundarySupplies,
   };
+
+  for (const [resourceId, quantity] of typedEntries(externalSupplies)) {
+    suppliedResources[resourceId] = (suppliedResources[resourceId] ?? 0) + quantity;
+  }
   const resolvedModuleSuppliedResources = new Map<
     string,
     Partial<Record<ResourceId, number>>
@@ -797,6 +806,11 @@ export const calculateFactoryTotal = (
       contractDemands[exportedId] = (contractDemands[exportedId] ?? 0)
         + result.exported;
       contractInputIds.add(importedId);
+      for (const route of result.routes) {
+        const fuelId = route.route.shipping.fuelResourceId;
+
+        contractDemands[fuelId] = (contractDemands[fuelId] ?? 0) + route.fuelPerProductionCycle;
+      }
     }
 
     return calculateWithDispatch(
@@ -839,6 +853,11 @@ export const calculateFactoryTotal = (
       }
       planningDemands[exportedId] = (planningDemands[exportedId] ?? 0)
         + result.exported;
+      for (const route of result.routes) {
+        const fuelId = route.route.shipping.fuelResourceId;
+
+        planningDemands[fuelId] = (planningDemands[fuelId] ?? 0) + route.fuelPerProductionCycle;
+      }
     }
 
     const planningDispatch = calculateWithDispatch(

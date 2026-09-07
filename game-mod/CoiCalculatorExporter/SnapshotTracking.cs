@@ -63,13 +63,6 @@ internal static class SnapshotTracking
             "SolarPanelMono",
             "StatueOfMaintenanceGolden",
         }, StringComparer.Ordinal);
-    internal static readonly TrackedReserveDefinition[] TrackedReserves = new[]
-    {
-        new TrackedReserveDefinition("gold", "Product_Gold"),
-        new TrackedReserveDefinition("fuelGas", "Product_FuelGas"),
-    };
-    internal static readonly Dictionary<string, int> TrackedReserveProductIndices =
-        createTrackedReserveProductIndices();
     internal static readonly TrackedResearchDefinition[] TrackedResearch = new[]
     {
         new TrackedResearchDefinition("vehiclesPollution", "ResearchVehiclesPollutionDec"),
@@ -124,17 +117,6 @@ internal static class SnapshotTracking
         for (int i = 0; i < TrackedResearch.Length; i++)
         {
             result.Add(TrackedResearch[i].PrototypeId, i);
-        }
-
-        return result;
-    }
-
-    private static Dictionary<string, int> createTrackedReserveProductIndices()
-    {
-        Dictionary<string, int> result = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (int i = 0; i < TrackedReserves.Length; i++)
-        {
-            result.Add(TrackedReserves[i].ProductId, i);
         }
 
         return result;

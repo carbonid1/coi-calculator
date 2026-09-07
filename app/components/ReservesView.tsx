@@ -10,6 +10,8 @@ import { calculateReserveRunway } from "../helpers/reserves/reserves";
 interface Props {
   balances: ReserveBalances | null;
   drawsPerProductionCycle: ReserveValues<number>;
+  growthPerProductionCycle?: ReserveValues<number>;
+  burstCyclesRemaining?: number | null;
 }
 
 const formatQuantity = (value: number) => value.toLocaleString("en-US", {
@@ -22,7 +24,7 @@ const formatYears = (value: number) => value > 0 && value < 0.01
 
 const statusPresentation = {
   unavailable: {
-    label: "Waiting for a reserves-capable game sync",
+    label: "Unavailable",
     valueClassName: "text-muted-foreground",
   },
   empty: {
@@ -30,11 +32,11 @@ const statusPresentation = {
     valueClassName: "text-destructive",
   },
   idle: {
-    label: "Not being drawn by the current plan",
-    valueClassName: "text-success",
+    label: "Idle",
+    valueClassName: "text-muted-foreground",
   },
   draining: {
-    label: "Actively covering current factory demand",
+    label: "Drawing reserves",
     valueClassName: "text-foreground",
   },
 } as const;
@@ -43,28 +45,32 @@ const ReserveCard: React.FC<{
   balance: number | null;
   drawPerProductionCycle: number;
   name: string;
-}> = ({ balance, drawPerProductionCycle, name }) => {
+  growth: number;
+}> = ({ balance, drawPerProductionCycle, name, growth }) => {
+  const replenishing = growth > 0.000001;
   const runway = calculateReserveRunway(balance, drawPerProductionCycle);
   const status = statusPresentation[runway.status];
-  const statusLabel = runway.status === "empty"
+  let statusLabel = runway.status === "empty"
     ? `No eligible ${name} is stored`
     : status.label;
+
+  if (replenishing && balance !== null) statusLabel = "Replenishing";
   const metrics = [
     {
-      label: "In-game years remaining",
-      value: runway.inGameYearsRemaining === null
-        ? "—"
-        : formatYears(runway.inGameYearsRemaining),
-    },
-    {
-      label: `Eligible stored ${name}`,
+      label: `Stored ${name}`,
       value: runway.balance === null ? "Unavailable" : formatQuantity(runway.balance),
     },
     {
-      label: "Monthly draw",
+      label: replenishing ? "Growth / cycle" : "Draw / cycle",
       value: runway.balance === null
         ? "—"
-        : formatQuantity(runway.drawPerProductionCycle),
+        : formatQuantity(replenishing ? growth : runway.drawPerProductionCycle),
+    },
+    {
+      label: "Reserve runway",
+      value: runway.inGameYearsRemaining === null
+        ? "—"
+        : `${formatQuantity(runway.inGameYearsRemaining * 12)} cycles · ${formatYears(runway.inGameYearsRemaining)} in-game years`,
     },
   ];
 
@@ -79,11 +85,11 @@ const ReserveCard: React.FC<{
             </span>
           </Card.Action>
         </Card.Header>
-        <dl className="grid gap-2 sm:grid-cols-3">
+        <dl className="grid gap-2 sm:grid-cols-2">
           {metrics.map((metric) => (
             <div
               key={metric.label}
-              className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface"
+              className={`rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface ${metric.label === "Reserve runway" ? "sm:col-span-2" : ""}`}
             >
               <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {metric.label}
@@ -102,15 +108,23 @@ const ReserveCard: React.FC<{
 export const ReservesView: React.FC<Props> = ({
   balances,
   drawsPerProductionCycle,
+  growthPerProductionCycle,
+  burstCyclesRemaining,
 }) => (
-  <div className="grid gap-3 lg:grid-cols-2">
+  <div className="space-y-3">
+    {burstCyclesRemaining !== null && burstCyclesRemaining !== undefined && (
+      <p className="text-sm text-muted-foreground">Current delivery burst: {formatQuantity(burstCyclesRemaining)} cycles · {formatYears(burstCyclesRemaining / 12)} in-game years remaining.</p>
+    )}
+    <div className="grid gap-3 lg:grid-cols-2">
     {reserveResourceCatalog.map(({ key, name }) => (
       <ReserveCard
         key={key}
         balance={balances?.[key] ?? null}
         drawPerProductionCycle={drawsPerProductionCycle[key]}
         name={name}
+        growth={growthPerProductionCycle?.[key] ?? 0}
       />
     ))}
+    </div>
   </div>
 );

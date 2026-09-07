@@ -75,7 +75,7 @@ internal sealed partial class GameSnapshotCollector
         return states;
     }
 
-    private int[] getReserveQuantities()
+    private List<StorageSnapshot> getStorageInventory()
     {
         HashSet<EntityId> stationLinkedStorageIds = new HashSet<EntityId>();
 
@@ -93,40 +93,31 @@ internal sealed partial class GameSnapshotCollector
             }
         }
 
-        long[] quantities = new long[SnapshotTracking.TrackedReserves.Length];
+        List<StorageSnapshot> storages = new List<StorageSnapshot>();
         foreach (IEntity entity in m_entitiesManager.Entities)
         {
             Storage storage = entity as Storage;
             if (storage == null
                 || storage.IsDestroyed
                 || !storage.IsConstructed
-                || stationLinkedStorageIds.Contains(storage.Id)
-                || storage.AssignedInputs.Count > 0
                 || !storage.StoredProduct.HasValue)
             {
                 continue;
             }
 
-            string productId = storage.StoredProduct.Value.Id.ToString();
-            int reserveIndex;
-            if (!SnapshotTracking.TrackedReserveProductIndices.TryGetValue(productId, out reserveIndex))
-            {
-                continue;
-            }
-
-            quantities[reserveIndex] = Math.Min(
-                Int32.MaxValue,
-                quantities[reserveIndex] + storage.CurrentQuantity.Value);
+            storages.Add(new StorageSnapshot {
+                EntityId = storage.Id.Value,
+                Product = getProductSnapshot(storage.StoredProduct.Value),
+                Quantity = storage.CurrentQuantity.Value,
+                Capacity = storage.Capacity.Value,
+                TrainLinked = stationLinkedStorageIds.Contains(storage.Id),
+                HasAssignedInputs = storage.AssignedInputs.Count > 0,
+            });
         }
-
-        int[] result = new int[SnapshotTracking.TrackedReserves.Length];
-        for (int i = 0; i < quantities.Length; i++)
-        {
-            result[i] = (int)quantities[i];
-        }
-
-        return result;
+        storages.Sort(delegate(StorageSnapshot a, StorageSnapshot b) { return a.EntityId.CompareTo(b.EntityId); });
+        return storages;
     }
+
 
     public void RefreshHistory()
     {

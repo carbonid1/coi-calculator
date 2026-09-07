@@ -24,7 +24,7 @@ export const createReservesModule = (balances: ReserveBalances | null): Module =
   return {
     id: RESERVES_MODULE_ID,
     name: "Reserves",
-    description: "Actual contents of selected standalone storage, excluding train-linked storage and storage with an assigned incoming truck route",
+    description: "Stored resources available to the factory",
     builtBuildings,
     presets: [
       {

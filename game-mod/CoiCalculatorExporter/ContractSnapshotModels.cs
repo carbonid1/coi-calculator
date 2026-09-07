@@ -70,6 +70,7 @@ internal sealed class ContractRouteSnapshot
     public readonly bool Running;
     public readonly int SlotCount;
     public readonly string ContractGameId;
+    public CargoOperationSnapshot Operation;
     public readonly List<LogisticsZoneSnapshot> Zones;
     public readonly List<ContractModuleSnapshot> Modules;
     public readonly ContractShipSnapshot Ship;

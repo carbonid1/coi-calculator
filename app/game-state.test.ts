@@ -17,6 +17,8 @@ const edicts = Object.fromEntries(edictCatalog.map(edict => {
 }))
 
 const currentSnapshot = {
+  world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
+  storages: [],
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
   settlement: emptySettlement,
   weather: testWeather,
@@ -35,7 +37,7 @@ const currentSnapshot = {
   vehicles: { workersAssigned: 0 },
   research: defaultInfiniteResearchLevels,
   edicts,
-  reserves: { fuelGas: 0, gold: 0 },
+  reserves: { fuelGas: 0, gold: 0, sulfur: 0 },
   history: {
     windowMonths: 120,
     maintenance: {
@@ -65,7 +67,7 @@ describe('game-state snapshot validation', () => {
 
   it('rejects every non-current exporter schema', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 39 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 42 })).toBe(false)
   })
 
   it.each([
@@ -85,7 +87,8 @@ describe('game-state snapshot validation', () => {
     'vehicles',
     'research',
     'edicts',
-    'reserves',
+    'world',
+    'storages',
     'history',
   ])('rejects a snapshot without %s', field => {
     expect(isGameStateSnapshot({ ...currentSnapshot, [field]: undefined })).toBe(false)
@@ -288,6 +291,7 @@ describe('game-state snapshot validation', () => {
       zones: [],
       modules: [],
       ship: null,
+      operation: { dockBlocked: false, modules: [], ship: null },
     }
 
     expect(isGameStateSnapshot({
@@ -334,7 +338,7 @@ describe('game-state snapshot validation', () => {
     })).toBe(false)
     expect(isGameStateSnapshot({
       ...currentSnapshot,
-      reserves: { ...currentSnapshot.reserves, fuelGas: -1 },
+      storages: [{ entityId: 1, product: { productId: 'Product_Sulfur', name: 'Sulfur' }, quantity: -1, capacity: 100, trainLinked: false, hasAssignedInputs: false }],
     })).toBe(false)
     expect(isGameStateSnapshot({
       ...currentSnapshot,

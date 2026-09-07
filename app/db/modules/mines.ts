@@ -7,7 +7,6 @@ export const mines: Module = {
     name: "Mines",
     description: "World-mine supply and terrain disposal.",
     builtBuildings: {
-      "sulfur-world-mine": 1,
       "slag-terrain-dump": 1,
       "waste-terrain-dump": 1,
       "dirt-terrain-dump": 1,

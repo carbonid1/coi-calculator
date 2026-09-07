@@ -11,7 +11,8 @@ internal sealed partial class GameSnapshotCollector
         int workersAssigned = 0;
         int[] researchLevels = getResearchLevels();
         EdictState[] edictStates = getEdictStates();
-        int[] reserves = getReserveQuantities();
+        var storages = getStorageInventory();
+        WorldStateSnapshot world = getWorldStateSnapshot();
         ProductionSnapshot production = getProductionSnapshot();
         ContractStateSnapshot contracts = getContractStateSnapshot();
 
@@ -43,7 +44,8 @@ internal sealed partial class GameSnapshotCollector
             workersAssigned,
             researchLevels,
             edictStates,
-            reserves,
+            storages,
+            world,
             m_maintenanceI,
             m_maintenanceII,
             m_maintenanceIII,

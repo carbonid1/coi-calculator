@@ -285,16 +285,6 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: 'seaWater', quantity: 216 }],
     sourceMode: 'module-demand-capped',
   },
-  {
-    id: 'sulfur-world-mine',
-    name: 'Sulfur (World Mine)',
-    building: 'Sulfur World Mine',
-    group: 'source',
-    inputs: [],
-    outputs: [{ resourceId: 'sulfur', quantity: 0 }],
-    sourceMode: 'demand',
-    sourceKind: 'world-mine',
-  },
   ...reserveResourceCatalog.map(
     ({ name, recipeId, resourceId, sourceAllocation }): Recipe => ({
       id: recipeId,

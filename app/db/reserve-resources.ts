@@ -6,6 +6,7 @@ interface ReserveResourceDefinition {
   recipeId: string;
   resourceId: ResourceId;
   sourceAllocation: "primary" | "fallback";
+  storageScope: "standalone" | "island";
 }
 
 export const reserveResourceCatalog = [
@@ -15,6 +16,7 @@ export const reserveResourceCatalog = [
     recipeId: "gold-virtual-provision",
     resourceId: "gold",
     sourceAllocation: "primary",
+    storageScope: "standalone",
   },
   {
     key: "fuelGas",
@@ -22,6 +24,15 @@ export const reserveResourceCatalog = [
     recipeId: "fuel-gas-virtual-provision",
     resourceId: "fuelGas",
     sourceAllocation: "fallback",
+    storageScope: "standalone",
+  },
+  {
+    key: "sulfur",
+    name: "Sulfur",
+    recipeId: "sulfur-virtual-provision",
+    resourceId: "sulfur",
+    sourceAllocation: "fallback",
+    storageScope: "island",
   },
 ] as const satisfies readonly ReserveResourceDefinition[];
 

@@ -7,6 +7,8 @@ import { emptySettlement, testWeather } from './synced-island-settings'
 export const createCacheTestModel = () => {
   const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
   const snapshot = normalizeGameStateSnapshot({
+    world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
+    storages: [],
     schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
     settlement: emptySettlement,
     weather: testWeather,
@@ -22,7 +24,7 @@ export const createCacheTestModel = () => {
     edicts: Object.fromEntries(edictCatalog.map(edict => [edict.id, {
       activeLevel: defaultEdictLevels[edict.id], enabledLevel: defaultEdictLevels[edict.id], inactiveReason: null,
     }])),
-    reserves: { fuelGas: 0, gold: 0 },
+    reserves: { fuelGas: 0, gold: 0, sulfur: 0 },
     history: {
       windowMonths: 120,
       maintenance: { maintenanceI: emptyHistory, maintenanceII: emptyHistory, maintenanceIII: emptyHistory },

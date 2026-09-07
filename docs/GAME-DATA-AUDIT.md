@@ -592,3 +592,51 @@ keep separate settings. Shared machine pools share one setting. A saved false
 value overrides the four default parts policies. The confirmation offers Undo.
 These preferences affect diagnostics only;
 production calculations and resource pressure are unchanged.
+
+## World mines, world cargo, and linked reserves (schema 41)
+
+Verified 2026-09-07 against installed Captain of Industry v0.8.7a, build 614,
+using the game log, changelog, `Mafi.Core.dll`, and `Mafi.Base.dll`.
+
+- `WorldMapManager.Mines` provides individual `WorldMapMine` entities, including
+  inactive sites. Production comes from the selected step, prototype duration,
+  `GetProducedWithBonus`, and `GetProductionPenalty`. The game rounds the penalized
+  base quantity before accumulating efficiency bonus output. Finite deposits
+  bound the base extraction; `QuantityAvailable == null` means unlimited.
+- The installed Sulfur mine has base output 18 per 20 seconds per step, up to
+  eight steps, with 12 workers and 0.2 Unity per step. These observations are
+  not calculator constants: the exporter reads effective live values. Workers
+  use `WorkersAssigned`; Unity uses `MonthlyUnityConsumed`. Full storage stops
+  production and Unity consumption while assigned workers can remain.
+- `WorldMapCargoManager` pools mine inventory by product. Paused mines can
+  retain collectable stock. `GetAvailableWorldCargo` excludes other ships'
+  reservations and reads inventory without reserving or loading it. Automatic
+  departure uses the maximum product utilization; an enabled mine buffer can
+  set a smaller pickup threshold than the ship's full capacity.
+- `CargoDepot` cannot be paused in this version. Ships and modules can be
+  paused independently. `JourneyDuration` is null before timing is available;
+  `FuelPerJourneyNeeded()` already includes current fuel, module configuration,
+  ship capacity, fuel saving, and fuel-use modifiers.
+- A manually requested partial pickup still pays the full journey fuel. Mixed
+  products share one voyage. The game consumes half the journey fuel on each
+  leg. When enabled, Unity pays a fixed per-ship/module shortfall charge while
+  existing onboard fuel is still consumed. The exporter reads that charge via
+  `GetUpointsCostIfNoFuel()`.
+- Cargo module shore and onboard capacities are different. Transfer capacity
+  comes from `QuantityPerExchange / DurationPerExchange`; observed power comes
+  from `IElectricityConsumingEntity.PowerRequired`, whose values are in kW.
+- Cargo ships are not included in `VehiclesManager.AllVehicles`. Their crew
+  is therefore added independently, without subtracting an invented share of
+  the vehicle-worker total. Mine/depot/module/ship IDs are excluded from generic
+  area accounting before adding their cargo-owned costs.
+- Ordinary island storage is exported once per entity, with train linkage and
+  assigned-input metadata. Sulfur's declarative reserve scope includes linked
+  storage. Gold and Fuel Gas retain their standalone-storage policy. Offshore
+  buffers, ships, Cargo Depot buffers, train cars, and machine buffers are not
+  counted a second time as ordinary storage reserves.
+
+Calculated shipping fuel replaces the cargo contribution in the Hydrogen
+history's total averaging window. Non-cargo consumption is retained. Unknown
+voyage timing or fuel is surfaced as incomplete, without a guessed trip rate.
+Maintenance retains its existing rolling history, so pausing equipment does not
+erase previously observed consumption. No new wiki discrepancy was established.

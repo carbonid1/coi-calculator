@@ -6,7 +6,9 @@ import {
 } from './db/research'
 import { type ReserveBalances } from './db/reserve-resources'
 import { isWeatherConfig, type WeatherConfig } from './db/weather'
+import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balances'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
+import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCargoOperation, type SyncedWorldCargoRoute, type SyncedWorldState, type SyncedStorage } from './world-state'
 
 interface SyncedSpaceStationState {
   currentLevel: number
@@ -115,6 +117,7 @@ interface SyncedContractShip {
 }
 
 export interface SyncedContractRoute {
+  operation?: SyncedCargoOperation
   depotEntityId: number
   depotPrototypeId: string
   depotPrototypeName: string
@@ -284,7 +287,7 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 40 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 41 as const
 
 export interface GameStateSnapshot {
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
@@ -307,6 +310,8 @@ export interface GameStateSnapshot {
   }
   research: SyncedResearchLevels
   edicts: SyncedEdictStates
+  world: SyncedWorldState
+  storages: SyncedStorage[]
   reserves: SyncedReserves
   history: {
     windowMonths: 120
@@ -377,8 +382,18 @@ const normalizeContractState = (value: unknown): SyncedContractState | null => {
   )
     return null
 
+  const normalizedRoutes = normalizeCargoRoutes(routes, establishedIds)
+
+  return normalizedRoutes ? { established: validEstablished, routes: normalizedRoutes } : null
+}
+
+function normalizeCargoRoutes(value: unknown, establishedIds: Set<string>): SyncedContractRoute[] | null
+function normalizeCargoRoutes(value: unknown, establishedIds: null): SyncedWorldCargoRoute[] | null
+function normalizeCargoRoutes(value: unknown, establishedIds: Set<string> | null): (SyncedContractRoute | SyncedWorldCargoRoute)[] | null {
+  if (!Array.isArray(value)) return null
+  const routes = value
   const ownedEntityIds = new Set<number>()
-  const validRoutes = routes.filter((route): route is SyncedContractRoute => {
+  const validRoutes = routes.filter((route): route is SyncedContractRoute | SyncedWorldCargoRoute => {
     if (
       !isUnknownRecord(route) ||
       !isNonNegativeInteger(route.depotEntityId) ||
@@ -390,8 +405,9 @@ const normalizeContractState = (value: unknown): SyncedContractState | null => {
       (route.depotCustomTitle !== null && typeof route.depotCustomTitle !== 'string') ||
       typeof route.running !== 'boolean' ||
       !isNonNegativeInteger(route.slotCount) ||
-      typeof route.contractGameId !== 'string' ||
-      !establishedIds.has(route.contractGameId) ||
+      (establishedIds === null ? route.contractGameId !== null :
+        (typeof route.contractGameId !== 'string' || !establishedIds.has(route.contractGameId))) ||
+      !isCargoOperation(route.operation) ||
       !Array.isArray(route.zones) ||
       !route.zones.every(isLogisticsZoneRef) ||
       !Array.isArray(route.modules)
@@ -431,6 +447,18 @@ const normalizeContractState = (value: unknown): SyncedContractState | null => {
     }
 
     if (route.modules.length > route.slotCount) return false
+    const cargoModules = route.modules
+    const moduleIds = new Set(cargoModules.map(module => module.entityId))
+
+    if (route.operation.modules.length !== route.modules.length ||
+      !route.operation.modules.every(operation => moduleIds.has(operation.entityId))) return false
+    if (!route.operation.modules.every(operation => {
+      const cargoModule = cargoModules.find(module => module.entityId === operation.entityId)
+
+      return cargoModule && operation.onboardQuantity <= cargoModule.onboardCapacity
+        && operation.onboardFreeCapacity <= cargoModule.onboardCapacity
+    })) return false
+    if ((route.ship === null) !== (route.operation.ship === null)) return false
     if (route.ship === null) return true
 
     const ship = route.ship
@@ -460,7 +488,7 @@ const normalizeContractState = (value: unknown): SyncedContractState | null => {
 
   if (validRoutes.length !== routes.length) return null
 
-  return { established: validEstablished, routes: validRoutes }
+  return validRoutes
 }
 
 const isSpaceStationState = (value: unknown): value is SyncedSpaceStationState =>
@@ -1002,13 +1030,16 @@ const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
   return states
 }
 
-const normalizeReserves = (value: unknown): SyncedReserves | null => {
+const normalizeWorld = (value: unknown): SyncedWorldState | null => {
   if (!isUnknownRecord(value)) return null
-  const { fuelGas, gold } = value
+  const mines = normalizeWorldMines(value.mines)
+  const routes = normalizeCargoRoutes(value.routes, null)
 
-  if (!isNonNegativeInteger(fuelGas) || !isNonNegativeInteger(gold)) return null
+  if (!mines || !routes || !isNonNegativeInteger(value.unassignedWorkers) || !Array.isArray(value.unassignedShipIds) || !value.unassignedShipIds.every(isNonNegativeInteger)) return null
+  const ids = [...mines.map(m => m.entityId), ...value.unassignedShipIds,
+    ...routes.flatMap(r => [r.depotEntityId, ...r.modules.map(m => m.entityId), ...(r.ship ? [r.ship.entityId] : [])])]
 
-  return { fuelGas, gold }
+  return new Set(ids).size === ids.length ? { mines, routes, unassignedShipIds: value.unassignedShipIds, unassignedWorkers: value.unassignedWorkers } : null
 }
 
 export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | null => {
@@ -1038,7 +1069,16 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const workersAssigned = vehicles?.workersAssigned
   const research = normalizeResearchLevels(snapshot.research)
   const edicts = normalizeEdictStates(snapshot.edicts)
-  const reserves = normalizeReserves(snapshot.reserves)
+  const world = normalizeWorld(snapshot.world)
+  const storages = normalizeStorages(snapshot.storages)
+  const reserves = storages ? resolveReserveBalances(storages) : null
+
+  if (contracts && world) {
+    const ids = [...contracts.routes, ...world.routes].flatMap(route => [route.depotEntityId, ...route.modules.map(m => m.entityId), ...(route.ship ? [route.ship.entityId] : [])])
+
+    ids.push(...world.mines.map(m => m.entityId), ...world.unassignedShipIds)
+    if (new Set(ids).size !== ids.length) return null
+  }
   const history = isUnknownRecord(snapshot.history) ? snapshot.history : null
 
   if (
@@ -1059,6 +1099,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     !isNonNegativeInteger(workersAssigned) ||
     !research ||
     !edicts ||
+    !world ||
+    !storages ||
     !reserves ||
     !history ||
     history.windowMonths !== 120
@@ -1135,6 +1177,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     },
     research,
     edicts,
+    world,
+    storages,
     reserves,
     history: {
       windowMonths: 120,

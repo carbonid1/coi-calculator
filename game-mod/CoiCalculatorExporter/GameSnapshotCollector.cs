@@ -36,6 +36,8 @@ internal sealed partial class GameSnapshotCollector
     private readonly EdictsManager m_edictsManager;
     private readonly OrbitManager m_orbitManager;
     private readonly ContractsManager m_contractsManager;
+    private readonly Mafi.Core.World.WorldMapManager m_worldMapManager;
+    private readonly Mafi.Core.World.WorldMapCargoManager m_worldMapCargoManager;
 
     private HistoryAverage m_maintenanceI = HistoryAverage.Empty;
     private HistoryAverage m_maintenanceII = HistoryAverage.Empty;
@@ -60,6 +62,8 @@ internal sealed partial class GameSnapshotCollector
         m_edictsManager = resolver.Resolve<EdictsManager>();
         m_orbitManager = resolver.Resolve<OrbitManager>();
         m_contractsManager = resolver.Resolve<ContractsManager>();
+        m_worldMapManager = resolver.Resolve<Mafi.Core.World.WorldMapManager>();
+        m_worldMapCargoManager = resolver.Resolve<Mafi.Core.World.WorldMapCargoManager>();
         m_settlementsManager = resolver.Resolve<Mafi.Core.Buildings.Settlements.SettlementsManager>();
         m_upointsManager = resolver.Resolve<UpointsManager>();
         m_weatherConfig = getWeatherConfig(resolver);

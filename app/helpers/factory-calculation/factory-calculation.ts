@@ -18,6 +18,8 @@ export interface FactoryCalculationInput {
   outputModifiers: RecipeModifierMultipliers
   recyclingEfficiencyPercent: number
   shipsFuelUseMultiplier: number
+  externalSupplies?: Partial<Record<ResourceId, number>>
+  externalDemands?: Partial<Record<ResourceId, number>>
 }
 
 export interface FactoryCalculation {
@@ -39,6 +41,8 @@ export const calculateFactoryCalculation = ({
   outputModifiers,
   recyclingEfficiencyPercent,
   shipsFuelUseMultiplier,
+  externalSupplies,
+  externalDemands,
 }: FactoryCalculationInput): FactoryCalculation => {
   const calculateFactory = (
     linkedResult: ReturnType<typeof calculateLinkedModules>,
@@ -56,6 +60,8 @@ export const calculateFactoryCalculation = ({
       boundaryDemands: linkedResult.boundaryDemands,
       boundarySupplies: linkedResult.boundarySupplies,
       contracts,
+      externalSupplies,
+      externalDemands,
       recyclingEfficiencyPercent,
       outputModifiers,
       shipsFuelUseMultiplier,

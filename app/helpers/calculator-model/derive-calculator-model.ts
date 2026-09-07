@@ -132,6 +132,7 @@ import {
 } from '../synced-production-config/synced-production-config'
 import { transferTerrainMineOwnership } from '../terrain-mine-ownership/terrain-mine-ownership'
 import { getAverageSunIntensityPercent } from '../weather/generate-planning-weather'
+import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
 export interface DeriveCalculatorModelOptions {
   machineZoneAssignments: MachineZoneAssignments
@@ -188,11 +189,16 @@ export const deriveCalculatorModel = ({
     contractRoutePlans,
   )
   const enabledContracts = contractResolution.contracts
+  const worldMines = calculateWorldMines(snapshot.world)
+  const cargoEntityIds = new Set([...contractResolution.claimedEntityIds, ...getWorldClaimedEntityIds(snapshot.world)])
+  const cargoElectricityKw = worldMines.electricityKw + enabledContracts.reduce((total, contract) => total
+    + contract.routes.reduce((routeTotal, route) => routeTotal + (route.enabled
+      ? route.operation?.modules.reduce((sum, module) => sum + module.electricityKw, 0) ?? 0 : 0), 0), 0)
   const productionEntities = snapshot.productionEntities.filter(
-    entity => !contractResolution.claimedEntityIds.has(entity.entityId),
+    entity => !cargoEntityIds.has(entity.entityId),
   )
   const areaEntities = snapshot.areaEntities.filter(
-    entity => !contractResolution.claimedEntityIds.has(entity.entityId),
+    entity => !cargoEntityIds.has(entity.entityId),
   )
   const globalBuildingCounts = resolveAreaBuildingCounts(productionEntities)
   const officeAreaZoneIds = getOfficeAreaZoneIds(areaEntities)
@@ -283,7 +289,7 @@ export const deriveCalculatorModel = ({
       projectedSpaceStationTargetLevel,
     ),
   )
-  const planningBaselines = resolvePlanningBaselines(snapshot)
+  const planningBaselines = resolvePlanningBaselines(snapshot, true)
   const syncedHistory = snapshot.history
   const syncedMaintenance = syncedHistory.maintenance
   const maintenanceDemand = {
@@ -655,6 +661,8 @@ export const deriveCalculatorModel = ({
   // revision and machine-zone assignments identified by `calculationRevision`.
   const factoryCalculationInput: FactoryCalculationInput = {
     contracts: enabledContracts,
+    externalSupplies: worldMines.supplies,
+    externalDemands: { ...worldMines.fuelDemands, electricity: cargoElectricityKw / 1000 },
     contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
     links: resolvedModuleResourceLinks,
     modules: configuredModules,
@@ -671,6 +679,8 @@ export const deriveCalculatorModel = ({
     configuredPopulationModules,
     configuredSpaceStationModules,
     contractResolution,
+    worldMines,
+    cargoElectricityKw,
     cropYieldLevel,
     currentSpaceStationLevel,
     edictLevels,

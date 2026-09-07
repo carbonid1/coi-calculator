@@ -5,12 +5,12 @@ import { calculateNet } from "../../helpers/calculate/calculate";
 import { recipes } from "../recipes";
 import { mines } from "./mines";
 
-it("contains only the Sulfur world mine and terrain disposal", () => {
+it("contains terrain disposal without a fabricated world-mine source", () => {
   const lines = buildModuleLines(mines, null).lines;
 
   expect(lines.filter(({ recipe }) => recipe.group === "source").map(
     ({ recipe }) => recipe.id,
-  )).toEqual(["sulfur-world-mine"]);
+  )).toEqual([]);
   expect(lines.filter(({ recipe }) => recipe.group === "sink").map(
     ({ recipe }) => recipe.id,
   )).toEqual([

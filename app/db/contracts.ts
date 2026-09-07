@@ -1,3 +1,4 @@
+import { type SyncedCargoOperation } from "../world-state";
 import { type ResourceId, resources } from "./resources";
 
 interface ContractResource {
@@ -44,6 +45,7 @@ export interface ContractCargoModule {
 }
 
 export interface ContractRoute {
+  operation?: SyncedCargoOperation;
   id: string;
   source: 'synced' | 'planned';
   depotEntityId: number | null;

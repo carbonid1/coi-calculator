@@ -116,6 +116,7 @@ export const resolveSyncedContracts = (
     const plan = plans[route.depotEntityId]
     const syncedRoute: ContractRoute = {
       id: `contract-route-${route.depotEntityId}`,
+      operation: route.operation,
       source: plan ? 'planned' : 'synced',
       depotEntityId: route.depotEntityId,
       depotPrototypeId: route.depotPrototypeId,
@@ -149,6 +150,9 @@ export const resolveSyncedContracts = (
       ...(routesByContractId.get(route.contractGameId) ?? []),
       syncedRoute,
     ])
+    if (route.ship?.running && route.operation && route.ship.journeyDurationSeconds === null) {
+      issues.push({ gameId: route.contractGameId, message: `${syncedRoute.depotName}: waiting for first voyage timing.` })
+    }
   }
 
   const activeContracts: ActiveContract[] = []

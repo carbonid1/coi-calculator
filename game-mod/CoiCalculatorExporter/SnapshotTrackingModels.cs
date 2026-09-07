@@ -1,15 +1,3 @@
-internal sealed class TrackedReserveDefinition
-{
-    public readonly string Key;
-    public readonly string ProductId;
-
-    public TrackedReserveDefinition(string key, string productId)
-    {
-        Key = key;
-        ProductId = productId;
-    }
-}
-
 internal sealed class TrackedResearchDefinition
 {
     public readonly string Key;

@@ -3,6 +3,7 @@
 import { Button, Toaster, toast } from '@carbonid1/design-system'
 import { useEffect, useMemo, useState } from 'react'
 
+
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
 import { ContractsView } from './components/ContractsView'
 import { FactoryStartup } from './components/FactoryStartup'
@@ -20,6 +21,7 @@ import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
 import { StationCardGroup } from './components/StationCardGroup'
 import { StorageCard } from './components/StorageCard'
+import { WorldMinesView } from './components/WorldMinesView'
 import { getBuildingData } from './db/buildings'
 import { baseConfig } from './db/config'
 import { contracts } from './db/contracts'
@@ -302,6 +304,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     treeGrowthSpeedLevel,
     unityCapacity,
     worldMineOutputLevel,
+    worldMines,
   } = settled.model
 
   const openBuilding = (diagnostic: BuildingDiagnostic) => {
@@ -354,8 +357,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     unityCapacityMultiplier: unityCapacity.multiplier,
     settlementUnity: snapshot.settlement.unity,
     edictLevels,
-    buildingConsumption:
-      activeResearchLabCount > 0
+    buildingConsumption: [
+      ...(activeResearchLabCount > 0
         ? [
             {
               id: 'research-lab-iv',
@@ -365,7 +368,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                 * (getBuildingData('Research Lab IV')?.unityPerCycle ?? 0),
             },
           ]
-        : [],
+        : []),
+      ...snapshot.world.mines.map(mine => ({ id: 'world-mine-' + mine.entityId, name: mine.name, amount: mine.unityPerCycle })),
+      ...worldMines.routes.map(cargo => ({ id: 'world-cargo-unity-' + cargo.route.depotEntityId,
+        name: cargo.route.depotCustomTitle || cargo.route.depotPrototypeName, amount: cargo.unityPerCycle })),
+    ],
     buildingGeneration:
       spaceStationIncludedInFactoryTotals && currentSpaceStationLevel.unityPerCycle > 0
         ? [
@@ -476,6 +483,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const factoryWorkers = factoryStats.workers
     + linkedFactoryStats.workers
     + calculateContractWorkers(enabledContracts)
+    + worldMines.workers
   const calculatedFactoryBuildingDiagnostics = calculateBuildingDiagnostics(
     configuredModules,
     factoryResult.flows,
@@ -667,6 +675,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         />
       )}
 
+      {isFactoryTotal && (!worldMines.fuelComplete || factoryResult.contractResults.some(result => result.routes.some(route => route.fuelUnavailable))) && (
+        <p className="text-sm text-muted-foreground" role="status">Shipping fuel demand is incomplete. Check the cargo routes.</p>
+      )}
       {isFactoryTotal && factoryResult && (
         <NetSummary
           flows={factoryResult.flows}
@@ -719,12 +730,18 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         <ReservesView
           balances={snapshot.reserves}
           drawsPerProductionCycle={reserveDrawsPerProductionCycle}
+          growthPerProductionCycle={mapReserveResources(({ resourceId }) => Math.max(0,
+            factoryResult.flows.find(flow => flow.resourceId === resourceId)?.net ?? 0))}
+          burstCyclesRemaining={worldMines.routes.reduce<number | null>((remaining, route) => route.burstCyclesRemaining === null
+            ? remaining : Math.min(remaining ?? Infinity, route.burstCyclesRemaining), null)}
         />
       )}
 
       {moduleResult && activeModule && (
         <>
           {activeModule.id === MINES_MODULE_ID && (
+            <>
+            <WorldMinesView world={snapshot.world} result={worldMines} />
             <MinesView
               focusedTargetKey={
                 buildingTarget?.moduleId === activeModule.id ? buildingTarget.key : undefined
@@ -732,6 +749,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
               sourceResults={moduleResult.sourceResults}
               sinkResults={moduleResult.sinkResults}
             />
+            </>
           )}
 
           {activeModule.id !== MINES_MODULE_ID && activeModule.id !== RESERVES_MODULE_ID && (

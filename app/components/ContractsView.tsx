@@ -61,11 +61,11 @@ const RouteCard: React.FC<{
   const exportedResource = resources[exportedResourceId]
   const importedResource = resources[importedResourceId]
   const fuelResource = resources[route.shipping.fuelResourceId]
-  const routeEnabled = route.enabled && route.running
+  const routeEnabled = route.enabled && (Boolean(route.operation) || route.running)
   const routeWorkers = route.cargoModules.reduce(
-    (total, module) => total + (routeEnabled && module.running ? module.workers : 0),
+    (total, module) => total + (routeEnabled && (route.operation || module.running) ? module.workers : 0),
     0,
-  ) + (routeEnabled && route.ship?.running ? route.ship.workers : 0)
+  ) + (routeEnabled && (route.operation || route.ship?.running) ? route.ship?.workers ?? 0 : 0)
   const zoneNames = route.zones.flatMap(zone => zone.name ? [zone.name] : [])
 
   return (
@@ -92,7 +92,7 @@ const RouteCard: React.FC<{
           {route.ship && (
             <DataRow
               label={`1× ${route.ship.name}`}
-              value={`${routeEnabled && route.ship.running ? route.ship.workers : 0} workers`}
+              value={`${routeEnabled && (route.operation || route.ship.running) ? route.ship.workers : 0} workers`}
             />
           )}
           {route.cargoModules.map(module => {
@@ -104,7 +104,7 @@ const RouteCard: React.FC<{
               <DataRow
                 key={module.entityId ?? module.slot}
                 label={`1× ${module.buildingName} · ${configuration}`}
-                value={`${routeEnabled && module.running ? module.workers : 0} workers`}
+                value={`${routeEnabled && (route.operation || module.running) ? module.workers : 0} workers`}
               />
             )
           })}
@@ -114,7 +114,7 @@ const RouteCard: React.FC<{
         <dl className="space-y-1">
           <DataRow
             label="Ship fuel"
-            value={`${formatQuantity(result.fuelPerProductionCycle)} ${fuelResource.name} / month`}
+            value={result.fuelUnavailable ? 'Voyage estimate unavailable' : `${formatQuantity(result.fuelPerProductionCycle)} ${fuelResource.name} / cycle`}
           />
           <DataRow
             label="Max import"

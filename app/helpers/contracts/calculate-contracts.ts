@@ -13,6 +13,7 @@ export interface ContractRouteResult {
   requestedImported: number
   maxImportedPerProductionCycle: number | null
   fuelPerProductionCycle: number
+  fuelUnavailable?: true
 }
 
 export interface ContractResult {
@@ -33,7 +34,14 @@ const scaleQuantityLikeGame = (quantity: number, multiplier: number) => (
 
 const isRouteOperating = (route: ContractRoute) => (
   route.enabled && route.running && Boolean(route.ship?.running)
+  && (!route.operation || (!route.operation.dockBlocked
+    && (route.operation.ship?.state !== 'NotEnoughFuel' || route.operation.ship.canUseUnityForFuel)
+    && !route.operation.modules.some(module => module.operational && module.onboardQuantity > 0 && module.shoreFreeCapacity <= 0)
+    && (route.ship?.workers ?? 0) >= (route.operation.ship?.workersNeeded ?? 0)))
 )
+
+const isModuleOperating = (route: ContractRoute, entityId: number | null) => !route.operation
+  || Boolean(route.operation.modules.find(module => module.entityId === entityId)?.operational)
 
 const calculateContractRouteShipping = (
   contract: ActiveContract,
@@ -44,11 +52,15 @@ const calculateContractRouteShipping = (
   if (!isRouteOperating(route)) {
     return { importedPerTrip: 0, maxImportedPerProductionCycle: 0, fuelPerTrip: 0 }
   }
+  if (route.operation && route.shipping.fuelPerTrip === null) {
+    return { importedPerTrip: 0, maxImportedPerProductionCycle: null, fuelPerTrip: 0 }
+  }
 
   const installedModuleCount = route.cargoModules.length
   const importCargoCapacity = route.cargoModules.reduce(
     (total, module) => total + (
       module.running &&
+      isModuleOperating(route, module.entityId) &&
       module.direction === 'import' &&
       module.resourceId === contract.exchange.imported.resourceId
         ? module.onboardCapacity
@@ -59,6 +71,7 @@ const calculateContractRouteShipping = (
   const exportCargoCapacity = route.cargoModules.reduce(
     (total, module) => total + (
       module.running &&
+      isModuleOperating(route, module.entityId) &&
       module.direction === 'export' &&
       module.resourceId === contract.exchange.exported.resourceId
         ? module.onboardCapacity
@@ -100,7 +113,14 @@ const calculateContractRouteShipping = (
   const researchedFuel = scaleQuantityLikeGame(loadedShipFuel, shipsFuelUseMultiplier)
   const fallbackFuelPerTrip = scaleQuantityLikeGame(researchedFuel, saveFuelMultiplier)
   const fuelPerTrip = route.shipping.fuelPerTrip ?? fallbackFuelPerTrip
-  const roundTripDuration = route.shipping.roundTripDurationProductionCycles
+  const transferDuration = route.operation ? Math.max(0, ...route.cargoModules.map(module => {
+    const operation = route.operation?.modules.find(item => item.entityId === module.entityId)
+
+    return operation && operation.transferPerCycle > 0 && module.running && operation.operational
+      ? module.onboardCapacity / operation.transferPerCycle : 0
+  })) : 0
+  const roundTripDuration = route.shipping.roundTripDurationProductionCycles === null ? null
+    : route.shipping.roundTripDurationProductionCycles + transferDuration
   const maxImportedPerProductionCycle = roundTripDuration !== null
     && roundTripDuration > 0
     ? importedPerTrip / roundTripDuration
@@ -112,9 +132,9 @@ const calculateContractRouteShipping = (
 export const calculateContractWorkerBreakdown = (contract: ActiveContract) => {
   const cargoModuleWorkers = contract.routes.reduce(
     (contractTotal, route) => contractTotal + (
-      route.enabled && route.running
+      route.enabled && (route.operation || route.running)
         ? route.cargoModules.reduce(
-            (routeTotal, module) => routeTotal + (module.running ? module.workers : 0),
+            (routeTotal, module) => routeTotal + (route.operation || module.running ? module.workers : 0),
             0,
           )
         : 0
@@ -123,7 +143,7 @@ export const calculateContractWorkerBreakdown = (contract: ActiveContract) => {
   )
   const cargoShipWorkers = contract.routes.reduce(
     (total, route) => total + (
-      route.enabled && route.running && route.ship?.running ? route.ship.workers : 0
+      route.enabled && (route.operation || (route.running && route.ship?.running)) ? route.ship?.workers ?? 0 : 0
     ),
     0,
   )
@@ -185,8 +205,9 @@ export const applyContracts = (
         shipsFuelUseMultiplier,
         contractsProfitMultiplier,
       )
+      const unmeasuredImported = route.operation ? 0 : requestedImported
       const imported = shipping.maxImportedPerProductionCycle === null
-        ? requestedImported
+        ? unmeasuredImported
         : Math.min(requestedImported, shipping.maxImportedPerProductionCycle)
       const exported = effectiveImportedQuantity > 0
         ? imported * contract.exchange.exported.quantity / effectiveImportedQuantity
@@ -202,6 +223,8 @@ export const applyContracts = (
         requestedImported,
         maxImportedPerProductionCycle: shipping.maxImportedPerProductionCycle,
         fuelPerProductionCycle,
+        ...(route.operation && isRouteOperating(route) && shipping.maxImportedPerProductionCycle === null
+          ? { fuelUnavailable: true as const } : {}),
       })
       return imported
     }

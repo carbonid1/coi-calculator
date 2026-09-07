@@ -45,63 +45,7 @@ internal sealed partial class GameSnapshotCollector
                 establishedById.Add(established.GameId, established);
             }
 
-            List<ContractModuleSnapshot> modules = new List<ContractModuleSnapshot>();
-            for (int slot = 0; slot < depot.Modules.Length; slot++)
-            {
-                CargoDepotModule module = depot.Modules[slot].ValueOrNull;
-                if (module == null || module.IsDestroyed || !module.IsConstructed)
-                {
-                    continue;
-                }
-
-                ProductProto product = module.StoredProduct.ValueOrNull;
-                Mafi.Core.Buildings.Cargo.Ships.Modules.CargoShipModule shipModule =
-                    module.GetShipModule().ValueOrNull;
-                modules.Add(new ContractModuleSnapshot(
-                    module.Id.Value,
-                    slot,
-                    module.Prototype.Id.ToString(),
-                    getPrototypeName(module.Prototype.Id.ToString(), module.Prototype.Strings.Name.TranslatedString),
-                    !module.IsPaused,
-                    EntityWithWorkersExtensions.WorkersAssigned(module),
-                    product == null ? null : getProductSnapshot(product),
-                    product == null ? null : (module.IsForImport() ? "import" : "export"),
-                    shipModule == null ? 0 : shipModule.Capacity.Value));
-            }
-
-            CargoShipV2 ship = depot.CargoShip.ValueOrNull;
-            ContractShipSnapshot shipSnapshot = null;
-            if (ship != null && !ship.IsDestroyed)
-            {
-                CargoShipAssignedToDockJobProviderBase jobProvider =
-                    ship.JobProvider as CargoShipAssignedToDockJobProviderBase;
-                shipSnapshot = new ContractShipSnapshot(
-                    ship.Id.Value,
-                    ship.Prototype.Id.ToString(),
-                    getPrototypeName(ship.Prototype.Id.ToString(), ship.Prototype.Strings.Name.TranslatedString),
-                    !ship.IsPaused,
-                    EntityWithWorkersExtensions.WorkersAssigned(ship),
-                    getProductSnapshot(ship.FuelProto),
-                    ship.IsFuelReductionEnabled,
-                    ship.JourneyDuration.HasValue
-                        ? (double?)ship.JourneyDuration.Value.Seconds.ToDouble()
-                        : null,
-                    jobProvider == null
-                        ? (int?)null
-                        : jobProvider.FuelPerJourneyNeeded().Value);
-            }
-
-            routes.Add(new ContractRouteSnapshot(
-                depot.Id.Value,
-                depot.Prototype.Id.ToString(),
-                getPrototypeName(depot.Prototype.Id.ToString(), depot.Prototype.Strings.Name.TranslatedString),
-                depot.CustomTitle.ValueOrNull,
-                !depot.IsPaused,
-                depot.SlotCount,
-                contract.Id.ToString(),
-                getLogisticsZones(depot),
-                modules,
-                shipSnapshot));
+            routes.Add(getCargoRouteSnapshot(depot));
         }
 
         List<EstablishedContractSnapshot> establishedContracts =
@@ -118,6 +62,69 @@ internal sealed partial class GameSnapshotCollector
         });
 
         return new ContractStateSnapshot(establishedContracts, routes);
+    }
+
+    private ContractRouteSnapshot getCargoRouteSnapshot(CargoDepot depot)
+    {
+        List<ContractModuleSnapshot> modules = new List<ContractModuleSnapshot>();
+        for (int slot = 0; slot < depot.Modules.Length; slot++)
+        {
+            CargoDepotModule module = depot.Modules[slot].ValueOrNull;
+            if (module == null || module.IsDestroyed || !module.IsConstructed)
+            {
+                continue;
+            }
+
+            ProductProto product = module.StoredProduct.ValueOrNull;
+            Mafi.Core.Buildings.Cargo.Ships.Modules.CargoShipModule shipModule =
+                module.GetShipModule().ValueOrNull;
+            modules.Add(new ContractModuleSnapshot(
+                module.Id.Value,
+                slot,
+                module.Prototype.Id.ToString(),
+                getPrototypeName(module.Prototype.Id.ToString(), module.Prototype.Strings.Name.TranslatedString),
+                !module.IsPaused,
+                EntityWithWorkersExtensions.WorkersAssigned(module),
+                product == null ? null : getProductSnapshot(product),
+                product == null ? null : (module.IsForImport() ? "import" : "export"),
+                shipModule == null ? 0 : shipModule.Capacity.Value));
+        }
+
+        CargoShipV2 ship = depot.CargoShip.ValueOrNull;
+        ContractShipSnapshot shipSnapshot = null;
+        if (ship != null && !ship.IsDestroyed)
+        {
+            CargoShipAssignedToDockJobProviderBase jobProvider =
+                ship.JobProvider as CargoShipAssignedToDockJobProviderBase;
+            shipSnapshot = new ContractShipSnapshot(
+                ship.Id.Value,
+                ship.Prototype.Id.ToString(),
+                getPrototypeName(ship.Prototype.Id.ToString(), ship.Prototype.Strings.Name.TranslatedString),
+                !ship.IsPaused,
+                EntityWithWorkersExtensions.WorkersAssigned(ship),
+                getProductSnapshot(ship.FuelProto),
+                ship.IsFuelReductionEnabled,
+                ship.JourneyDuration.HasValue
+                ? (double?)ship.JourneyDuration.Value.Seconds.ToDouble()
+                : null,
+                jobProvider == null
+                ? (int?)null
+                : jobProvider.FuelPerJourneyNeeded().Value);
+        }
+
+        ContractRouteSnapshot route = new ContractRouteSnapshot(
+            depot.Id.Value,
+            depot.Prototype.Id.ToString(),
+            getPrototypeName(depot.Prototype.Id.ToString(), depot.Prototype.Strings.Name.TranslatedString),
+            depot.CustomTitle.ValueOrNull,
+            !depot.IsPaused,
+            depot.SlotCount,
+            depot.ContractAssigned.HasValue ? depot.ContractAssigned.Value.Id.ToString() : null,
+            getLogisticsZones(depot),
+            modules,
+            shipSnapshot);
+        route.Operation = getCargoOperation(depot);
+        return route;
     }
 
     private static EstablishedContractSnapshot getEstablishedContractSnapshot(
