@@ -297,3 +297,77 @@ it("lets Cooking Oil reforming claim Hydrogen ahead of deferred vehicle fuel dem
   expect(flowOf(deferred, "hydrogen")?.net).toBeCloseTo(-10);
   expect(deferred.blockedRoutes).toEqual([]);
 });
+
+it.each([
+  { hydrogen: 30, chlorine: 24, coalPlants: 1, reformerRatio: 1, lateHydrogen: false },
+  { hydrogen: 10, chlorine: 24, coalPlants: 1, reformerRatio: 1 / 3, lateHydrogen: false },
+  { hydrogen: 0, chlorine: 24, coalPlants: 1, reformerRatio: 0, lateHydrogen: false },
+  { hydrogen: 30, chlorine: 24, coalPlants: 0, reformerRatio: 1, lateHydrogen: false },
+  { hydrogen: 30, chlorine: 24, coalPlants: 0, reformerRatio: 1, lateHydrogen: true },
+  { hydrogen: 30, chlorine: 3.5, coalPlants: 1, reformerRatio: 1, lateHydrogen: false },
+])("gives Ethanol CO2 before Graphite with constrained inputs (%j)", ({
+  hydrogen, chlorine, coalPlants, reformerRatio, lateHydrogen,
+}) => {
+  const supply: Recipe = {
+    id: "test-reforming-inputs",
+    name: "Test Reforming Inputs",
+    building: "Test Producer",
+    group: "production",
+    inputs: [],
+    outputs: [
+      { resourceId: "carbonDioxide", quantity: 60 },
+      { resourceId: lateHydrogen ? "steamDepleted" : "hydrogen", quantity: hydrogen },
+      { resourceId: "cookingOil", quantity: 30 },
+      { resourceId: "coal", quantity: 8 },
+      { resourceId: "chlorine", quantity: chlorine },
+    ],
+  };
+  const graphiteConsumer: Recipe = {
+    id: "test-graphite-demand",
+    name: "Test Graphite Demand",
+    building: "Test Consumer",
+    group: "production",
+    inputs: [{ resourceId: "graphite", quantity: 6 }],
+    outputs: [],
+  };
+  const result = calculateNet([
+    fixedLine(supply),
+    ...(lateHydrogen ? [fixedLine({
+      id: "test-late-hydrogen-recovery",
+      name: "Test Late Hydrogen Recovery",
+      building: "Test Recovery",
+      group: "sink",
+      inputs: [{ resourceId: "steamDepleted", quantity: 30 }],
+      outputs: [{ resourceId: "hydrogen", quantity: 30 }],
+    })] : []),
+    fixedLine(graphiteConsumer),
+    balancedLine(getRecipe("chemical-plant-ii-graphite")),
+    balancedLine(getRecipe("chemical-plant-ii-graphite-coal"), coalPlants),
+    balancedLine(getRecipe("chemical-plant-ii-ethanol")),
+    balancedLine(getRecipe("chemical-plant-ii-cooking-oil-diesel")),
+  ]);
+  const recipeResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+  const flow = (resourceId: string) => result.allResourceFlows.find(
+    candidate => candidate.resourceId === resourceId,
+  );
+
+  expect(recipeResult("chemical-plant-ii-cooking-oil-diesel")?.supplyRatio)
+    .toBeCloseTo(reformerRatio);
+  expect(recipeResult("chemical-plant-ii-ethanol")?.actualInputs.find(
+    input => input.resourceId === "carbonDioxide",
+  )?.quantity).toBeCloseTo(22.5 * reformerRatio);
+  expect(recipeResult("chemical-plant-ii-graphite")?.actualInputs[0]?.quantity)
+    .toBeCloseTo(60 - 22.5 * reformerRatio);
+  expect(flow("carbonDioxide")?.net).toBeCloseTo(0);
+  expect(flow("hydrogen")?.net).toBeGreaterThanOrEqual(-0.001);
+  expect(flow("chlorine")?.net).toBeGreaterThanOrEqual(-0.001);
+  // Ethanol wins even when the displaced Graphite cannot be replaced.
+  const co2Graphite = (60 - 22.5 * reformerRatio) / 24;
+  const coalGraphite = coalPlants > 0 ? Math.min(6 - co2Graphite, chlorine) : 0;
+
+  expect(flow("graphite")?.net).toBeCloseTo(
+    co2Graphite + coalGraphite - 6,
+  );
+});

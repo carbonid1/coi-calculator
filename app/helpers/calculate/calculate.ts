@@ -550,6 +550,13 @@ export const calculateNet = (
   const fallbackLines = orderAllocatedLines(
     balancedLines.filter((line) => line.recipe.allocation === "fallback"),
   );
+  const yieldingFallbackLines = fallbackLines.filter(line => line.recipe.yieldToSurplus);
+  const yieldedOutputIds = new Set(yieldingFallbackLines.flatMap(
+    line => line.recipe.outputs.map(output => output.resourceId),
+  ));
+  const replacementFallbackLines = new Set(fallbackLines.filter(line => (
+    line.recipe.outputs.some(output => yieldedOutputIds.has(output.resourceId))
+  )));
   const surplusLines = orderAllocatedLines(
     balancedLines.filter((line) => line.recipe.allocation === "surplus"),
   );
@@ -1463,8 +1470,8 @@ export const calculateNet = (
   // rest of the pipeline goes on to cover.
   let slackAllowance = new Map<ResourceId, number>();
   let moduleSlackAllowance = new Map<string, number>();
-  // Only routes the retry is for may draw on the allowance; anything else
-  // could shift consumption the first run had already settled.
+  // Only retried routes and surplus consumers they unlock may draw on the
+  // allowance; unrelated routes keep their original input priorities.
   let allowanceLines = new Set<ProductionLine>();
   // Slack already visible in the baseline is counted by the deficit measure
   // itself; the allowance covers only what later passes add on top of it.
@@ -1876,14 +1883,55 @@ export const calculateNet = (
     }
   };
 
-  const settleFallbackDemand = () => {
+  const settleFallbackDemand = (protectReplacementInputs = false) => {
     for (let iteration = 0; iteration <= fallbackLines.length; iteration += 1) {
       const priorFallbackLoad = fallbackLines.reduce(
         (total, line) => total + (allocationRatios.get(line) ?? 0),
         0,
       );
 
-      applyLowerPriorityLines(fallbackLines);
+      for (const line of fallbackLines) {
+        if (!protectReplacementInputs || !replacementFallbackLines.has(line)) {
+          applyLowerPriorityLines([line]);
+          continue;
+        }
+
+        // A displaced byproduct may be replaced only from feasible inputs.
+        // Keep an uncovered output visible instead of moving its shortage to
+        // a supporting resource (for example Graphite to Chlorine).
+        const baseline = snapshotAllocationState();
+        const previousRatio = allocationRatios.get(line) ?? 0;
+
+        applyLowerPriorityLines([line]);
+        const additionalRatio = (allocationRatios.get(line) ?? 0) - previousRatio;
+
+        if (additionalRatio <= 1e-9) continue;
+        propagateAdditionalDemand();
+        if (!allocationIntroducedDeficit(baseline, line)) continue;
+
+        let feasibleRatio = 0;
+        let infeasibleRatio = additionalRatio;
+
+        for (let attempt = 0; attempt < 24; attempt += 1) {
+          const candidateRatio = (feasibleRatio + infeasibleRatio) / 2;
+
+          restoreAllocationState(baseline);
+          applyRegularLine(line, candidateRatio, true);
+          propagateAdditionalDemand();
+
+          if (allocationIntroducedDeficit(baseline, line, STRICT_TOLERANCE)) {
+            infeasibleRatio = candidateRatio;
+          } else {
+            feasibleRatio = candidateRatio;
+          }
+        }
+
+        restoreAllocationState(baseline);
+        if (feasibleRatio > 1e-6) {
+          applyRegularLine(line, feasibleRatio, true);
+          propagateAdditionalDemand();
+        }
+      }
       propagateAdditionalDemand();
 
       const settledFallbackLoad = fallbackLines.reduce(
@@ -1996,10 +2044,17 @@ export const calculateNet = (
     reservePlannedSourceInputs();
     applyLowerPriorityLines(surplusLines);
     propagateAdditionalDemand();
+    // Let late Ethanol demand claim CO2 held by Graphite. Other fallback
+    // consumers keep their allocation, including Ammonia's Hydrogen priority.
+    for (const line of yieldingFallbackLines) {
+      const ratio = allocationRatios.get(line) ?? 0;
+
+      if (ratio > 0) applyRegularLine(line, -ratio, true);
+    }
     applyAdditionalSurplusConsumption(finalSurplusConsumerLines);
     // Final surplus conversion can create inputs for local fallback cleanup.
     // Run those fallbacks once more so chained routes settle in the same cycle.
-    settleFallbackDemand();
+    settleFallbackDemand(true);
     propagateAdditionalDemand();
     trimOverproduction();
   };
@@ -2417,7 +2472,7 @@ export const calculateNet = (
 
     // Every leftover is an allowance, because the shortfall can surface one
     // hop downstream of the slack (an idle Evaporation Pond starved of dumped
-    // Brine reports as a Salt deficit). Only the retried routes may draw on it.
+    // Brine reports as a Salt deficit).
     for (const [resourceId, slack] of firstSlack.global) {
       if (slack > 1e-7) slackAllowance.set(resourceId, slack);
     }
@@ -2427,6 +2482,22 @@ export const calculateNet = (
     allowanceLines = new Set(
       retryableRoutes.flatMap((route) => blockedRouteLines.get(route) ?? []),
     );
+    // A refused upstream route can hide its downstream surplus entirely.
+    // Meat processing, for example, creates the Meat that lets Food Packs ask
+    // for Bread and its Water. Share the remaining allowance along that chain.
+    // Set iteration also visits newly added consumers, covering longer chains.
+    for (const producer of allowanceLines) {
+      for (const consumer of [...beforeFallbackSurplusConsumerLines, ...finalSurplusConsumerLines]) {
+        if (allowanceLines.has(consumer)) continue;
+        if (
+          consumer.recipe.consumeSurplusInputScope === "module"
+          && consumer.moduleId !== producer.moduleId
+        ) continue;
+        if (producer.recipe.outputs.some(output => (
+          consumer.recipe.consumeSurplusInputIds?.includes(output.resourceId)
+        ))) allowanceLines.add(consumer);
+      }
+    }
 
     restoreAllocationState(beforeSurplusRoutes);
     blockedRoutes.length = 0;
@@ -2441,11 +2512,24 @@ export const calculateNet = (
     let leftShorter: BlockedSurplusRoute["blockedBy"] = null;
 
     for (const [resourceId, flow] of flows) {
+      // A retry can redirect the preferred input away from a yielding
+      // byproduct too. Its explicit priority permits that lost output, but
+      // does not excuse unrelated shortages or extra output demand.
+      const yieldedOutputReduction = yieldingFallbackLines.reduce((total, line) => {
+        const output = line.recipe.outputs.find(output => output.resourceId === resourceId);
+        const ratioReduction = Math.max(0,
+          (firstRun.allocationRatios.get(line) ?? 0) - (allocationRatios.get(line) ?? 0),
+        );
+
+        return total + (output
+          ? getRecipeOutputQuantity(line.recipe, output, outputModifiers) * lineFactor(line) * ratioReduction
+          : 0);
+      }, 0);
       const deficitIncrease = getGlobalDeficitIncrease(
         resourceId,
         firstRun.flows.get(resourceId),
         flow,
-      );
+      ) - yieldedOutputReduction;
 
       if (deficitIncrease > Math.max(10 * DEFICIT_TOLERANCE, leftShorter?.deficitIncrease ?? 0)) {
         leftShorter = { resourceId, deficitIncrease };

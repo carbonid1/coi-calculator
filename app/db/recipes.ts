@@ -126,6 +126,8 @@ export interface Recipe {
   allocation?: RecipeAllocation
   /** Lower values run first within the same non-primary allocation pass. */
   allocationPriority?: number
+  /** Yield inputs to final surplus routes, then refill outputs using feasible fallback production. */
+  yieldToSurplus?: boolean
   /** Inputs whose remaining surplus may drive additional utilization after ordinary demand. */
   consumeSurplusInputIds?: ResourceId[]
   /** Limits additional surplus consumption to production inside the same physical module. */
@@ -3078,6 +3080,7 @@ export const recipes: Recipe[] = [
     balanceInputIds: ['carbonDioxide'],
     allocation: 'fallback',
     allocationPriority: 20,
+    yieldToSurplus: true,
     inputs: [{ resourceId: 'carbonDioxide', quantity: 144 }],
     outputs: [{ resourceId: 'graphite', quantity: 6 }],
   },

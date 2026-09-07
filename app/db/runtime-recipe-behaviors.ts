@@ -18,6 +18,7 @@ type RuntimeRecipeBehavior = Partial<Pick<
   | "group"
   | "inputPriorities"
   | "keepReady"
+  | "yieldToSurplus"
   | "sinkScope"
   | "surplusConsumptionPhase"
   | "surplusConsumptionPriority"
@@ -187,6 +188,7 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
   "ChemicalPlant2:GraphiteProductionCo2": {
     allocation: "fallback",
     allocationPriority: 20,
+    yieldToSurplus: true,
     balanceBy: "input",
     balanceInputIds: ["carbonDioxide"],
   },

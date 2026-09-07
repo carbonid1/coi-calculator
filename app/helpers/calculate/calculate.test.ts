@@ -1202,3 +1202,86 @@ it("uses recovered Water before Groundwater Pumps or Liquid Dumps", () => {
   expect(recovered?.actualOutputs).toEqual([{ resourceId: "water", quantity: 20 }]);
   expect(dumped?.actualInputs).toEqual([{ resourceId: "water", quantity: 10 }]);
 });
+
+it.each([10, 3])("shares %s recovered Water with surplus routes unlocked by Meat processing", (water) => {
+  const carcassSource: Recipe = {
+    id: "test-carcass-source",
+    name: "Test Carcass Source",
+    building: "Test Source",
+    group: "production",
+    inputs: [],
+    outputs: [{ resourceId: "chickenCarcass", quantity: 10 }],
+  };
+  const meatProcessor: Recipe = {
+    id: "test-meat-processing",
+    name: "Test Meat Processing",
+    building: "Food Processor",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: [],
+    consumeSurplusInputIds: ["chickenCarcass"],
+    surplusConsumptionPriority: 100,
+    inputs: [
+      { resourceId: "chickenCarcass", quantity: 10 },
+      { resourceId: "water", quantity: 2 },
+    ],
+    outputs: [{ resourceId: "meat", quantity: 5 }],
+  };
+  const breadProducer: Recipe = {
+    id: "test-bread-production",
+    name: "Test Bread Production",
+    building: "Baking Unit",
+    group: "production",
+    balanceBy: "output",
+    inputs: [{ resourceId: "water", quantity: 2 }],
+    outputs: [{ resourceId: "bread", quantity: 5 }],
+  };
+  const foodPack: Recipe = {
+    id: "test-meat-food-pack",
+    name: "Test Meat Food Pack",
+    building: "Assembly V",
+    group: "production",
+    balanceBy: "output",
+    consumeSurplusInputIds: ["meat"],
+    surplusConsumptionPriority: 120,
+    inputs: [
+      { resourceId: "meat", quantity: 5 },
+      { resourceId: "bread", quantity: 5 },
+    ],
+    outputs: [{ resourceId: "foodPack", quantity: 10 }],
+  };
+  const coolingTower: Recipe = {
+    id: "test-nuclear-water-recovery",
+    name: "Test Nuclear Water Recovery",
+    building: "Cooling Tower",
+    group: "sink",
+    inputs: [{ resourceId: "steamDepleted", quantity: water }],
+    outputs: [{ resourceId: "water", quantity: water }],
+  };
+  const liquidDump: Recipe = {
+    id: "test-nuclear-water-dump",
+    name: "Test Nuclear Water Dump",
+    building: "Liquid Dump",
+    group: "sink",
+    inputs: [{ resourceId: "water", quantity: 100 }],
+    outputs: [],
+  };
+  const result = calculateNet([
+    fixedLine(carcassSource, "farms"),
+    balancedLine(meatProcessor, "general"),
+    balancedLine(breadProducer, "general"),
+    balancedLine(foodPack, "food-packing"),
+    balancedLine(coolingTower, "nuclear"),
+    balancedLine(liquidDump, "nuclear"),
+  ], { steamDepleted: water });
+  const flow = (resourceId: string) => result.allResourceFlows.find(
+    candidate => candidate.resourceId === resourceId,
+  );
+
+  expect(flow("foodPack")?.produced).toBeCloseTo(water >= 4 ? 10 : 5);
+  expect(flow("meat")?.net).toBeCloseTo(water >= 4 ? 0 : 2.5);
+  expect(flow("water")?.net).toBeCloseTo(0);
+  expect(result.sinkResults.find(candidate => candidate.recipe.id === liquidDump.id)
+    ?.actualInputs[0]?.quantity ?? 0).toBeCloseTo(Math.max(0, water - 4));
+  if (water >= 4) expect(result.blockedRoutes).toEqual([]);
+});

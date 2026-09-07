@@ -95,6 +95,7 @@ describe('runtime recipe behaviors', () => {
     })
     expect(runtimeRecipeBehaviors['ChemicalPlant2:GraphiteProductionCo2']).toMatchObject({
       allocation: 'fallback',
+      yieldToSurplus: true,
       balanceBy: 'input',
       balanceInputIds: ['carbonDioxide'],
     })
