@@ -8,9 +8,11 @@ import { type UnityBudget } from "../db/unity";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
   type BlockedSurplusRoute,
+  type PassiveResult,
   type RegularResult,
   type ResourceFlow,
 } from "../helpers/calculate/calculate";
+import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
 import {
   type MachineAllocationIssue,
   type MachineInventorySummary,
@@ -35,6 +37,8 @@ interface Props {
   unityBudget?: UnityBudget;
   groupByBalance?: boolean;
   regularResults?: RegularResult[];
+  /** Sources and sinks; their intake is recipe-accounted consumption too. */
+  passiveResults?: PassiveResult[];
   blockedRoutes?: BlockedSurplusRoute[];
   buildingDiagnostics?: BuildingDiagnostic[];
   machineAllocationIssues?: MachineAllocationIssue[];
@@ -67,7 +71,6 @@ const formatPower = (megawatts: number) => {
 };
 
 const formatCapacity = (value: number) => parseFloat(value.toFixed(2));
-const formatBuildingCapacity = (value: number) => parseFloat(value.toFixed(3));
 
 const getComputingSummary = (demand: number, capacity?: number) => {
   if (capacity == null) {
@@ -90,53 +93,6 @@ const getComputingSummary = (demand: number, capacity?: number) => {
   };
 };
 
-const getCapacityLimit = (
-  resourceId: ResourceId,
-  regularResults: RegularResult[],
-) => {
-  const producers = regularResults.filter((result) => (
-    result.activeBuildings > 0
-    && result.recipe.outputs.some((output) => output.resourceId === resourceId)
-  ));
-
-  if (producers.length === 0) return null;
-
-  const producersByCapacity = new Map<string, RegularResult>();
-
-  for (const producer of producers) {
-    producersByCapacity.set(
-      producer.capacityPoolId ?? `${producer.moduleId}:${producer.recipe.id}`,
-      producer,
-    );
-  }
-
-  const limits = [...producersByCapacity.values()].map((producer) => {
-    const capacityResults = producer.capacityPoolId
-      ? regularResults.filter((result) => result.capacityPoolId === producer.capacityPoolId)
-      : [producer];
-    const capacity = producer.capacityPoolId
-      ? Math.max(...capacityResults.map((result) => result.activeBuildings))
-      : producer.activeBuildings;
-    const used = capacityResults.reduce((total, result) => (
-      total + result.activeBuildings * result.supplyRatio
-    ), 0);
-
-    return {
-      atCapacity: capacity > 0 && capacity - used <= BALANCE_THRESHOLD,
-      capacity,
-      label: producer.recipe.sharedCapacity?.label ?? producer.recipe.building,
-      used,
-    };
-  });
-
-  if (limits.some((limit) => !limit.atCapacity)) return null;
-
-  return limits
-    .map((limit) => (
-      `${limit.label} · at capacity ${formatBuildingCapacity(limit.used)}/${formatBuildingCapacity(limit.capacity)}`
-    ))
-    .join(", ");
-};
 
 export const NetSummary: React.FC<Props> = ({
   flows,
@@ -149,6 +105,7 @@ export const NetSummary: React.FC<Props> = ({
   unityBudget,
   groupByBalance = false,
   regularResults = [],
+  passiveResults = [],
   blockedRoutes = [],
   buildingDiagnostics = [],
   machineAllocationIssues = [],
@@ -222,16 +179,21 @@ export const NetSummary: React.FC<Props> = ({
     ...group,
     flows: group.flows.toSorted((a, b) => a.name.localeCompare(b.name)),
   }));
-  const capacityLimitedDeficits = balanceGroups
-    .find((group) => group.label === "Deficit")
-    ?.flows.flatMap((flow) => {
-      const capacityLimit = getCapacityLimit(flow.resourceId, regularResults);
-
-      return capacityLimit ? [{ flow, capacityLimit }] : [];
-    }) ?? [];
-  const capacityLimitedIds = new Set(
-    capacityLimitedDeficits.map(({ flow }) => flow.resourceId),
-  );
+  // Every factory deficit carries its reason; saturated producers are the
+  // actionable case and stay in their own box.
+  const explainedDeficits = groupByBalance
+    ? (balanceGroups
+        .find((group) => group.label === "Deficit")
+        ?.flows.map((flow) => ({
+          flow,
+          rootCause: getDeficitRootCause(flow.resourceId, regularResults, flows, passiveResults),
+        })) ?? [])
+    : [];
+  const capacityLimitedDeficits = explainedDeficits
+    .filter(({ rootCause }) => rootCause.kind === "at-capacity")
+    .map(({ flow, rootCause }) => ({ flow, capacityLimit: rootCause.detail }));
+  const otherDeficits = explainedDeficits
+    .filter(({ rootCause }) => rootCause.kind !== "at-capacity");
   // A surplus that an active line could consume is unrouted, not an end product.
   const unroutedSurpluses = balanceGroups
     .find((group) => group.label === "Surplus")
@@ -277,25 +239,46 @@ export const NetSummary: React.FC<Props> = ({
             </div>
           </div>
 
-          {group.flows.some((flow) => !capacityLimitedIds.has(flow.resourceId)) && (
+          {otherDeficits.length > 0 && (
             <div className="space-y-1">
               <h5 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Other deficits
               </h5>
-              {group.flows
-                .filter((flow) => !capacityLimitedIds.has(flow.resourceId))
-                .map((flow) => (
-                  <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
-                    <span className="text-foreground">
-                      {flow.name}
+              {otherDeficits.map(({ flow, rootCause }) => (
+                <div key={flow.resourceId} className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-1 text-sm hover:bg-accent">
+                  <span className="flex flex-col text-foreground">
+                    <span>{flow.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {rootCause.detail}
                     </span>
-                    <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                      {formatNet(flow.net)}
-                    </span>
-                  </div>
-                ))}
+                  </span>
+                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                    {formatNet(flow.net)}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
+        </div>
+      );
+    }
+
+    if (group.label === "Deficit" && otherDeficits.length > 0) {
+      return (
+        <div className="space-y-1">
+          {otherDeficits.map(({ flow, rootCause }) => (
+            <div key={flow.resourceId} className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-1 text-sm hover:bg-accent">
+              <span className="flex flex-col text-foreground">
+                <span>{flow.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {rootCause.detail}
+                </span>
+              </span>
+              <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
+                {formatNet(flow.net)}
+              </span>
+            </div>
+          ))}
         </div>
       );
     }

@@ -3,19 +3,14 @@ import {
   type BlockedSurplusRoute,
   type RegularResult,
 } from "../calculate/calculate";
+import {
+  describeCapacity,
+  formatQuantity,
+  getCapacityPools,
+  getPoolLabels,
+} from "../capacity-pools/capacity-pools";
 
 const BALANCE_THRESHOLD = 0.001;
-const formatQuantity = (value: number) => parseFloat(value.toFixed(2));
-
-interface ConsumerCapacity {
-  atCapacity: boolean;
-  capacity: number;
-  label: string;
-  /** Products whose demand decides how much this consumer runs. */
-  productIds: ResourceId[];
-  recipeNames: string[];
-  used: number;
-}
 
 export interface SurplusRootCause {
   /**
@@ -28,51 +23,6 @@ export interface SurplusRootCause {
   kind: "terminal" | "at-capacity" | "input-blocked" | "demand-met";
   detail: string | null;
 }
-
-const getConsumerCapacities = (
-  resourceId: ResourceId,
-  regularResults: RegularResult[],
-): ConsumerCapacity[] => {
-  const consumers = regularResults.filter((result) => (
-    result.activeBuildings > 0
-    && result.recipe.inputs.some((input) => input.resourceId === resourceId)
-  ));
-  const consumersByPool = new Map<string, { consumer: RegularResult; recipeNames: string[] }>();
-
-  for (const consumer of consumers) {
-    const poolId = consumer.capacityPoolId ?? `${consumer.moduleId}:${consumer.recipe.id}`;
-    const pool = consumersByPool.get(poolId);
-
-    if (pool) pool.recipeNames.push(consumer.recipe.name);
-    else consumersByPool.set(poolId, { consumer, recipeNames: [consumer.recipe.name] });
-  }
-
-  const productIdsOf = (consumer: RegularResult) => (
-    consumer.recipe.balanceOutputIds
-      ?? consumer.recipe.outputs.map((output) => output.resourceId)
-  );
-
-  return [...consumersByPool.values()].map(({ consumer, recipeNames }) => {
-    const capacityResults = consumer.capacityPoolId
-      ? regularResults.filter((result) => result.capacityPoolId === consumer.capacityPoolId)
-      : [consumer];
-    const capacity = consumer.capacityPoolId
-      ? Math.max(...capacityResults.map((result) => result.activeBuildings))
-      : consumer.activeBuildings;
-    const used = capacityResults.reduce((total, result) => (
-      total + result.activeBuildings * result.supplyRatio
-    ), 0);
-
-    return {
-      atCapacity: capacity > 0 && capacity - used <= BALANCE_THRESHOLD,
-      capacity,
-      label: consumer.recipe.sharedCapacity?.label ?? consumer.recipe.building,
-      productIds: productIdsOf(consumer),
-      recipeNames,
-      used,
-    };
-  });
-};
 
 const describeBlockedRoute = (route: BlockedSurplusRoute) => {
   const blocker = route.blockedBy
@@ -87,7 +37,7 @@ export const getSurplusRootCause = (
   regularResults: RegularResult[],
   blockedRoutes: BlockedSurplusRoute[] = [],
 ): SurplusRootCause => {
-  const consumers = getConsumerCapacities(resourceId, regularResults);
+  const consumers = getCapacityPools(resourceId, regularResults, "inputs");
 
   if (consumers.length === 0) return { kind: "terminal", detail: null };
 
@@ -104,23 +54,12 @@ export const getSurplusRootCause = (
   }
 
   if (consumers.every((consumer) => consumer.atCapacity)) {
-    const labelCounts = new Map<string, number>();
-
-    for (const consumer of consumers) {
-      labelCounts.set(consumer.label, (labelCounts.get(consumer.label) ?? 0) + 1);
-    }
+    const labels = getPoolLabels(consumers);
 
     return {
       kind: "at-capacity",
       detail: consumers
-        .map((consumer) => {
-          // Two pools of the same building type need the recipe to tell them apart.
-          const label = (labelCounts.get(consumer.label) ?? 0) > 1
-            ? consumer.recipeNames.join(", ")
-            : consumer.label;
-
-          return `${label} · at capacity ${formatQuantity(consumer.used)}/${formatQuantity(consumer.capacity)}`;
-        })
+        .map((consumer, index) => `${labels[index]} · ${describeCapacity(consumer)}`)
         .join(", "),
     };
   }
@@ -130,7 +69,10 @@ export const getSurplusRootCause = (
   const products = [...new Set(
     consumers
       .filter((consumer) => !consumer.atCapacity)
-      .flatMap((consumer) => consumer.productIds),
+      .flatMap((consumer) => (
+        consumer.lead.recipe.balanceOutputIds
+          ?? consumer.lead.recipe.outputs.map((output) => output.resourceId)
+      )),
   )].map((productId) => resources[productId].name);
 
   return {

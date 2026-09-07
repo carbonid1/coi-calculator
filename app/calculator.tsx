@@ -671,6 +671,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
             ...factoryResult.calculation.regularResults,
             ...linkedRegularResults,
           ]}
+          passiveResults={[
+            ...factoryResult.calculation.sourceResults,
+            ...factoryResult.calculation.sinkResults,
+          ]}
           blockedRoutes={factoryResult.calculation.blockedRoutes}
           buildingDiagnostics={factoryBuildingDiagnostics}
           machineAllocationIssues={sharedMachineAllocation.issues}
