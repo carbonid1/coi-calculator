@@ -6,11 +6,10 @@ import {
 } from "../calculate/calculate";
 import {
   type CapacityPool,
-  describeCapacity,
   describeCapacityFix,
   formatQuantity,
   getCapacityPools,
-  getPoolLabels,
+  type PoolResult,
 } from "../capacity-pools/capacity-pools";
 
 const BALANCE_THRESHOLD = 0.001;
@@ -25,7 +24,7 @@ export interface DeficitRootCause {
   detail: string;
 }
 
-/** Inputs of a producer with room that the factory leaves nothing spare of. */
+/** Confirmed deficits, rather than balanced inputs that could be produced on demand. */
 const getShortInputs = (
   resourceId: ResourceId,
   pool: CapacityPool,
@@ -36,10 +35,56 @@ const getShortInputs = (
     .filter((input) => {
       const flow = flows.find((candidate) => candidate.resourceId === input.resourceId);
 
-      return flow == null || flow.net <= BALANCE_THRESHOLD;
+      return flow != null && flow.net < -BALANCE_THRESHOLD;
     })
     .map((input) => resources[input.resourceId].name)
 );
+
+const getInputPriorities = (
+  resourceId: ResourceId,
+  producers: CapacityPool[],
+  results: PoolResult[],
+  flows: ResourceFlow[],
+) => {
+  const preferredProducts = new Map<ResourceId, Set<ResourceId>>();
+
+  for (const producer of producers) {
+    if (!producer.lead.recipe.yieldToSurplus) continue;
+
+    for (const input of producer.lead.recipe.inputs) {
+      const flow = flows.find(flow => flow.resourceId === input.resourceId);
+
+      if (flow && Math.abs(flow.net) > BALANCE_THRESHOLD) continue;
+
+      for (const consumer of results) {
+        if (consumer.recipe.group === "sink" || consumer.recipe.yieldToSurplus) continue;
+        if (
+          producer.lead.recipe.balanceInputScope === "module"
+          && producer.lead.moduleId !== consumer.moduleId
+        ) continue;
+        if (!consumer.actualInputs.some(actual => (
+          actual.resourceId === input.resourceId && actual.quantity > BALANCE_THRESHOLD
+        ))) continue;
+
+        const products = preferredProducts.get(input.resourceId) ?? new Set<ResourceId>();
+
+        for (const output of consumer.actualOutputs) {
+          if (output.resourceId === resourceId || output.quantity <= BALANCE_THRESHOLD) continue;
+          if (
+            consumer.recipe.balanceOutputIds?.length
+            && !consumer.recipe.balanceOutputIds.includes(output.resourceId)
+          ) continue;
+          products.add(output.resourceId);
+        }
+        if (products.size > 0) preferredProducts.set(input.resourceId, products);
+      }
+    }
+  }
+
+  return [...preferredProducts].map(([inputId, productIds]) => (
+    `${resources[inputId].name} prioritized for ${[...productIds].map(id => resources[id].name).join(", ")}`
+  ));
+};
 
 export const getDeficitRootCause = (
   resourceId: ResourceId,
@@ -76,21 +121,17 @@ export const getDeficitRootCause = (
     };
   }
 
-  const labels = getPoolLabels(producers);
+  const limitedProducers = producers.filter(producer => !producer.atCapacity);
+  const shortInputs = [...new Set(limitedProducers.flatMap(producer => (
+    getShortInputs(resourceId, producer, flows)
+  )))];
+  const details = [
+    ...(shortInputs.length > 0 ? [`${shortInputs.join(", ")} short`] : []),
+    ...getInputPriorities(resourceId, limitedProducers, results, flows),
+  ];
 
   return {
     kind: "input-limited",
-    detail: producers
-      .map((producer, index) => {
-        if (producer.atCapacity) return `${labels[index]} · ${describeCapacity(producer)}`;
-
-        const shortInputs = getShortInputs(resourceId, producer, flows);
-        const usage = `${formatQuantity(producer.used)}/${formatQuantity(producer.capacity)}`;
-
-        return shortInputs.length > 0
-          ? `${labels[index]} · ${shortInputs.join(", ")} short, ${usage}`
-          : `${labels[index]} · ${usage}`;
-      })
-      .join(", ") + suffix,
+    detail: (details.length > 0 ? details.join(" · ") : "Input supply limited") + suffix,
   };
 };

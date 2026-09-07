@@ -182,10 +182,53 @@ describe("NetSummary deficit diagnostics", () => {
         result("food-processor-meat", 0.41, { activeBuildings: 2, builtBuildings: 2 }),
         result("assembly-v-food-pack-meat", 1, { actualInputs: [{ resourceId: "meat", quantity: 8 }] }),
       ],
-      [flow("meat", 5, 8), flow("chickenCarcass", 20, 20), flow("water", 100, 80), flow("salt", 5, 5)],
+      [flow("meat", 5, 8), flow("chickenCarcass", 18, 20), flow("water", 100, 80), flow("salt", 5, 5)],
     )).toEqual({
       kind: "input-limited",
-      detail: "Food Processor · Chicken Carcass, Salt short, 0.82/2",
+      detail: "Chicken Carcass short",
+    });
+  });
+
+  it("summarizes repeated Graphite routes with the chosen CO2 priority", () => {
+    const graphite = result("chemical-plant-ii-graphite", 0.37, {
+      recipe: {
+        ...getRecipe("chemical-plant-ii-graphite"),
+        name: "GraphiteProductionCo2",
+        gameRecipeId: "GraphiteProductionCo2",
+      },
+    });
+
+    expect(getDeficitRootCause("graphite", [
+      result("chemical-plant-ii-graphite-coal", 0.71, {
+        activeBuildings: 3,
+        builtBuildings: 3,
+        actualInputs: [{ resourceId: "chlorine", quantity: 51 }],
+      }),
+      graphite,
+      { ...graphite, moduleId: "nuclear", supplyRatio: 0.69 },
+      result("chemical-plant-ii-ethanol", 0.8, {
+        actualInputs: [{ resourceId: "carbonDioxide", quantity: 90.19 }],
+        actualOutputs: [
+          { resourceId: "ethanol", quantity: 60.13 },
+          { resourceId: "water", quantity: 30.06 },
+        ],
+      }),
+      result("food-processor-meat", 1, {
+        actualInputs: [{ resourceId: "graphite", quantity: 57.57 }],
+      }),
+    ], [flow("graphite", 57.48, 57.57), flow("chlorine", 96, 101.44)])).toEqual({
+      kind: "input-limited",
+      detail: "Chlorine short · Carbon Dioxide prioritized for Ethanol",
+    });
+  });
+
+  it("does not call balanced or unreported inputs a confirmed shortage", () => {
+    expect(getDeficitRootCause("meat", [
+      result("food-processor-meat", 0.5),
+      result("assembly-v-food-pack-meat", 1, { actualInputs: [{ resourceId: "meat", quantity: 8 }] }),
+    ], [flow("meat", 5, 8), flow("salt", 5, 5)])).toEqual({
+      kind: "input-limited",
+      detail: "Input supply limited",
     });
   });
 
