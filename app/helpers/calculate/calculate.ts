@@ -507,6 +507,8 @@ export const calculateNet = (
     string,
     Partial<Record<ResourceId, number>>
   > = new Map(),
+  /** Part of `fixedDemands` that yields to every recipe, such as vehicle fuel. */
+  deferredDemands: Partial<Record<ResourceId, number>> = {},
 ) => {
   const effectivePlannedSupportingResourceIds = new Map<string, Set<ResourceId>>();
 
@@ -1435,6 +1437,26 @@ export const calculateNet = (
 
     return Math.max(0, afterDeficit - beforeDeficit);
   };
+  // Deferred demand (vehicle fuel) is served from what production leaves, so
+  // the guard measures a resource as if that demand were not there: a route
+  // may take it, and the shortfall then shows on fuel rather than the route.
+  const getDeferredDemand = (resourceId: ResourceId) => deferredDemands[resourceId] ?? 0;
+  const withoutDeferredDemand = (
+    resourceId: ResourceId,
+    flow: { consumed: number; produced: number } | undefined,
+  ) => (
+    flow && getDeferredDemand(resourceId) > 0
+      ? { consumed: flow.consumed - getDeferredDemand(resourceId), produced: flow.produced }
+      : flow
+  );
+  const getGlobalDeficitIncrease = (
+    resourceId: ResourceId,
+    before: { consumed: number; produced: number } | undefined,
+    after: { consumed: number; produced: number } | undefined,
+  ) => getDeficitIncrease(
+    withoutDeferredDemand(resourceId, before),
+    withoutDeferredDemand(resourceId, after),
+  );
   // Slack the finished factory is known to leave on a resource. Surplus routes
   // evaluated before late producers (surplus-allocated lines, sources) have
   // settled may draw on it instead of being refused for a deficit that the
@@ -1482,7 +1504,11 @@ export const calculateNet = (
     baseline: ReturnType<typeof snapshotAllocationState>,
   ) => {
     for (const [resourceId, allowance] of slackAllowance) {
-      const increase = getDeficitIncrease(baseline.flows.get(resourceId), flows.get(resourceId));
+      const increase = getGlobalDeficitIncrease(
+        resourceId,
+        baseline.flows.get(resourceId),
+        flows.get(resourceId),
+      );
 
       if (increase > 0) slackAllowance.set(resourceId, Math.max(0, allowance - increase));
     }
@@ -1507,7 +1533,8 @@ export const calculateNet = (
     const resourceIds = new Set([...baseline.flows.keys(), ...flows.keys()]);
 
     for (const resourceId of resourceIds) {
-      const globalIncrease = getDeficitIncrease(
+      const globalIncrease = getGlobalDeficitIncrease(
+        resourceId,
         baseline.flows.get(resourceId),
         flows.get(resourceId),
       );
@@ -1556,7 +1583,8 @@ export const calculateNet = (
     let blockedBy: BlockedSurplusRoute["blockedBy"] = null;
 
     for (const resourceId of new Set([...baseline.flows.keys(), ...flows.keys()])) {
-      const deficitIncrease = getDeficitIncrease(
+      const deficitIncrease = getGlobalDeficitIncrease(
+        resourceId,
         baseline.flows.get(resourceId),
         flows.get(resourceId),
       ) - getSlackAllowance(line, resourceId, baseline.flows.get(resourceId));
@@ -2283,7 +2311,9 @@ export const calculateNet = (
     const global = new Map<ResourceId, number>();
     const byModule = new Map<string, number>();
 
-    for (const [resourceId, flow] of flows) global.set(resourceId, flow.produced - flow.consumed);
+    for (const [resourceId, flow] of flows) {
+      global.set(resourceId, flow.produced - flow.consumed + getDeferredDemand(resourceId));
+    }
     for (const [key, flow] of actualModuleFlows) byModule.set(key, flow.produced - flow.consumed);
     for (const sink of sinkResults) {
       if (sink.actualOutputs.length > 0) continue;
@@ -2336,7 +2366,11 @@ export const calculateNet = (
     let leftShorter: BlockedSurplusRoute["blockedBy"] = null;
 
     for (const [resourceId, flow] of flows) {
-      const deficitIncrease = getDeficitIncrease(firstRun.flows.get(resourceId), flow);
+      const deficitIncrease = getGlobalDeficitIncrease(
+        resourceId,
+        firstRun.flows.get(resourceId),
+        flow,
+      );
 
       if (deficitIncrease > Math.max(10 * DEFICIT_TOLERANCE, leftShorter?.deficitIncrease ?? 0)) {
         leftShorter = { resourceId, deficitIncrease };

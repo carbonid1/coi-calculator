@@ -267,6 +267,8 @@ export const createNuclearModule = (
         fixedDemands: {
           hydrogen: hydrogenDemandPerCycle,
         },
+        // Vehicles refuel from what production leaves; a shortfall shows on fuel.
+        deferredDemandIds: ["hydrogen"],
         electricityDispatchTargets: {
           "fbr-turbines": generationTargetMw,
         },

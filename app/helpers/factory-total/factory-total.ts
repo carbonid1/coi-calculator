@@ -95,6 +95,7 @@ const calculateWithDispatch = (
     string,
     Partial<Record<ResourceId, number>>
   > = new Map(),
+  deferredDemands: Partial<Record<ResourceId, number>> = {},
 ) => {
   const groupsById = new Map<string, ElectricityDispatchGroup>();
   const prioritizedLines = lines.filter((line) => (
@@ -209,6 +210,7 @@ const calculateWithDispatch = (
       plannedSupportingResourceIds,
       moduleFixedDemands,
       moduleSuppliedResources,
+      deferredDemands,
     );
 
     calculation = currentCalculation;
@@ -565,6 +567,7 @@ const calculateWithDispatch = (
       plannedSupportingResourceIds,
       moduleFixedDemands,
       moduleSuppliedResources,
+      deferredDemands,
     );
     buildingStats = calculateBuildingStats(
       dispatchedLines,
@@ -600,6 +603,7 @@ export const calculateFactoryTotal = (
   const allLines: ProductionLine[] = [];
   const localResourceIds = new Set<ResourceId>();
   const fixedDemands: Partial<Record<ResourceId, number>> = {};
+  const deferredDemands: Partial<Record<ResourceId, number>> = {};
   const suppliedResources: Partial<Record<ResourceId, number>> = {
     ...boundarySupplies,
   };
@@ -640,6 +644,13 @@ export const calculateFactoryTotal = (
 
     for (const [resourceId, quantity] of typedEntries(presetDemands)) {
       fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
+    }
+    for (const resourceId of preset?.deferredDemandIds ?? []) {
+      const quantity = preset?.fixedDemands?.[resourceId] ?? 0;
+
+      if (quantity > 0) {
+        deferredDemands[resourceId] = (deferredDemands[resourceId] ?? 0) + quantity;
+      }
     }
     for (const [resourceId, quantity] of typedEntries(preset?.requestedImports ?? {})) {
       const plannedQuantity = Math.max(0, quantity);
@@ -739,6 +750,7 @@ export const calculateFactoryTotal = (
     plannedSupportingResourceIds,
     moduleFixedDemands,
     resolvedModuleSuppliedResources,
+    deferredDemands,
   );
   const demandSourceProduction = getDemandSourceProduction(
     withoutContracts.calculation,
@@ -798,6 +810,7 @@ export const calculateFactoryTotal = (
       plannedSupportingResourceIds,
       moduleFixedDemands,
       resolvedModuleSuppliedResources,
+      deferredDemands,
     );
   };
   const calculatePlanningFlowsWithContractExports = (
@@ -839,6 +852,7 @@ export const calculateFactoryTotal = (
       plannedSupportingResourceIds,
       moduleFixedDemands,
       resolvedModuleSuppliedResources,
+      deferredDemands,
     );
     const planningDemandSources = getDemandSourceProduction(
       planningDispatch.calculation,

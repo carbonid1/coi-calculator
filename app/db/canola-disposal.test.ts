@@ -231,3 +231,69 @@ it("gives Hydrogen to fallback Ammonia before Cooking Oil reforming for Diesel",
   expect(flow("hydrogen")?.net).toBeCloseTo(0);
   expect(reformerResult?.supplyRatio).toBeCloseTo(10 / 15);
 });
+
+it("lets Cooking Oil reforming claim Hydrogen ahead of deferred vehicle fuel demand", () => {
+  const hydrogenSource: Recipe = {
+    id: "test-hydrogen-source",
+    name: "Test Hydrogen Source",
+    building: "Test Source",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "hydrogen", quantity: 30 }],
+  };
+  const cookingOilSource: Recipe = {
+    id: "test-cooking-oil-source",
+    name: "Test Cooking Oil Source",
+    building: "Test Source",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "cookingOil", quantity: 30 }],
+  };
+  const ethanolProducer: Recipe = {
+    id: "test-ethanol-from-hydrogen",
+    name: "Test Ethanol Producer",
+    building: "Test Producer",
+    group: "production",
+    balanceBy: "output",
+    inputs: [{ resourceId: "hydrogen", quantity: 15 }],
+    outputs: [{ resourceId: "ethanol", quantity: 15 }],
+  };
+  const reformer = getRecipe("chemical-plant-ii-cooking-oil-diesel");
+  const lines = [
+    fixedLine(hydrogenSource),
+    fixedLine(cookingOilSource),
+    balancedLine(ethanolProducer),
+    balancedLine(reformer),
+  ];
+  const fuelDemand = { hydrogen: 25 };
+  const flowOf = (result: ReturnType<typeof calculateNet>, resourceId: string) => (
+    result.allResourceFlows.find((candidate) => candidate.resourceId === resourceId)
+  );
+  const reformerOf = (result: ReturnType<typeof calculateNet>) => (
+    result.regularResults.find((candidate) => candidate.recipe.id === reformer.id)
+  );
+
+  const blocked = calculateNet(lines, {}, undefined, {}, fuelDemand);
+
+  expect(reformerOf(blocked)?.supplyRatio).toBeCloseTo(5 / 15);
+  expect(flowOf(blocked, "hydrogen")?.net).toBeCloseTo(0);
+  expect(blocked.blockedRoutes.map((route) => route.blockedBy?.resourceId)).toEqual(["hydrogen"]);
+
+  const deferred = calculateNet(
+    lines,
+    {},
+    undefined,
+    {},
+    fuelDemand,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    fuelDemand,
+  );
+
+  expect(reformerOf(deferred)?.supplyRatio).toBeCloseTo(1);
+  expect(flowOf(deferred, "cookingOil")?.net).toBeCloseTo(0);
+  expect(flowOf(deferred, "hydrogen")?.net).toBeCloseTo(-10);
+  expect(deferred.blockedRoutes).toEqual([]);
+});

@@ -28,6 +28,11 @@ export interface Preset {
   speedLevels?: Record<string, number>;
   /** Manually measured resource use outside the currently modeled recipes. */
   fixedDemands?: Partial<Record<ResourceId, number>>;
+  /**
+   * Fixed demands served after every recipe (vehicle fuel). Production routes
+   * may claim the resource first; any shortfall lands on this demand.
+   */
+  deferredDemandIds?: ResourceId[];
   /** Planned product quantities imported directly into this module each production cycle. */
   requestedImports?: Partial<Record<ResourceId, number>>;
   /** Planned product quantities exported from this module each production cycle. */
