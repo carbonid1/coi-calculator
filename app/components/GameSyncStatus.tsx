@@ -5,6 +5,7 @@ import {
 } from "../game-state";
 
 interface Props {
+  calculationStatus?: "loading" | "updating" | "error" | "ready";
   exportedAtUtc: string | null;
   isFresh: boolean;
   snapshot: GameStateSnapshot | null;
@@ -32,23 +33,29 @@ const getStatusLabel = (
 };
 
 export const GameSyncStatus: React.FC<Props> = ({
+  calculationStatus = "ready",
   exportedAtUtc,
   isFresh,
   snapshot,
   source,
   status,
 }) => {
-  const isLive = source === "live" && isFresh;
-  const label = getStatusLabel(Boolean(snapshot), isLive, status);
+  const isLive = source === "live" && isFresh && calculationStatus === "ready";
+  let label = getStatusLabel(Boolean(snapshot), isLive, status);
+
+  if (calculationStatus === "loading") label = "Loading factory";
+  if (calculationStatus === "updating" || calculationStatus === "error") label = "Last result";
+  if (calculationStatus === "error" && !snapshot) label = "Factory unavailable";
 
   return (
     <p
+      role="status"
       className={isLive
         ? "min-h-4 whitespace-nowrap text-xs font-medium tabular-nums text-success sm:text-right"
         : "min-h-4 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:text-right"}
     >
       {label}
-      {snapshot && exportedAtUtc && (
+      {calculationStatus !== "loading" && snapshot && exportedAtUtc && (
         <>
           {" · "}
           <time dateTime={exportedAtUtc} suppressHydrationWarning>
@@ -56,6 +63,8 @@ export const GameSyncStatus: React.FC<Props> = ({
           </time>
         </>
       )}
+      {calculationStatus === "updating" && " · Updating…"}
+      {calculationStatus === "error" && snapshot && " · Update failed"}
     </p>
   );
 };

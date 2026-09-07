@@ -1,10 +1,11 @@
 'use client'
 
-import { Toaster, toast } from '@carbonid1/design-system'
+import { Button, Toaster, toast } from '@carbonid1/design-system'
 import { useEffect, useMemo, useState } from 'react'
 
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
 import { ContractsView } from './components/ContractsView'
+import { FactoryStartup } from './components/FactoryStartup'
 import { FocusView } from './components/FocusView'
 import { GameSyncStatus } from './components/GameSyncStatus'
 import { LiveAreaStatus } from './components/LiveAreaStatus'
@@ -43,7 +44,6 @@ import {
 import { calculateBuildingStats } from './helpers/building-stats/building-stats'
 import { type ProductionLine } from './helpers/calculate/calculate'
 import {
-  type CalculatorModel,
   deriveCalculatorModel,
 } from './helpers/calculator-model/derive-calculator-model'
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
@@ -75,13 +75,12 @@ const MODIFIERS_ID = 'modifiers'
 const VIEW_MODULE_IDS = [MINES_MODULE_ID, RESERVES_MODULE_ID] as const
 const MACHINE_ZONE_ASSIGNMENTS_KEY = 'coi-machine-zone-assignments-v1'
 
-const getFactoryCalculationInput = (model: CalculatorModel) => model.factoryCalculationInput
-
 interface Props {
   initialGameState: GameStateResult
+  calculationVersion: string
 }
 
-export const Calculator: React.FC<Props> = ({ initialGameState }) => {
+export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersion }) => {
   const gameState = useGameState(initialGameState)
   const { preferences: keepReadyPreferences, canSave: canSaveKeepReady, setKeepReady } = useKeepReadyPreferences(gameState.snapshot?.saveId)
   const changeKeepReady = canSaveKeepReady ? (diagnostic: BuildingDiagnostic, enabled: boolean) => {
@@ -109,6 +108,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   } : undefined
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID)
   const [machineZoneAssignments, setMachineZoneAssignments] = useState<MachineZoneAssignments>({})
+  const [loadedAssignmentsKey, setLoadedAssignmentsKey] = useState<string | null>(null)
   const [buildingTarget, setBuildingTarget] = useState<{
     key: string
     moduleId: string
@@ -126,22 +126,22 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         })
       : null
   ), [latestRevision, latestSnapshot, machineZoneAssignments])
-  const settled = useFactoryCalculation(
-    latestModel?.calculationRevision ?? null,
-    latestModel,
-    getFactoryCalculationInput,
-  )
   const groundwaterPumpClaimIds = (latestModel?.groundwaterPumpClaims ?? [])
     .map(claim => claim.id)
     .join('|')
   const machineZoneAssignmentsStorageKey = gameState.snapshot?.saveId
     ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
     : null
+  const { failed, retry, settled } = useFactoryCalculation(
+    loadedAssignmentsKey === machineZoneAssignmentsStorageKey ? latestModel : null,
+    calculationVersion,
+  )
 
   useEffect(() => {
     if (!machineZoneAssignmentsStorageKey) {
       const animationFrame = window.requestAnimationFrame(() => {
         setMachineZoneAssignments({})
+        setLoadedAssignmentsKey(null)
       })
 
       return () => window.cancelAnimationFrame(animationFrame)
@@ -175,8 +175,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
 
         setMachineZoneAssignments(assignments)
       } catch {
-        window.localStorage.removeItem(machineZoneAssignmentsStorageKey)
         setMachineZoneAssignments({})
+      } finally {
+        setLoadedAssignmentsKey(machineZoneAssignmentsStorageKey)
       }
     })
 
@@ -227,6 +228,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     }
   }, [activeModuleId, buildingTarget])
 
+  let calculationStatus: 'loading' | 'updating' | 'error' | 'ready' = 'ready'
+
+  if (!settled && latestSnapshot) calculationStatus = 'loading'
+  if (settled?.isStale) calculationStatus = 'updating'
+  if (failed) calculationStatus = 'error'
+  const displayedSnapshot = settled?.model.snapshot ?? gameState.snapshot
+
   const header = (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
       <div>
@@ -234,9 +242,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
         <p className="text-sm text-muted-foreground">Production Chain Calculator</p>
       </div>
       <GameSyncStatus
-        exportedAtUtc={gameState.exportedAtUtc}
+        calculationStatus={calculationStatus}
+        exportedAtUtc={settled?.isStale ? settled.model.snapshot.exportedAtUtc : gameState.exportedAtUtc}
         isFresh={gameState.isFresh}
-        snapshot={gameState.snapshot}
+        snapshot={failed && !settled ? null : displayedSnapshot}
         source={gameState.source}
         status={gameState.status}
       />
@@ -244,7 +253,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
   )
 
   if (!settled) {
-    return <div className="mx-auto max-w-7xl p-4 sm:p-5">{header}</div>
+    return (
+      <div className="mx-auto min-h-svh max-w-7xl space-y-4 p-4 sm:p-5">
+        {header}
+        <FactoryStartup failed={failed} hasSnapshot={Boolean(latestSnapshot)} onRetry={retry} />
+      </div>
+    )
   }
 
   const { factoryResult, linkedModulesResult } = settled.calculation
@@ -594,6 +608,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState }) => {
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
       <Toaster />
       {header}
+      {failed && <Button variant="ghost" onClick={retry}>Retry update</Button>}
 
       <ModuleSwitcher
         modules={configuredModules}

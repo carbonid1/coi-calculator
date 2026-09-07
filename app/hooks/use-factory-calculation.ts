@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
-import {
-  calculateFactoryCalculation,
-  type FactoryCalculation,
-  type FactoryCalculationInput,
-} from '../helpers/factory-calculation/factory-calculation'
+import { type CalculatorModel } from '../helpers/calculator-model/derive-calculator-model'
+import { type SavedFactoryCalculation } from '../helpers/factory-calculation/factory-calculation-cache'
 import {
   createCalculationScheduler,
   type CalculationScheduler,
@@ -13,129 +10,126 @@ import {
   type FactoryCalculationRequest,
   type FactoryCalculationResponse,
 } from '../helpers/factory-calculation/factory-calculation.worker'
-import { createLatestRevisionCache } from '../helpers/latest-revision-cache/latest-revision-cache'
-
-export interface SettledFactoryCalculation<Model> {
-  calculation: FactoryCalculation
-  /** True while a newer revision is still being solved off the main thread. */
-  isStale: boolean
-  model: Model
-  revision: string
-}
-
-interface SettledState<Model> {
-  calculation: FactoryCalculation
-  model: Model
-  revision: string
-}
-
-interface CalculationJob<Model> {
-  input: FactoryCalculationInput
-  model: Model
-}
-
-const getInitialCalculation = createLatestRevisionCache<FactoryCalculation>()
-
-const createWorker = () => {
-  if (typeof Worker === 'undefined') return null
-
-  try {
-    return new Worker(
-      new URL('../helpers/factory-calculation/factory-calculation.worker.ts', import.meta.url),
-    )
-  } catch {
-    return null
-  }
-}
 
 const calculateInWorker = (
   worker: Worker,
-  revision: string,
-  input: FactoryCalculationInput,
-) => new Promise<FactoryCalculation>((resolve, reject) => {
+  request: FactoryCalculationRequest,
+  onPreview: (result: SavedFactoryCalculation) => void,
+  signal: AbortSignal,
+) => new Promise<SavedFactoryCalculation>((resolve, reject) => {
   const cleanup = () => {
+    clearTimeout(timeout)
     worker.removeEventListener('message', onMessage)
     worker.removeEventListener('error', onError)
+    worker.removeEventListener('messageerror', onMessageError)
+    signal.removeEventListener('abort', onAbort)
+  }
+  const fail = (error: Error) => {
+    cleanup()
+    reject(error)
   }
   const onMessage = ({ data }: MessageEvent<FactoryCalculationResponse>) => {
-    if (data.revision !== revision) return
-    cleanup()
-    if (data.calculation) {
-      resolve(data.calculation)
-    } else {
-      reject(new Error(data.error))
+    if (data.revision !== request.revision) return
+    if (data.type === 'preview') {
+      onPreview(data.result)
+      return
     }
-  }
-  const onError = (event: ErrorEvent) => {
     cleanup()
-    reject(event.error instanceof Error ? event.error : new Error(event.message))
+    if (data.type === 'settled') resolve(data.result)
+    else reject(new Error(data.error))
   }
-  const request: FactoryCalculationRequest = { input, revision }
+  const onError = (event: ErrorEvent) => fail(new Error(event.message))
+  const onMessageError = () => fail(new Error('Could not read the worker result.'))
+  const onAbort = () => fail(new Error('Factory calculation cancelled.'))
+  const timeout = setTimeout(() => {
+    worker.terminate()
+    fail(new Error('Factory calculation timed out.'))
+  }, 120_000)
 
   worker.addEventListener('message', onMessage)
   worker.addEventListener('error', onError)
-  worker.postMessage(request)
+  worker.addEventListener('messageerror', onMessageError)
+  signal.addEventListener('abort', onAbort, { once: true })
+  try {
+    worker.postMessage(request)
+  } catch (error) {
+    fail(error instanceof Error ? error : new Error(String(error)))
+  }
 })
 
-/**
- * Keeps the factory solved for the latest `revision` without blocking the UI.
- * The first revision is solved synchronously so server and client render the
- * same markup. Later revisions are solved in a Web Worker while the previous
- * model and calculation stay on screen, then both swap together.
- */
-export const useFactoryCalculation = <Model>(
-  revision: string | null,
-  model: Model | null,
-  getInput: (model: Model) => FactoryCalculationInput,
-): SettledFactoryCalculation<Model> | null => {
-  const [settled, setSettled] = useState<SettledState<Model> | null>(() => (
-    revision !== null && model !== null
-      ? {
-          calculation: getInitialCalculation(
-            revision,
-            () => calculateFactoryCalculation(getInput(model)),
-          ),
-          model,
-          revision,
-        }
-      : null
-  ))
-  const schedulerRef = useRef<CalculationScheduler<CalculationJob<Model>> | null>(null)
+/** Restore/solve only in the worker; never run the solver during SSR or hydration. */
+export const useFactoryCalculation = (model: CalculatorModel | null, version: string) => {
+  const [settled, setSettled] = useState<SavedFactoryCalculation | null>(null)
+  const [failureKey, setFailureKey] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  const schedulerRef = useRef<CalculationScheduler<CalculatorModel> | null>(null)
+  const saveId = model?.snapshot.saveId ?? null
+  const revision = model?.calculationRevision ?? null
+  const requestKey = `${saveId}:${version}:${attempt}`
+  const failed = failureKey === requestKey
 
   useEffect(() => {
-    const worker = createWorker()
-    const scheduler = createCalculationScheduler<CalculationJob<Model>, FactoryCalculation>({
-      calculate: (jobRevision, job) => (
-        worker
-          ? calculateInWorker(worker, jobRevision, job.input)
-          : Promise.resolve(calculateFactoryCalculation(job.input))
+    if (!saveId) return
+    let worker: Worker | undefined
+    let disposed = false
+    const controller = new AbortController()
+    const reportError = (error: unknown) => {
+      if (disposed) return
+      console.error('Factory calculation failed.', error)
+      schedulerRef.current?.dispose()
+      setFailureKey(requestKey)
+    }
+
+    try {
+      worker = new Worker(
+        new URL('../helpers/factory-calculation/factory-calculation.worker.ts', import.meta.url),
+      )
+    } catch (error) {
+      // Do not fall back to freezing the main thread if workers are unavailable.
+      const timer = setTimeout(() => reportError(error), 0)
+
+      return () => { disposed = true; clearTimeout(timer) }
+    }
+
+    const activeWorker = worker
+    const scheduler = createCalculationScheduler<CalculatorModel, SavedFactoryCalculation>({
+      calculate: (jobRevision, jobModel) => calculateInWorker(
+        activeWorker,
+        { model: jobModel, revision: jobRevision, version },
+        preview => {
+          if (!disposed) setSettled(current => current?.model.snapshot.saveId === saveId && current.version === version ? current : preview)
+        },
+        controller.signal,
       ),
-      onError: (_jobRevision, error) => {
-        console.error('Factory calculation failed off the main thread.', error)
-      },
-      onSettled: (jobRevision, job, calculation) => {
-        setSettled({ calculation, model: job.model, revision: jobRevision })
+      onError: (_revision, error) => reportError(error),
+      onSettled: (_revision, _model, result) => {
+        setFailureKey(null)
+        setSettled(result)
       },
     })
 
     schedulerRef.current = scheduler
-
     return () => {
+      disposed = true
       scheduler.dispose()
       schedulerRef.current = null
-      worker?.terminate()
+      controller.abort()
+      activeWorker.terminate()
     }
-  }, [])
+  }, [attempt, requestKey, saveId, version])
 
   useEffect(() => {
-    if (revision === null || model === null) return
-    if (settled?.revision === revision) return
+    if (!model || !revision || failed) return
+    if (settled?.revision === revision && settled.version === version && settled.model.snapshot.saveId === saveId) return
+    schedulerRef.current?.request(revision, model)
+  }, [attempt, failed, model, revision, saveId, settled, version])
 
-    // Re-requesting the revision already in flight is a no-op in the scheduler.
-    schedulerRef.current?.request(revision, { input: getInput(model), model })
-  }, [getInput, model, revision, settled?.revision])
+  // A save switch or code update must never show another factory's old results.
+  const visible = settled?.model.snapshot.saveId === saveId && settled.version === version ? settled : null
 
-  if (!settled) return null
-
-  return { ...settled, isStale: settled.revision !== revision }
+  return {
+    failed,
+    retry: () => setAttempt(current => current + 1),
+    settled: visible ? { ...visible, isStale: visible.revision !== revision } : null,
+  }
 }
