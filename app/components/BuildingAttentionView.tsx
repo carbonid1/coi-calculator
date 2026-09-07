@@ -5,6 +5,7 @@ import {
   type BuildingAttention,
   type BuildingDiagnostic,
 } from '../helpers/building-diagnostics/building-diagnostics'
+import { formatInputShortage } from '../helpers/diagnostic-display/diagnostic-display'
 import { KeepReadyMenu, type KeepReadyChange } from './KeepReadyMenu'
 
 interface Props {
@@ -118,7 +119,7 @@ const getAttentionStatus = (diagnostic: BuildingDiagnostic) => {
   }
 
   if (diagnostic.attention === 'rebalance-farms') {
-    return `${diagnostic.affectedResources.join(', ')} short`
+    return formatInputShortage(diagnostic.affectedResources)
   }
 
   if (diagnostic.animalPopulation) {

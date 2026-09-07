@@ -2,6 +2,7 @@
 
 import { Button } from "@carbonid1/design-system";
 import {
+  ArrowLeftRight,
   ChartPie,
   Factory,
   FlaskConical,
@@ -19,6 +20,7 @@ interface Props {
   active: string;
   contractsId: string;
   factoryTotalId: string;
+  resourceSupplyId: string;
   focusId: string;
   modifiersId: string;
   onChange: (id: string) => void;
@@ -60,6 +62,7 @@ export const ModuleSwitcher: React.FC<Props> = ({
   active,
   contractsId,
   factoryTotalId,
+  resourceSupplyId,
   focusId,
   modifiersId,
   onChange,
@@ -101,6 +104,13 @@ export const ModuleSwitcher: React.FC<Props> = ({
           onClick={() => onChange(factoryTotalId)}
         >
           Factory Total
+        </SwitchButton>
+        <SwitchButton
+          active={active === resourceSupplyId}
+          icon={ArrowLeftRight}
+          onClick={() => onChange(resourceSupplyId)}
+        >
+          Resource supply
         </SwitchButton>
         <SwitchButton
           active={active === modifiersId}

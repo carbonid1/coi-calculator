@@ -17,6 +17,7 @@ import { NetSummary } from './components/NetSummary'
 import { RecipeCard } from './components/RecipeCard'
 import { InfiniteResearchSettings, ResearchSettings } from './components/ResearchSettings'
 import { ReservesView } from './components/ReservesView'
+import { ResourceSupplyView } from './components/ResourceSupplyView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
 import { StationCardGroup } from './components/StationCardGroup'
@@ -72,6 +73,7 @@ const groupLabels: Record<RecipeGroup, string> = {
 const groupOrder: RecipeGroup[] = ['source', 'electricity', 'production', 'waste', 'sink']
 
 const FACTORY_TOTAL_ID = 'factory-total'
+const RESOURCE_SUPPLY_ID = 'resource-supply'
 const CONTRACTS_ID = 'contracts'
 const MODIFIERS_ID = 'modifiers'
 const VIEW_MODULE_IDS = [MINES_MODULE_ID, RESERVES_MODULE_ID] as const
@@ -317,10 +319,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const isModifiers = activeModuleId === MODIFIERS_ID
   const isContracts = activeModuleId === CONTRACTS_ID
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID
+  const isResourceSupply = activeModuleId === RESOURCE_SUPPLY_ID
   const isFocus = activeModuleId === FOCUS_DASHBOARD_ID
   const isResearch = activeModuleId === RESEARCH_MODULE_ID
   const activeModule =
-    isModifiers || isContracts || isFactoryTotal || isFocus || isResearch
+    isModifiers || isContracts || isFactoryTotal || isFocus || isResearch || isResourceSupply
       ? null
       : (configuredModules.find(m => m.id === activeModuleId) ?? configuredModules[0])
   const preset =
@@ -624,6 +627,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         modifiersId={MODIFIERS_ID}
         contractsId={CONTRACTS_ID}
         factoryTotalId={FACTORY_TOTAL_ID}
+        resourceSupplyId={RESOURCE_SUPPLY_ID}
         focusId={FOCUS_DASHBOARD_ID}
         onChange={setActiveModuleId}
         researchId={RESEARCH_MODULE_ID}
@@ -712,6 +716,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           onOpenBuilding={openBuilding}
           onKeepReadyChange={changeKeepReady}
         />
+      )}
+
+      {isResourceSupply && (
+        <ResourceSupplyView modules={configuredModules} calculation={settled.calculation} />
       )}
 
       {isResearch && (

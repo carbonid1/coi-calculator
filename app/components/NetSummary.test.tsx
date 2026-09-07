@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 
+import { recipes } from "../db/recipes";
 import { type RegularResult } from "../helpers/calculate/calculate";
 
 vi.mock("@carbonid1/design-system", () => ({
@@ -17,6 +18,78 @@ vi.mock("./BuildingAttentionView", () => ({ BuildingAttentionView: () => null })
 vi.mock("./PlannedBuildsView", () => ({ PlannedBuildsView: () => null }));
 
 import { NetSummary } from "./NetSummary";
+
+it("renders the concise Graphite explanation without repeated producer labels or false shortages", () => {
+  const makeResult = (id: string, supplyRatio: number, overrides: Partial<RegularResult> = {}): RegularResult => {
+    const recipe = recipes.find(candidate => candidate.id === id);
+
+    if (!recipe) throw new Error(`Missing recipe: ${id}`);
+
+    return {
+      recipe, moduleId: "general", activeBuildings: 1, builtBuildings: 1,
+      operatingMode: "balanced", supplyRatio, speedLevel: 1,
+      actualInputs: [], actualOutputs: [], recyclableSourceValueProduced: 0,
+      ...overrides,
+    };
+  };
+  const graphite = makeResult("chemical-plant-ii-graphite", 0.37);
+
+  graphite.recipe = { ...graphite.recipe, name: "GraphiteProductionCo2", gameRecipeId: "GraphiteProductionCo2" };
+
+  const html = renderToStaticMarkup(
+    <NetSummary
+      groupByBalance
+      flows={[
+        { resourceId: "graphite", name: "Graphite", produced: 57.48, consumed: 57.57, net: -0.09 },
+        { resourceId: "chlorine", name: "Chlorine", produced: 96, consumed: 101.44, net: -5.44 },
+        { resourceId: "coal", name: "Coal", produced: 8, consumed: 8, net: 0 },
+      ]}
+      regularResults={[
+        makeResult("chemical-plant-ii-graphite-coal", 0.71),
+        graphite, { ...graphite, moduleId: "nuclear", supplyRatio: 0.69 },
+        makeResult("chemical-plant-ii-ethanol", 0.8, {
+          actualInputs: [{ resourceId: "carbonDioxide", quantity: 90.19 }],
+          actualOutputs: [{ resourceId: "ethanol", quantity: 60.13 }],
+        }),
+        makeResult("food-processor-meat", 1, {
+          actualInputs: [{ resourceId: "graphite", quantity: 57.57 }],
+        }),
+      ]}
+    />,
+  );
+
+  expect(html.match(/Chlorine short · Carbon Dioxide prioritized for Ethanol/g)).toHaveLength(1);
+  expect(html).not.toContain("GraphiteProduction");
+  expect(html).not.toContain("Coal short");
+  expect(html).not.toContain("Carbon Dioxide short");
+  expect(html).not.toContain("0.37/1");
+});
+
+it.each([true, false])("renders blocked-surplus requirements consistently in summary mode %s", groupByBalance => {
+  const recipe = recipes.find(candidate => candidate.id === "food-processor-meat");
+
+  if (!recipe) throw new Error("Missing food processor recipe");
+
+  const html = renderToStaticMarkup(
+    <NetSummary
+      groupByBalance={groupByBalance}
+      flows={[{ resourceId: "chickenCarcass", name: "Chicken Carcass", produced: 20, consumed: 10, net: 10 }]}
+      regularResults={[{
+        recipe, moduleId: "general", activeBuildings: 1, builtBuildings: 1,
+        operatingMode: "balanced", supplyRatio: 0.5, speedLevel: 1,
+        actualInputs: [], actualOutputs: [], recyclableSourceValueProduced: 0,
+      }]}
+      blockedRoutes={[{
+        recipe, moduleId: "general", activeBuildings: 1, surplusResourceIds: ["chickenCarcass"],
+        wantedRatio: 1, appliedRatio: 0.5, blockedBy: { resourceId: "water", deficitIncrease: 10.65 },
+      }]}
+    />,
+  );
+
+  expect(html).toContain("Chicken Carcass → Meat + Trimmings · needs 10.65 more Water");
+  expect(html).not.toContain("Water short");
+  expect(html).not.toContain("Food Processor (");
+});
 
 it.each([1, 0.5])("shows an area surplus bottleneck only when its converter is full (load %s)", supplyRatio => {
   const result: RegularResult = {

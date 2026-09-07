@@ -105,6 +105,9 @@ export const calculateFactoryCalculation = ({
   })
   const resolvedLinkedModulesResult = {
     ...rawLinkedModulesResult,
+    boundaries: rawLinkedModulesResult.boundaries.filter(boundary => (
+      !pooledLinkSources.sourceModuleIds.has(boundary.moduleId)
+    )),
     moduleResults: new Map(
       [...rawLinkedModulesResult.moduleResults].filter(([moduleId]) => (
         !pooledLinkSources.sourceModuleIds.has(moduleId)

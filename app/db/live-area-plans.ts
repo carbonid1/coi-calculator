@@ -1,7 +1,7 @@
 import { type ResourceId } from './resources'
 
 interface LiveAreaPlan {
-  /** Resource ledger used by this synced area. Omitted areas remain isolated. */
+  /** Solve with the factory pool. Omitted areas solve locally before exchanging their boundary flows. */
   resourcePool?: 'factory'
   requestedImports?: Partial<Record<ResourceId, number>>
   requestedExports?: Partial<Record<ResourceId, number>>

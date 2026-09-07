@@ -66,4 +66,57 @@ describe("recipe display names", () => {
     expect(recipe).toBeDefined();
     expect(getRecipeDisplayName(recipe!)).toBe("Impure Copper + Acid → Copper");
   });
+
+  it("prefers the readable name when a game ID is also present", () => {
+    expect(getRecipeDisplayName({
+      building: "Chemical Plant II", gameRecipeId: "GraphiteProductionCo2",
+      name: "Graphite from Carbon Dioxide",
+    })).toBe("Graphite from Carbon Dioxide");
+  });
+
+  it.each([
+    ["GraphiteProduction", "coal", "Coal"],
+    ["GraphiteProductionCo2", "carbonDioxide", "Carbon Dioxide"],
+  ])("uses materials to distinguish the ID-only %s route", (name, resourceId, inputName) => {
+    expect(getRecipeDisplayName({
+      building: "Chemical Plant II", gameRecipeId: name, name,
+      inputs: [{ resourceId, quantity: 1 }],
+      outputs: [{ resourceId: "graphite", quantity: 1 }],
+    })).toBe(`${inputName} → Graphite`);
+  });
+
+  it.each([undefined, "SomeOtherId"])("recognizes an ID-like name without a matching game ID (%s)", gameRecipeId => {
+    expect(getRecipeDisplayName({
+      building: "Chemical Plant II", name: "GraphiteProductionCo2", gameRecipeId,
+      outputs: [{ resourceId: "graphite", quantity: 1 }],
+    })).toBe("Graphite");
+  });
+
+  it("labels sources, sinks and missing materials without exposing IDs", () => {
+    expect(getRecipeDisplayName({
+      building: "Smoke stack (large)", name: "SmokeStackOxygen",
+      inputs: [{ resourceId: "oxygen", quantity: 10 }],
+    })).toBe("Oxygen");
+    expect(getRecipeDisplayName({
+      building: "Seawater Pump", name: "OceanWaterPumping",
+      outputs: [{ resourceId: "seaWater", quantity: 10 }],
+    })).toBe("Sea Water");
+    expect(getRecipeDisplayName({
+      building: "Chemical Plant II", name: "Unknown_Game_Recipe", displayName: " ",
+    })).toBe("Chemical Plant II");
+  });
+
+  it("keeps meaningful parentheses in a product name", () => {
+    expect(getRecipeDisplayName({
+      building: "Mixer II", name: "Fertilizer (Organic)",
+    })).toBe("Fertilizer (Organic)");
+  });
+
+  it("recognizes IDs inside a legacy building-prefixed label", () => {
+    expect(getRecipeDisplayName({
+      building: "Chemical Plant II", name: "Chemical Plant II (GraphiteProductionCo2)",
+      inputs: [{ resourceId: "carbonDioxide", quantity: 144 }],
+      outputs: [{ resourceId: "graphite", quantity: 6 }],
+    })).toBe("Carbon Dioxide → Graphite");
+  });
 });

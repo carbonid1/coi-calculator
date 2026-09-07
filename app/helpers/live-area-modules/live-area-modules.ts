@@ -12,10 +12,8 @@ import {
   type Ingredient,
   type Recipe,
 } from '../../db/recipes'
-import {
-  getLinkedOnlyLiveModuleInputIds,
-  getSurplusConsumptionSettings,
-} from '../../db/resource-disposition'
+import { getSurplusConsumptionSettings } from '../../db/resource-disposition'
+import { getConnectionOnlyResourceIds } from '../../db/resource-supply'
 import { resources, type ResourceId } from '../../db/resources'
 import { runtimeRecipeBehaviors, runtimeRecipePriorities } from '../../db/runtime-recipe-behaviors'
 import {
@@ -24,6 +22,7 @@ import {
   type SyncedLogisticsZoneRef,
   type SyncedMineTower,
 } from '../../game-state'
+import { formatDiagnosticMessages } from '../diagnostic-display/diagnostic-display'
 import { inferModuleCapabilities } from '../module-capabilities/module-capabilities'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
 
@@ -434,9 +433,16 @@ export const createLiveAreaModules = (
           issues,
           `${group.prototypeId}:${group.recipe.id}:products`,
           group.prototypeName,
-          `Recipe “${group.recipe.name}” uses unsupported products: ${[
-            ...new Set(missingProducts.map(product => product.name)),
-          ].join(', ')}.`,
+          formatDiagnosticMessages([{
+            kind: 'unsupported-products',
+            recipe: {
+              building: group.prototypeName,
+              gameRecipeId: group.recipe.id,
+              name: group.recipe.name,
+              displayName: runtimeRecipeBehaviors[getGameRecipeKey(group.prototypeId, group.recipe.id)]?.displayName,
+            },
+            productNames: missingProducts.map(product => product.name),
+          }]),
           group.built + group.planned,
         )
         continue
@@ -624,7 +630,7 @@ export const createLiveAreaModules = (
     const balancedLiveRecipes = liveRecipes.map(recipe => {
       if (recipe.group === 'source') return recipe
 
-      const linkedOnlyInputIds = getLinkedOnlyLiveModuleInputIds(
+      const linkedOnlyInputIds = getConnectionOnlyResourceIds(
         recipe.inputs.map(input => input.resourceId),
       )
       const terrainInputIds =

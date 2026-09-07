@@ -1,15 +1,15 @@
-import { type ResourceId, resources } from "../../db/resources";
+import { type ResourceId } from "../../db/resources";
 import {
   type BlockedSurplusRoute,
   type PassiveResult,
   type RegularResult,
 } from "../calculate/calculate";
 import {
-  describeCapacityFix,
-  formatQuantity,
+  getCapacityActions,
   getCapacityPools,
   type PoolResult,
 } from "../capacity-pools/capacity-pools";
+import { formatDiagnosticMessages } from "../diagnostic-display/diagnostic-display";
 
 const BALANCE_THRESHOLD = 0.001;
 
@@ -24,14 +24,6 @@ export interface SurplusRootCause {
   kind: "terminal" | "at-capacity" | "input-blocked" | "demand-met";
   detail: string | null;
 }
-
-const describeBlockedRoute = (route: BlockedSurplusRoute) => {
-  const blocker = route.blockedBy
-    ? `${resources[route.blockedBy.resourceId].name} short by ${formatQuantity(route.blockedBy.deficitIncrease)}`
-    : "another input short";
-
-  return `${route.recipe.name} · ${blocker}`;
-};
 
 const getModuleNet = (moduleId: string, resourceId: ResourceId, results: PoolResult[]) => (
   results
@@ -116,14 +108,18 @@ export const getSurplusRootCause = (
   if (blocked.length > 0) {
     return {
       kind: "input-blocked",
-      detail: blocked.map(describeBlockedRoute).join(", "),
+      detail: formatDiagnosticMessages(blocked.map(route => ({
+        kind: "blocked-route", recipe: route.recipe, blockedBy: route.blockedBy,
+      }))),
     };
   }
 
   if (consumers.every((consumer) => consumer.atCapacity)) {
     return {
       kind: "at-capacity",
-      detail: describeCapacityFix(consumers, resourceId, "inputs", surplus),
+      detail: formatDiagnosticMessages([
+        { kind: "capacity", actions: getCapacityActions(consumers, resourceId, "inputs", surplus) },
+      ]),
     };
   }
 
@@ -134,10 +130,10 @@ export const getSurplusRootCause = (
       .filter((consumer) => !consumer.atCapacity)
       .flatMap((consumer) => getProducts(consumer.lead))
       .flatMap((productId) => getEndProducts(productId, results)),
-  )].map((productId) => resources[productId].name);
+  )];
 
   return {
     kind: "demand-met",
-    detail: products.length > 0 ? `${products.join(", ")} demand met` : "Demand met",
+    detail: formatDiagnosticMessages([{ kind: "demand-met", productIds: products }]),
   };
 };
