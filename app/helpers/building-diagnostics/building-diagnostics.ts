@@ -1,14 +1,14 @@
 import { getBuildingData } from "../../db/buildings";
 import { type Module } from "../../db/modules/modules";
 import { isUnboundedDemandSourceMode } from "../../db/recipes";
-import { type ResourceId } from "../../db/resources";
+import { type ResourceId, resources } from "../../db/resources";
 import {
   type PassiveResult,
   type RegularResult,
   type ResourceFlow,
 } from "../calculate/calculate";
 import { getKeepReadyPreferenceKey, type KeepReadyPreferences } from "../keep-ready-preferences/keep-ready-preferences";
-import { getRecipeDisplayName } from "../recipe-display/recipe-display";
+import { getRecipeGroupDisplayName } from "../recipe-display/recipe-display";
 
 export type BuildingAttention =
   | "add-animals"
@@ -65,24 +65,6 @@ const getBuildingKey = (result: Result) => (
 const isRegularResult = (result: Result): result is RegularResult => (
   "operatingMode" in result
 );
-
-const getDiagnosticRecipeName = (results: Result[]) => {
-  const first = results[0];
-
-  if (!first) return "Recipe";
-
-  const sharedLabel = first.recipe.sharedCapacity?.label;
-
-  if (sharedLabel) {
-    const buildingPrefix = `${first.recipe.building} — `;
-
-    return sharedLabel.startsWith(buildingPrefix)
-      ? sharedLabel.slice(buildingPrefix.length)
-      : sharedLabel;
-  }
-
-  return [...new Set(results.map(({ recipe }) => getRecipeDisplayName(recipe)))].join(" / ");
-};
 
 const roundUpToStep = (value: number, step: number) => (
   Math.ceil(Math.max(0, value - EPSILON) / step) * step
@@ -284,7 +266,7 @@ export const calculateBuildingDiagnostics = (
         buildingName: isRegularResult(first)
           ? first.recipe.sharedCapacity?.label ?? first.recipe.building
           : first.recipe.building,
-        recipeName: getDiagnosticRecipeName(results),
+        recipeName: getRecipeGroupDisplayName(results.map(result => result.recipe)),
         plannedCapacity,
         load: animalDiagnostic.animalPopulation.current
           / (first.recipe.animalPopulationCapacity ?? 1),
@@ -294,7 +276,7 @@ export const calculateBuildingDiagnostics = (
         attentionCount: animalDiagnostic.attentionCount,
         animalPopulation: animalDiagnostic.animalPopulation,
         affectedResources: animalDiagnostic.affectedResourceIds.map(
-          (resourceId) => flowsById.get(resourceId)?.name ?? resourceId,
+          (resourceId) => resources[resourceId].name,
         ),
       };
     }
@@ -386,7 +368,7 @@ export const calculateBuildingDiagnostics = (
       buildingName: isRegularResult(first)
         ? first.recipe.sharedCapacity?.label ?? first.recipe.building
         : first.recipe.building,
-      recipeName: getDiagnosticRecipeName(results),
+      recipeName: getRecipeGroupDisplayName(results.map(result => result.recipe)),
       plannedCapacity,
       keepReady,
       load,
@@ -395,7 +377,7 @@ export const calculateBuildingDiagnostics = (
       attention,
       attentionCount,
       affectedResources: [...affectedResourceIds].map(
-        (resourceId) => flowsById.get(resourceId)?.name ?? resourceId,
+        (resourceId) => resources[resourceId].name,
       ),
     };
   });

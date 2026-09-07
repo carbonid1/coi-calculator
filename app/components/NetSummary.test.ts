@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { recipes } from "../db/recipes";
-import { type PassiveResult, type RegularResult } from "../helpers/calculate/calculate";
+import { type BlockedSurplusRoute, type PassiveResult, type RegularResult } from "../helpers/calculate/calculate";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
 import { isReportedFactoryDeficit } from "./net-summary-flows";
@@ -81,8 +81,32 @@ describe("NetSummary capacity diagnostics", () => {
       }],
     )).toEqual({
       kind: "input-blocked",
-      detail: "Food Processor (Chicken Carcass → Meat + Trimmings) · Water short by 10.65",
+      detail: "Chicken Carcass → Meat + Trimmings · needs 10.65 more Water",
     });
+  });
+
+  it("deduplicates repeated blocked routes and labels ID-only recipes by their materials", () => {
+    const graphite = result("chemical-plant-ii-graphite-coal", 0.5);
+    const route: BlockedSurplusRoute = {
+      recipe: { ...graphite.recipe, displayName: undefined, name: "GraphiteProduction", gameRecipeId: "GraphiteProduction" },
+      moduleId: "general", activeBuildings: 1, surplusResourceIds: ["coal"],
+      wantedRatio: 1, appliedRatio: 0.5,
+      blockedBy: { resourceId: "chlorine", deficitIncrease: 12 },
+    };
+
+    expect(getSurplusRootCause("coal", [graphite], [route, { ...route, moduleId: "nuclear" }]))
+      .toEqual({
+        kind: "input-blocked",
+        detail: "Coal + Chlorine → Graphite + Sour Water · needs 12 more Chlorine",
+      });
+    expect(getSurplusRootCause("coal", [graphite], [{ ...route, blockedBy: null }]))
+      .toEqual({
+        kind: "input-blocked",
+        detail: "Coal + Chlorine → Graphite + Sour Water · Input supply limited",
+      });
+    expect(getSurplusRootCause("coal", [graphite], [{
+      ...route, blockedBy: { resourceId: "chlorine", deficitIncrease: 0.004 },
+    }]).detail).toBe("Coal + Chlorine → Graphite + Sour Water · needs 0.004 more Chlorine");
   });
 
   it("does not blame a module-scoped consumer whose module has nothing left over", () => {
@@ -143,6 +167,15 @@ describe("NetSummary capacity diagnostics", () => {
       kind: "demand-met",
       detail: "Meat demand met",
     });
+  });
+
+  it("keeps branching surplus explanations short instead of listing the factory", () => {
+    expect(getSurplusRootCause("water", [
+      result("food-processor-meat", 0.5),
+      result("food-processor-sugar", 0.5),
+      result("food-processor-tofu", 0.5),
+      result("baking-unit-bread", 0.5),
+    ]).detail).toBe("Product demand met");
   });
 });
 
@@ -230,6 +263,44 @@ describe("NetSummary deficit diagnostics", () => {
       kind: "input-limited",
       detail: "Input supply limited",
     });
+  });
+
+  it("finds shortages on every relevant recipe in a shared pool", () => {
+    const coal = result("chemical-plant-ii-graphite-coal", 0.2, { capacityPoolId: "graphite" });
+    const co2 = result("chemical-plant-ii-graphite", 0.3, { capacityPoolId: "graphite" });
+
+    for (const producers of [[coal, co2], [co2, coal]]) {
+      expect(getDeficitRootCause("graphite", producers, [flow("carbonDioxide", 0, 1)]))
+        .toEqual({ kind: "input-limited", detail: "Carbon Dioxide short" });
+    }
+  });
+
+  it("ignores balanced, surplus and rounding-level input balances", () => {
+    expect(getDeficitRootCause("meat", [result("food-processor-meat", 0.5)], [
+      flow("chickenCarcass", 1, 1), flow("salt", 1, 1.0005), flow("water", 2, 1),
+    ])).toEqual({ kind: "input-limited", detail: "Input supply limited" });
+  });
+
+  it("ignores uninstalled recipes when attributing a shared pool's shortage", () => {
+    expect(getDeficitRootCause("graphite", [
+      result("chemical-plant-ii-graphite", 0.5, { capacityPoolId: "graphite" }),
+      result("chemical-plant-ii-graphite-coal", 0, {
+        capacityPoolId: "graphite", activeBuildings: 0, builtBuildings: 0,
+      }),
+    ], [flow("chlorine", 0, 10)])).toEqual({ kind: "input-limited", detail: "Input supply limited" });
+  });
+
+  it("does not attribute module-local inputs to production in a different area", () => {
+    const graphite = result("chemical-plant-ii-graphite", 0.5);
+
+    expect(getDeficitRootCause("graphite", [
+      { ...graphite, recipe: { ...graphite.recipe, balanceInputScope: "module" } },
+      result("chemical-plant-ii-ethanol", 1, {
+        moduleId: "elsewhere",
+        actualInputs: [{ resourceId: "carbonDioxide", quantity: 10 }],
+        actualOutputs: [{ resourceId: "ethanol", quantity: 10 }],
+      }),
+    ], [])).toEqual({ kind: "input-limited", detail: "Input supply limited" });
   });
 
   it("separates consumption no recipe accounts for", () => {

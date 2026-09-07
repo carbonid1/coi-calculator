@@ -7,6 +7,7 @@ import { calculateBuildingStats } from '../building-stats/building-stats'
 import { calculateNet } from '../calculate/calculate'
 import { parseKeepReadyPreferences } from '../keep-ready-preferences/keep-ready-preferences'
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
+import { getRecipeDisplayName } from '../recipe-display/recipe-display'
 import {
   createLiveAreaModules,
   DEFAULT_LIVE_AREA_ZONE_ID,
@@ -43,6 +44,38 @@ const entity = (
 })
 
 describe('createLiveAreaModules', () => {
+  it('keeps exported IDs for matching while displaying readable recipe and building diagnostics', () => {
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [
+      entity(1, true, true, [{ ...recipe, name: recipe.id }]),
+    ])
+
+    if (!module) throw new Error('Missing live area')
+
+    const liveRecipe = module.recipes?.[0]
+
+    if (!liveRecipe) throw new Error('Missing live recipe')
+
+    expect(liveRecipe.gameRecipeId).toBe('AirSeparation')
+    expect(getRecipeDisplayName(liveRecipe)).toBe('Oxygen + Nitrogen')
+
+    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const result = calculateNet(lines)
+    const [diagnostic] = calculateBuildingDiagnostics([module], result.allResourceFlows, result.regularResults)
+
+    expect(diagnostic?.recipeName).toBe('Oxygen + Nitrogen')
+  })
+
+  it('keeps unsupported-product warnings readable when exported names are IDs', () => {
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [
+      entity(1, true, true, [{
+        ...recipe, name: recipe.id,
+        outputs: [{ productId: 'Product_UnknownMaterial', name: 'UnknownMaterial', quantity: 1 }],
+      }]),
+    ])
+
+    expect(module?.liveArea?.issues[0]?.message).toBe('Air Separator · Unsupported products: Unknown Material.')
+  })
+
   it.each([
     { enabled: false, savedWithShared: false },
     { enabled: true, savedWithShared: false },

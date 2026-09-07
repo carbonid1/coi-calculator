@@ -360,6 +360,10 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceOutputScope: "module",
     group: "waste",
   },
+  "OceanWaterPumpLarge:OceanWaterPumpingT2": { displayName: "Sea Water" },
+  "OceanWaterPumpLarge:OceanWaterPumping2xT2": { displayName: "Sea Water (2×)" },
+  "OceanWaterPumpT1:OceanWaterPumping": { displayName: "Sea Water" },
+  "OceanWaterPumpT1:OceanWaterPumping2x": { displayName: "Sea Water (2×)" },
   "OxygenFurnace:SteelSmelting": {
     allocation: "fallback",
     allocationPriority: 10,
