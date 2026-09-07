@@ -20,7 +20,9 @@ Starting commit: `ad111f0`
 
 Delivery values are estimates for the current operating configuration, using observed travel timing plus full-module transfer time. A partial load can unload faster; these are not individual arrival predictions. Finite onboard cargo and Cargo Depot stock are displayed separately and are not invented as permanent recurring production. Their transfer into ordinary island storage is reflected by subsequent game exports. The burst horizon concerns the additional offshore stock, not the player's eventual 200k target.
 
-The schema change requires installing the built 0.41 exporter and restarting the game. Installation and real save on/off/on validation remain pending; the currently running game still exports schema 40. Synthetic browser fixtures and the serializer smoke check do not substitute for that live acceptance step. The existing installed exporter and save have not been changed by this worktree.
+Merged into main on 2026-09-07 and installed exporter 0.41. The merged branch passes 644 tests; the main checkout, including its existing local work, passes 666 tests and TypeScript. Local edits were preserved and the dev server was kept running.
+
+Restarting the game and real save on/off/on validation remain pending; the running game still exports schema 40 until it reloads the exporter. Synthetic browser fixtures and the serializer smoke check do not substitute for that live acceptance step. The previous exporter was backed up before installation, and the save was not changed.
 
 ## Intended behavior
 
