@@ -41,8 +41,10 @@ export const resolveModuleResourceBoundary = (
     access: dedicated ? 'connections' : resourceSupplyRules[resourceId] ?? 'factory',
     sourceModuleIds: [...new Set(sourceModuleIds)],
     targetModuleIds: [...new Set(targetModuleIds)],
-    requestedImport: Math.max(0, preset?.requestedImports?.[resourceId] ?? 0),
-    requestedExport: Math.max(0, preset?.requestedExports?.[resourceId] ?? 0),
+    requestedImport: resourceSupplyRules[resourceId] === 'connections'
+      ? 0 : Math.max(0, preset?.requestedImports?.[resourceId] ?? 0),
+    requestedExport: resourceSupplyRules[resourceId] === 'connections'
+      ? 0 : Math.max(0, preset?.requestedExports?.[resourceId] ?? 0),
   }
 }
 

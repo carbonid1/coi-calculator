@@ -10,6 +10,7 @@ import {
   type PoolResult,
 } from "../capacity-pools/capacity-pools";
 import { formatDiagnosticMessages } from "../diagnostic-display/diagnostic-display";
+import { isModuleInput } from "../recipe-input-scope/recipe-input-scope";
 
 const BALANCE_THRESHOLD = 0.001;
 
@@ -44,8 +45,9 @@ const getReachableConsumers = (resourceId: ResourceId, results: PoolResult[]) =>
   const pools = getCapacityPools(resourceId, results, "inputs");
   const reachable = pools.filter((pool) => {
     const { recipe, moduleId } = pool.lead;
-    const moduleScoped = recipe.balanceInputScope === "module"
-      || recipe.consumeSurplusInputScope === "module";
+    const moduleScoped = isModuleInput(recipe, resourceId)
+      || (recipe.consumeSurplusInputScope === "module"
+        && recipe.consumeSurplusInputIds?.includes(resourceId));
 
     return !moduleScoped || getModuleNet(moduleId, resourceId, results) > BALANCE_THRESHOLD;
   });

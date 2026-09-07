@@ -1,5 +1,6 @@
 import { type ResourceId, resources } from "../../db/resources";
 import { type CapacityAction } from "../capacity-pools/capacity-pools";
+import { type ContractImportLimit } from "../contracts/contract-resource-flows";
 import { type DisplayableRecipe, getReadableLabel, getRecipeDisplayName } from "../recipe-display/recipe-display";
 
 /** Diagnostic facts are selected by the calculators; player-facing wording lives here. */
@@ -10,6 +11,10 @@ export type DiagnosticMessage =
   | { kind: "priority"; inputId: ResourceId; productIds: ResourceId[] }
   | { kind: "capacity"; actions: CapacityAction[] }
   | { kind: "outside-recipes"; quantity: number }
+  | { kind: "contract-import"; quantity: number; needed?: number }
+  | { kind: "contract-export"; quantity: number }
+  | { kind: "contract-fuel"; quantity: number }
+  | { kind: "contract-limit"; limit: ContractImportLimit }
   | { kind: "demand-met"; productIds: ResourceId[] }
   | { kind: "unsupported-products"; recipe: DisplayableRecipe; productNames: string[] }
   | {
@@ -23,6 +28,13 @@ const formatQuantity = (value: number) => parseFloat(
 );
 
 const resourceNames = (ids: ResourceId[]) => [...new Set(ids)].map(id => resources[id].name);
+const contractLimitLabels: Record<ContractImportLimit, string> = {
+  disabled: "Planned off",
+  "no-ship": "No Cargo Ship",
+  paused: "Route paused",
+  "voyage-unmeasured": "Voyage estimate unavailable",
+  capacity: "Import capacity reached",
+};
 
 export const formatInputShortage = (names: string[]) => (
   names.length > 0 ? `${[...new Set(names)].join(", ")} short` : "Input supply limited"
@@ -36,6 +48,10 @@ const formatMessage = (message: DiagnosticMessage): string => {
     case "priority":
       return `${resources[message.inputId].name} prioritized for ${resourceNames(message.productIds).join(", ")}`;
     case "outside-recipes": return `${formatQuantity(message.quantity)} outside recipes`;
+    case "contract-import": return `Contract imports ${formatQuantity(message.quantity)}${message.needed == null ? '' : ` of ${formatQuantity(message.needed)} needed`}`;
+    case "contract-export": return `${formatQuantity(message.quantity)} exported by contract`;
+    case "contract-fuel": return `${formatQuantity(message.quantity)} contract ship fuel`;
+    case "contract-limit": return contractLimitLabels[message.limit];
     case "demand-met": {
       const products = resourceNames(message.productIds);
 

@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import { activeContracts } from '../../test-fixtures/active-contracts'
 import { createWorldRoute } from '../../test-fixtures/world-mines'
 import { applyContracts, calculateContractWorkers } from './calculate-contracts'
+import { getContractResourceFlows } from './contract-resource-flows'
 
 const syncedContract = () => {
   const contract = structuredClone(activeContracts[0])
@@ -39,13 +40,33 @@ it.each(['timing', 'fuel'])('does not substitute constants for missing synced vo
 
   expect(contractResults[0]!.imported).toBe(0)
   expect(contractResults[0]!.routes[0]!.fuelUnavailable).toBe(true)
+  expect(getContractResourceFlows(contractResults)[0]?.importLimit).toBe('voyage-unmeasured')
 })
 
-it('withholds contract imports while the synced ship is waiting for fuel', () => {
+it.each(['shore-storage', 'ship-fuel', 'dock', 'workers', 'module-state', 'all'])
+('keeps steady contract throughput through temporary %s conditions', condition => {
   const { contract, route } = syncedContract()
+  const baseline = applyContracts([], [contract]).contractResults[0]!
 
-  route.operation!.ship!.state = 'NotEnoughFuel'
+  if (condition === 'shore-storage' || condition === 'all') {
+    route.operation!.modules[0]!.onboardQuantity = 10
+    route.operation!.modules[0]!.shoreFreeCapacity = 0
+  }
+  if (condition === 'ship-fuel' || condition === 'all') route.operation!.ship!.state = 'NotEnoughFuel'
+  if (condition === 'dock' || condition === 'all') route.operation!.dockBlocked = true
+  if (condition === 'workers' || condition === 'all') route.ship!.workers = 0
+  if (condition === 'module-state' || condition === 'all') {
+    for (const cargoModule of route.operation!.modules) cargoModule.operational = false
+  }
+
   const { contractResults } = applyContracts([], [contract])
 
-  expect(contractResults[0]!.imported).toBe(0)
+  expect(baseline.imported).toBeGreaterThan(0)
+  expect(contractResults[0]).toMatchObject({
+    imported: baseline.imported,
+    exported: baseline.exported,
+    maxImportedPerProductionCycle: baseline.maxImportedPerProductionCycle,
+    fuelPerProductionCycle: baseline.fuelPerProductionCycle,
+  })
+  expect(getContractResourceFlows(contractResults)[0]?.importLimit).toBeUndefined()
 })

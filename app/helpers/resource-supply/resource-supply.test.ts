@@ -83,7 +83,7 @@ describe('resource supply provenance', () => {
     const producer = rows.find(row => row.moduleId === source.id)
 
     expect(rows).toHaveLength(2)
-    expect(producer).toMatchObject({ produced: 10, balance: 6, boundary: { factorySupply: 0 } })
+    expect(producer).toMatchObject({ produced: 10, balance: 6, exported: 4, boundary: { factorySupply: 0 } })
     expect(producer?.outgoing[0]?.quantity).toBe(4)
     expect(getResourceSupplyAccess(producer!, 'water')).toBe('connections')
     expect(rows.find(row => row.moduleId === target.id)).toMatchObject({ used: 4, balance: 0 })
@@ -98,7 +98,7 @@ describe('resource supply provenance', () => {
     expect(row).toMatchObject({ used: 4, produced: 0, balance: -4, incoming: [] })
   })
 
-  it('reports the real pooled producer once when a private link uses a planning shadow', () => {
+  it('reports a pooled producer once when it supplies a private link', () => {
     const source = moduleWith('Source', [recipe('water', {
       outputs: [{ resourceId: 'water', quantity: 10 }],
     })], true)
@@ -118,9 +118,22 @@ describe('resource supply provenance', () => {
     const producer = rows.find(row => row.moduleId === source.id)
 
     expect(rows).toHaveLength(2)
-    expect(producer).toMatchObject({ produced: 10, balance: 6, boundary: null })
+    expect(producer).toMatchObject({ produced: 10, balance: 6, exported: 10, boundary: null })
     expect(producer?.outgoing[0]?.quantity).toBe(4)
     expect(calculation.linkedModulesResult.boundaries.some(boundary => boundary.moduleId === source.id)).toBe(false)
     expect(getResourceSupplyAccess(producer!, 'water')).toBe('factory')
+  })
+
+  it('shows shared Water in Export but keeps unused Steam local', () => {
+    const modules = [moduleWith('Nuclear', [recipe('outputs', {
+      outputs: [
+        { resourceId: 'water', quantity: 10 },
+        { resourceId: 'steamSuper', quantity: 20 },
+      ],
+    })])]
+    const result = calculate(modules)
+
+    expect(getResourceSupplyRows(modules, result, 'water')[0]).toMatchObject({ exported: 10 })
+    expect(getResourceSupplyRows(modules, result, 'steamSuper')[0]).toMatchObject({ balance: 20, exported: 0 })
   })
 })

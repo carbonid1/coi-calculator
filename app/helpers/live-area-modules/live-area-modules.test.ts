@@ -344,7 +344,10 @@ describe('createLiveAreaModules', () => {
           name: 'Sour Water stripping',
           durationSeconds: 20,
           assigned: true,
-          inputs: [{ productId: 'Product_SourWater', name: 'Sour Water', quantity: 12 }],
+          inputs: [
+            { productId: 'Product_SourWater', name: 'Sour Water', quantity: 12 },
+            { productId: 'Product_SteamHi', name: 'Steam (High)', quantity: 1 },
+          ],
           outputs: [{ productId: 'Product_Sulfur', name: 'Sulfur', quantity: 3 }],
         }),
         configured(4, 'ChemicalPlant2', 'Chemical Plant II', {
@@ -404,7 +407,8 @@ describe('createLiveAreaModules', () => {
     expect(byGameRecipe('SourWaterStripping')).toMatchObject({
       allocation: 'fallback',
       balanceBy: 'input',
-      balanceInputIds: ['sourWater'],
+      balanceInputIds: ['sourWater', 'steamHigh'],
+      moduleInputIds: ['steamHigh'],
       group: 'waste',
     })
     expect(byGameRecipe('TitaniumChlorideReduction')).toMatchObject({
@@ -413,7 +417,7 @@ describe('createLiveAreaModules', () => {
     })
     expect(byGameRecipe('SteelSmelting')).toMatchObject({
       balanceInputIds: ['moltenIron'],
-      balanceInputScope: 'module',
+      moduleInputIds: ['moltenIron'],
       consumeSurplusInputIds: ['moltenIron'],
       consumeSurplusInputScope: 'module',
     })
@@ -421,7 +425,7 @@ describe('createLiveAreaModules', () => {
       allocation: 'fallback',
       balanceBy: 'input',
       balanceInputIds: ['moltenSteel'],
-      balanceInputScope: 'module',
+      moduleInputIds: ['moltenSteel'],
       inputPriorities: { moltenSteel: 100 },
     })
     expect(byGameRecipe('SteelCastingCooled')).not.toHaveProperty('consumeSurplusInputIds')
@@ -910,7 +914,7 @@ describe('createLiveAreaModules', () => {
     })
     expect(titaniumCrusher?.recipe).toMatchObject({
       balanceInputIds: ['titaniumOre'],
-      balanceInputScope: 'module',
+      moduleInputIds: ['titaniumOre'],
     })
     expect(bauxiteCrusher).toMatchObject({
       activeBuildings: 3,
@@ -1330,7 +1334,7 @@ describe('createLiveAreaModules', () => {
     expect(module?.includedInFactoryTotals).toBe(false)
     expect(module?.recipes?.[0]).toMatchObject({
       balanceInputIds: ['titaniumOre'],
-      balanceInputScope: 'module',
+      moduleInputIds: ['titaniumOre'],
     })
     expect(result.regularResults[0]?.supplyRatio).toBe(0)
   })
@@ -1726,7 +1730,7 @@ describe('createLiveAreaModules', () => {
     expect(desalinatorRecipe).toMatchObject({
       balanceBy: 'output',
       balanceInputIds: ['seaWater', 'steamLow'],
-      balanceInputScope: 'module',
+      moduleInputIds: ['seaWater', 'steamLow'],
       consumeSurplusInputIds: ['steamLow'],
       consumeSurplusInputScope: 'module',
       surplusConsumptionPriority: 10,
@@ -2162,6 +2166,8 @@ describe('createLiveAreaModules', () => {
 
     expect(depletedCooling).toMatchObject({
       group: 'sink',
+      moduleInputIds: ['steamDepleted'],
+      balanceInputIds: ['steamDepleted'],
       sharedCapacity: { priority: 0 },
     })
     expect(superCooling).toMatchObject({

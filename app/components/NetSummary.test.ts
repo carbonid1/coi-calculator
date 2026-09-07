@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { recipes } from "../db/recipes";
 import { type BlockedSurplusRoute, type PassiveResult, type RegularResult } from "../helpers/calculate/calculate";
+import { type ContractResourceFlow } from "../helpers/contracts/contract-resource-flows";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
 import { isReportedFactoryDeficit } from "./net-summary-flows";
@@ -186,6 +187,57 @@ describe("NetSummary deficit diagnostics", () => {
     produced,
     consumed,
     net: produced - consumed,
+  });
+  const contractFlow = (
+    resourceId: string,
+    kind: ContractResourceFlow['kind'],
+    quantity: number,
+  ): ContractResourceFlow => ({
+    resourceId, kind, quantity, requestedQuantity: quantity, demandBalanced: true,
+    contractId: 'ammonia-contract', contractName: 'Food Pack → Ammonia',
+    routeId: 'cargo-route', routeName: 'Cargo Depot (4)',
+  });
+
+  it.each([0, 5])("reports a contract import shortfall instead of a missing producer (imported: %s)", imported => {
+    const consumer = result("assembly-v-food-pack-meat", 1, {
+      actualInputs: [{ resourceId: "ammonia", quantity: 10 }],
+    });
+
+    expect(getDeficitRootCause("ammonia", [consumer], [flow("ammonia", imported, 10)], [], [
+      contractFlow("ammonia", "import", imported),
+    ])).toEqual({ kind: "import-limited", detail: `Contract imports ${imported} of 10 needed` });
+  });
+
+  it("accounts for contract payment and ship fuel separately from unexplained demand", () => {
+    const costs = [contractFlow("hydrogen", "export", 3), contractFlow("hydrogen", "fuel", 2)];
+
+    expect(getDeficitRootCause("hydrogen", [], [flow("hydrogen", 0, 5)], [], costs).detail)
+      .toBe("No producer · 3 exported by contract · 2 contract ship fuel");
+    expect(getDeficitRootCause("hydrogen", [], [flow("hydrogen", 0, 6)], [], costs).detail)
+      .toBe("No producer · 3 exported by contract · 2 contract ship fuel · 1 outside recipes");
+  });
+
+  it("identifies an explicitly paused route in an import deficit", () => {
+    const consumer = result("assembly-v-food-pack-meat", 1, {
+      actualInputs: [{ resourceId: "ammonia", quantity: 10 }],
+    });
+
+    expect(getDeficitRootCause("ammonia", [consumer], [flow("ammonia", 0, 10)], [], [
+      { ...contractFlow("ammonia", "import", 0), importLimit: "paused" },
+    ]).detail).toBe("Contract imports 0 of 10 needed · Route paused");
+  });
+
+  it("retains local producer capacity advice alongside contract imports", () => {
+    const producer = result("cracking-unit-fuel-gas-diesel", 1);
+    const consumer = result("food-processor-meat", 1, { actualInputs: [{ resourceId: "diesel", quantity: 12 }] });
+    const cause = getDeficitRootCause("diesel", [producer, consumer], [flow("diesel", 10, 12)], [], [
+      contractFlow("diesel", "import", 2),
+    ]);
+
+    expect(cause.kind).toBe("at-capacity");
+    expect(cause.detail).toContain("Cracking Unit");
+    expect(cause.detail).toContain("Contract imports 2");
+    expect(cause.detail).not.toContain("outside recipes");
   });
 
   it("names a resource nothing in the model produces", () => {

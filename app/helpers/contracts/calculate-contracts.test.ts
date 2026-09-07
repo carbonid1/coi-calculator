@@ -30,7 +30,7 @@ describe("contract plans", () => {
     );
     expect(uranium).toMatchObject({ consumed: 72, produced: 54, net: -18 });
     expect(foodPack).toMatchObject({ consumed: 36, produced: 0, net: -36 });
-    expect(flows.find((flow) => flow.resourceId === "hydrogen")).toBeUndefined();
+    expect(flows.find((flow) => flow.resourceId === "hydrogen")?.consumed).toBeCloseTo(9.75375);
   });
 
   it("balances the four-module Titanium Ore ship against current demand", () => {
@@ -176,7 +176,7 @@ describe("contract plans", () => {
     expect(contractResults.at(0)).toMatchObject({
       fuelPerProductionCycle: 9.2475,
     });
-    expect(flows.find((flow) => flow.resourceId === "hydrogen")).toBeUndefined();
+    expect(flows.find((flow) => flow.resourceId === "hydrogen")?.consumed).toBeCloseTo(9.2475);
   });
 
   it("uses Contracts Profitability Focus to reduce the required export", () => {

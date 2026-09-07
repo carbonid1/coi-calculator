@@ -24,6 +24,7 @@ import {
 } from '../../game-state'
 import { formatDiagnosticMessages } from '../diagnostic-display/diagnostic-display'
 import { inferModuleCapabilities } from '../module-capabilities/module-capabilities'
+import { withModuleInputLimits } from '../recipe-input-scope/recipe-input-scope'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
 
 const plannedConstructionStates = new Set([
@@ -660,15 +661,12 @@ export const createLiveAreaModules = (
       const moduleScopedInputIds = [
         ...new Set([...linkedOnlyInputIds, ...terrainInputIds, ...moduleScopedSurplusInputIds]),
       ]
-      const moduleScopedInputFields =
-        moduleScopedInputIds.length > 0
-          ? {
-              balanceInputIds: [
-                ...new Set([...(recipe.balanceInputIds ?? []), ...moduleScopedInputIds]),
-              ],
-              balanceInputScope: 'module' as const,
-            }
-          : {}
+      const scopedRecipe = withModuleInputLimits(recipe, moduleScopedInputIds)
+      const moduleScopedInputFields = moduleScopedInputIds.length > 0 ? {
+        balanceInputIds: scopedRecipe.balanceInputIds,
+        balanceInputScope: scopedRecipe.balanceInputScope,
+        moduleInputIds: scopedRecipe.moduleInputIds,
+      } : {}
 
       if (surplusConsumption?.surplusOnly && appliesSurplusDisposition) {
         return {

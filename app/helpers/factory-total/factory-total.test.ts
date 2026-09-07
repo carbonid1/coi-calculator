@@ -24,6 +24,20 @@ const baselineFactoryOptions = {
   recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
 };
 
+it.each([30, 0])('recalculates a reused contract plan when factory demand changes to %s', demand => {
+  const contracts = activeContracts.filter(contract => contract.id === 'titanium-ore-for-construction-parts-iv');
+  const initial = calculateFactoryTotal([], {
+    ...baselineFactoryOptions, contracts, externalDemands: { titaniumOre: 5 },
+  });
+  const options = { ...baselineFactoryOptions, contracts, externalDemands: { titaniumOre: demand } };
+  const fresh = calculateFactoryTotal([], options);
+  const reused = calculateFactoryTotal([], { ...options, initialContractResults: initial.contractResults });
+
+  expect(reused.contractResults[0]?.imported).toBeCloseTo(demand);
+  expect(reused.contractFlows).toEqual(fresh.contractFlows);
+  expect(reused.flows).toEqual(fresh.flows);
+});
+
 const maintenanceDemand = {
   maintenanceI: 547.8,
   maintenanceII: 194.22,
@@ -157,7 +171,7 @@ describe("Factory Total contracts", () => {
 
   });
 
-  it("uses all eight current Hydrogen Reformers to cover the expanded demand", () => {
+  it("keeps Default Hydrogen Reformers idle without local Super Steam", () => {
     const result = calculateFactoryTotal(modulesWithSyncedHistory, {
       ...baselineFactoryOptions,
       contracts: activeContracts,
@@ -173,7 +187,8 @@ describe("Factory Total contracts", () => {
     );
 
     expect(reformer).toMatchObject({ activeBuildings: 8, builtBuildings: 8 });
-    expect(hydrogenOutput).toBeGreaterThan(120);
+    expect(hydrogenOutput).toBe(0);
+    // Nuclear can export Hydrogen after reforming its own Steam.
     expect(hydrogen?.net).toBeCloseTo(0);
   });
 

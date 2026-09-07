@@ -2,13 +2,12 @@ import { type ActiveContract } from '../../db/contracts'
 import { type ModuleResourceLink } from '../../db/module-resource-links'
 import { type Module } from '../../db/modules/modules'
 import { type ResourceId } from '../../db/resources'
-import { calculateLinkedModules } from '../calculate-linked-modules/calculate-linked-modules'
+import { buildModuleLines } from '../build-module-lines/build-module-lines'
+import { type ResourceFlow } from '../calculate/calculate'
+import { calculateLinkedModules, type PooledLinkCalculationInput } from '../calculate-linked-modules/calculate-linked-modules'
 import { calculateFactoryTotal } from '../factory-total/factory-total'
-import { type RecipeModifierMultipliers } from '../modifiers/recipe-output'
-import {
-  createPooledLinkSourceShadows,
-  hasPooledLinkSourceConnections,
-} from '../pooled-link-source-shadows/pooled-link-source-shadows'
+import { getRecipeInputQuantity, type RecipeModifierMultipliers } from '../modifiers/recipe-output'
+import { typedEntries } from '../typed-entries/typed-entries'
 
 export interface FactoryCalculationInput {
   contracts: ActiveContract[]
@@ -28,10 +27,9 @@ export interface FactoryCalculation {
 }
 
 /**
- * Solves the whole factory: isolated live modules first, then the pooled
- * factory total, with pooled link sources shadowed when a private link feeds
- * a factory-pooled module. Pure and structured-clone safe on both ends, so it
- * can run inside a Web Worker.
+ * Named links couple isolated ledgers to the pooled factory. Every pooled
+ * endpoint is solved with the whole factory, preserving shared demand and
+ * capacity. Pure and structured-clone safe for the calculation worker.
  */
 export const calculateFactoryCalculation = ({
   contracts,
@@ -44,107 +42,118 @@ export const calculateFactoryCalculation = ({
   externalSupplies,
   externalDemands,
 }: FactoryCalculationInput): FactoryCalculation => {
-  const calculateFactory = (
-    linkedResult: ReturnType<typeof calculateLinkedModules>,
-    moduleFixedDemands: ReadonlyMap<
-      string,
-      Partial<Record<ResourceId, number>>
-    > = new Map(),
-    moduleSuppliedResources: ReadonlyMap<
-      string,
-      Partial<Record<ResourceId, number>>
-    > = new Map(),
-  ) => calculateFactoryTotal(
-    modules,
-    {
-      boundaryDemands: linkedResult.boundaryDemands,
-      boundarySupplies: linkedResult.boundarySupplies,
-      contracts,
-      externalSupplies,
-      externalDemands,
-      recyclingEfficiencyPercent,
-      outputModifiers,
-      shipsFuelUseMultiplier,
-      contractsProfitMultiplier,
-      moduleFixedDemands,
-      moduleSuppliedResources,
-    },
-  )
-  const baseLinkedModulesResult = calculateLinkedModules({
-    links,
-    modules,
-    outputModifiers,
-    recyclingEfficiencyPercent,
-  })
+  const modulesById = new Map(modules.map(module => [module.id, module]))
+  const activeLinks = links.filter(link => (
+    modulesById.get(link.sourceModuleId)?.liveArea
+    && modulesById.get(link.targetModuleId)?.liveArea
+  ))
+  const pooledIds = new Set(modules.filter(module => (
+    module.liveArea && module.includedInFactoryTotals !== false
+  )).map(module => module.id))
+  const moduleDrivingInputIds = new Map<string, Set<ResourceId>>()
+  const planningSupplies = new Map<string, Partial<Record<ResourceId, number>>>()
 
-  if (!hasPooledLinkSourceConnections(links, modules)) {
-    return {
-      linkedModulesResult: baseLinkedModulesResult,
-      factoryResult: calculateFactory(baseLinkedModulesResult),
+  for (const link of activeLinks) {
+    if (!pooledIds.has(link.targetModuleId)) continue
+    if (link.mode === 'surplus-only') {
+      const ids = moduleDrivingInputIds.get(link.targetModuleId) ?? new Set<ResourceId>()
+
+      ids.add(link.resourceId)
+      moduleDrivingInputIds.set(link.targetModuleId, ids)
+    } else {
+      const target = modulesById.get(link.targetModuleId)
+
+      if (!target) continue
+      const preset = target.presets.find(preset => preset.id === target.defaultPresetId) ?? null
+      const { lines } = buildModuleLines(target, preset, outputModifiers)
+      const supplies = planningSupplies.get(target.id) ?? {}
+
+      // A demand probe is bounded by installed input capacity and discarded
+      // before delivery. It reveals demand even when the source is still idle.
+      supplies[link.resourceId] = lines.reduce((total, line) => total + line.recipe.inputs.reduce(
+        (sum, input) => input.resourceId === link.resourceId
+          ? sum + getRecipeInputQuantity(input, outputModifiers) * line.activeBuildings * line.speedLevel
+          : sum, 0,
+      ), preset?.fixedDemands?.[link.resourceId] ?? 0)
+      planningSupplies.set(target.id, supplies)
     }
   }
-
-  const baseFactoryResult = calculateFactory(baseLinkedModulesResult)
-  const pooledLinkSources = createPooledLinkSourceShadows({
-    calculation: baseFactoryResult.calculation,
-    lines: baseFactoryResult.allLines,
-    links,
-    modules,
-    outputModifiers,
-  })
-  const rawLinkedModulesResult = calculateLinkedModules({
-    links,
-    modules: [
-      ...modules.filter(moduleDefinition => (
-        !pooledLinkSources.sourceModuleIds.has(moduleDefinition.id)
-      )),
-      ...pooledLinkSources.modules,
-    ],
-    outputModifiers,
-    recyclingEfficiencyPercent,
-  })
-  const resolvedLinkedModulesResult = {
-    ...rawLinkedModulesResult,
-    boundaries: rawLinkedModulesResult.boundaries.filter(boundary => (
-      !pooledLinkSources.sourceModuleIds.has(boundary.moduleId)
-    )),
-    moduleResults: new Map(
-      [...rawLinkedModulesResult.moduleResults].filter(([moduleId]) => (
-        !pooledLinkSources.sourceModuleIds.has(moduleId)
-      )),
-    ),
+  const factoryOptions = {
+    contracts, externalSupplies, externalDemands, recyclingEfficiencyPercent,
+    outputModifiers, shipsFuelUseMultiplier, contractsProfitMultiplier, moduleDrivingInputIds,
   }
-  const linkedDemandsByPooledSource = new Map<
-    string,
-    Partial<Record<ResourceId, number>>
-  >()
-  const linkedSuppliesByPooledTarget = new Map<
-    string,
-    Partial<Record<ResourceId, number>>
-  >()
+  let factoryResult: FactoryCalculation['factoryResult'] | undefined
+  let initialContractResults: FactoryCalculation['factoryResult']['contractResults'] | undefined
+  const cache = new Map<string, FactoryCalculation['factoryResult']>()
+  const calculatePooled = (input: PooledLinkCalculationInput) => {
+    const moduleSuppliedResources = new Map([...input.moduleSupplies].map(([id, supplies]) => [id, { ...supplies }]))
 
-  for (const transfer of resolvedLinkedModulesResult.transfers) {
-    if (pooledLinkSources.sourceModuleIds.has(transfer.sourceModuleId)) {
-      const demands = linkedDemandsByPooledSource.get(transfer.sourceModuleId) ?? {}
+    if (input.planning) {
+      for (const [id, probes] of planningSupplies) {
+        const supplies = moduleSuppliedResources.get(id) ?? {}
 
-      demands[transfer.resourceId] = (demands[transfer.resourceId] ?? 0) + transfer.quantity
-      linkedDemandsByPooledSource.set(transfer.sourceModuleId, demands)
+        for (const [resourceId, quantity] of typedEntries(probes)) {
+          supplies[resourceId] = Math.max(supplies[resourceId] ?? 0, quantity)
+        }
+        moduleSuppliedResources.set(id, supplies)
+      }
     }
-    if (pooledLinkSources.sourceModuleIds.has(transfer.targetModuleId)) {
-      const supplies = linkedSuppliesByPooledTarget.get(transfer.targetModuleId) ?? {}
+    const key = JSON.stringify([
+      input.boundaryDemands, input.boundarySupplies,
+      [...input.moduleDemands], [...moduleSuppliedResources],
+    ])
+    let result = cache.get(key)
 
-      supplies[transfer.resourceId] = (supplies[transfer.resourceId] ?? 0)
-        + transfer.quantity
-      linkedSuppliesByPooledTarget.set(transfer.targetModuleId, supplies)
+    if (!result) {
+      result = calculateFactoryTotal(modules, {
+        ...factoryOptions,
+        boundaryDemands: input.boundaryDemands,
+        boundarySupplies: input.boundarySupplies,
+        moduleFixedDemands: input.moduleDemands,
+        moduleSuppliedResources,
+        initialContractResults,
+      })
+      cache.set(key, result)
+    }
+    initialContractResults = result.contractResults
+    if (!input.planning) factoryResult = result
+    return result.calculation
+  }
+  const linkedModulesResult = calculateLinkedModules({
+    links: activeLinks, modules, outputModifiers, recyclingEfficiencyPercent,
+    calculatePooled,
+  })
+  const resolvedFactory = factoryResult ?? calculateFactoryTotal(modules, {
+    ...factoryOptions,
+    boundaryDemands: linkedModulesResult.boundaryDemands,
+    boundarySupplies: linkedModulesResult.boundarySupplies,
+  })
+  const internalTransfers = new Map<ResourceId, number>()
+
+  for (const transfer of linkedModulesResult.transfers) {
+    if (!pooledIds.has(transfer.sourceModuleId) || !pooledIds.has(transfer.targetModuleId)) continue
+    internalTransfers.set(transfer.resourceId, (internalTransfers.get(transfer.resourceId) ?? 0) + transfer.quantity)
+  }
+  // Source reservations and receiving credits cancel in the factory ledger.
+  // Remove both from reported totals so moving material adds no production.
+  const withoutInternalTransfers = (flow: ResourceFlow): ResourceFlow => {
+    const transferred = internalTransfers.get(flow.resourceId) ?? 0
+
+    return transferred === 0 ? flow : {
+      ...flow, produced: flow.produced - transferred, consumed: flow.consumed - transferred,
     }
   }
 
   return {
-    linkedModulesResult: resolvedLinkedModulesResult,
-    factoryResult: calculateFactory(
-      resolvedLinkedModulesResult,
-      linkedDemandsByPooledSource,
-      linkedSuppliesByPooledTarget,
-    ),
+    linkedModulesResult,
+    factoryResult: {
+      ...resolvedFactory,
+      flows: resolvedFactory.flows.map(withoutInternalTransfers),
+      calculation: {
+        ...resolvedFactory.calculation,
+        allResourceFlows: resolvedFactory.calculation.allResourceFlows.map(withoutInternalTransfers),
+        resourceFlows: resolvedFactory.calculation.resourceFlows.map(withoutInternalTransfers),
+      },
+    },
   }
 }

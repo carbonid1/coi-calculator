@@ -1,4 +1,5 @@
 import { type Preset } from '../../db/modules/modules'
+import { getFactoryResourceRequests } from '../../db/resource-supply'
 import { type ResourceId } from '../../db/resources'
 import { typedEntries } from '../typed-entries/typed-entries'
 
@@ -10,7 +11,7 @@ export const getPresetResourceDemands = (
 ): Partial<Record<ResourceId, number>> => {
   const demands: Partial<Record<ResourceId, number>> = {}
 
-  for (const source of [preset?.fixedDemands, preset?.requestedExports]) {
+  for (const source of [preset?.fixedDemands, getFactoryResourceRequests(preset?.requestedExports)]) {
     for (const [resourceId, quantity] of typedEntries(source ?? {})) {
       demands[resourceId] = (demands[resourceId] ?? 0) + Math.max(0, quantity)
     }

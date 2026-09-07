@@ -1,7 +1,9 @@
 import { type Module, type Preset } from "../../db/modules/modules";
 import { recipes } from "../../db/recipes";
+import { getConnectionOnlyResourceIds, getFactoryResourceRequests } from "../../db/resource-supply";
 import { type ProductionLine } from "../calculate/calculate";
 import { getRecipeOutputQuantity, type RecipeModifierMultipliers } from "../modifiers/recipe-output";
+import { withModuleInputLimits } from "../recipe-input-scope/recipe-input-scope";
 
 export const buildModuleLines = (
   mod: Module,
@@ -17,13 +19,16 @@ export const buildModuleLines = (
     || Boolean(preset && recipe.id in preset.activeBuildings)
   ));
   const requestedImportIds = new Set(
-    Object.entries(preset?.requestedImports ?? {})
+    Object.entries(getFactoryResourceRequests(preset?.requestedImports))
       .filter(([, quantity]) => (quantity ?? 0) > 0)
       .map(([resourceId]) => resourceId),
   );
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
-  const lines: ProductionLine[] = visibleRecipes.map((recipe) => {
+  const lines: ProductionLine[] = visibleRecipes.map((originalRecipe) => {
+    // Apply routing to static presets as well as recipes generated from a snapshot.
+    const localInputIds = getConnectionOnlyResourceIds(originalRecipe.inputs.map(input => input.resourceId));
+    const recipe = withModuleInputLimits(originalRecipe, localInputIds);
     const built = builtBuildings[recipe.id] ?? 0;
     const speedLevel = preset?.speedLevels?.[recipe.id] ?? 1;
     const active = Math.max(

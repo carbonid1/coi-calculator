@@ -138,6 +138,8 @@ export interface Recipe {
   surplusConsumptionPhase?: 'before-fallback'
   /** Input-balanced recipes can consume only net production from their own physical module. */
   balanceInputScope?: 'module'
+  /** Inputs supplied only inside this module, independently of utilization limits. */
+  moduleInputIds?: ResourceId[]
   sharedCapacity?: SharedCapacity
   cycleDurationSeconds?: number
   /**

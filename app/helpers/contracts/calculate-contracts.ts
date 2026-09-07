@@ -5,6 +5,8 @@ import {
 } from '../../db/contracts'
 import { type ResourceId, resources } from '../../db/resources'
 import { type ResourceFlow } from '../calculate/calculate'
+import { getContractResourceFlows } from './contract-resource-flows'
+import { getContractRouteBlocker } from './contract-route-status'
 
 export interface ContractRouteResult {
   route: ContractRoute
@@ -33,15 +35,8 @@ const scaleQuantityLikeGame = (quantity: number, multiplier: number) => (
 )
 
 const isRouteOperating = (route: ContractRoute) => (
-  route.enabled && route.running && Boolean(route.ship?.running)
-  && (!route.operation || (!route.operation.dockBlocked
-    && (route.operation.ship?.state !== 'NotEnoughFuel' || route.operation.ship.canUseUnityForFuel)
-    && !route.operation.modules.some(module => module.operational && module.onboardQuantity > 0 && module.shoreFreeCapacity <= 0)
-    && (route.ship?.workers ?? 0) >= (route.operation.ship?.workersNeeded ?? 0)))
+  getContractRouteBlocker(route) === null
 )
-
-const isModuleOperating = (route: ContractRoute, entityId: number | null) => !route.operation
-  || Boolean(route.operation.modules.find(module => module.entityId === entityId)?.operational)
 
 const calculateContractRouteShipping = (
   contract: ActiveContract,
@@ -60,7 +55,6 @@ const calculateContractRouteShipping = (
   const importCargoCapacity = route.cargoModules.reduce(
     (total, module) => total + (
       module.running &&
-      isModuleOperating(route, module.entityId) &&
       module.direction === 'import' &&
       module.resourceId === contract.exchange.imported.resourceId
         ? module.onboardCapacity
@@ -71,7 +65,6 @@ const calculateContractRouteShipping = (
   const exportCargoCapacity = route.cargoModules.reduce(
     (total, module) => total + (
       module.running &&
-      isModuleOperating(route, module.entityId) &&
       module.direction === 'export' &&
       module.resourceId === contract.exchange.exported.resourceId
         ? module.onboardCapacity
@@ -116,7 +109,7 @@ const calculateContractRouteShipping = (
   const transferDuration = route.operation ? Math.max(0, ...route.cargoModules.map(module => {
     const operation = route.operation?.modules.find(item => item.entityId === module.entityId)
 
-    return operation && operation.transferPerCycle > 0 && module.running && operation.operational
+    return operation && operation.transferPerCycle > 0 && module.running
       ? module.onboardCapacity / operation.transferPerCycle : 0
   })) : 0
   const roundTripDuration = route.shipping.roundTripDurationProductionCycles === null ? null
@@ -178,6 +171,8 @@ export const applyContracts = (
   shipsFuelUseMultiplier = 1,
   demandBalancedImports: ReadonlyMap<string, number> = new Map(),
   contractsProfitMultiplier = 1,
+  /** Factory feedback has already propagated these payment and shipping loads. */
+  costsAlreadyIncluded = false,
 ): { flows: ResourceFlow[]; contractResults: ContractResult[] } => {
   const combined = new Map<ResourceId, { consumed: number; produced: number; recyclableSourceValueProduced: number }>(
     resourceFlows.map((flow) => [flow.resourceId, {
@@ -187,10 +182,42 @@ export const applyContracts = (
     }]),
   )
   const contractResults: ContractResult[] = []
+  const shippingByRoute = new Map<ContractRoute, ReturnType<typeof calculateContractRouteShipping>>()
+  const getRouteShipping = (contract: ActiveContract, route: ContractRoute) => {
+    const shipping = shippingByRoute.get(route) ?? calculateContractRouteShipping(
+      contract, route, shipsFuelUseMultiplier, contractsProfitMultiplier,
+    )
+
+    shippingByRoute.set(route, shipping)
+    return shipping
+  }
+  const getRouteImport = (contract: ActiveContract, route: ContractRoute, requested: number) => {
+    const shipping = getRouteShipping(contract, route)
+
+    if (shipping.maxImportedPerProductionCycle === null) return route.operation ? 0 : requested
+
+    return Math.min(requested, shipping.maxImportedPerProductionCycle)
+  }
+  const fixedImportsByContract = new Map(contracts.map(contract => [
+    contract,
+    contract.routes.reduce((total, route) => total + (route.importedPerProductionCycle === null
+      ? 0 : getRouteImport(contract, route, route.importedPerProductionCycle)), 0),
+  ]))
+  const pendingFixedImports = new Map<ResourceId, number>()
+
+  for (const [contract, quantity] of fixedImportsByContract) {
+    const resourceId = contract.exchange.imported.resourceId
+
+    pendingFixedImports.set(resourceId, (pendingFixedImports.get(resourceId) ?? 0) + quantity)
+  }
 
   for (const contract of contracts) {
-    const importedFlow = getFlow(combined, contract.exchange.imported.resourceId)
-    const requiredImported = Math.max(0, importedFlow.consumed - importedFlow.produced)
+    const resourceId = contract.exchange.imported.resourceId
+    const importedFlow = getFlow(combined, resourceId)
+    const ownFixedImports = fixedImportsByContract.get(contract) ?? 0
+    // Reserve other contracts' fixed deliveries before filling the remaining demand.
+    const requiredImported = Math.max(0, importedFlow.consumed - importedFlow.produced
+      - (pendingFixedImports.get(resourceId) ?? 0) + ownFixedImports)
     let demandRemaining = demandBalancedImports.get(contract.id) ?? requiredImported
     const effectiveImportedQuantity = scaleQuantityLikeGame(
       contract.exchange.imported.quantity,
@@ -199,16 +226,8 @@ export const applyContracts = (
     const routeResults = new Map<string, ContractRouteResult>()
 
     const applyRoute = (route: ContractRoute, requestedImported: number) => {
-      const shipping = calculateContractRouteShipping(
-        contract,
-        route,
-        shipsFuelUseMultiplier,
-        contractsProfitMultiplier,
-      )
-      const unmeasuredImported = route.operation ? 0 : requestedImported
-      const imported = shipping.maxImportedPerProductionCycle === null
-        ? unmeasuredImported
-        : Math.min(requestedImported, shipping.maxImportedPerProductionCycle)
+      const shipping = getRouteShipping(contract, route)
+      const imported = getRouteImport(contract, route, requestedImported)
       const exported = effectiveImportedQuantity > 0
         ? imported * contract.exchange.exported.quantity / effectiveImportedQuantity
         : 0
@@ -266,10 +285,7 @@ export const applyContracts = (
           0,
         )
 
-    importedFlow.produced += imported
-    getFlow(combined, contract.exchange.exported.resourceId).consumed += exported
-
-    contractResults.push({
+    const result: ContractResult = {
       contract,
       routes,
       exported,
@@ -278,7 +294,18 @@ export const applyContracts = (
       requiredImported,
       maxImportedPerProductionCycle,
       fuelPerProductionCycle,
-    })
+    }
+
+    for (const flow of getContractResourceFlows([result])) {
+      if (costsAlreadyIncluded && flow.kind !== 'import') continue
+
+      const total = getFlow(combined, flow.resourceId)
+
+      if (flow.kind === 'import') total.produced += flow.quantity
+      else total.consumed += flow.quantity
+    }
+    contractResults.push(result)
+    pendingFixedImports.set(resourceId, (pendingFixedImports.get(resourceId) ?? 0) - ownFixedImports)
   }
 
   const flows: ResourceFlow[] = []

@@ -3,6 +3,7 @@ import {
   type ModuleResourceTransfer,
 } from '../../db/module-resource-links'
 import { type Module, type Preset } from '../../db/modules/modules'
+import { getFactoryResourceRequests, resourceSupplyRules } from '../../db/resource-supply'
 import { type ResourceId } from '../../db/resources'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import {
@@ -53,6 +54,16 @@ export interface CalculateLinkedModulesOptions {
   modules: readonly Module[]
   outputModifiers?: RecipeModifierMultipliers
   recyclingEfficiencyPercent: number
+  /** Pooled endpoints must be solved together with the rest of the factory. */
+  calculatePooled?: (input: PooledLinkCalculationInput) => Calculation
+}
+
+export interface PooledLinkCalculationInput {
+  boundaryDemands: Partial<Record<ResourceId, number>>
+  boundarySupplies: Partial<Record<ResourceId, number>>
+  moduleDemands: ReadonlyMap<string, Partial<Record<ResourceId, number>>>
+  moduleSupplies: ReadonlyMap<string, Partial<Record<ResourceId, number>>>
+  planning: boolean
 }
 
 const addQuantity = (
@@ -136,8 +147,13 @@ const getLocalAvailable = (
   const flow = getResultFlow(moduleId, run.calculation, resourceId)
   const fixedDemand = run.preset?.fixedDemands?.[resourceId] ?? 0
   const supplied = run.suppliedResources[resourceId] ?? 0
+  const recoverable = resourceSupplyRules[resourceId] === 'connections'
+    ? run.calculation.sinkResults.reduce((sum, result) => sum + result.actualInputs.reduce((total, input) => (
+        result.moduleId === moduleId && input.resourceId === resourceId ? total + input.quantity : total
+      ), 0), 0)
+    : 0
 
-  return Math.max(0, flow.produced + supplied - flow.consumed - fixedDemand)
+  return Math.max(0, flow.produced + supplied - flow.consumed - fixedDemand + recoverable)
 }
 
 const quantitiesAreEqual = (
@@ -151,6 +167,47 @@ const quantitiesAreEqual = (
   ))
 }
 
+const getRunBoundaries = (
+  moduleId: string,
+  run: ModuleRun,
+  links: readonly ModuleResourceLink[],
+  quantities: ReadonlyMap<string, number>,
+): ModuleResourceBoundary[] => {
+  const resourceIds = getFlowResourceIds(moduleId, run.calculation)
+
+  for (const [resourceId] of typedEntries(run.preset?.fixedDemands ?? {})) resourceIds.add(resourceId)
+  for (const [resourceId] of typedEntries(run.preset?.requestedImports ?? {})) resourceIds.add(resourceId)
+  const moduleLinks = links.filter(link => link.sourceModuleId === moduleId || link.targetModuleId === moduleId)
+
+  for (const link of moduleLinks) resourceIds.add(link.resourceId)
+
+  return [...resourceIds].map(resourceId => {
+    const rule = resolveModuleResourceBoundary(moduleId, resourceId, links, run.preset)
+    let received = 0
+    let sent = 0
+    let demandTriggeredSent = 0
+
+    for (const link of moduleLinks) {
+      if (link.resourceId !== resourceId) continue
+      const quantity = quantities.get(link.id) ?? 0
+
+      if (link.targetModuleId === moduleId) received += quantity
+      if (link.sourceModuleId === moduleId) {
+        sent += quantity
+        if (link.mode === 'produce-to-demand') demandTriggeredSent += quantity
+      }
+    }
+    return {
+      moduleId, resourceId, rule,
+      ...calculateModuleResourceBoundary(rule, {
+        ...getResultFlow(moduleId, run.calculation, resourceId),
+        fixedDemand: run.preset?.fixedDemands?.[resourceId] ?? 0,
+        received, sent, demandTriggeredSent,
+      }),
+    }
+  })
+}
+
 /**
  * Calculates synced live modules in local ledgers, applies exclusive private
  * transfers, and exposes only every unlinked residual to the global factory.
@@ -160,9 +217,15 @@ export const calculateLinkedModules = ({
   modules,
   outputModifiers = {},
   recyclingEfficiencyPercent,
+  calculatePooled,
 }: CalculateLinkedModulesOptions): LinkedModulesCalculation => {
   const liveModules = modules.filter(moduleDefinition => (
-    moduleDefinition.liveArea && moduleDefinition.includedInFactoryTotals === false
+    moduleDefinition.liveArea && (
+      moduleDefinition.includedInFactoryTotals === false
+      || (calculatePooled && links.some(link => (
+        link.sourceModuleId === moduleDefinition.id || link.targetModuleId === moduleDefinition.id
+      )))
+    )
   ))
   const liveModuleIds = new Set(liveModules.map(moduleDefinition => moduleDefinition.id))
   const activeLinks = links.filter(link => (
@@ -241,90 +304,146 @@ export const calculateLinkedModules = ({
     transferQuantities: ReadonlyMap<string, number>,
     demandRequests: ReadonlyMap<string, number>,
     planning: boolean,
-  ) => new Map(liveModules.map(moduleDefinition => {
-    const preset = getPreset(moduleDefinition)
-    const suppliedResources: Partial<Record<ResourceId, number>> = {
-      ...preset?.requestedImports,
-    }
-    const outgoingDemands: Partial<Record<ResourceId, number>> = {}
-    const nonConstrainingInputs = new Set<ResourceId>()
+  ) => {
+    const pooledRequests = new Map<string, Omit<ModuleRun, 'calculation'>>()
+    const runs = new Map<string, ModuleRun>()
 
-    for (const link of linksByTarget.get(moduleDefinition.id) ?? []) {
-      addQuantity(
-        suppliedResources,
-        link.resourceId,
-        transferQuantities.get(link.id) ?? 0,
+    for (const moduleDefinition of liveModules) {
+      const preset = getPreset(moduleDefinition)
+      const suppliedResources: Partial<Record<ResourceId, number>> = {
+        ...getFactoryResourceRequests(preset?.requestedImports),
+      }
+      const outgoingDemands: Partial<Record<ResourceId, number>> = {}
+      const nonConstrainingInputs = new Set<ResourceId>()
+
+      for (const link of linksByTarget.get(moduleDefinition.id) ?? []) {
+        addQuantity(
+          suppliedResources,
+          link.resourceId,
+          transferQuantities.get(link.id) ?? 0,
+        )
+        if (planning && link.mode === 'produce-to-demand') {
+          nonConstrainingInputs.add(link.resourceId)
+        }
+      }
+      for (const link of linksBySource.get(moduleDefinition.id) ?? []) {
+        if (moduleDefinition.includedInFactoryTotals === false
+          && link.mode !== 'produce-to-demand' && resourceSupplyRules[link.resourceId] !== 'connections') continue
+
+        addQuantity(
+          outgoingDemands,
+          link.resourceId,
+          (link.mode === 'produce-to-demand' ? demandRequests : transferQuantities).get(link.id) ?? 0,
+        )
+      }
+
+      const demands = getPresetResourceDemands(preset)
+      const requestedImportIds = new Set(
+        typedEntries(getFactoryResourceRequests(preset?.requestedImports))
+          .filter(([, quantity]) => quantity > 0)
+          .map(([resourceId]) => resourceId),
       )
-      if (planning && link.mode === 'produce-to-demand') {
-        nonConstrainingInputs.add(link.resourceId)
+      const plannedSupportingResourceIds = new Set(
+        (baseLines.get(moduleDefinition.id) ?? []).flatMap(line => (
+          line.recipe.inputs.some(input => requestedImportIds.has(input.resourceId))
+            ? line.recipe.inputs
+                .map(input => input.resourceId)
+                .filter(resourceId => !requestedImportIds.has(resourceId))
+            : []
+        )),
+      )
+      const localDemands = { ...outgoingDemands }
+
+      for (const [resourceId, quantity] of typedEntries(demands)) {
+        if (resourceSupplyRules[resourceId] !== 'connections') continue
+
+        addQuantity(localDemands, resourceId, quantity)
+        delete demands[resourceId]
+      }
+      const moduleDemands = new Map([[moduleDefinition.id, localDemands]])
+
+      if (moduleDefinition.includedInFactoryTotals !== false) {
+        pooledRequests.set(moduleDefinition.id, {
+          lines: baseLines.get(moduleDefinition.id) ?? [],
+          outgoingDemands, preset, suppliedResources,
+        })
+        continue
+      }
+      const cacheKey = getRunCacheKey(
+        planning,
+        suppliedResources,
+        outgoingDemands,
+      )
+      const moduleCache = runCache.get(moduleDefinition.id) ?? new Map()
+      const cached = moduleCache.get(cacheKey)
+
+      if (cached) {
+        runs.set(moduleDefinition.id, cached)
+        continue
+      }
+
+      const calculation = calculateNet(
+        baseLines.get(moduleDefinition.id) ?? [],
+        suppliedResources,
+        recyclingEfficiencyPercent,
+        outputModifiers,
+        demands,
+        nonConstrainingInputs,
+        new Map([[moduleDefinition.id, new Set([
+            ...(planning ? nonConstrainingInputs : []),
+            ...plannedSupportingResourceIds,
+          ])]]),
+        moduleDemands,
+        new Map([[moduleDefinition.id, suppliedResources]]),
+      )
+
+      const run: ModuleRun = {
+        calculation,
+        lines: baseLines.get(moduleDefinition.id) ?? [],
+        outgoingDemands,
+        preset,
+        suppliedResources,
+      }
+
+      moduleCache.set(cacheKey, run)
+      runCache.set(moduleDefinition.id, moduleCache)
+
+      runs.set(moduleDefinition.id, run)
+    }
+
+    if (calculatePooled && pooledRequests.size > 0) {
+      const boundaryDemands: Partial<Record<ResourceId, number>> = {}
+      const boundarySupplies: Partial<Record<ResourceId, number>> = {}
+
+      for (const [moduleId, run] of runs) {
+        for (const boundary of getRunBoundaries(moduleId, run, activeLinks, transferQuantities)) {
+          addQuantity(boundaryDemands, boundary.resourceId, boundary.factoryDemand)
+          addQuantity(boundarySupplies, boundary.resourceId, boundary.factorySupply)
+        }
+      }
+      const moduleSupplies = new Map<string, Partial<Record<ResourceId, number>>>()
+      const moduleDemands = new Map<string, Partial<Record<ResourceId, number>>>()
+
+      for (const [moduleId, request] of pooledRequests) {
+        // Preset imports are already applied by Factory Total. Only credit deliveries here.
+        const supplies: Partial<Record<ResourceId, number>> = {}
+
+        for (const link of linksByTarget.get(moduleId) ?? []) {
+          addQuantity(supplies, link.resourceId, transferQuantities.get(link.id) ?? 0)
+        }
+        moduleSupplies.set(moduleId, supplies)
+        moduleDemands.set(moduleId, request.outgoingDemands)
+      }
+      const calculation = calculatePooled({
+        boundaryDemands, boundarySupplies, moduleDemands, moduleSupplies, planning,
+      })
+
+      for (const [moduleId, request] of pooledRequests) {
+        runs.set(moduleId, { ...request, calculation })
       }
     }
-    for (const link of linksBySource.get(moduleDefinition.id) ?? []) {
-      if (link.mode !== 'produce-to-demand') continue
-
-      addQuantity(
-        outgoingDemands,
-        link.resourceId,
-        demandRequests.get(link.id) ?? 0,
-      )
-    }
-
-    const demands = getPresetResourceDemands(preset)
-    const requestedImportIds = new Set(
-      typedEntries(preset?.requestedImports ?? {})
-        .filter(([, quantity]) => quantity > 0)
-        .map(([resourceId]) => resourceId),
-    )
-    const plannedSupportingResourceIds = new Set(
-      (baseLines.get(moduleDefinition.id) ?? []).flatMap(line => (
-        line.recipe.inputs.some(input => requestedImportIds.has(input.resourceId))
-          ? line.recipe.inputs
-              .map(input => input.resourceId)
-              .filter(resourceId => !requestedImportIds.has(resourceId))
-          : []
-      )),
-    )
-    const moduleDemands = new Map([
-      [moduleDefinition.id, outgoingDemands],
-    ])
-    const cacheKey = getRunCacheKey(
-      planning,
-      suppliedResources,
-      outgoingDemands,
-    )
-    const moduleCache = runCache.get(moduleDefinition.id) ?? new Map()
-    const cached = moduleCache.get(cacheKey)
-
-    if (cached) return [moduleDefinition.id, cached] as const
-
-    const calculation = calculateNet(
-      baseLines.get(moduleDefinition.id) ?? [],
-      suppliedResources,
-      recyclingEfficiencyPercent,
-      outputModifiers,
-      demands,
-      nonConstrainingInputs,
-      new Map([[moduleDefinition.id, new Set([
-          ...(planning ? nonConstrainingInputs : []),
-          ...plannedSupportingResourceIds,
-        ])]]),
-      moduleDemands,
-      new Map(),
-    )
-
-    const run: ModuleRun = {
-      calculation,
-      lines: baseLines.get(moduleDefinition.id) ?? [],
-      outgoingDemands,
-      preset,
-      suppliedResources,
-    }
-
-    moduleCache.set(cacheKey, run)
-    runCache.set(moduleDefinition.id, moduleCache)
-
-    return [moduleDefinition.id, run] as const
-  }))
+    return runs
+  }
 
   const getSourceAvailability = (runs: ReadonlyMap<string, ModuleRun>) => (
     new Map([...linksBySourceResource].map(([key, matchingLinks]) => {
@@ -358,7 +477,7 @@ export const calculateLinkedModules = ({
         ? Math.max(
             0,
             getLocalExternalNeed(first.targetModuleId, run, first.resourceId)
-              - (run.preset?.requestedImports?.[first.resourceId] ?? 0),
+              - (getFactoryResourceRequests(run.preset?.requestedImports)[first.resourceId] ?? 0),
           )
         : 0
 
@@ -402,7 +521,7 @@ export const calculateLinkedModules = ({
       const first = matchingLinks[0]
       const run = first ? runs.get(first.sourceModuleId) : undefined
       const requested = first && run
-        ? (run.preset?.requestedExports?.[first.resourceId] ?? 0)
+        ? (getFactoryResourceRequests(run.preset?.requestedExports)[first.resourceId] ?? 0)
         : 0
       const available = remainingSource.get(sourceKey) ?? 0
 
@@ -507,12 +626,13 @@ export const calculateLinkedModules = ({
   const boundarySupplies: Partial<Record<ResourceId, number>> = {}
 
   for (const moduleDefinition of liveModules) {
+    if (moduleDefinition.includedInFactoryTotals !== false) continue
     const run = finalRuns.get(moduleDefinition.id)
 
     if (!run) continue
 
     const inboundSupplies: Partial<Record<ResourceId, number>> = {
-      ...run.preset?.requestedImports,
+      ...getFactoryResourceRequests(run.preset?.requestedImports),
     }
     const displayDemands = getPresetResourceDemands(run.preset)
 
@@ -541,60 +661,8 @@ export const calculateLinkedModules = ({
       lines: run.lines,
     })
 
-    const resourceIds = getFlowResourceIds(moduleDefinition.id, run.calculation)
-
-    for (const [resourceId] of typedEntries<ResourceId, number>(
-      run.preset?.fixedDemands ?? {},
-    )) {
-      resourceIds.add(resourceId)
-    }
-    for (const [resourceId] of typedEntries<ResourceId, number>(
-      run.preset?.requestedImports ?? {},
-    )) {
-      resourceIds.add(resourceId)
-    }
-    for (const transfer of transfers) {
-      if (
-        transfer.sourceModuleId === moduleDefinition.id
-        || transfer.targetModuleId === moduleDefinition.id
-      ) {
-        resourceIds.add(transfer.resourceId)
-      }
-    }
-
-    for (const resourceId of resourceIds) {
-      const rule = resolveModuleResourceBoundary(
-        moduleDefinition.id,
-        resourceId,
-        activeLinks,
-        run.preset,
-      )
-      const flow = getResultFlow(moduleDefinition.id, run.calculation, resourceId)
-      let received = 0
-      let sent = 0
-      let demandTriggeredSent = 0
-
-      for (const transfer of transfers) {
-        if (transfer.resourceId !== resourceId) continue
-        if (transfer.targetModuleId === moduleDefinition.id) received += transfer.quantity
-        if (transfer.sourceModuleId === moduleDefinition.id) {
-          sent += transfer.quantity
-          if (transfer.mode === 'produce-to-demand') demandTriggeredSent += transfer.quantity
-        }
-      }
-
-      const boundary = {
-        moduleId: moduleDefinition.id,
-        resourceId,
-        rule,
-        ...calculateModuleResourceBoundary(rule, {
-          ...flow,
-          fixedDemand: run.preset?.fixedDemands?.[resourceId] ?? 0,
-          received,
-          sent,
-          demandTriggeredSent,
-        }),
-      }
+    for (const boundary of getRunBoundaries(moduleDefinition.id, run, activeLinks, transferQuantities)) {
+      const { resourceId } = boundary
 
       boundaries.push(boundary)
       if (boundary.factorySupply > LINK_TOLERANCE) {

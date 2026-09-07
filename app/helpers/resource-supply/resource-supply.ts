@@ -2,6 +2,7 @@ import { type ModuleResourceTransfer } from '../../db/module-resource-links'
 import { type Module } from '../../db/modules/modules'
 import { resourceSupplyRules } from '../../db/resource-supply'
 import { resources, type ResourceId } from '../../db/resources'
+import { type ContractImportLimit, type ContractResourceFlow } from '../contracts/contract-resource-flows'
 import { type FactoryCalculation } from '../factory-calculation/factory-calculation'
 import { type ModuleResourceBoundary } from '../module-resource-boundary/module-resource-boundary'
 
@@ -11,6 +12,8 @@ export interface ResourceSupplyRow {
   produced: number
   used: number
   disposed: number
+  /** Dedicated deliveries plus residual output available to the shared factory. */
+  exported: number
   /** Recipe balance after dedicated transfers; never a delivered factory import. */
   balance: number
   uses: { name: string; quantity: number }[]
@@ -80,6 +83,9 @@ export const getResourceSupplyRows = (
     const boundary = linkedModulesResult.boundaries.find(candidate => (
       candidate.moduleId === module.id && candidate.resourceId === resourceId
     )) ?? null
+    const factoryAccess = (boundary?.rule.access ?? resourceSupplyRules[resourceId] ?? 'factory') === 'factory'
+    const exported = outgoing.reduce((sum, transfer) => sum + transfer.quantity, 0)
+      + (boundary?.factorySupply ?? (factoryAccess ? Math.max(0, balance) : 0))
 
     if (produced + used + disposed < 0.001 && incoming.length === 0 && outgoing.length === 0
       && !boundary?.factoryDemand && !boundary?.factorySupply) return []
@@ -90,6 +96,7 @@ export const getResourceSupplyRows = (
       produced,
       used,
       disposed,
+      exported,
       balance,
       uses: [...uses].map(([name, quantity]) => ({ name, quantity }))
         .toSorted((left, right) => right.quantity - left.quantity),
@@ -104,3 +111,41 @@ export const getResourceSupplyAccess = (
   row: ResourceSupplyRow,
   resourceId: ResourceId,
 ) => row.boundary?.rule.access ?? resourceSupplyRules[resourceId] ?? 'factory'
+
+export interface ContractSupplyRow {
+  contractId: string
+  contractName: string
+  imports: { resourceId: ResourceId; quantity: number }[]
+  exports: { resourceId: ResourceId; quantity: number }[]
+  fuel: { resourceId: ResourceId; quantity: number }[]
+  importLimits: ContractImportLimit[]
+}
+
+/** Group the solver's named flows, retaining payment and fuel alongside the import. */
+export const getContractSupplyRows = (
+  flows: readonly ContractResourceFlow[],
+  resourceId: ResourceId,
+): ContractSupplyRow[] => {
+  const relevantIds = new Set(flows.filter(flow => (
+    flow.resourceId === resourceId && (flow.quantity > 0.001 || flow.requestedQuantity > 0.001)
+  )).map(flow => flow.contractId))
+  const rows = new Map<string, ContractSupplyRow>()
+
+  for (const flow of flows) {
+    if (!relevantIds.has(flow.contractId)) continue
+
+    const row: ContractSupplyRow = rows.get(flow.contractId) ?? {
+      contractId: flow.contractId, contractName: flow.contractName, imports: [], exports: [], fuel: [],
+      importLimits: [],
+    }
+    const quantities = { import: row.imports, export: row.exports, fuel: row.fuel }[flow.kind]
+    const existing = quantities.find(ingredient => ingredient.resourceId === flow.resourceId)
+
+    if (existing) existing.quantity += flow.quantity
+    else quantities.push({ resourceId: flow.resourceId, quantity: flow.quantity })
+    if (flow.importLimit && !row.importLimits.includes(flow.importLimit)) row.importLimits.push(flow.importLimit)
+    rows.set(flow.contractId, row)
+  }
+
+  return [...rows.values()].toSorted((left, right) => left.contractName.localeCompare(right.contractName))
+}

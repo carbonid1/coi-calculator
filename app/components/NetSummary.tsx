@@ -12,6 +12,7 @@ import {
   type RegularResult,
   type ResourceFlow,
 } from "../helpers/calculate/calculate";
+import { type ContractResourceFlow } from "../helpers/contracts/contract-resource-flows";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
 import {
   type MachineAllocationIssue,
@@ -39,6 +40,7 @@ interface Props {
   regularResults?: RegularResult[];
   /** Sources and sinks; their intake is recipe-accounted consumption too. */
   passiveResults?: PassiveResult[];
+  contractFlows?: readonly ContractResourceFlow[];
   blockedRoutes?: BlockedSurplusRoute[];
   buildingDiagnostics?: BuildingDiagnostic[];
   machineAllocationIssues?: MachineAllocationIssue[];
@@ -106,6 +108,7 @@ export const NetSummary: React.FC<Props> = ({
   groupByBalance = false,
   regularResults = [],
   passiveResults = [],
+  contractFlows = [],
   blockedRoutes = [],
   buildingDiagnostics = [],
   machineAllocationIssues = [],
@@ -186,7 +189,7 @@ export const NetSummary: React.FC<Props> = ({
         .find((group) => group.label === "Deficit")
         ?.flows.map((flow) => ({
           flow,
-          rootCause: getDeficitRootCause(flow.resourceId, regularResults, flows, passiveResults),
+          rootCause: getDeficitRootCause(flow.resourceId, regularResults, flows, passiveResults, contractFlows),
         })) ?? [])
     : [];
   const capacityLimitedDeficits = explainedDeficits

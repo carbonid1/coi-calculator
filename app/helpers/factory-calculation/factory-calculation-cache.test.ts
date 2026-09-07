@@ -37,6 +37,10 @@ it('rejects missing, corrupt, JSON-flattened, or mismatched model/result records
     { ...entry, calculation: {} },
     { ...entry, calculation: {
       ...entry.calculation,
+      factoryResult: { ...entry.calculation.factoryResult, contractFlows: undefined },
+    } },
+    { ...entry, calculation: {
+      ...entry.calculation,
       linkedModulesResult: { ...entry.calculation.linkedModulesResult, boundaries: undefined },
     } },
   ]) {

@@ -1,22 +1,36 @@
 'use client'
 
-import { Button, Select, TableScrollRegion, type Column } from '@carbonid1/design-system'
+import { Button, TableScrollRegion, Tooltip, type Column } from '@carbonid1/design-system'
 import { useMemo, useState } from 'react'
 
 import { type Module } from '../db/modules/modules'
 import { resources, type ResourceId } from '../db/resources'
+import { formatDiagnosticMessages } from '../helpers/diagnostic-display/diagnostic-display'
 import { type FactoryCalculation } from '../helpers/factory-calculation/factory-calculation'
 import {
   getResourceSupplyAccess,
   getResourceSupplyRows,
+  getContractSupplyRows,
+  type ContractSupplyRow,
   type ResourceSupplyRow,
 } from '../helpers/resource-supply/resource-supply'
+import { ResourcePicker } from './ResourcePicker'
 
 const formatQuantity = (quantity: number) => quantity.toLocaleString('en-US', {
   maximumFractionDigits: 2,
 })
 const numeric = (quantity: number) => (
   <span className="font-mono tabular-nums">{quantity > 0.001 ? formatQuantity(quantity) : '—'}</span>
+)
+const resourceQuantities = (quantities: { resourceId: ResourceId; quantity: number }[]) => (
+  <div className="space-y-1">
+    {quantities.map(ingredient => (
+      <div key={ingredient.resourceId}>
+        <span className="font-mono tabular-nums">{formatQuantity(ingredient.quantity)}</span>
+        {' '}<span className="text-muted-foreground">{resources[ingredient.resourceId].name}</span>
+      </div>
+    ))}
+  </div>
 )
 
 export const ResourceSupplyView = ({
@@ -39,15 +53,44 @@ export const ResourceSupplyView = ({
       ...result.actualInputs, ...result.actualOutputs,
     ]).filter(ingredient => ingredient.quantity > 0.001).map(ingredient => ingredient.resourceId))
 
+    for (const flow of calculation.factoryResult.calculation.allResourceFlows) {
+      if (flow.produced > 0.001 || flow.consumed > 0.001) resourceIds.add(flow.resourceId)
+    }
+    for (const flow of calculation.factoryResult.contractFlows) {
+      if (flow.quantity > 0.001 || flow.requestedQuantity > 0.001) resourceIds.add(flow.resourceId)
+    }
+
     resourceIds.add('carbonDioxide')
     resourceIds.add('water')
     return [...resourceIds].filter(id => id !== 'electricity' && id !== 'computing')
-      .map(id => ({ value: id, label: resources[id].name }))
-      .toSorted((left, right) => left.label.localeCompare(right.label))
+      .toSorted((left, right) => resources[left].name.localeCompare(resources[right].name))
   }, [calculation])
   const rows = useMemo(() => getResourceSupplyRows(modules, calculation, resourceId), [
     modules, calculation, resourceId,
   ])
+  const contractRows = useMemo(() => getContractSupplyRows(calculation.factoryResult.contractFlows, resourceId), [
+    calculation, resourceId,
+  ])
+  const factoryBalance = calculation.factoryResult.calculation.allResourceFlows
+    .find(flow => flow.resourceId === resourceId)?.net ?? 0
+  const contractColumns: Column<ContractSupplyRow>[] = [
+    {
+      accessorKey: 'contractName', header: 'Contract',
+      render: row => (
+        <div className="space-y-1">
+          <div>{row.contractName}</div>
+          {row.importLimits.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              {formatDiagnosticMessages(row.importLimits.map(limit => ({ kind: 'contract-limit', limit })))}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    { accessorKey: 'imports', header: 'Imports', align: 'end', render: row => resourceQuantities(row.imports) },
+    { accessorKey: 'exports', header: 'Exports', align: 'end', render: row => resourceQuantities(row.exports) },
+    { accessorKey: 'fuel', header: 'Ship fuel', align: 'end', render: row => resourceQuantities(row.fuel) },
+  ]
   const consumer = rows.find(row => row.moduleId === consumerId && row.used > 0.001)
     ?? rows.toSorted((left, right) => right.used - left.used).find(row => row.used > 0.001)
   const columns: Column<ResourceSupplyRow>[] = [
@@ -70,6 +113,15 @@ export const ResourceSupplyView = ({
     },
     { accessorKey: 'disposed', header: 'Disposes', align: 'end', render: row => numeric(row.disposed) },
     {
+      accessorKey: 'exported',
+      header: (
+        <Tooltip label="Available to the factory, or delivered through a module link." position="bottom">
+          <span aria-label="Export" tabIndex={0}>Export</span>
+        </Tooltip>
+      ),
+      align: 'end', render: row => numeric(row.exported),
+    },
+    {
       accessorKey: 'boundary', header: 'Supply rule',
       render: row => {
         const factoryAccess = getResourceSupplyAccess(row, resourceId) === 'factory'
@@ -83,7 +135,6 @@ export const ResourceSupplyView = ({
           <div className="space-y-1 text-xs text-muted-foreground">
             {factoryAccess && <div>{row.boundary ? 'Local first · factory pool' : 'Factory pool'}</div>}
             {factoryDemand > 0.001 && <div>Needs {formatQuantity(factoryDemand)} from factory</div>}
-            {factorySupply > 0.001 && <div>{formatQuantity(factorySupply)} available to factory</div>}
             {row.incoming.map(transfer => (
               <div key={transfer.id}>
                 From {transfer.sourceModuleName}: {formatQuantity(transfer.quantity)}
@@ -113,18 +164,34 @@ export const ResourceSupplyView = ({
           <h2 className="font-semibold text-foreground">Resource supply</h2>
           <p className="text-xs text-muted-foreground">Calculated per production cycle</p>
         </div>
-        <Select
-          aria-label="Resource"
+        <ResourcePicker
           value={resourceId}
           options={options}
           onChange={value => {
-            const option = options.find(candidate => candidate.value === value)
-
-            if (option) { setResourceId(option.value); setConsumerId(null) }
+            setResourceId(value)
+            setConsumerId(null)
           }}
-          className="w-56"
         />
       </div>
+      {contractRows.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <h3 className="font-medium text-foreground">Contracts</h3>
+            <span className="text-muted-foreground">
+              Factory balance{' '}
+              <span className="font-mono tabular-nums text-foreground">
+                {Math.abs(factoryBalance) <= 0.001 ? '0' : `${factoryBalance > 0 ? '+' : ''}${formatQuantity(factoryBalance)}`}
+              </span>
+            </span>
+          </div>
+          <TableScrollRegion
+            label={`${resources[resourceId].name} contracts`}
+            columns={contractColumns}
+            rows={contractRows}
+            rowKey={row => row.contractId}
+          />
+        </div>
+      )}
       <div className={`grid items-start gap-4 ${consumer ? 'lg:grid-cols-[minmax(0,1fr)_18rem]' : ''}`}>
         <TableScrollRegion
           label={`${resources[resourceId].name} supply by module`}

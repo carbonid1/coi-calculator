@@ -10,7 +10,9 @@ import {
   getCapacityPools,
   type PoolResult,
 } from "../capacity-pools/capacity-pools";
+import { type ContractResourceFlow } from "../contracts/contract-resource-flows";
 import { type DiagnosticMessage, formatDiagnosticMessages } from "../diagnostic-display/diagnostic-display";
+import { isModuleInput } from "../recipe-input-scope/recipe-input-scope";
 
 const BALANCE_THRESHOLD = 0.001;
 
@@ -18,9 +20,10 @@ export interface DeficitRootCause {
   /**
    * `no-producer`: nothing in the model makes the resource. `at-capacity`:
    * every producer pool is saturated or paused. `input-limited`: a producer
-   * has room but its own inputs hold it back.
+   * has room but its own inputs hold it back. `import-limited`: contracts
+   * supply the resource but their imports do not cover demand.
    */
-  kind: "no-producer" | "at-capacity" | "input-limited";
+  kind: "no-producer" | "at-capacity" | "input-limited" | "import-limited";
   detail: string;
 }
 
@@ -66,7 +69,7 @@ const getInputPriorities = (
       for (const consumer of results) {
         if (consumer.recipe.group === "sink" || consumer.recipe.yieldToSurplus) continue;
         if (
-          producer.recipe.balanceInputScope === "module"
+          isModuleInput(producer.recipe, input.resourceId)
           && producer.moduleId !== consumer.moduleId
         ) continue;
         if (!consumer.actualInputs.some(actual => (
@@ -98,6 +101,7 @@ export const getDeficitRootCause = (
   regularResults: RegularResult[],
   flows: ResourceFlow[],
   passiveResults: PassiveResult[] = [],
+  contractFlows: readonly ContractResourceFlow[] = [],
 ): DeficitRootCause => {
   const flow = flows.find((candidate) => candidate.resourceId === resourceId);
   const results = [...regularResults, ...passiveResults];
@@ -105,10 +109,20 @@ export const getDeficitRootCause = (
     total + (result.actualInputs.find((input) => input.resourceId === resourceId)?.quantity ?? 0)
   ), 0);
   // Consumption no line accounts for: vehicle fuel, contracts, boundary loads.
-  const outsideRecipes = (flow?.consumed ?? 0) - recipeConsumption;
-  const suffix: DiagnosticMessage[] = outsideRecipes > BALANCE_THRESHOLD
-    ? [{ kind: "outside-recipes", quantity: outsideRecipes }]
-    : [];
+  const exchanges = contractFlows.filter(flow => flow.resourceId === resourceId);
+  const imported = exchanges.filter(flow => flow.kind === "import").reduce((sum, flow) => sum + flow.quantity, 0);
+  const exported = exchanges.filter(flow => flow.kind === "export").reduce((sum, flow) => sum + flow.quantity, 0);
+  const fuel = exchanges.filter(flow => flow.kind === "fuel").reduce((sum, flow) => sum + flow.quantity, 0);
+  const hasContract = exchanges.some(flow => flow.kind === "import");
+  const outsideRecipes = (flow?.consumed ?? 0) - recipeConsumption - exported - fuel;
+  const suffix: DiagnosticMessage[] = [];
+
+  for (const exchange of exchanges) {
+    if (exchange.importLimit) suffix.push({ kind: "contract-limit", limit: exchange.importLimit });
+  }
+  if (exported > BALANCE_THRESHOLD) suffix.push({ kind: "contract-export", quantity: exported });
+  if (fuel > BALANCE_THRESHOLD) suffix.push({ kind: "contract-fuel", quantity: fuel });
+  if (outsideRecipes > BALANCE_THRESHOLD) suffix.push({ kind: "outside-recipes", quantity: outsideRecipes });
   const allProducers = getCapacityPools(resourceId, results, "outputs");
   // A byproduct producer is sized by its main product, so its spare room
   // cannot be spent on this resource.
@@ -120,8 +134,17 @@ export const getDeficitRootCause = (
   const producers = dedicated.length > 0 ? dedicated : allProducers;
 
   if (producers.length === 0) {
+    if (hasContract) return {
+      kind: "import-limited",
+      detail: formatDiagnosticMessages([{
+        kind: "contract-import", quantity: imported, needed: imported + Math.max(0, -(flow?.net ?? 0)),
+      }, ...suffix]),
+    };
+
     return { kind: "no-producer", detail: formatDiagnosticMessages([{ kind: "no-producer" }, ...suffix]) };
   }
+
+  if (hasContract) suffix.unshift({ kind: "contract-import", quantity: imported });
 
   if (producers.every((producer) => producer.atCapacity)) {
     const deficit = Math.max(0, -(flow?.net ?? 0));

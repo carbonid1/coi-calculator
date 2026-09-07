@@ -685,6 +685,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       {isFactoryTotal && factoryResult && (
         <NetSummary
           flows={factoryResult.flows}
+          contractFlows={factoryResult.contractFlows}
           workers={factoryWorkers}
           electricityConsumptionKw={
             factoryResult.electricityDemandMw * 1000 + linkedFactoryStats.electricityKw

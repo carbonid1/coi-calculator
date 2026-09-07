@@ -1,22 +1,26 @@
 import { type ActiveContract } from "../../db/contracts";
 import { type Module } from "../../db/modules/modules";
+import { getFactoryResourceRequests, resourceSupplyRules } from "../../db/resource-supply";
 import { type ResourceId } from "../../db/resources";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateBuildingStats } from "../building-stats/building-stats";
 import { type ResourceFlow, type ProductionLine, calculateNet } from "../calculate/calculate";
 import { applyContracts, type ContractResult } from "../contracts/calculate-contracts";
+import { getContractResourceFlows, type ContractResourceFlow } from "../contracts/contract-resource-flows";
 import {
   getRecipeInputQuantity,
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../modifiers/recipe-output";
 import { getPresetResourceDemands } from "../preset-resource-demands/preset-resource-demands";
+import { isModuleInput } from "../recipe-input-scope/recipe-input-scope";
 import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface FactoryTotalResult {
   flows: ResourceFlow[];
   allLines: ProductionLine[];
   contractResults: ContractResult[];
+  contractFlows: ContractResourceFlow[];
   calculation: ReturnType<typeof calculateNet>;
   electricityDemandMw: number;
   computingDemandTflops: number;
@@ -41,6 +45,10 @@ export interface FactoryTotalOptions {
   moduleFixedDemands?: ReadonlyMap<string, Partial<Record<ResourceId, number>>>;
   /** Private linked input delivered into a factory-pooled target module. */
   moduleSuppliedResources?: ReadonlyMap<string, Partial<Record<ResourceId, number>>>;
+  /** Named surplus links can start their receiving production lines. */
+  moduleDrivingInputIds?: ReadonlyMap<string, ReadonlySet<ResourceId>>;
+  /** Reuse a plan between link iterations in the same factory solve; demand is recalculated. */
+  initialContractResults?: ContractResult[];
 }
 
 interface ElectricityDispatchGroup {
@@ -424,7 +432,7 @@ const calculateWithDispatch = (
         )?.quantity ?? 0;
       };
       const scopeKey = (line: ProductionLine) => (
-        line.recipe.balanceInputScope === "module"
+        isModuleInput(line.recipe, resourceId)
           ? `module:${line.moduleId}`
           : "global"
       );
@@ -601,11 +609,18 @@ export const calculateFactoryTotal = (
     externalDemands = {},
     boundarySupplies = {},
     boundaryDemands = {},
-    moduleFixedDemands = new Map(),
+    moduleFixedDemands: initialModuleFixedDemands = new Map(),
     moduleSuppliedResources = new Map(),
+    moduleDrivingInputIds = new Map(),
+    initialContractResults,
   }: FactoryTotalOptions,
 ): FactoryTotalResult => {
   const allLines: ProductionLine[] = [];
+  const moduleFixedDemands = new Map<
+    string, Partial<Record<ResourceId, number>>
+  >([...initialModuleFixedDemands].map(([moduleId, demands]) => (
+    [moduleId, { ...demands }] as const
+  )));
   const localResourceIds = new Set<ResourceId>();
   const fixedDemands: Partial<Record<ResourceId, number>> = { ...externalDemands };
   const deferredDemands: Partial<Record<ResourceId, number>> = {};
@@ -642,7 +657,19 @@ export const calculateFactoryTotal = (
       : null;
     const { lines } = buildModuleLines(mod, preset, outputModifiers);
 
-    allLines.push(...lines);
+    allLines.push(...lines.map(line => {
+      const linkedInputs = moduleDrivingInputIds.get(mod.id);
+
+      if (!linkedInputs) return line;
+
+      return {
+        ...line,
+        drivingInputIds: [...new Set([
+          ...(line.drivingInputIds ?? []),
+          ...line.recipe.inputs.map(input => input.resourceId).filter(id => linkedInputs.has(id)),
+        ])],
+      };
+    }));
 
     for (const resourceId of mod.localResources ?? []) localResourceIds.add(resourceId);
     // A globally pooled live module uses requestedExports as an internal output
@@ -652,7 +679,14 @@ export const calculateFactoryTotal = (
       : getPresetResourceDemands(preset)
 
     for (const [resourceId, quantity] of typedEntries(presetDemands)) {
-      fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
+      if (resourceSupplyRules[resourceId] === "connections") {
+        const demands = moduleFixedDemands.get(mod.id) ?? {};
+
+        demands[resourceId] = (demands[resourceId] ?? 0) + quantity;
+        moduleFixedDemands.set(mod.id, demands);
+      } else {
+        fixedDemands[resourceId] = (fixedDemands[resourceId] ?? 0) + quantity;
+      }
     }
     for (const resourceId of preset?.deferredDemandIds ?? []) {
       const quantity = preset?.fixedDemands?.[resourceId] ?? 0;
@@ -661,7 +695,7 @@ export const calculateFactoryTotal = (
         deferredDemands[resourceId] = (deferredDemands[resourceId] ?? 0) + quantity;
       }
     }
-    for (const [resourceId, quantity] of typedEntries(preset?.requestedImports ?? {})) {
+    for (const [resourceId, quantity] of typedEntries(getFactoryResourceRequests(preset?.requestedImports))) {
       const plannedQuantity = Math.max(0, quantity);
 
       if (plannedQuantity === 0) continue;
@@ -748,44 +782,51 @@ export const calculateFactoryTotal = (
     ) + planningSeed;
   }
 
-  const withoutContracts = calculateWithDispatch(
-    allLines,
-    contractPlanningSupplies,
-    recyclingEfficiencyPercent,
-    outputModifiers,
-    fixedDemands,
-    electricityDispatchTargets,
-    new Set(),
-    plannedSupportingResourceIds,
-    moduleFixedDemands,
-    resolvedModuleSuppliedResources,
-    deferredDemands,
-  );
-  const demandSourceProduction = getDemandSourceProduction(
-    withoutContracts.calculation,
-  );
-
-  // Demand sources (terrain extraction, world mines, and forestry) backfill deficits in
-  // calculateNet. Hide that fallback production while sizing enabled contracts
-  // so an import can replace extraction, then let the final calculation reduce
-  // the source to whatever demand remains after the contract input is applied.
-  const contractPlanningFlows = withoutContracts.calculation.allResourceFlows.map((flow) => {
-    const produced = Math.max(
-      0,
-      flow.produced
-        - (demandSourceProduction.get(flow.resourceId) ?? 0)
-        - (contractPlanningSeeds[flow.resourceId] ?? 0),
+  const getInitialContractPlan = () => {
+    const withoutContracts = calculateWithDispatch(
+      allLines,
+      contractPlanningSupplies,
+      recyclingEfficiencyPercent,
+      outputModifiers,
+      fixedDemands,
+      electricityDispatchTargets,
+      new Set(),
+      plannedSupportingResourceIds,
+      moduleFixedDemands,
+      resolvedModuleSuppliedResources,
+      deferredDemands,
+    );
+    const demandSourceProduction = getDemandSourceProduction(
+      withoutContracts.calculation,
     );
 
-    return {
-      ...flow,
-      produced,
-      net: produced - flow.consumed,
-    };
-  });
-  const globalContractPlanningFlows = contractPlanningFlows.filter(
-    (flow) => !localResourceIds.has(flow.resourceId),
-  );
+    // Demand sources (terrain extraction, world mines, and forestry) backfill deficits in
+    // calculateNet. Hide that fallback production while sizing enabled contracts
+    // so an import can replace extraction, then let the final calculation reduce
+    // the source to whatever demand remains after the contract input is applied.
+    const contractPlanningFlows = withoutContracts.calculation.allResourceFlows.map((flow) => {
+      const produced = Math.max(
+        0,
+        flow.produced
+          - (demandSourceProduction.get(flow.resourceId) ?? 0)
+          - (contractPlanningSeeds[flow.resourceId] ?? 0),
+      );
+
+      return {
+        ...flow,
+        produced,
+        net: produced - flow.consumed,
+      };
+    });
+    const globalContractPlanningFlows = contractPlanningFlows.filter(
+      (flow) => !localResourceIds.has(flow.resourceId),
+    );
+
+    return applyContracts(
+      globalContractPlanningFlows, contracts, shipsFuelUseMultiplier,
+      new Map(), contractsProfitMultiplier,
+    );
+  };
   const calculateWithContractPlan = (
     contractPlan: ReturnType<typeof applyContracts>,
   ) => {
@@ -795,22 +836,11 @@ export const calculateFactoryTotal = (
     const contractDemands: Partial<Record<ResourceId, number>> = { ...fixedDemands };
     const contractInputIds = new Set<ResourceId>();
 
-    for (const result of contractPlan.contractResults) {
-      const importedId = result.contract.exchange.imported.resourceId;
-      const exportedId = result.contract.exchange.exported.resourceId;
+    for (const flow of getContractResourceFlows(contractPlan.contractResults)) {
+      const quantities = flow.kind === "import" ? suppliedResourcesWithContracts : contractDemands;
 
-      suppliedResourcesWithContracts[importedId] = (
-        suppliedResourcesWithContracts[importedId] ?? 0
-      )
-        + result.imported;
-      contractDemands[exportedId] = (contractDemands[exportedId] ?? 0)
-        + result.exported;
-      contractInputIds.add(importedId);
-      for (const route of result.routes) {
-        const fuelId = route.route.shipping.fuelResourceId;
-
-        contractDemands[fuelId] = (contractDemands[fuelId] ?? 0) + route.fuelPerProductionCycle;
-      }
+      quantities[flow.resourceId] = (quantities[flow.resourceId] ?? 0) + flow.quantity;
+      if (flow.kind === "import") contractInputIds.add(flow.resourceId);
     }
 
     return calculateWithDispatch(
@@ -833,31 +863,14 @@ export const calculateFactoryTotal = (
     const planningSupplies = { ...contractPlanningSupplies };
     const planningDemands = { ...fixedDemands };
 
-    for (const result of contractPlan.contractResults) {
-      const importedId = result.contract.exchange.imported.resourceId;
-      const exportedId = result.contract.exchange.exported.resourceId;
-
+    for (const flow of getContractResourceFlows(contractPlan.contractResults)) {
       // Fixed imports are ordinary factory supply during planning. Dynamic
       // imports are represented by the temporary seed so their full demand can
       // be measured independently of the previous iteration's shipment.
-      const fixedImported = result.routes.reduce(
-        (total, route) => total + (
-          route.route.importedPerProductionCycle === null ? 0 : route.imported
-        ),
-        0,
-      );
+      if (flow.kind === "import" && flow.demandBalanced) continue;
+      const quantities = flow.kind === "import" ? planningSupplies : planningDemands;
 
-      if (fixedImported > 0) {
-        planningSupplies[importedId] = (planningSupplies[importedId] ?? 0)
-          + fixedImported;
-      }
-      planningDemands[exportedId] = (planningDemands[exportedId] ?? 0)
-        + result.exported;
-      for (const route of result.routes) {
-        const fuelId = route.route.shipping.fuelResourceId;
-
-        planningDemands[fuelId] = (planningDemands[fuelId] ?? 0) + route.fuelPerProductionCycle;
-      }
+      quantities[flow.resourceId] = (quantities[flow.resourceId] ?? 0) + flow.quantity;
     }
 
     const planningDispatch = calculateWithDispatch(
@@ -876,6 +889,13 @@ export const calculateFactoryTotal = (
     const planningDemandSources = getDemandSourceProduction(
       planningDispatch.calculation,
     );
+    const fixedContractImports: Partial<Record<ResourceId, number>> = {};
+
+    for (const flow of getContractResourceFlows(contractPlan.contractResults)) {
+      if (flow.kind !== "import" || flow.demandBalanced) continue;
+
+      fixedContractImports[flow.resourceId] = (fixedContractImports[flow.resourceId] ?? 0) + flow.quantity;
+    }
 
     return planningDispatch.calculation.allResourceFlows
       .map((flow) => {
@@ -883,7 +903,8 @@ export const calculateFactoryTotal = (
           0,
           flow.produced
             - (planningDemandSources.get(flow.resourceId) ?? 0)
-            - (contractPlanningSeeds[flow.resourceId] ?? 0),
+            - (contractPlanningSeeds[flow.resourceId] ?? 0)
+            - (fixedContractImports[flow.resourceId] ?? 0),
         );
 
         return {
@@ -894,13 +915,9 @@ export const calculateFactoryTotal = (
       })
       .filter(flow => !localResourceIds.has(flow.resourceId));
   };
-  let contractPlan = applyContracts(
-    globalContractPlanningFlows,
-    contracts,
-    shipsFuelUseMultiplier,
-    new Map(),
-    contractsProfitMultiplier,
-  );
+  let contractPlan = initialContractResults
+    ? { flows: [], contractResults: initialContractResults }
+    : getInitialContractPlan();
 
   for (
     let iteration = 0;
@@ -913,6 +930,7 @@ export const calculateFactoryTotal = (
       shipsFuelUseMultiplier,
       new Map(),
       contractsProfitMultiplier,
+      true,
     );
     const priorById = new Map(contractPlan.contractResults.map(result => (
       [result.contract.id, result] as const
@@ -961,6 +979,7 @@ export const calculateFactoryTotal = (
     flows,
     allLines: dispatched.lines,
     contractResults,
+    contractFlows: getContractResourceFlows(contractResults),
     calculation,
     electricityDemandMw: dispatched.electricityDemandMw,
     computingDemandTflops: dispatched.computingDemandTflops,

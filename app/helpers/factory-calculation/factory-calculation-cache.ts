@@ -30,6 +30,7 @@ export const isCompatibleFactoryCalculation = (
     && Array.isArray(model.configuredModules)
     && isRecord(calculation.factoryResult)
     && Array.isArray(calculation.factoryResult.allLines)
+    && Array.isArray(calculation.factoryResult.contractFlows)
     && isRecord(calculation.factoryResult.calculation)
     && Array.isArray(calculation.factoryResult.calculation.resourceFlows)
     && isRecord(calculation.linkedModulesResult)

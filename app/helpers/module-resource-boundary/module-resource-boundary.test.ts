@@ -43,6 +43,15 @@ describe('module resource exchange contracts', () => {
     expect(calculateModuleResourceBoundary(rule, flow)).toEqual({ factoryDemand: 0, factorySupply: 0 })
   })
 
+  it('keeps Depleted Steam inside its module while recovered Water can enter the factory', () => {
+    const steam = resolveModuleResourceBoundary('nuclear', 'steamDepleted', [], null)
+    const water = resolveModuleResourceBoundary('nuclear', 'water', [], null)
+
+    expect(getConnectionOnlyResourceIds(['steamDepleted', 'water'])).toEqual(['steamDepleted'])
+    expect(calculateModuleResourceBoundary(steam, flow)).toEqual({ factoryDemand: 0, factorySupply: 0 })
+    expect(calculateModuleResourceBoundary(water, flow)).toEqual({ factoryDemand: 0, factorySupply: 7 })
+  })
+
   it('preserves an exact import request as demand even on a dedicated endpoint', () => {
     const rule = resolveModuleResourceBoundary('food', 'water', [link], {
       ...preset, requestedImports: { water: 4 },
@@ -60,5 +69,13 @@ describe('module resource exchange contracts', () => {
 
     expect(calculateModuleResourceBoundary(rule, { ...flow, sent: 4, demandTriggeredSent: 4 }))
       .toEqual({ factoryDemand: 0, factorySupply: 3 })
+  })
+
+  it.each(['steamSuper', 'steamHigh', 'steamLow', 'steamDepleted'] as const)('keeps %s out of generic factory requests even with a named link', resourceId => {
+    const rule = resolveModuleResourceBoundary('nuclear', resourceId, [{ ...link, resourceId }], {
+      ...preset, requestedImports: { [resourceId]: 4 }, requestedExports: { [resourceId]: 6 },
+    })
+
+    expect(calculateModuleResourceBoundary(rule, flow)).toEqual({ factoryDemand: 0, factorySupply: 0 })
   })
 })
