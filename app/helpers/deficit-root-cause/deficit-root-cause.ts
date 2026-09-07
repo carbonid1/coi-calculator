@@ -34,13 +34,21 @@ const getProducerLines = (resourceId: ResourceId, pool: CapacityPool) => (
   ))
 );
 
-/** Confirmed deficits, rather than balanced inputs that could be produced on demand. */
+/** A factory deficit is relevant only if that input can limit this producer. */
 const getShortInputs = (
   resourceId: ResourceId,
   pool: CapacityPool,
   flows: ResourceFlow[],
 ) => (
-  getProducerLines(resourceId, pool).flatMap(({ recipe }) => recipe.inputs)
+  getProducerLines(resourceId, pool).flatMap(({ recipe }) => (
+    // Input-driven recovery requests its supporting reagents on demand. Their
+    // deficits do not explain spare capacity once its feedstock is exhausted.
+    recipe.inputs.filter(input => (
+      recipe.balanceBy !== "input"
+      || recipe.balanceInputIds == null
+      || recipe.balanceInputIds.includes(input.resourceId)
+    ))
+  ))
     .filter((input) => input.resourceId !== resourceId)
     .filter((input) => {
       const flow = flows.find((candidate) => candidate.resourceId === input.resourceId);

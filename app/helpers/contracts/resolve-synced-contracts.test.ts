@@ -76,6 +76,7 @@ describe('synced contract resolution', () => {
     expect(resolution.contracts).toMatchObject([{
       id: 'uranium-ore-for-food-pack',
       gameId: contractGameId,
+      exportSurplus: true,
       routes: [{
         id: 'contract-route-1000',
         source: 'planned',

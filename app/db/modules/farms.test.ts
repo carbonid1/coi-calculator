@@ -158,8 +158,8 @@ describe("Chicken Farms", () => {
       ],
     });
     expect(trimmingsOnly).toMatchObject({
-      balanceBy: "input",
-      allocation: "fallback",
+      balanceBy: "output",
+      balanceOutputIds: ["meatTrimmings"],
       inputs: [{ resourceId: "chickenCarcass", quantity: 30 }],
     });
   });

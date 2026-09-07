@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 
 import { recipes } from "../db/recipes";
-import { type RegularResult } from "../helpers/calculate/calculate";
+import { calculateNet, type RegularResult } from "../helpers/calculate/calculate";
 
 vi.mock("@carbonid1/design-system", () => ({
   Tooltip: ({
@@ -18,6 +18,37 @@ vi.mock("./BuildingAttentionView", () => ({ BuildingAttentionView: () => null })
 vi.mock("./PlannedBuildsView", () => ({ PlannedBuildsView: () => null }));
 
 import { NetSummary } from "./NetSummary";
+
+it("omits excess already handled by conversion or disposal from the surplus section", () => {
+  const recipe = recipes.find(candidate => candidate.id === "anaerobic-digester-corn");
+
+  if (!recipe) throw new Error("Missing Corn digestion recipe");
+
+  const calculation = calculateNet([{
+    recipe, moduleId: "general", activeBuildings: 1, builtBuildings: 1,
+    operatingMode: "balanced", speedLevel: 1,
+  }, {
+    recipe: {
+      id: "water-dump", name: "Water", building: "Liquid Dump", group: "sink",
+      inputs: [{ resourceId: "water", quantity: 100 }], outputs: [],
+    },
+    moduleId: "general", activeBuildings: 1, builtBuildings: 1,
+    operatingMode: "balanced", speedLevel: 1,
+  }], { corn: 7, water: 20 });
+  const html = renderToStaticMarkup(<NetSummary
+    groupByBalance
+    flows={calculation.allResourceFlows}
+    regularResults={calculation.regularResults}
+    passiveResults={calculation.sinkResults}
+  />);
+
+  for (const resourceId of ["corn", "water"]) {
+    expect(calculation.allResourceFlows.find(flow => flow.resourceId === resourceId)?.net).toBeCloseTo(0);
+  }
+  expect(html).not.toContain(">Corn<");
+  expect(html).not.toContain(">Water<");
+  expect(html).not.toContain("UNROUTED");
+});
 
 it("renders the concise Graphite explanation without repeated producer labels or false shortages", () => {
   const makeResult = (id: string, supplyRatio: number, overrides: Partial<RegularResult> = {}): RegularResult => {

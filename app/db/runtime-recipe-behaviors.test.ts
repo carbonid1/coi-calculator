@@ -44,31 +44,38 @@ describe('runtime recipe behaviors', () => {
     })
     expect(runtimeRecipeBehaviors['AssemblyRoboticT2:FoodPackEggsAssembly']).toEqual({
       balanceBy: 'output',
+      allocation: 'fallback',
       balanceInputIds: ['eggs'],
       balanceOutputIds: ['foodPack'],
       demandPriority: -1,
+      consumeSurplusInputIds: ['eggs'],
+      surplusConsumptionPhase: 'before-fallback',
+      surplusConsumptionPriority: 110,
     })
     expect(runtimeRecipeBehaviors['AssemblyRoboticT2:FoodPackMeatAssembly']).toEqual({
       balanceBy: 'output',
-      balanceInputIds: [],
+      allocation: 'fallback',
+      balanceInputIds: ['meat'],
       balanceOutputIds: ['foodPack'],
       consumeSurplusInputIds: ['meat'],
+      surplusConsumptionPhase: 'before-fallback',
       surplusConsumptionPriority: 120,
     })
   })
 
-  it('routes Chicken Carcass left by the Trimmings fallback into Meat', () => {
+  it('covers population food before surplus carcass conversion', () => {
     expect(runtimeRecipeBehaviors['FoodProcessor:MeatProcessing']).toEqual({
       balanceBy: 'output',
       balanceOutputIds: ['meat'],
       consumeSurplusInputIds: ['chickenCarcass'],
+      surplusConsumptionPhase: 'before-fallback',
       surplusConsumptionPriority: 100,
     })
     expect(runtimeRecipeBehaviors['FoodProcessor:MeatProcessingTrimmings']).toEqual({
-      allocation: 'fallback',
-      allocationPriority: 10,
-      balanceBy: 'input',
+      balanceBy: 'output',
       balanceInputIds: ['chickenCarcass'],
+      balanceOutputIds: ['meatTrimmings'],
+      demandPriority: 1,
     })
   })
 
@@ -98,11 +105,6 @@ describe('runtime recipe behaviors', () => {
       yieldToSurplus: true,
       balanceBy: 'input',
       balanceInputIds: ['carbonDioxide'],
-    })
-    expect(runtimeRecipeBehaviors['FoodProcessor:MeatProcessingTrimmings']).toMatchObject({
-      allocation: 'fallback',
-      balanceBy: 'input',
-      balanceInputIds: ['chickenCarcass'],
     })
     expect(runtimeRecipeBehaviors['IndustrialMixerT2:AnimalFeedCompost']).toMatchObject({
       allocation: 'surplus',

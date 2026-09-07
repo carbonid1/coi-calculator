@@ -17,7 +17,7 @@ interface Props {
 }
 
 const formatQuantity = (quantity: number) => (
-  quantity > 0 && quantity < 0.01 ? "<0.01" : parseFloat(quantity.toFixed(2))
+  quantity > 0 && quantity < 0.01 ? 0.01 : parseFloat(quantity.toFixed(2))
 );
 
 export const SinkCard: React.FC<Props> = ({

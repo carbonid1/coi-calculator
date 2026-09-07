@@ -2023,10 +2023,9 @@ export const recipes: Recipe[] = [
     cycleDurationSeconds: 20,
     balanceBy: 'output',
     balanceOutputIds: ['meat'],
-    // Ordinary Meat demand runs first and the Trimmings fallback keeps its
-    // share for Sausages. Spare Food Processor capacity then takes the carcass
-    // that would otherwise end as Fuel Gas into Meat, so it reaches Food Packs.
+    // Cover population demand before routing spare carcass through Food Packs.
     consumeSurplusInputIds: ['chickenCarcass'],
+    surplusConsumptionPhase: 'before-fallback',
     surplusConsumptionPriority: 100,
     inputs: [
       { resourceId: 'chickenCarcass', quantity: 30 },
@@ -2041,17 +2040,15 @@ export const recipes: Recipe[] = [
   {
     id: 'food-processor-meat-trimmings',
     // Captain of Industry v0.8.7 game-data rate, normalized to 60 seconds.
-    name: 'Food Processor (Surplus Chicken Carcass → Trimmings)',
+    name: 'Food Processor (Chicken Carcass → Trimmings)',
     building: 'Food Processor',
     group: 'production',
     cycleDurationSeconds: 20,
-    balanceBy: 'input',
+    balanceBy: 'output',
     balanceInputIds: ['chickenCarcass'],
-    // Runs after ordinary Meat demand and feeds Sausages. Carcass it cannot
-    // absorb goes back to spare Meat capacity; downstream fallbacks route
-    // excess Trimmings to Fuel Gas and excess Fuel Gas to Diesel.
-    allocation: 'fallback',
-    allocationPriority: 10,
+    balanceOutputIds: ['meatTrimmings'],
+    demandPriority: 1,
+    // Make only the Trimmings Sausages still need after Meat's byproduct.
     inputs: [{ resourceId: 'chickenCarcass', quantity: 30 }],
     outputs: [{ resourceId: 'meatTrimmings', quantity: 27 }],
   },
@@ -2587,9 +2584,14 @@ export const recipes: Recipe[] = [
     group: 'production',
     cycleDurationSeconds: 7.5,
     balanceBy: 'output',
+    allocation: 'fallback',
     balanceInputIds: ['eggs'],
+    // Population food is reserved before either packing recipe claims inputs.
     balanceOutputIds: ['foodPack'],
     demandPriority: -1,
+    consumeSurplusInputIds: ['eggs'],
+    surplusConsumptionPhase: 'before-fallback',
+    surplusConsumptionPriority: 110,
     sharedCapacity: {
       id: 'assembly-v-food-pack',
       label: 'Assembly V — Food Pack',
@@ -2608,13 +2610,13 @@ export const recipes: Recipe[] = [
     group: 'production',
     cycleDurationSeconds: 7.5,
     balanceBy: 'output',
-    // Meat is demand-produced by the carcass processor. Let this recipe create
-    // that upstream demand after the higher-priority Eggs recipe takes its share.
-    balanceInputIds: [],
+    allocation: 'fallback',
+    balanceInputIds: ['meat'],
     balanceOutputIds: ['foodPack'],
     // Carcass surplus arrives here as Meat the settlement does not eat. Spare
     // Assembly capacity turns it into stockpiled Food Packs.
     consumeSurplusInputIds: ['meat'],
+    surplusConsumptionPhase: 'before-fallback',
     surplusConsumptionPriority: 120,
     sharedCapacity: {
       id: 'assembly-v-food-pack',

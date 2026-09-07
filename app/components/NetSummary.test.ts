@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { recipes } from "../db/recipes";
-import { type BlockedSurplusRoute, type PassiveResult, type RegularResult } from "../helpers/calculate/calculate";
+import { type BlockedSurplusRoute, calculateNet, type PassiveResult, type RegularResult } from "../helpers/calculate/calculate";
 import { type ContractResourceFlow } from "../helpers/contracts/contract-resource-flows";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
@@ -62,6 +62,67 @@ describe("NetSummary capacity diagnostics", () => {
   it("treats a surplus nothing consumes as a terminal product", () => {
     expect(getSurplusRootCause("chickenCarcass", [result("cracking-unit-fuel-gas-diesel", 1)]))
       .toEqual({ kind: "terminal", detail: null });
+  });
+
+  it("reports the same full digester pool for crops with and without idle food consumers", () => {
+    const digesters = ["meat-trimmings", "corn", "fruit", "poppy", "soybean", "vegetables", "wheat"]
+      .map((crop, index) => result(`anaerobic-digester-${crop}`, index === 0 ? 1 : 0, {
+        capacityPoolId: "digesters", activeBuildings: 4, builtBuildings: 4,
+      }));
+    const consumers = [
+      ...digesters,
+      result("food-processor-snack", 0.9),
+      result("baking-unit-cake", 0.8),
+      result("food-processor-tofu", 0.7),
+      result("mill-wheat", 0.6),
+      result("chemical-plant-ii-morphine", 0.3),
+    ];
+
+    for (const resourceId of ["corn", "fruit", "poppy", "soybean", "vegetables", "wheat"]) {
+      for (const ordered of [consumers, consumers.toReversed()]) {
+        expect(getSurplusRootCause(resourceId, ordered, [], [], 12)).toEqual({
+          kind: "at-capacity",
+          detail: "Anaerobic Digester — Surplus organics · at capacity",
+        });
+      }
+    }
+  });
+
+  it("prioritizes a full dump over met production demand", () => {
+    expect(getSurplusRootCause("water", [result("food-processor-meat", 0.5)], [], [{
+      recipe: {
+        id: "water-dump", name: "Water", building: "Liquid Dump", group: "sink",
+        inputs: [{ resourceId: "water", quantity: 100 }], outputs: [],
+      },
+      moduleId: "general", activeBuildings: 1, builtBuildings: 1, supplyRatio: 1,
+      actualInputs: [{ resourceId: "water", quantity: 100 }], actualOutputs: [],
+    }], 10)).toEqual({ kind: "at-capacity", detail: "Liquid Dump · build 1" });
+  });
+
+  it("does not prioritize a surplus recipe for one of its supporting reagents", () => {
+    expect(getSurplusRootCause("water", [
+      result("food-processor-meat", 0.5),
+      result("food-processor-sugar", 1, {
+        recipe: {
+          ...getRecipe("food-processor-sugar"), allocation: "surplus",
+          balanceBy: "input", balanceInputIds: ["sugarCane"],
+          inputs: [{ resourceId: "sugarCane", quantity: 12 }, { resourceId: "water", quantity: 3 }],
+        },
+      }),
+    ], [], [], 10)).toEqual({ kind: "demand-met", detail: "Meat demand met" });
+  });
+
+  it("does not mark conversion at capacity when another configured route has room", () => {
+    expect(getSurplusRootCause("chickenCarcass", [
+      result("food-processor-meat", 0.5),
+      result("anaerobic-digester-meat-trimmings", 1, {
+        recipe: {
+          ...getRecipe("anaerobic-digester-meat-trimmings"),
+          balanceInputIds: ["chickenCarcass"],
+          inputs: [{ resourceId: "chickenCarcass", quantity: 30 }],
+        },
+      }),
+    ], [], [], 10)).toEqual({ kind: "demand-met", detail: "Meat demand met" });
   });
 
   it("names the input that held a surplus route back", () => {
@@ -380,6 +441,36 @@ describe("NetSummary deficit attribution", () => {
     net: produced - consumed,
   });
 
+  it("does not blame supporting reagents when Water recovery has processed all Waste Water", () => {
+    const treatment = result("housing-wastewater-treatment", 0, {
+      activeBuildings: 2,
+      builtBuildings: 2,
+    });
+    const calculation = calculateNet([treatment], {
+      wasteWater: 160,
+    }, undefined, {}, { water: 130 });
+    const flows = calculation.allResourceFlows;
+
+    expect(calculation.regularResults[0].supplyRatio).toBeCloseTo(0.5);
+    expect(flows.find(flow => flow.resourceId === "wasteWater")?.net).toBeCloseTo(0);
+    expect(flows.find(flow => flow.resourceId === "water")?.net).toBeCloseTo(-10);
+    expect(flows.find(flow => flow.resourceId === "chlorine")?.net).toBeCloseTo(-16);
+    expect(flows.find(flow => flow.resourceId === "filterMedia")?.net).toBeCloseTo(-8);
+    expect(getDeficitRootCause("water", calculation.regularResults, flows).detail)
+      .toBe("Input supply limited · 130 outside recipes");
+  });
+
+  it.each([undefined, ["wasteWater", "chlorine"]])(
+    "retains Chlorine shortages when it is an input constraint (%j)", balanceInputIds => {
+      const treatment = result("housing-wastewater-treatment", 0.5, {
+        recipe: { ...getRecipe("housing-wastewater-treatment"), balanceInputIds },
+      });
+
+      expect(getDeficitRootCause("water", [treatment], [flow("chlorine", 0, 16)]))
+        .toEqual({ kind: "input-limited", detail: "Chlorine short" });
+    },
+  );
+
   it("counts source intake as accounted consumption", () => {
     expect(getDeficitRootCause("treeSapling", [], [flow("treeSapling", 0, 2.43)], [{
       recipe: getRecipe("cracking-unit-fuel-gas-diesel"),
@@ -512,7 +603,7 @@ describe("NetSummary passive capacity", () => {
     });
   });
 
-  it("offers different building types as alternatives", () => {
+  it("prefers surplus fuel conversion over expanding ordinary production", () => {
     expect(getSurplusRootCause(
       "fuelGas",
       [
@@ -524,7 +615,7 @@ describe("NetSummary passive capacity", () => {
       40,
     )).toEqual({
       kind: "at-capacity",
-      detail: "Cracking Unit · build 2 or Rotary Kiln (gas) · build 7",
+      detail: "Cracking Unit · build 2",
     });
   });
 

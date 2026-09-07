@@ -5,6 +5,7 @@ import {
   type RegularResult,
 } from "../calculate/calculate";
 import {
+  type CapacityPool,
   getCapacityActions,
   getCapacityPools,
   type PoolResult,
@@ -17,8 +18,9 @@ const BALANCE_THRESHOLD = 0.001;
 export interface SurplusRootCause {
   /**
    * `terminal`: nothing active consumes the resource, so the surplus is a
-   * genuine end product. `at-capacity`: every consumer pool is saturated or
-   * paused. `input-blocked`: a consumer had room but the solver cut it because
+   * genuine end product. `at-capacity`: the configured surplus-handling pools
+   * (or all consumers when none are configured) are saturated or paused.
+   * `input-blocked`: a consumer had room but the solver cut it because
    * another input would fall into deficit. `demand-met`: consumers have room
    * but their own output is already covered, so the resource is overproduced.
    */
@@ -57,6 +59,28 @@ const getReachableConsumers = (resourceId: ResourceId, results: PoolResult[]) =>
 
 const getProducts = (result: PoolResult) => (
   result.recipe.balanceOutputIds ?? result.recipe.outputs.map((output) => output.resourceId)
+);
+
+const handlesSurplus = (resourceId: ResourceId, pool: CapacityPool) => (
+  pool.members.some(({ recipe, activeBuildings, builtBuildings }) => (
+    (activeBuildings > 0 || builtBuildings > 0)
+    && recipe.inputs.some(input => input.resourceId === resourceId)
+    && (
+      recipe.group === "sink"
+      || recipe.consumeSurplusInputIds?.includes(resourceId)
+      || (recipe.allocation === "surplus"
+        && (recipe.balanceInputIds == null || recipe.balanceInputIds.includes(resourceId)))
+    )
+  ))
+);
+
+/** A per-resource build count cannot cover competing recipes in a shared pool. */
+const hasCompetingInputs = (resourceId: ResourceId, pool: CapacityPool) => (
+  pool.members.some(({ recipe, activeBuildings, builtBuildings }) => (
+    (activeBuildings > 0 || builtBuildings > 0)
+    && recipe.inputs.length > 0
+    && !recipe.inputs.some(input => input.resourceId === resourceId)
+  ))
 );
 
 /**
@@ -116,11 +140,20 @@ export const getSurplusRootCause = (
     };
   }
 
-  if (consumers.every((consumer) => consumer.atCapacity)) {
+  // An idle food or manufacturing line does not remove the bottleneck in the
+  // routes configured to process leftovers. Diagnose those routes first.
+  const surplusConsumers = consumers.filter(consumer => handlesSurplus(resourceId, consumer));
+  const capacityConsumers = surplusConsumers.length > 0 ? surplusConsumers : consumers;
+
+  if (capacityConsumers.every((consumer) => consumer.atCapacity)) {
+    const sharedInputs = capacityConsumers.some(consumer => hasCompetingInputs(resourceId, consumer));
+
     return {
       kind: "at-capacity",
       detail: formatDiagnosticMessages([
-        { kind: "capacity", actions: getCapacityActions(consumers, resourceId, "inputs", surplus) },
+        { kind: "capacity", actions: getCapacityActions(
+          capacityConsumers, resourceId, "inputs", sharedInputs ? 0 : surplus,
+        ) },
       ]),
     };
   }

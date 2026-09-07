@@ -78,6 +78,8 @@ export interface ContractRoute {
 export interface ActiveContract extends Contract {
   gameId: string;
   routes: readonly ContractRoute[];
+  /** Dynamic routes may exchange spare payment goods beyond factory import demand. */
+  exportSurplus?: boolean;
 }
 
 const contractsGameVersion = "0.8.7";

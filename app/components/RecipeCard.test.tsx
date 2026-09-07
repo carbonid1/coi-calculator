@@ -45,7 +45,8 @@ it("keeps a tiny nonzero Brine disposal visible instead of rounding it to zero",
     actualInputs: [{ resourceId: "brine", quantity: 0.003 }], actualOutputs: [],
   }} />);
 
-  expect(html).toContain("&lt;0.01");
+  expect(html).toContain(">0.01</span>");
+  expect(html).not.toContain("&lt;0.01");
 });
 
 it.each([0, 0.5])("uses the same readable label in regular, shared and passive cards at load %s", supplyRatio => {

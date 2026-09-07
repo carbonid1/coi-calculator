@@ -43,20 +43,22 @@ const DataRow: React.FC<{
   </div>
 )
 
-const getRouteState = (route: ContractRoute) => {
+const getRouteState = (route: ContractRoute, exportSurplus: boolean) => {
   if (!route.enabled) return 'Planned off'
   if (!route.running || !route.ship?.running) return 'Unavailable'
+  const dynamicMode = exportSurplus ? 'Surplus exports' : 'Demand-balanced'
 
   return `${route.source === 'planned' ? 'Planned' : 'Synced'} · ${
-    route.importedPerProductionCycle === null ? 'Demand-balanced' : 'Fixed'
+    route.importedPerProductionCycle === null ? dynamicMode : 'Fixed'
   }`
 }
 
 const RouteCard: React.FC<{
   exportedResourceId: ContractResult['contract']['exchange']['exported']['resourceId']
   importedResourceId: ContractResult['contract']['exchange']['imported']['resourceId']
+  exportSurplus: boolean
   result: ContractRouteResult
-}> = ({ exportedResourceId, importedResourceId, result }) => {
+}> = ({ exportedResourceId, importedResourceId, exportSurplus, result }) => {
   const { route } = result
   const exportedResource = resources[exportedResourceId]
   const importedResource = resources[importedResourceId]
@@ -77,7 +79,7 @@ const RouteCard: React.FC<{
             {route.depotPrototypeId}{zoneNames.length > 0 ? ` · ${zoneNames.join(', ')}` : ''}
           </p>
         </div>
-        <span className="text-xs font-medium text-foreground">{getRouteState(route)}</span>
+        <span className="text-xs font-medium text-foreground">{getRouteState(route, exportSurplus)}</span>
       </div>
 
       <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-sm font-semibold text-foreground">
@@ -170,6 +172,7 @@ const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) =>
                 key={route.route.id}
                 exportedResourceId={contract.exchange.exported.resourceId}
                 importedResourceId={contract.exchange.imported.resourceId}
+                exportSurplus={contract.exportSurplus ?? false}
                 result={route}
               />
             ))}

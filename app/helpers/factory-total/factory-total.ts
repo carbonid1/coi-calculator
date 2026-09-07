@@ -5,7 +5,7 @@ import { type ResourceId } from "../../db/resources";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateBuildingStats } from "../building-stats/building-stats";
 import { type ResourceFlow, type ProductionLine, calculateNet } from "../calculate/calculate";
-import { applyContracts, type ContractResult } from "../contracts/calculate-contracts";
+import { applyContracts, balanceContractExports, type ContractResult } from "../contracts/calculate-contracts";
 import { getContractResourceFlows, type ContractResourceFlow } from "../contracts/contract-resource-flows";
 import {
   getRecipeInputQuantity,
@@ -915,41 +915,74 @@ export const calculateFactoryTotal = (
       })
       .filter(flow => !localResourceIds.has(flow.resourceId));
   };
-  let contractPlan = initialContractResults
+  const paymentAvailability = new Map<ResourceId, number>();
+  const rebalanceContracts = (startingPlan: ReturnType<typeof applyContracts>) => {
+    let plan = startingPlan;
+
+    for (let iteration = 0; iteration < MAX_CONTRACT_BALANCE_ITERATIONS; iteration += 1) {
+      const nextPlan = balanceContractExports(
+        calculatePlanningFlowsWithContractExports(plan),
+        contracts,
+        plan.contractResults,
+        shipsFuelUseMultiplier,
+        contractsProfitMultiplier,
+        paymentAvailability,
+      );
+      const priorById = new Map(plan.contractResults.map(result => (
+        [result.contract.id, result] as const
+      )));
+      const converged = nextPlan.contractResults.every((result) => {
+        const prior = priorById.get(result.contract.id);
+
+        return prior
+          && Math.abs(result.requestedImported - prior.requestedImported) <= CONTRACT_BALANCE_TOLERANCE
+          && Math.abs(result.imported - prior.imported) <= CONTRACT_BALANCE_TOLERANCE;
+      });
+
+      plan = nextPlan;
+      if (converged) break;
+    }
+    return plan;
+  };
+  let contractPlan = rebalanceContracts(initialContractResults
     ? { flows: [], contractResults: initialContractResults }
-    : getInitialContractPlan();
+    : getInitialContractPlan());
+  let dispatched = calculateWithContractPlan(contractPlan);
 
-  for (
-    let iteration = 0;
-    iteration < MAX_CONTRACT_BALANCE_ITERATIONS;
-    iteration += 1
-  ) {
-    const nextContractPlan = applyContracts(
-      calculatePlanningFlowsWithContractExports(contractPlan),
-      contracts,
-      shipsFuelUseMultiplier,
-      new Map(),
-      contractsProfitMultiplier,
-      true,
-    );
-    const priorById = new Map(contractPlan.contractResults.map(result => (
-      [result.contract.id, result] as const
-    )));
-    const converged = nextContractPlan.contractResults.every((result) => {
-      const prior = priorById.get(result.contract.id);
+  // Planning seeds reveal demand even behind unavailable imports. They cannot
+  // fund surplus shipments: validate payment goods against actual deliveries.
+  // The usual feasible plan reuses its final dispatch without another solve.
+  for (let iteration = 0; iteration < MAX_CONTRACT_BALANCE_ITERATIONS; iteration += 1) {
+    const costs = getContractResourceFlows(contractPlan.contractResults).filter(flow => flow.kind !== "import");
+    let changed = false;
 
-      return prior
-        && Math.abs(result.requestedImported - prior.requestedImported)
-          <= CONTRACT_BALANCE_TOLERANCE
-        && Math.abs(result.imported - prior.imported)
-          <= CONTRACT_BALANCE_TOLERANCE;
-    });
+    for (const result of contractPlan.contractResults) {
+      const fixedImports = result.routes.reduce((total, route) => (
+        total + (route.route.importedPerProductionCycle === null ? 0 : route.imported)
+      ), 0);
 
-    contractPlan = nextContractPlan;
+      if (!result.contract.exportSurplus
+        || result.imported <= Math.max(result.requiredImported, fixedImports) + CONTRACT_BALANCE_TOLERANCE) continue;
 
-    if (converged) break;
+      const paymentId = result.contract.exchange.exported.resourceId;
+      const flow = dispatched.calculation.allResourceFlows.find(flow => flow.resourceId === paymentId);
+
+      if (!flow || flow.net >= -CONTRACT_BALANCE_TOLERANCE) continue;
+
+      const available = Math.max(0, flow.net + costs.reduce((total, cost) => (
+        total + (cost.resourceId === paymentId ? cost.quantity : 0)
+      ), 0));
+
+      if (available >= (paymentAvailability.get(paymentId) ?? Infinity) - CONTRACT_BALANCE_TOLERANCE) continue;
+
+      paymentAvailability.set(paymentId, available);
+      changed = true;
+    }
+    if (!changed) break;
+
+    contractPlan = rebalanceContracts(contractPlan);
+    dispatched = calculateWithContractPlan(contractPlan);
   }
-  const dispatched = calculateWithContractPlan(contractPlan);
   const { calculation } = dispatched;
   const flows = calculation.allResourceFlows.filter(
     (flow) => !localResourceIds.has(flow.resourceId),

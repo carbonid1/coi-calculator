@@ -321,3 +321,54 @@ export const applyContracts = (
 
   return { flows, contractResults }
 }
+
+/** Re-size dynamic routes from demand, then spend only unclaimed payment goods. */
+export const balanceContractExports = (
+  resourceFlows: ResourceFlow[],
+  contracts: readonly ActiveContract[],
+  previousResults: readonly ContractResult[],
+  shipsFuelUseMultiplier = 1,
+  contractsProfitMultiplier = 1,
+  paymentAvailability: ReadonlyMap<ResourceId, number> = new Map(),
+) => {
+  const importTargets = new Map<string, number>()
+  const calculatePlan = () => applyContracts(
+    resourceFlows, contracts, shipsFuelUseMultiplier, importTargets,
+    contractsProfitMultiplier, true,
+  )
+  let plan = calculatePlan()
+  const previousCosts = getContractResourceFlows(previousResults)
+    .filter(flow => flow.kind !== 'import')
+
+  for (const contract of contracts) {
+    if (!contract.exportSurplus || !contract.routes.some(route => route.importedPerProductionCycle === null)) continue
+
+    const paymentId = contract.exchange.exported.resourceId
+    // Planning flows contain last iteration's costs. Replace those with the
+    // new plan's costs, reserving every contract's required payment before
+    // allowing any surplus export. Recompute after each allocation so two
+    // contracts cannot spend the same surplus.
+    const currentCosts = getContractResourceFlows(plan.contractResults)
+    const reserved = currentCosts.reduce((total, flow) => total + (
+      flow.kind !== 'import' && flow.resourceId === paymentId ? flow.quantity : 0
+    ), 0)
+    const available = Math.min(
+      (plan.flows.find(flow => flow.resourceId === paymentId)?.net ?? 0)
+        + previousCosts.reduce((total, flow) => total + (flow.resourceId === paymentId ? flow.quantity : 0), 0),
+      paymentAvailability.get(paymentId) ?? Infinity,
+    ) - reserved
+    const result = plan.contractResults.find(result => result.contract.id === contract.id)
+    const effectiveImportedQuantity = scaleQuantityLikeGame(
+      contract.exchange.imported.quantity, Math.max(0.01, contractsProfitMultiplier),
+    )
+
+    if (!result || available <= 0 || effectiveImportedQuantity <= 0 || contract.exchange.exported.quantity <= 0) continue
+
+    const additionalImports = available * effectiveImportedQuantity / contract.exchange.exported.quantity
+
+    importTargets.set(contract.id, Math.max(result.requiredImported, result.imported + additionalImports))
+    plan = calculatePlan()
+  }
+
+  return plan
+}

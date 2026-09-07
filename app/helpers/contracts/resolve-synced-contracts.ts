@@ -1,4 +1,4 @@
-import { type ContractRoutePlans } from '../../db/contract-plans'
+import { type ContractRoutePlans, surplusExportContractIds } from '../../db/contract-plans'
 import {
   type ActiveContract,
   type Contract,
@@ -181,6 +181,7 @@ export const resolveSyncedContracts = (
 
     activeContracts.push({
       ...catalogContract,
+      exportSurplus: surplusExportContractIds.has(catalogContract.id),
       gameId: syncedContract.gameId,
       name: `${resources[exportedResourceId].name} → ${resources[importedResourceId].name}`,
       exchange: {
