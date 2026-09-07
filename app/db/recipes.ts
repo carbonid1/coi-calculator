@@ -193,8 +193,6 @@ export interface Recipe {
   }
   /** False for modes or capabilities that do not represent a separate physical building. */
   tracksPhysicalCapacity?: boolean
-  /** The projected operation requires this physical building to be unpaused. */
-  requiresRunningCapacity?: boolean
   /** A fixed operation is shared across every active building instead of repeated by each one. */
   fixedTotalOperation?: boolean
 }
@@ -2351,7 +2349,6 @@ export const recipes: Recipe[] = [
     name: 'Rocket Assembly Depot (Rocket II)',
     building: 'Rocket Assembly Depot',
     group: 'production',
-    requiresRunningCapacity: true,
     cycleDurationSeconds: 360,
     balanceBy: 'output',
     balanceOutputIds: ['rocketII'],
@@ -2380,7 +2377,6 @@ export const recipes: Recipe[] = [
     name: 'Rocket Launch Pad (Rocket II average)',
     building: 'Rocket Launch Pad',
     group: 'production',
-    requiresRunningCapacity: true,
     fixedTotalOperation: true,
     inputs: [
       {

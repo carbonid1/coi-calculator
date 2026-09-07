@@ -54,7 +54,6 @@ it("layers a pending operation target over exact synced inventory", () => {
       chlorineProcessingCount: 0,
       saltProcessingCount: 0,
       superDesalinatorCount: 0,
-      seawaterPumpCount: 0,
     },
     entities,
   );
@@ -160,7 +159,7 @@ it("returns reached operation targets to synced state", () => {
   });
 });
 
-it("keeps standard and tall seawater pumps distinct under one plan target", () => {
+it("keeps standard and tall seawater pumps at their synced running counts", () => {
   const entities = [
     ...makeMany(4, 4, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
     ...makeMany(2, 1, "OceanWaterPumpLarge", ["OceanWaterPumping2xT2"]),
@@ -174,7 +173,6 @@ it("keeps standard and tall seawater pumps distinct under one plan target", () =
       chlorineProcessingCount: 0,
       saltProcessingCount: 0,
       superDesalinatorCount: 0,
-      seawaterPumpCount: 6,
     },
     entities,
   );
@@ -186,10 +184,11 @@ it("keeps standard and tall seawater pumps distinct under one plan target", () =
   });
   expect(preset?.activeBuildings).toMatchObject({
     "seawater-pump": 4,
-    "seawater-pump-tall": 2,
+    "seawater-pump-tall": 1,
   });
   expect(preset?.dataSources?.["seawater-pump"]).toBe("synced");
-  expect(preset?.dataSources?.["seawater-pump-tall"]).toBe("planned");
+  expect(preset?.dataSources?.["seawater-pump-tall"]).toBe("synced");
+  expect(preset?.planMismatches).toBeUndefined();
 });
 
 it("preserves the synced Nuclear checkpoint's complete Factory Total", () => {

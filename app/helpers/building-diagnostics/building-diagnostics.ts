@@ -156,7 +156,6 @@ const getAttention = ({
   active,
   built,
   canPause,
-  requiresRunningCapacity,
   currentActive,
   keepReady,
 }: {
@@ -165,16 +164,12 @@ const getAttention = ({
   active: number;
   built: number;
   canPause: number;
-  requiresRunningCapacity: boolean;
   currentActive: number;
   keepReady: boolean;
 }): BuildingAttention | null => {
   if (!tracksPhysicalCapacity) return null;
   if (plannedCapacity) return null;
   if (keepReady && currentActive <= EPSILON) return built > 0 ? "unpause" : "build";
-  if (requiresRunningCapacity && currentActive + EPSILON < active) {
-    return built > currentActive + EPSILON ? "unpause" : "build";
-  }
   // A saturated or paused pool behind a shortage is explained on the deficit
   // and surplus rows themselves, so it is not restated here.
   if (active > built + EPSILON) return "build";
@@ -298,6 +293,7 @@ export const calculateBuildingDiagnostics = (
       0,
     );
     const affectedResourceIds = new Set<ResourceId>();
+    let hasUnmetOutputDemand = false;
 
     for (const result of results) {
       const diagnosticOutputIds = isRegularResult(result)
@@ -314,6 +310,7 @@ export const calculateBuildingDiagnostics = (
           && (flowsById.get(output.resourceId)?.net ?? 0) < -EPSILON
         ) {
           affectedResourceIds.add(output.resourceId);
+          hasUnmetOutputDemand = true;
         }
       }
 
@@ -330,13 +327,12 @@ export const calculateBuildingDiagnostics = (
       }
     }
 
-    const requiresRunningCapacity = physicalCapacityResults.some(
-      result => result.recipe.requiresRunningCapacity === true,
-    );
     const keepReady = tracksPhysicalCapacity && (keepReadyPreferences[getKeepReadyPreferenceKey(key)]
       ?? physicalCapacityResults.some(result => result.recipe.keepReady === true));
-    const paused = Math.max(0, built - (requiresRunningCapacity || keepReady ? currentActive : active));
-    const suppressPauseAttention = keepReady || results.every((result) => (
+    const paused = Math.max(0, built - (keepReady ? currentActive : active));
+    // Input-starved utilization is not evidence of spare production capacity
+    // while one of the pool's main products still has unmet demand.
+    const suppressPauseAttention = keepReady || hasUnmetOutputDemand || results.every((result) => (
       getBuildingData(result.recipe.building)?.suppressPauseAttention === true
     ));
     const canPause = suppressPauseAttention
@@ -348,7 +344,6 @@ export const calculateBuildingDiagnostics = (
       active,
       built,
       canPause,
-      requiresRunningCapacity,
       currentActive,
       keepReady,
     });

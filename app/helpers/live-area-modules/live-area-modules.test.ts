@@ -44,6 +44,52 @@ const entity = (
 })
 
 describe('createLiveAreaModules', () => {
+  it.each([true, false])('starts Paper and its Woodchips chain only with local Steam (local: %s)', localSteam => {
+    const zone = { id: 16, name: 'Paper' }
+    const steamZone = localSteam ? zone : { id: 17, name: 'Other' }
+    const paper = {
+      id: 'PaperProduction', name: 'Paper', durationSeconds: 60, assigned: true,
+      inputs: [
+        { productId: 'Product_WoodChips', name: 'Woodchips', quantity: 12 },
+        { productId: 'Product_Limestone', name: 'Limestone', quantity: 3 },
+        { productId: 'Product_SteamHi', name: 'Steam (High)', quantity: 3 },
+      ],
+      outputs: [{ productId: 'Product_Paper', name: 'Paper', quantity: 24 }],
+    }
+    const paperPlant = (id: number): SyncedAreaEntity => ({
+      ...entity(id, true, true), zones: [zone],
+      prototypeId: 'ChemicalPlant2', prototypeName: 'Chemical plant II', recipes: [paper],
+    })
+    const modules = createLiveAreaModules(localSteam ? [zone] : [zone, steamZone], [
+      paperPlant(1), paperPlant(2),
+      {
+        ...entity(3, true, true), zones: [zone],
+        prototypeId: 'Shredder', prototypeName: 'Shredder',
+        recipes: [{
+          id: 'WoodChipping', name: 'Woodchips', durationSeconds: 60, assigned: true,
+          inputs: [{ productId: 'Product_Wood', name: 'Wood', quantity: 12 }],
+          outputs: [{ productId: 'Product_WoodChips', name: 'Woodchips', quantity: 24 }],
+        }],
+      },
+      {
+        ...entity(4, true, true), zones: [steamZone],
+        prototypeId: 'TestSteamProducer', prototypeName: 'Steam producer',
+        recipes: [{
+          id: 'TestSteam', name: 'Steam', durationSeconds: 60, assigned: true,
+          inputs: [], outputs: [{ productId: 'Product_SteamHi', name: 'Steam (High)', quantity: 6 }],
+        }],
+      },
+    ])
+    const lines = modules.flatMap(module => buildModuleLines(module, module.presets[0] ?? null).lines)
+    const result = calculateNet(lines, { wood: 12, limestone: 6 }, undefined, {}, { paper: 36 })
+    const flow = (id: string) => result.allResourceFlows.find(flow => flow.resourceId === id)
+
+    expect(flow('paper')?.produced).toBeCloseTo(localSteam ? 36 : 0)
+    expect(flow('paper')?.net).toBeCloseTo(localSteam ? 0 : -36)
+    expect(flow('woodchips')?.produced).toBeCloseTo(localSteam ? 18 : 0)
+    expect(flow('steamHigh')?.consumed).toBeCloseTo(localSteam ? 4.5 : 0)
+  })
+
   it('keeps exported IDs for matching while displaying readable recipe and building diagnostics', () => {
     const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [
       entity(1, true, true, [{ ...recipe, name: recipe.id }]),

@@ -29,6 +29,45 @@ const calculate = (modules: Module[], links: ModuleResourceLink[] = []) => calcu
   recyclingEfficiencyPercent: 100, shipsFuelUseMultiplier: 1,
 })
 
+it.each([200, 300, 408, 500])('allocates %s Super Steam to turbines, Hydrogen, desalination, then cooling', steam => {
+  const plantRecipes = [
+    recipe('super-steam-source', { outputs: [{ resourceId: 'steamSuper', quantity: steam }] }),
+    ...['turbine-super', 'hydrogen-reformer-super', 'thermal-desalinator-super', 'seawater-pump', 'cooling-tower-large-super']
+      .map(id => {
+        const found = recipes.find(recipe => recipe.id === id)
+
+        if (!found) throw new Error(`Missing recipe ${id}`)
+        return found
+      }),
+  ]
+
+  for (const ordered of [plantRecipes, [...plantRecipes].reverse()]) {
+    const nuclear = moduleWith('Nuclear', ordered)
+
+    nuclear.builtBuildings = {
+      'super-steam-source': 1, 'turbine-super': 6, 'hydrogen-reformer-super': 10,
+      'thermal-desalinator-super': 9, 'seawater-pump': 5, 'cooling-tower-large-super': 2,
+    }
+    nuclear.presets[0]!.electricityDispatchTargets = { 'fbr-turbines': 79.5 }
+    // Demand exceeds Water capacity so recovery cannot conceal a priority inversion.
+    nuclear.presets[0]!.fixedDemands = { hydrogen: 320, water: 800 }
+    const calculation = calculate([nuclear]).factoryResult.calculation
+    const results = [...calculation.regularResults, ...calculation.sinkResults]
+    const steamUsed = (id: string) => results.find(row => row.recipe.id === id)
+      ?.actualInputs.find(input => input.resourceId === 'steamSuper')?.quantity ?? 0
+    const turbineSteam = Math.min(steam, 254.4)
+    const hydrogenSteam = Math.min(steam - turbineSteam, 120)
+    const desalinationSteam = Math.min(steam - turbineSteam - hydrogenSteam, 54)
+    const coolingSteam = steam - turbineSteam - hydrogenSteam - desalinationSteam
+
+    expect(steamUsed('turbine-super')).toBeCloseTo(turbineSteam)
+    expect(steamUsed('hydrogen-reformer-super')).toBeCloseTo(hydrogenSteam)
+    expect(steamUsed('thermal-desalinator-super')).toBeCloseTo(desalinationSteam)
+    expect(steamUsed('cooling-tower-large-super')).toBeCloseTo(coolingSteam)
+    expect(calculation.allResourceFlows.find(flow => flow.resourceId === 'steamSuper')?.net).toBeCloseTo(0)
+  }
+})
+
 describe.each(steamIds)('%s routing', resourceId => {
   it.each([true, false])('uses only local Steam regardless of module order (source first: %s)', sourceFirst => {
     const source = moduleWith('Nuclear', [recipe('steam-source', { outputs: [{ resourceId, quantity: 100 }] })])

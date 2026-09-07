@@ -447,7 +447,7 @@ describe("Space Station", () => {
     expect(liveStation.liveArea?.issues).toEqual([]);
   });
 
-  it("keeps rocket infrastructure synced and exposes paused capacity as attention", () => {
+  it("keeps rocket infrastructure synced without repeating unpause advice", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
@@ -477,7 +477,7 @@ describe("Space Station", () => {
     expect(getPlanMismatchSummaries([stationModule], diagnostics)).toEqual([]);
     expect(diagnostics.find(({ buildingName }) => (
       buildingName === "Rocket Assembly Depot"
-    ))).toMatchObject({ attention: "unpause", attentionCount: 1 });
+    ))).toMatchObject({ attention: null, attentionCount: 0 });
   });
 
   it("exposes the synced station through standard module flows and building pressure", () => {

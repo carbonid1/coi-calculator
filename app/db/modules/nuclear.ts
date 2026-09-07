@@ -20,7 +20,6 @@ export interface NuclearOperationPlan {
   chlorineProcessingCount: number;
   saltProcessingCount: number;
   superDesalinatorCount: number;
-  seawaterPumpCount: number;
 }
 
 interface NuclearOperationTarget {
@@ -37,7 +36,6 @@ export const plannedNuclearOperation: NuclearOperationPlan = {
   chlorineProcessingCount: 2,
   saltProcessingCount: 2,
   superDesalinatorCount: 9,
-  seawaterPumpCount: 6,
 };
 
 export const createNuclearModule = (
@@ -157,76 +155,6 @@ export const createNuclearModule = (
         pluralName: target.pluralName,
       }),
     });
-  }
-
-  if (plan) {
-    const standardRecipeId = "seawater-pump";
-    const tallRecipeId = "seawater-pump-tall";
-    const standardBuilt = builtBuildings[standardRecipeId] ?? 0;
-    const tallBuilt = builtBuildings[tallRecipeId] ?? 0;
-    const standardRunning = currentActiveBuildings[standardRecipeId] ?? 0;
-    const tallRunning = currentActiveBuildings[tallRecipeId] ?? 0;
-    const current = standardRunning + tallRunning;
-    const resolved = resolveDirectionalPlan(
-      current,
-      { direction: "at-least", target: plan.seawaterPumpCount },
-    );
-
-    if (!resolved.satisfied) {
-      // The operation plan is an aggregate fast-pump capacity target. Preserve
-      // each exact game prototype in the inventory and consume installed paused
-      // capacity before planning ordinary T1 construction.
-      const standardUnpause = Math.min(
-        Math.max(0, standardBuilt - standardRunning),
-        resolved.difference,
-      );
-      const afterStandard = resolved.difference - standardUnpause;
-      const tallUnpause = Math.min(
-        Math.max(0, tallBuilt - tallRunning),
-        afterStandard,
-      );
-      const standardBuild = afterStandard - tallUnpause;
-      const standardTarget = standardRunning + standardUnpause + standardBuild;
-      const tallTarget = tallRunning + tallUnpause;
-
-      activeBuildings[standardRecipeId] = standardTarget;
-      if (tallRecipeId in builtBuildings || tallTarget > 0) {
-        activeBuildings[tallRecipeId] = tallTarget;
-      }
-      if (standardTarget !== standardRunning) {
-        dataSources[standardRecipeId] = "planned";
-        planMismatches.push({
-          recipeId: standardRecipeId,
-          current: standardRunning,
-          target: standardTarget,
-          direction: resolved.direction,
-          format: "count",
-          actions: createAtLeastBuildingActions({
-            built: standardBuilt,
-            running: standardRunning,
-            target: standardTarget,
-            name: "Seawater Pump",
-          }),
-        });
-      }
-      if (tallTarget !== tallRunning) {
-        dataSources[tallRecipeId] = "planned";
-        planMismatches.push({
-          recipeId: tallRecipeId,
-          current: tallRunning,
-          target: tallTarget,
-          direction: resolved.direction,
-          format: "count",
-          actions: createAtLeastBuildingActions({
-            built: tallBuilt,
-            running: tallRunning,
-            target: tallTarget,
-            name: "Seawater Pump (Tall)",
-            pluralName: "Seawater Pumps (Tall)",
-          }),
-        });
-      }
-    }
   }
 
   const liveArea = generatedArea?.liveArea

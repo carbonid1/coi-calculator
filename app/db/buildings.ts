@@ -5,7 +5,7 @@ import { calculateSpaceStationLevel, defaultSpaceStationLevel } from "./space-st
 export interface BuildingData {
   workers: number;
   electricityKw: number;
-  /** Pausing this building has no recurring-cost benefit worth recommending. */
+  /** Omit automatic pause advice for this building. */
   suppressPauseAttention?: boolean;
   /** Full-load computing demand. Capacity providers leave this at zero. */
   computingTflops?: number;
@@ -52,10 +52,10 @@ const buildings: Record<string, BuildingData> = {
   "Seawater Pump (Tall)": { workers: 1, electricityKw: 600 },
   "Groundwater Pump": { workers: 2, electricityKw: 120 },
   "Fast Breeder Reactor": { workers: 200, electricityKw: 0 },
-  "Super-Pressure Turbine": { workers: 1, electricityKw: 0 },
-  "High-Pressure Turbine II": { workers: 2, electricityKw: 0 },
-  "Low-Pressure Turbine II": { workers: 2, electricityKw: 0 },
-  "Power Generator II": { workers: 5, electricityKw: 0 },
+  "Super-Pressure Turbine": { workers: 1, electricityKw: 0, suppressPauseAttention: true },
+  "High-Pressure Turbine II": { workers: 2, electricityKw: 0, suppressPauseAttention: true },
+  "Low-Pressure Turbine II": { workers: 2, electricityKw: 0, suppressPauseAttention: true },
+  "Power Generator II": { workers: 5, electricityKw: 0, suppressPauseAttention: true },
   "Solar Panel": { workers: 0, electricityKw: 0 },
   "Solar Panel (Mono)": { workers: 0, electricityKw: 0 },
   "Hydrogen Reformer": { workers: 8, electricityKw: 400 },
@@ -120,7 +120,7 @@ const buildings: Record<string, BuildingData> = {
   "Aluminum Cell": { workers: 14, electricityKw: 8000 },
   "Rotary Kiln (gas)": { workers: 10, electricityKw: 100 },
   "Compactor": { workers: 1, electricityKw: 100 },
-  "Liquid Dump": { workers: 1, electricityKw: 0 },
+  "Liquid Dump": { workers: 1, electricityKw: 0, suppressPauseAttention: true },
   "Smoke stack (large)": {
     workers: 0,
     electricityKw: 0,

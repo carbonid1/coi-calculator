@@ -16,7 +16,9 @@ interface Props {
   onKeepReadyChange?: KeepReadyChange;
 }
 
-const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2));
+const formatQuantity = (quantity: number) => (
+  quantity > 0 && quantity < 0.01 ? "<0.01" : parseFloat(quantity.toFixed(2))
+);
 
 export const SinkCard: React.FC<Props> = ({
   dataSource,

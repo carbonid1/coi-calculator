@@ -241,6 +241,52 @@ describe("crop farm building diagnostics", () => {
 });
 
 describe("byproduct building diagnostics", () => {
+  it.each([
+    { water: -7.35, brine: 0, attention: null, count: 0 },
+    { water: 0, brine: -1, attention: null, count: 0 },
+    { water: 0, brine: 0, attention: "can-pause", count: 2 },
+  ])("only offers to pause desalinators when both main outputs are covered ($water Water, $brine Brine)", ({ water, brine, attention, count }) => {
+    const desalinator = recipes.find(recipe => recipe.id === "thermal-desalinator-super");
+
+    if (!desalinator) throw new Error("Super Steam desalinator recipe is missing");
+
+    const [diagnostic] = calculateBuildingDiagnostics(
+      [farmsModule],
+      [resourceFlow("water", water), resourceFlow("brine", brine), resourceFlow("steamSuper", 0)],
+      [{
+        ...createChickenResult(0), recipe: desalinator,
+        activeBuildings: 9, currentActiveBuildings: 9, builtBuildings: 10,
+        supplyRatio: 6.37 / 9, speedLevel: 1,
+        actualInputs: [{ resourceId: "steamSuper", quantity: 38.22 }],
+        actualOutputs: [{ resourceId: "water", quantity: 458.64 }, { resourceId: "brine", quantity: 267.54 }],
+      }],
+    );
+
+    expect(diagnostic).toMatchObject({ attention, attentionCount: count });
+  });
+
+  it("checks every recipe in a shared pool before suggesting a pause", () => {
+    const result: RegularResult = {
+      ...createChickenResult(0),
+      recipe: {
+        id: "shared-water", name: "Water", building: "Thermal Desalinator", group: "production",
+        inputs: [], outputs: [{ resourceId: "water", quantity: 72 }],
+        balanceOutputIds: ["water"],
+      },
+      capacityPoolId: "shared", capacityPoolActiveBuildings: 9, capacityPoolBuiltBuildings: 10,
+      activeBuildings: 9, supplyRatio: 6.37 / 9, speedLevel: 1,
+    };
+    const brine = {
+      ...result, supplyRatio: 0,
+      recipe: { ...result.recipe, id: "shared-brine", outputs: [{ resourceId: "brine", quantity: 42 }], balanceOutputIds: ["brine"] },
+    };
+
+    for (const results of [[brine, result], [result, brine]]) {
+      expect(calculateBuildingDiagnostics([farmsModule], [resourceFlow("water", -7.35)], results)[0])
+        .toMatchObject({ attention: null, attentionCount: 0 });
+    }
+  });
+
   it("does not recommend Basic Racks to cover a Water deficit", () => {
     const basicRack = recipes.find((recipe) => recipe.id === "computing-basic-rack");
 
@@ -415,9 +461,9 @@ describe("Smoke stack (large) diagnostics", () => {
     });
   });
 
-  it("still recommends pausing an idle sink that uses workers", () => {
+  it.each(["nuclear-liquid-dump-water", "nuclear-liquid-dump-brine"])("keeps %s available for overflow without pause advice", recipeId => {
     const liquidDumpRecipe = recipes.find(
-      (recipe) => recipe.id === "nuclear-liquid-dump-water",
+      (recipe) => recipe.id === recipeId,
     );
 
     if (!liquidDumpRecipe) throw new Error("Liquid Dump recipe is missing");
@@ -439,7 +485,7 @@ describe("Smoke stack (large) diagnostics", () => {
       }],
     );
 
-    expect(diagnostic).toMatchObject({ attention: "can-pause", attentionCount: 1 });
+    expect(diagnostic).toMatchObject({ attention: null, attentionCount: 0 });
   });
 });
 
@@ -614,10 +660,10 @@ describe("planned capacity diagnostics", () => {
   });
 });
 
-describe("required running capacity diagnostics", () => {
-  const launchPad = recipes.find(recipe => recipe.id === "rocket-ii-launch-amortized");
+describe.each(["rocket-ii-launch-amortized", "rocket-ii-assembly"])("recurring %s diagnostics", recipeId => {
+  const launchPad = recipes.find(recipe => recipe.id === recipeId);
 
-  if (!launchPad) throw new Error("Rocket Launch Pad recipe is missing");
+  if (!launchPad) throw new Error(`Rocket recipe ${recipeId} is missing`);
 
   const spaceStationModule: Module = {
     id: "space-station",
@@ -642,12 +688,12 @@ describe("required running capacity diagnostics", () => {
     recyclableSourceValueProduced: 0,
   });
 
-  it("asks to unpause recurring rocket infrastructure that is already built", () => {
+  it("leaves paused recurring rocket infrastructure to the operation plan", () => {
     expect(calculateBuildingDiagnostics(
       [spaceStationModule],
       [],
       [result(1)],
-    )[0]).toMatchObject({ attention: "unpause", attentionCount: 1 });
+    )[0]).toMatchObject({ attention: null, attentionCount: 0 });
   });
 
   it("asks to build recurring rocket infrastructure only when none is present", () => {

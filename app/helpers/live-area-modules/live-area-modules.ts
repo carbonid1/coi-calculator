@@ -661,7 +661,13 @@ export const createLiveAreaModules = (
       const moduleScopedInputIds = [
         ...new Set([...linkedOnlyInputIds, ...terrainInputIds, ...moduleScopedSurplusInputIds]),
       ]
-      const scopedRecipe = withModuleInputLimits(recipe, moduleScopedInputIds)
+      // Resolve the generated recipe's mode before adding local input limits.
+      // Otherwise an output-driven recipe inherits limits on every ingredient
+      // and cannot start its demand-driven upstream producers.
+      const scopedRecipe = withModuleInputLimits({
+        ...recipe,
+        balanceBy: recipe.balanceBy ?? (recipe.outputs.length > 0 ? 'output' : 'input'),
+      }, moduleScopedInputIds)
       const moduleScopedInputFields = moduleScopedInputIds.length > 0 ? {
         balanceInputIds: scopedRecipe.balanceInputIds,
         balanceInputScope: scopedRecipe.balanceInputScope,

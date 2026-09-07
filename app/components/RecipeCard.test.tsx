@@ -34,6 +34,20 @@ const result: RegularResult = {
   recyclableSourceValueProduced: 0,
 };
 
+it("keeps a tiny nonzero Brine disposal visible instead of rounding it to zero", () => {
+  const html = renderToStaticMarkup(<SinkCard role="sink" result={{
+    recipe: {
+      id: "dump-brine", name: "Brine", building: "Liquid Dump", group: "sink",
+      inputs: [{ resourceId: "brine", quantity: 200 }], outputs: [],
+    },
+    moduleId: "nuclear", activeBuildings: 2, builtBuildings: 2,
+    supplyRatio: 0.003 / 400,
+    actualInputs: [{ resourceId: "brine", quantity: 0.003 }], actualOutputs: [],
+  }} />);
+
+  expect(html).toContain("&lt;0.01");
+});
+
 it.each([0, 0.5])("uses the same readable label in regular, shared and passive cards at load %s", supplyRatio => {
   const current = { ...result, supplyRatio };
   const cards = [
