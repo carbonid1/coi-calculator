@@ -3,7 +3,6 @@ import {
   type ModuleResourceTransfer,
 } from '../../db/module-resource-links'
 import { type Module, type Preset } from '../../db/modules/modules'
-import { getLinkedOnlyLiveModuleInputIds } from '../../db/resource-disposition'
 import { type ResourceId } from '../../db/resources'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import {
@@ -15,6 +14,11 @@ import {
 import {
   type RecipeModifierMultipliers,
 } from '../modifiers/recipe-output'
+import {
+  calculateModuleResourceBoundary,
+  resolveModuleResourceBoundary,
+  type ModuleResourceBoundary,
+} from '../module-resource-boundary/module-resource-boundary'
 import { extractModuleResult, type ModuleResult } from '../module-result/module-result'
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
 import { typedEntries } from '../typed-entries/typed-entries'
@@ -37,6 +41,7 @@ interface LinkedModuleResult extends ModuleResult {
 }
 
 export interface LinkedModulesCalculation {
+  boundaries: ModuleResourceBoundary[]
   boundaryDemands: Partial<Record<ResourceId, number>>
   boundarySupplies: Partial<Record<ResourceId, number>>
   moduleResults: ReadonlyMap<string, LinkedModuleResult>
@@ -497,12 +502,9 @@ export const calculateLinkedModules = ({
       : (transferQuantities.get(link.id) ?? 0),
   }))
   const moduleResults = new Map<string, LinkedModuleResult>()
+  const boundaries: ModuleResourceBoundary[] = []
   const boundaryDemands: Partial<Record<ResourceId, number>> = {}
   const boundarySupplies: Partial<Record<ResourceId, number>> = {}
-  const privateEndpoints = new Set(activeLinks.flatMap(link => [
-    `${link.sourceModuleId}:${link.resourceId}`,
-    `${link.targetModuleId}:${link.resourceId}`,
-  ]))
 
   for (const moduleDefinition of liveModules) {
     const run = finalRuns.get(moduleDefinition.id)
@@ -561,54 +563,48 @@ export const calculateLinkedModules = ({
     }
 
     for (const resourceId of resourceIds) {
-      const requestedImport = Math.max(
-        0,
-        run.preset?.requestedImports?.[resourceId] ?? 0,
+      const rule = resolveModuleResourceBoundary(
+        moduleDefinition.id,
+        resourceId,
+        activeLinks,
+        run.preset,
       )
-
-      if (requestedImport > LINK_TOLERANCE) {
-        addQuantity(boundaryDemands, resourceId, requestedImport)
-        continue
-      }
-
-      if (privateEndpoints.has(`${moduleDefinition.id}:${resourceId}`)) {
-        const available = getLocalAvailable(moduleDefinition.id, run, resourceId)
-        const demandTriggeredTransfers = transfers.reduce((total, transfer) => (
-          transfer.sourceModuleId === moduleDefinition.id
-          && transfer.resourceId === resourceId
-          && transfer.mode === 'produce-to-demand'
-            ? total + transfer.quantity
-            : total
-        ), 0)
-        const requestedExport = run.preset?.requestedExports?.[resourceId] ?? 0
-        const achievedExport = Math.min(
-          requestedExport,
-          Math.max(0, available - demandTriggeredTransfers),
-        )
-
-        if (achievedExport > LINK_TOLERANCE) {
-          addQuantity(boundarySupplies, resourceId, achievedExport)
-        }
-        continue
-      }
-
-      if (getLinkedOnlyLiveModuleInputIds([resourceId]).length > 0) continue
-
       const flow = getResultFlow(moduleDefinition.id, run.calculation, resourceId)
-      let net = flow.produced
-        - flow.consumed
-        - (run.preset?.fixedDemands?.[resourceId] ?? 0)
+      let received = 0
+      let sent = 0
+      let demandTriggeredSent = 0
 
       for (const transfer of transfers) {
         if (transfer.resourceId !== resourceId) continue
-        if (transfer.targetModuleId === moduleDefinition.id) net += transfer.quantity
-        if (transfer.sourceModuleId === moduleDefinition.id) net -= transfer.quantity
+        if (transfer.targetModuleId === moduleDefinition.id) received += transfer.quantity
+        if (transfer.sourceModuleId === moduleDefinition.id) {
+          sent += transfer.quantity
+          if (transfer.mode === 'produce-to-demand') demandTriggeredSent += transfer.quantity
+        }
       }
 
-      if (net > LINK_TOLERANCE) addQuantity(boundarySupplies, resourceId, net)
-      if (net < -LINK_TOLERANCE) addQuantity(boundaryDemands, resourceId, -net)
+      const boundary = {
+        moduleId: moduleDefinition.id,
+        resourceId,
+        rule,
+        ...calculateModuleResourceBoundary(rule, {
+          ...flow,
+          fixedDemand: run.preset?.fixedDemands?.[resourceId] ?? 0,
+          received,
+          sent,
+          demandTriggeredSent,
+        }),
+      }
+
+      boundaries.push(boundary)
+      if (boundary.factorySupply > LINK_TOLERANCE) {
+        addQuantity(boundarySupplies, resourceId, boundary.factorySupply)
+      }
+      if (boundary.factoryDemand > LINK_TOLERANCE) {
+        addQuantity(boundaryDemands, resourceId, boundary.factoryDemand)
+      }
     }
   }
 
-  return { boundaryDemands, boundarySupplies, moduleResults, transfers }
+  return { boundaries, boundaryDemands, boundarySupplies, moduleResults, transfers }
 }

@@ -72,6 +72,10 @@ describe('linked live modules', () => {
     })
 
     expect(result.boundaryDemands).toEqual({ ironOreCrushed: 10 })
+    expect(result.boundaries).toContainEqual(expect.objectContaining({
+      moduleId: steel.id, resourceId: 'ironOreCrushed', factoryDemand: 10, factorySupply: 0,
+      rule: expect.objectContaining({ access: 'factory', requestedImport: 10 }),
+    }))
     expect(result.moduleResults.get(steel.id)?.regularResults[0]).toMatchObject({
       supplyRatio: 1,
       actualInputs: [{ resourceId: 'ironOreCrushed', quantity: 10 }],
@@ -112,6 +116,7 @@ describe('linked live modules', () => {
     expect(result.boundaryDemands).toEqual({})
     expect(result.boundarySupplies).toEqual({})
     expect(result.moduleResults.has(copper.id)).toBe(false)
+    expect(result.boundaries).toEqual([])
   })
 
   it('resolves save-scoped area links while preserving current display names', () => {

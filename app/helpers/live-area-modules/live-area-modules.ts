@@ -12,10 +12,8 @@ import {
   type Ingredient,
   type Recipe,
 } from '../../db/recipes'
-import {
-  getLinkedOnlyLiveModuleInputIds,
-  getSurplusConsumptionSettings,
-} from '../../db/resource-disposition'
+import { getSurplusConsumptionSettings } from '../../db/resource-disposition'
+import { getConnectionOnlyResourceIds } from '../../db/resource-supply'
 import { resources, type ResourceId } from '../../db/resources'
 import { runtimeRecipeBehaviors, runtimeRecipePriorities } from '../../db/runtime-recipe-behaviors'
 import {
@@ -632,7 +630,7 @@ export const createLiveAreaModules = (
     const balancedLiveRecipes = liveRecipes.map(recipe => {
       if (recipe.group === 'source') return recipe
 
-      const linkedOnlyInputIds = getLinkedOnlyLiveModuleInputIds(
+      const linkedOnlyInputIds = getConnectionOnlyResourceIds(
         recipe.inputs.map(input => input.resourceId),
       )
       const terrainInputIds =

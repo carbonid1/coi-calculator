@@ -5,8 +5,7 @@ import { expect, it, vi } from "vitest";
 import { type Recipe } from "../db/recipes";
 import { buildModuleLines } from "../helpers/build-module-lines/build-module-lines";
 import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/building-diagnostics";
-import { calculateNet } from "../helpers/calculate/calculate";
-import { type RegularResult } from "../helpers/calculate/calculate";
+import { calculateNet, type RegularResult } from "../helpers/calculate/calculate";
 import { createLiveAreaModules } from "../helpers/live-area-modules/live-area-modules";
 
 vi.mock("@carbonid1/design-system", () => ({

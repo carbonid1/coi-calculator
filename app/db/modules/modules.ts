@@ -122,7 +122,7 @@ export interface Module {
   description: string;
   /** This module's physical inventory is sourced from the game snapshot. */
   gameSynced?: true;
-  /** Modules calculated outside the global pool; their boundary flows may be added separately. */
+  /** Calculation scope only. False live modules still exchange resources through explicit boundary rules. */
   includedInFactoryTotals?: boolean;
   /** Physical buildings present in the factory, including paused buildings. */
   builtBuildings: Record<string, number>;
