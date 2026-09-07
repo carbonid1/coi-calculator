@@ -57,9 +57,9 @@ it.each([
   { running: 2, built: 2, shortage: 0, supplyRatio: 0, expected: null },
   { running: 0, built: 1, shortage: 0, supplyRatio: 0, expected: "unpause" },
   { running: 0, built: 0, shortage: 0, supplyRatio: 0, expected: "build" },
-  { running: 1, built: 1, shortage: -0.1, supplyRatio: 1, expected: "build" },
-  { running: 1, built: 2, shortage: -0.1, supplyRatio: 1, expected: "unpause" },
-])("keeps intermittent capacity ready without hiding shortages ($running running, $built built, $shortage net)", ({ running, built, shortage, supplyRatio, expected }) => {
+  { running: 1, built: 1, shortage: -0.1, supplyRatio: 1, expected: null },
+  { running: 1, built: 2, shortage: -0.1, supplyRatio: 1, expected: null },
+])("keeps intermittent capacity ready and leaves shortages to the deficit rows ($running running, $built built, $shortage net)", ({ running, built, shortage, supplyRatio, expected }) => {
   const result: RegularResult = {
     ...createChickenResult(0),
     recipe: { id: "rail", name: "Rail Parts", building: "Assembly V", group: "production",
@@ -106,7 +106,7 @@ describe("user Keep ready preferences", () => {
     expect(diagnostic).toMatchObject({ keepReady: false, attention: "can-pause" });
   });
 
-  it("applies to a shared machine pool without hiding its shortages or other lines", () => {
+  it("applies to a shared machine pool without hiding other lines", () => {
     const poolId = "farms:assembly-pool";
     const pooled = { ...result, capacityPoolId: poolId };
     const other = { ...result, moduleId: "other" };
@@ -118,13 +118,6 @@ describe("user Keep ready preferences", () => {
 
     expect(diagnostics.find(item => item.key === poolId)?.attention).toBeNull();
     expect(diagnostics.find(item => item.moduleId === "other")?.attention).toBe("can-pause");
-
-    const [shortage] = calculateBuildingDiagnostics(
-      [farmsModule], [resourceFlow("railParts", -1)], [{ ...pooled, supplyRatio: 1 }],
-      [], [], preferences,
-    );
-
-    expect(shortage?.attention).toBe("build");
   });
 });
 
@@ -362,7 +355,7 @@ describe("cost-free capacity diagnostics", () => {
     expect(diagnostic?.attention).toBeNull();
   });
 
-  it("still warns when Large Cooling Tower capacity is insufficient", () => {
+  it("leaves a saturated Large Cooling Tower to the surplus row", () => {
     const [diagnostic] = calculateBuildingDiagnostics(
       [coolingModule],
       [resourceFlow("steamLow", 1)],
@@ -371,7 +364,7 @@ describe("cost-free capacity diagnostics", () => {
       [coolingResult(1)],
     );
 
-    expect(diagnostic).toMatchObject({ attention: "build", attentionCount: 1 });
+    expect(diagnostic).toMatchObject({ attention: null, attentionCount: 0 });
   });
 });
 
@@ -394,9 +387,9 @@ describe("Smoke stack (large) diagnostics", () => {
   it.each([
     { active: 2, supplyRatio: 0, surplus: 0, expected: null },
     { active: 2, supplyRatio: 0.04, surplus: 0, expected: null },
-    { active: 2, supplyRatio: 1, surplus: 1, expected: "build" },
-    { active: 1, supplyRatio: 1, surplus: 1, expected: "unpause" },
-  ])("omits pause advice but retains disposal capacity advice ($active active, $supplyRatio load, $surplus surplus)", ({ active, supplyRatio, surplus, expected }) => {
+    { active: 2, supplyRatio: 1, surplus: 1, expected: null },
+    { active: 1, supplyRatio: 1, surplus: 1, expected: null },
+  ])("omits pause advice and leaves saturated disposal to the surplus row ($active active, $supplyRatio load, $surplus surplus)", ({ active, supplyRatio, surplus, expected }) => {
     const [diagnostic] = calculateBuildingDiagnostics(
       [disposalModule],
       [resourceFlow("oxygen", surplus)],

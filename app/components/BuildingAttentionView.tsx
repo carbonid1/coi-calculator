@@ -84,10 +84,10 @@ const getTooltip = (diagnostic: BuildingDiagnostic) => {
     return `Current average load fits in fewer active buildings.${affected}`
   }
   if (diagnostic.attention === 'unpause') {
-    return `Current capacity is constrained, but paused capacity is already built.${affected}`
+    return `The plan runs ${formatCount(diagnostic.active)} buildings, but built capacity is paused.${affected}`
   }
 
-  return `Current capacity is constrained and every built building is active.${affected}`
+  return `The plan runs ${formatCount(diagnostic.active)} buildings, but only ${formatCount(diagnostic.built)} are built.${affected}`
 }
 
 const getAttentionLabel = (diagnostic: ActionableDiagnostic) => {

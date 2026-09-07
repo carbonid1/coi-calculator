@@ -1807,6 +1807,75 @@ export const calculateNet = (
     }
   };
 
+  // Demand propagation only ever raises a line. A byproduct that arrives
+  // later (a surplus route, a fallback, demand settled after the line was
+  // sized) then leaves a demand-balanced producer above what its outputs are
+  // used for. Trim that back, and keep trimming while a cut frees the next
+  // line upstream, unless the cut would open a deficit somewhere else.
+  const trimOverproduction = () => {
+    for (let iteration = 0; iteration <= demandBalancedLines.length; iteration += 1) {
+      let changed = false;
+
+      for (const line of demandBalancedLines) {
+        const ratio = allocationRatios.get(line) ?? 0;
+
+        // Surplus routes and input-driven lines run past their output demand
+        // on purpose.
+        if (
+          ratio <= 1e-9
+          || line.recipe.sortsRecyclableSources
+          || line.recipe.balanceOutputScope === "module"
+          || (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
+          || (line.drivingInputIds?.length ?? 0) > 0
+        ) {
+          continue;
+        }
+
+        const factor = lineFactor(line);
+        const balancedOutputs = line.recipe.outputs.filter((output) => (
+          line.recipe.balanceOutputIds?.includes(output.resourceId) ?? true
+        ));
+
+        if (balancedOutputs.length === 0) continue;
+
+        let cut = ratio;
+
+        for (const output of balancedOutputs) {
+          const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+
+          if (capacity <= 0) { cut = 0; break; }
+
+          // Physical excess: what every consumer, surplus routes included,
+          // leaves on the floor once the factory has settled. A module that
+          // uses all it makes keeps its producer even if the factory does not.
+          const flow = getFlow(output.resourceId);
+          const moduleFlow = getActualModuleFlow(line.moduleId, output.resourceId);
+          const excess = Math.min(
+            flow.produced - flow.consumed,
+            moduleFlow.produced - moduleFlow.consumed,
+          );
+
+          cut = Math.min(cut, Math.max(0, excess / capacity));
+        }
+
+        if (cut <= DEFICIT_TOLERANCE) continue;
+
+        const baseline = snapshotAllocationState();
+
+        applyRegularLine(line, -cut, true);
+
+        if (allocationIntroducedDeficit(baseline, line)) {
+          restoreAllocationState(baseline);
+          continue;
+        }
+
+        changed = true;
+      }
+
+      if (!changed) break;
+    }
+  };
+
   const settleFallbackDemand = () => {
     for (let iteration = 0; iteration <= fallbackLines.length; iteration += 1) {
       const priorFallbackLoad = fallbackLines.reduce(
@@ -1932,6 +2001,7 @@ export const calculateNet = (
     // Run those fallbacks once more so chained routes settle in the same cycle.
     settleFallbackDemand();
     propagateAdditionalDemand();
+    trimOverproduction();
   };
   const beforeSurplusRoutes = snapshotAllocationState();
 

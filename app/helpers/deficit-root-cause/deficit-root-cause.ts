@@ -7,6 +7,7 @@ import {
 import {
   type CapacityPool,
   describeCapacity,
+  describeCapacityFix,
   formatQuantity,
   getCapacityPools,
   getPoolLabels,
@@ -17,8 +18,8 @@ const BALANCE_THRESHOLD = 0.001;
 export interface DeficitRootCause {
   /**
    * `no-producer`: nothing in the model makes the resource. `at-capacity`:
-   * every producer pool is saturated. `input-limited`: a producer has room but
-   * its own inputs hold it back.
+   * every producer pool is saturated or paused. `input-limited`: a producer
+   * has room but its own inputs hold it back.
    */
   kind: "no-producer" | "at-capacity" | "input-limited";
   detail: string;
@@ -47,7 +48,8 @@ export const getDeficitRootCause = (
   passiveResults: PassiveResult[] = [],
 ): DeficitRootCause => {
   const flow = flows.find((candidate) => candidate.resourceId === resourceId);
-  const recipeConsumption = [...regularResults, ...passiveResults].reduce((total, result) => (
+  const results = [...regularResults, ...passiveResults];
+  const recipeConsumption = results.reduce((total, result) => (
     total + (result.actualInputs.find((input) => input.resourceId === resourceId)?.quantity ?? 0)
   ), 0);
   // Consumption no line accounts for: vehicle fuel, contracts, boundary loads.
@@ -55,7 +57,7 @@ export const getDeficitRootCause = (
   const suffix = outsideRecipes > BALANCE_THRESHOLD
     ? ` · ${formatQuantity(outsideRecipes)} outside recipes`
     : "";
-  const allProducers = getCapacityPools(resourceId, regularResults, "outputs");
+  const allProducers = getCapacityPools(resourceId, results, "outputs");
   // A byproduct producer is sized by its main product, so its spare room
   // cannot be spent on this resource.
   const dedicated = allProducers.filter((pool) => (
@@ -65,32 +67,16 @@ export const getDeficitRootCause = (
 
   if (producers.length === 0) return { kind: "no-producer", detail: `No producer${suffix}` };
 
-  const labels = getPoolLabels(producers);
-
   if (producers.every((producer) => producer.atCapacity)) {
     const deficit = Math.max(0, -(flow?.net ?? 0));
-    // Buildings of this pool that would close the gap on their own.
-    const coversWith = (producer: CapacityPool) => {
-      const output = producer.members.reduce((total, result) => (
-        total + (result.actualOutputs.find((candidate) => candidate.resourceId === resourceId)?.quantity ?? 0)
-      ), 0);
-      const perBuilding = producer.used > 0 ? output / producer.used : 0;
-
-      return perBuilding > 0 ? Math.ceil(deficit / perBuilding - BALANCE_THRESHOLD) : 0;
-    };
 
     return {
       kind: "at-capacity",
-      detail: producers
-        .map((producer, index) => {
-          const more = coversWith(producer);
-          const covers = more > 0 ? ` · +${more} covers it` : "";
-
-          return `${labels[index]} · ${describeCapacity(producer)}${covers}`;
-        })
-        .join(", ") + suffix,
+      detail: describeCapacityFix(producers, resourceId, "outputs", deficit) + suffix,
     };
   }
+
+  const labels = getPoolLabels(producers);
 
   return {
     kind: "input-limited",

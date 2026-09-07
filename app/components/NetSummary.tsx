@@ -198,7 +198,13 @@ export const NetSummary: React.FC<Props> = ({
   const unroutedSurpluses = balanceGroups
     .find((group) => group.label === "Surplus")
     ?.flows.flatMap((flow) => {
-      const rootCause = getSurplusRootCause(flow.resourceId, regularResults, blockedRoutes);
+      const rootCause = getSurplusRootCause(
+        flow.resourceId,
+        regularResults,
+        blockedRoutes,
+        passiveResults,
+        flow.net,
+      );
 
       return rootCause.kind === "terminal" ? [] : [{ flow, detail: rootCause.detail }];
     }) ?? [];

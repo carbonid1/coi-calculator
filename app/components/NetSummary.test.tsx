@@ -41,7 +41,7 @@ it.each([1, 0.5])("shows an area surplus bottleneck only when its converter is f
   expect(html).toContain("Biomass");
   expect(html).toContain("+1");
   if (supplyRatio === 1) {
-    expect(html).toContain("Mixer II · at capacity 2/2");
+    expect(html).toContain("Mixer II · build 1");
   } else {
     expect(html).not.toContain("at capacity");
   }

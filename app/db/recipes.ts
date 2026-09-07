@@ -497,6 +497,9 @@ export const recipes: Recipe[] = [
     building: activeHousingType.name,
     showConfigurationSummary: false,
     group: 'production',
+    // Residents consume as population, not as machines: more housing is
+    // never the fix for a surplus they leave behind.
+    tracksPhysicalCapacity: false,
     inputs: housingPopulationFlows.inputs,
     outputs: housingPopulationFlows.outputs,
     // v0.8.6 settlement collection converts tracked recyclable sources with
@@ -512,6 +515,7 @@ export const recipes: Recipe[] = [
     building: housingTypes.housingII.name,
     showConfigurationSummary: false,
     group: 'production',
+    tracksPhysicalCapacity: false,
     inputs: housingIiPopulationFlows.inputs,
     outputs: housingIiPopulationFlows.outputs,
     appliesRecyclingEfficiency: false,

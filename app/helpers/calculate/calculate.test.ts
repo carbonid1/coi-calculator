@@ -337,6 +337,52 @@ it("never increases primary production to feed a surplus-only byproduct consumer
   expect(net("water")).toBeCloseTo(0);
 });
 
+it("trims a demand-balanced producer once a late byproduct covers part of its demand", () => {
+  const feedMixer: Recipe = {
+    id: "test-feed-mixer",
+    name: "Test Feed Mixer",
+    building: "Test Mixer",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["animalFeed"],
+    inputs: [{ resourceId: "corn", quantity: 10 }],
+    outputs: [{ resourceId: "animalFeed", quantity: 10 }],
+  };
+  // Runs in the surplus pass, after the mixer was sized, and drops Animal
+  // Feed on the side.
+  const canolaMill: Recipe = {
+    id: "test-canola-mill",
+    name: "Test Canola Mill",
+    building: "Test Mill",
+    group: "production",
+    balanceBy: "output",
+    balanceOutputIds: ["cookingOil"],
+    consumeSurplusInputIds: ["canola"],
+    inputs: [{ resourceId: "canola", quantity: 16 }],
+    outputs: [
+      { resourceId: "cookingOil", quantity: 12 },
+      { resourceId: "animalFeed", quantity: 4 },
+    ],
+  };
+  const result = calculateNet(
+    [balancedLine(feedMixer, "farm", 3), balancedLine(canolaMill, "farm")],
+    { canola: 16, corn: 100 },
+    undefined,
+    {},
+    { animalFeed: 20 },
+  );
+  const recipeResult = (recipeId: string) => result.regularResults.find(
+    candidate => candidate.recipe.id === recipeId,
+  );
+  const net = (resourceId: string) => result.allResourceFlows.find(
+    flow => flow.resourceId === resourceId,
+  )?.net ?? 0;
+
+  expect(recipeResult(canolaMill.id)?.supplyRatio).toBeCloseTo(1);
+  expect(recipeResult(feedMixer.id)?.actualOutputs[0]?.quantity).toBeCloseTo(16);
+  expect(net("animalFeed")).toBeCloseTo(0);
+});
+
 it("keeps a module export demand on the selected producer", () => {
   const selectedProducer: Recipe = {
     id: "test-selected-module-producer",

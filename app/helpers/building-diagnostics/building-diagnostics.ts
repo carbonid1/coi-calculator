@@ -171,11 +171,8 @@ const getAnimalPopulationDiagnostic = (
 const getAttention = ({
   tracksPhysicalCapacity,
   plannedCapacity,
-  hasShortage,
   active,
   built,
-  paused,
-  atCapacity,
   canPause,
   requiresRunningCapacity,
   currentActive,
@@ -183,11 +180,8 @@ const getAttention = ({
 }: {
   tracksPhysicalCapacity: boolean;
   plannedCapacity: boolean;
-  hasShortage: boolean;
   active: number;
   built: number;
-  paused: number;
-  atCapacity: boolean;
   canPause: number;
   requiresRunningCapacity: boolean;
   currentActive: number;
@@ -199,13 +193,9 @@ const getAttention = ({
   if (requiresRunningCapacity && currentActive + EPSILON < active) {
     return built > currentActive + EPSILON ? "unpause" : "build";
   }
+  // A saturated or paused pool behind a shortage is explained on the deficit
+  // and surplus rows themselves, so it is not restated here.
   if (active > built + EPSILON) return "build";
-  if (hasShortage && active === 0 && paused >= 1) return "unpause";
-  if (hasShortage && active === 0 && built === 0) return "build";
-
-  if (hasShortage && atCapacity) {
-    return paused >= 1 ? "unpause" : "build";
-  }
 
   return canPause >= 1 ? "can-pause" : null;
 };
@@ -358,7 +348,6 @@ export const calculateBuildingDiagnostics = (
       }
     }
 
-    const atCapacity = active > 0 && load >= active - EPSILON;
     const requiresRunningCapacity = physicalCapacityResults.some(
       result => result.recipe.requiresRunningCapacity === true,
     );
@@ -371,15 +360,11 @@ export const calculateBuildingDiagnostics = (
     const canPause = suppressPauseAttention
       ? 0
       : Math.max(0, active - Math.ceil(Math.max(0, load - EPSILON)));
-    const hasShortage = affectedResourceIds.size > 0;
     const attention = getAttention({
       tracksPhysicalCapacity,
       plannedCapacity,
-      hasShortage,
       active,
       built,
-      paused,
-      atCapacity,
       canPause,
       requiresRunningCapacity,
       currentActive,

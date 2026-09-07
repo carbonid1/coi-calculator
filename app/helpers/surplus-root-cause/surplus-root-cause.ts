@@ -1,13 +1,14 @@
 import { type ResourceId, resources } from "../../db/resources";
 import {
   type BlockedSurplusRoute,
+  type PassiveResult,
   type RegularResult,
 } from "../calculate/calculate";
 import {
-  describeCapacity,
+  describeCapacityFix,
   formatQuantity,
   getCapacityPools,
-  getPoolLabels,
+  type PoolResult,
 } from "../capacity-pools/capacity-pools";
 
 const BALANCE_THRESHOLD = 0.001;
@@ -15,10 +16,10 @@ const BALANCE_THRESHOLD = 0.001;
 export interface SurplusRootCause {
   /**
    * `terminal`: nothing active consumes the resource, so the surplus is a
-   * genuine end product. `at-capacity`: every consumer pool is saturated.
-   * `input-blocked`: a consumer had room but the solver cut it because another
-   * input would fall into deficit. `demand-met`: consumers have room but their
-   * own output is already covered, so the resource is overproduced.
+   * genuine end product. `at-capacity`: every consumer pool is saturated or
+   * paused. `input-blocked`: a consumer had room but the solver cut it because
+   * another input would fall into deficit. `demand-met`: consumers have room
+   * but their own output is already covered, so the resource is overproduced.
    */
   kind: "terminal" | "at-capacity" | "input-blocked" | "demand-met";
   detail: string | null;
@@ -32,12 +33,78 @@ const describeBlockedRoute = (route: BlockedSurplusRoute) => {
   return `${route.recipe.name} · ${blocker}`;
 };
 
+const getModuleNet = (moduleId: string, resourceId: ResourceId, results: PoolResult[]) => (
+  results
+    .filter((result) => result.moduleId === moduleId)
+    .reduce((total, result) => (
+      total
+      + (result.actualOutputs.find((output) => output.resourceId === resourceId)?.quantity ?? 0)
+      - (result.actualInputs.find((input) => input.resourceId === resourceId)?.quantity ?? 0)
+    ), 0)
+);
+
+/**
+ * Consumer pools that could take more of the resource. A module-scoped line
+ * only draws on its own module, so with nothing left over there it is not a
+ * candidate, however much room it has.
+ */
+const getReachableConsumers = (resourceId: ResourceId, results: PoolResult[]) => {
+  const pools = getCapacityPools(resourceId, results, "inputs");
+  const reachable = pools.filter((pool) => {
+    const { recipe, moduleId } = pool.lead;
+    const moduleScoped = recipe.balanceInputScope === "module"
+      || recipe.consumeSurplusInputScope === "module";
+
+    return !moduleScoped || getModuleNet(moduleId, resourceId, results) > BALANCE_THRESHOLD;
+  });
+
+  return reachable.length > 0 ? reachable : pools;
+};
+
+const getProducts = (result: PoolResult) => (
+  result.recipe.balanceOutputIds ?? result.recipe.outputs.map((output) => output.resourceId)
+);
+
+/**
+ * Follows a product down the slack path: through consumers that have room
+ * and still do not run, until a product nothing idle is waiting to take.
+ * Intermediates such as Compost are not what the factory is after; the end
+ * of that chain is.
+ */
+const getEndProducts = (
+  productId: ResourceId,
+  results: PoolResult[],
+  seen = new Set<ResourceId>(),
+): ResourceId[] => {
+  if (seen.has(productId)) return [];
+  seen.add(productId);
+
+  // A product something dumps is where the chain ends, whatever else takes it.
+  const dumped = results.some((result) => (
+    result.activeBuildings > 0
+    && result.recipe.outputs.length === 0
+    && result.recipe.inputs.some((input) => input.resourceId === productId)
+  ));
+
+  if (dumped) return [productId];
+
+  const downstream = getReachableConsumers(productId, results)
+    .filter((consumer) => !consumer.atCapacity)
+    .flatMap((consumer) => getProducts(consumer.lead));
+  const ends = [...new Set(downstream)].flatMap((next) => getEndProducts(next, results, seen));
+
+  return ends.length > 0 ? ends : [productId];
+};
+
 export const getSurplusRootCause = (
   resourceId: ResourceId,
   regularResults: RegularResult[],
   blockedRoutes: BlockedSurplusRoute[] = [],
+  passiveResults: PassiveResult[] = [],
+  surplus = 0,
 ): SurplusRootCause => {
-  const consumers = getCapacityPools(resourceId, regularResults, "inputs");
+  const results = [...regularResults, ...passiveResults];
+  const consumers = getReachableConsumers(resourceId, results);
 
   if (consumers.length === 0) return { kind: "terminal", detail: null };
 
@@ -54,13 +121,9 @@ export const getSurplusRootCause = (
   }
 
   if (consumers.every((consumer) => consumer.atCapacity)) {
-    const labels = getPoolLabels(consumers);
-
     return {
       kind: "at-capacity",
-      detail: consumers
-        .map((consumer, index) => `${labels[index]} · ${describeCapacity(consumer)}`)
-        .join(", "),
+      detail: describeCapacityFix(consumers, resourceId, "inputs", surplus),
     };
   }
 
@@ -69,10 +132,8 @@ export const getSurplusRootCause = (
   const products = [...new Set(
     consumers
       .filter((consumer) => !consumer.atCapacity)
-      .flatMap((consumer) => (
-        consumer.lead.recipe.balanceOutputIds
-          ?? consumer.lead.recipe.outputs.map((output) => output.resourceId)
-      )),
+      .flatMap((consumer) => getProducts(consumer.lead))
+      .flatMap((productId) => getEndProducts(productId, results)),
   )].map((productId) => resources[productId].name);
 
   return {

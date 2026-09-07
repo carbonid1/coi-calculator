@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { recipes } from "../db/recipes";
-import { type RegularResult } from "../helpers/calculate/calculate";
+import { type PassiveResult, type RegularResult } from "../helpers/calculate/calculate";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
 import { isReportedFactoryDeficit } from "./net-summary-flows";
@@ -54,7 +54,7 @@ describe("NetSummary capacity diagnostics", () => {
     expect(getSurplusRootCause("fuelGas", [result("cracking-unit-fuel-gas-diesel", 1)]))
       .toEqual({
         kind: "at-capacity",
-        detail: "Cracking Unit · at capacity 1/1",
+        detail: "Cracking Unit · at capacity",
       });
   });
 
@@ -82,6 +82,56 @@ describe("NetSummary capacity diagnostics", () => {
     )).toEqual({
       kind: "input-blocked",
       detail: "Food Processor (Chicken Carcass → Meat + Trimmings) · Water short by 10.65",
+    });
+  });
+
+  it("does not blame a module-scoped consumer whose module has nothing left over", () => {
+    expect(getSurplusRootCause("biomass", [
+      result("mixer-ii-biomass-compost", 0.34, {
+        moduleId: "general",
+        actualInputs: [{ resourceId: "biomass", quantity: 8.08 }],
+      }),
+      result("food-processor-sugar", 0.43, {
+        moduleId: "general",
+        actualOutputs: [{ resourceId: "biomass", quantity: 8.08 }],
+      }),
+      result("mixer-ii-biomass-compost", 1, {
+        moduleId: "live-area-14",
+        activeBuildings: 2,
+        builtBuildings: 2,
+        actualInputs: [{ resourceId: "biomass", quantity: 48 }],
+      }),
+      result("food-processor-sugar", 1, {
+        moduleId: "live-area-14",
+        actualOutputs: [{ resourceId: "biomass", quantity: 48.16 }],
+      }),
+    ], [], [], 0.16)).toEqual({
+      kind: "at-capacity",
+      detail: "Mixer II · build 1",
+    });
+  });
+
+  it("names the end of the chain rather than an intermediate product", () => {
+    expect(getSurplusRootCause("biomass", [
+      result("mixer-ii-biomass-compost", 0.5),
+      result("mixer-ii-dirt-from-compost", 0.4),
+      // Running flat out: the slack that leaves Biomass behind is not here.
+      result("mixer-ii-organic-fertilizer-compost", 1),
+      // Also takes Compost with room, so it is a second end; its Dirt input does not walk past the dump.
+      result("mixer-ii-organic-fertilizer-dirt", 0.5),
+    ], [], [
+      {
+        recipe: getRecipe("dirt-terrain-dump"),
+        moduleId: "general",
+        activeBuildings: 1,
+        builtBuildings: 1,
+        supplyRatio: 0.3,
+        actualInputs: [],
+        actualOutputs: [],
+      },
+    ])).toEqual({
+      kind: "demand-met",
+      detail: "Dirt, Fertilizer (Organic) demand met",
     });
   });
 
@@ -121,7 +171,7 @@ describe("NetSummary deficit diagnostics", () => {
       [flow("diesel", 10, 12)],
     )).toEqual({
       kind: "at-capacity",
-      detail: "Cracking Unit · at capacity 2/2 of 3 built",
+      detail: "Cracking Unit · unpause 1",
     });
   });
 
@@ -150,7 +200,7 @@ describe("NetSummary deficit diagnostics", () => {
       [flow("hydrogen", 256, 400)],
     )).toEqual({
       kind: "at-capacity",
-      detail: "Hydrogen Reformer · at capacity 8/8 · +5 covers it · 400 outside recipes",
+      detail: "Hydrogen Reformer · build 5 · 400 outside recipes",
     });
   });
 });
@@ -187,7 +237,7 @@ describe("NetSummary deficit attribution", () => {
       [flow("chlorine", 14, 20)],
     )).toEqual({
       kind: "at-capacity",
-      detail: "Electrolyzer II · at capacity 2/2",
+      detail: "Electrolyzer II · build 1",
     });
   });
 });
@@ -206,6 +256,123 @@ it("counts the buildings that would close a capacity-limited deficit", () => {
     [{ resourceId: "diesel", name: "Diesel", produced: 40, consumed: 65, net: -25 }],
   )).toEqual({
     kind: "at-capacity",
-    detail: "Cracking Unit · at capacity 2/2 · +2 covers it",
+    detail: "Cracking Unit · build 2",
+  });
+});
+
+describe("NetSummary passive capacity", () => {
+  const passive = (
+    recipeId: string,
+    overrides: Partial<PassiveResult> = {},
+  ): PassiveResult => ({
+    recipe: getRecipe(recipeId),
+    moduleId: "nuclear",
+    activeBuildings: 1,
+    builtBuildings: 1,
+    supplyRatio: 1,
+    actualInputs: [],
+    actualOutputs: [],
+    ...overrides,
+  });
+
+  it("counts a saturated sink and the buildings that would swallow the surplus", () => {
+    expect(getSurplusRootCause(
+      "oxygen",
+      [],
+      [],
+      [passive("nuclear-smoke-stack-large-oxygen", {
+        activeBuildings: 2,
+        builtBuildings: 2,
+        actualInputs: [{ resourceId: "oxygen", quantity: 1800 }],
+      })],
+      1000,
+    )).toEqual({
+      kind: "at-capacity",
+      detail: "Smoke stack (large) · build 2",
+    });
+  });
+
+  it("points at paused consumers before suggesting new ones", () => {
+    expect(getSurplusRootCause(
+      "oxygen",
+      [],
+      [],
+      [passive("nuclear-smoke-stack-large-oxygen", { activeBuildings: 0, builtBuildings: 2, supplyRatio: 0 })],
+      1000,
+    )).toEqual({
+      kind: "at-capacity",
+      detail: "Smoke stack (large) · unpause 2",
+    });
+  });
+
+  it("names a saturated source pump behind a deficit", () => {
+    expect(getDeficitRootCause(
+      "seaWater",
+      [result("cracking-unit-fuel-gas-diesel", 1, { actualInputs: [{ resourceId: "seaWater", quantity: 300 }] })],
+      [{ resourceId: "seaWater", name: "Seawater", produced: 216, consumed: 300, net: -84 }],
+      [passive("seawater-pump", { actualOutputs: [{ resourceId: "seaWater", quantity: 216 }] })],
+    )).toEqual({
+      kind: "at-capacity",
+      detail: "Seawater Pump · build 1",
+    });
+  });
+
+  it("does not treat an unbounded world mine as a capacity limit", () => {
+    expect(getDeficitRootCause(
+      "sulfur",
+      [],
+      [{ resourceId: "sulfur", name: "Sulfur", produced: 0, consumed: 10, net: -10 }],
+      [passive("sulfur-world-mine")],
+    )).toEqual({ kind: "no-producer", detail: "No producer · 10 outside recipes" });
+  });
+
+  it("merges one building type across modules, unpausing before building", () => {
+    expect(getDeficitRootCause(
+      "chlorine",
+      [
+        result("electrolyzer-ii-chlorine", 0, { moduleId: "general", activeBuildings: 0, builtBuildings: 1 }),
+        result("electrolyzer-ii-chlorine", 1, {
+          moduleId: "live-area-12",
+          activeBuildings: 2,
+          builtBuildings: 2,
+          actualOutputs: [{ resourceId: "chlorine", quantity: 96 }],
+        }),
+        result("cracking-unit-fuel-gas-diesel", 1, { actualInputs: [{ resourceId: "chlorine", quantity: 180 }] }),
+      ],
+      [{ resourceId: "chlorine", name: "Chlorine", produced: 96, consumed: 180, net: -84 }],
+    )).toEqual({
+      kind: "at-capacity",
+      detail: "Electrolyzer II · unpause 1, build 1",
+    });
+  });
+
+  it("offers different building types as alternatives", () => {
+    expect(getSurplusRootCause(
+      "fuelGas",
+      [
+        result("cracking-unit-fuel-gas-diesel", 1, { actualInputs: [{ resourceId: "fuelGas", quantity: 36 }] }),
+        result("rotary-kiln-alumina-fuel-gas", 1, { actualInputs: [{ resourceId: "fuelGas", quantity: 6 }] }),
+      ],
+      [],
+      [],
+      40,
+    )).toEqual({
+      kind: "at-capacity",
+      detail: "Cracking Unit · build 2 or Rotary Kiln (gas) · build 7",
+    });
+  });
+
+  it("reports a fully paused producer as the deficit's limit", () => {
+    expect(getDeficitRootCause(
+      "diesel",
+      [
+        result("cracking-unit-fuel-gas-diesel", 0, { activeBuildings: 0, builtBuildings: 2 }),
+        result("food-processor-meat", 1, { actualInputs: [{ resourceId: "diesel", quantity: 30 }] }),
+      ],
+      [{ resourceId: "diesel", name: "Diesel", produced: 0, consumed: 30, net: -30 }],
+    )).toEqual({
+      kind: "at-capacity",
+      detail: "Cracking Unit · unpause 2",
+    });
   });
 });
