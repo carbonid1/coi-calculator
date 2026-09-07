@@ -1521,9 +1521,14 @@ export const calculateNet = (
       if (increase > 0) moduleSlackAllowance.set(key, Math.max(0, allowance - increase));
     }
   };
+  // The tolerance forgives float residue on a route's full ratio. The binary
+  // search that trims a blocked route must not spend it as a budget, or every
+  // blocked route leaves a sliver of deficit that nothing later covers.
+  const STRICT_TOLERANCE = 1e-7;
   const allocationIntroducedDeficit = (
     baseline: ReturnType<typeof snapshotAllocationState>,
     line: ProductionLine,
+    tolerance = DEFICIT_TOLERANCE,
   ) => {
     // Planned surplus routes expose their supporting resource pressure. Direct
     // external inputs are still limited before this check; only demand that
@@ -1541,7 +1546,7 @@ export const calculateNet = (
 
       if (
         globalIncrease
-          <= getSlackAllowance(line, resourceId, baseline.flows.get(resourceId)) + DEFICIT_TOLERANCE
+          <= getSlackAllowance(line, resourceId, baseline.flows.get(resourceId)) + tolerance
       ) continue;
       if (!plannedSupportingIds.has(resourceId)) return true;
 
@@ -1570,7 +1575,7 @@ export const calculateNet = (
         || getDeficitIncrease(baseline.actualModuleFlows.get(key), actualModuleFlows.get(key))
           <= getModuleSlackAllowance(line, key, baseline.actualModuleFlows.get(key))
             + getModuleKeySlackAllowance(line, key, baseline)
-            + DEFICIT_TOLERANCE
+            + tolerance
       ),
     );
   };
@@ -1692,7 +1697,7 @@ export const calculateNet = (
         applyRegularLine(line, candidateRatio, true);
         if (hasSupportingInputs) propagateAdditionalDemand();
 
-        if (allocationIntroducedDeficit(baseline, line)) {
+        if (allocationIntroducedDeficit(baseline, line, STRICT_TOLERANCE)) {
           infeasibleRatio = candidateRatio;
         } else {
           feasibleRatio = candidateRatio;
@@ -1701,7 +1706,7 @@ export const calculateNet = (
 
       restoreAllocationState(baseline);
 
-      if (feasibleRatio > 1e-9) {
+      if (feasibleRatio > 1e-6) {
         applyRegularLine(line, feasibleRatio, true);
         if (hasSupportingInputs) propagateAdditionalDemand();
         consumeSlackAllowance(baseline);
