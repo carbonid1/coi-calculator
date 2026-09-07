@@ -35,6 +35,10 @@ it('rejects missing, corrupt, JSON-flattened, or mismatched model/result records
     JSON.parse(JSON.stringify(entry)),
     { ...entry, revision: 'revision-b' },
     { ...entry, calculation: {} },
+    { ...entry, calculation: {
+      ...entry.calculation,
+      linkedModulesResult: { ...entry.calculation.linkedModulesResult, boundaries: undefined },
+    } },
   ]) {
     expect(isCompatibleFactoryCalculation(value, 'island-a', 'code-a')).toBe(false)
   }

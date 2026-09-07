@@ -33,6 +33,7 @@ export const isCompatibleFactoryCalculation = (
     && isRecord(calculation.factoryResult.calculation)
     && Array.isArray(calculation.factoryResult.calculation.resourceFlows)
     && isRecord(calculation.linkedModulesResult)
+    && Array.isArray(calculation.linkedModulesResult.boundaries)
     && calculation.linkedModulesResult.moduleResults instanceof Map
 }
 
