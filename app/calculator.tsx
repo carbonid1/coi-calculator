@@ -10,6 +10,7 @@ import { FactoryStartup } from './components/FactoryStartup'
 import { FocusView } from './components/FocusView'
 import { GameSyncStatus } from './components/GameSyncStatus'
 import { LiveAreaStatus } from './components/LiveAreaStatus'
+import { MinesView } from './components/MinesView'
 import { ModifiersView } from './components/ModifiersView'
 import { ModuleSwitcher } from './components/ModuleSwitcher'
 import { NetSummary } from './components/NetSummary'
@@ -747,7 +748,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       {moduleResult && activeModule && (
         <>
           {activeModule.id === MINES_MODULE_ID && (
-            <WorldMinesView world={snapshot.world} result={worldMines} />
+            <>
+              <WorldMinesView world={snapshot.world} result={worldMines} />
+              <MinesView
+                focusedTargetKey={focusedModuleTargetKey}
+                sourceResults={[]}
+                sinkResults={moduleResult.sinkResults}
+              />
+            </>
           )}
 
           {activeModule.id !== MINES_MODULE_ID && activeModule.id !== RESERVES_MODULE_ID && (
