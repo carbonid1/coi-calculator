@@ -1856,14 +1856,34 @@ export const calculateNet = (
       blockedRouteLines.set(blockedRoute, line);
     }
   };
+  // Recipe capacities and input scopes are constant throughout a solve. The
+  // feasibility search below propagates demand hundreds of times; only flows
+  // and the remaining shared capacity need to be checked again.
+  const demandPropagationLines = demandBalancedLines.filter(line => line.activeBuildings !== 0).map(line => {
+    const factor = lineFactor(line);
+
+    return {
+      line,
+      inputs: line.recipe.inputs.flatMap(input => {
+        const scoped = line.recipe.balanceInputIds?.includes(input.resourceId)
+          || ownedModuleSupplyKeysByResource.has(input.resourceId);
+
+        if (!scoped && (!hardSuppliedIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId))) return [];
+        return [{ resourceId: input.resourceId, scoped, capacity: getRecipeInputQuantity(input, outputModifiers) * factor }];
+      }),
+      outputs: line.recipe.outputs
+        .filter(output => !line.recipe.balanceOutputIds || line.recipe.balanceOutputIds.includes(output.resourceId))
+        .map(output => ({
+          resourceId: output.resourceId,
+          capacity: getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor,
+        })),
+    };
+  });
   const propagateAdditionalDemand = () => {
     for (let iteration = 0; iteration < demandBalancedLines.length; iteration += 1) {
       let changed = false;
 
-      for (const line of demandBalancedLines) {
-        if (line.activeBuildings === 0) continue;
-
-        const factor = lineFactor(line);
+      for (const { line, inputs, outputs } of demandPropagationLines) {
         const remainingLineRatio = Math.max(
           0,
           1 - (allocationRatios.get(line) ?? 0),
@@ -1877,57 +1897,34 @@ export const calculateNet = (
         // help any of the repeated surplus-route feasibility probes.
         if (ratio <= 1e-9) continue;
 
-        for (const input of line.recipe.inputs) {
-          if (line.recipe.balanceInputIds?.includes(input.resourceId)) {
-            const available = getAvailableInput(line, input.resourceId);
-            const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
+        for (const { resourceId, scoped, capacity } of inputs) {
+          if (capacity <= 0) continue;
+          const available = scoped
+            ? getAvailableInput(line, resourceId)
+            : getFlow(resourceId).produced - getFlow(resourceId).consumed;
 
-            if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
-            continue;
-          }
-          if (ownedModuleSupplyKeysByResource.has(input.resourceId)) {
-            const available = getAvailableInput(line, input.resourceId);
-            const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
-
-            if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
-            continue;
-          }
-          if (!hardSuppliedIds.has(input.resourceId) || internallyProducedIds.has(input.resourceId)) continue;
-
-          const flow = getFlow(input.resourceId);
-          const available = flow.produced - flow.consumed;
-          const needed = getRecipeInputQuantity(input, outputModifiers) * factor;
-
-          if (needed > 0) ratio = Math.min(ratio, Math.max(0, available / needed));
+          ratio = Math.min(ratio, Math.max(0, available / capacity));
         }
 
-        const outputDemandRatios = line.recipe.outputs.flatMap((output) => {
-          if (
-            line.recipe.balanceOutputIds
-            && !line.recipe.balanceOutputIds.includes(output.resourceId)
-          ) {
-            return [];
-          }
+        if (ratio <= 1e-9) continue;
+        let outputDemandRatio = 0;
 
-          const flow = flows.get(output.resourceId);
-          const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * factor;
+        for (const { resourceId, capacity } of outputs) {
+          const flow = flows.get(resourceId);
 
-          if (!flow || flow.consumed <= 0 || capacity <= 0) return [];
-
+          if (!flow || flow.consumed <= 0 || capacity <= 0) continue;
           const internallyProduced = flow.produced
-            - (fallbackSourceCapacityByResource.get(output.resourceId) ?? 0);
+            - (fallbackSourceCapacityByResource.get(resourceId) ?? 0);
 
-          return [getOutputDemandRatio(
+          outputDemandRatio = Math.max(outputDemandRatio, getOutputDemandRatio(
             line,
-            output.resourceId,
+            resourceId,
             capacity,
             internallyProduced,
-          )];
-        });
+          ));
+        }
 
-        ratio = outputDemandRatios.length > 0
-          ? Math.min(ratio, Math.max(...outputDemandRatios))
-          : 0;
+        ratio = Math.min(ratio, outputDemandRatio);
 
         if (ratio <= 1e-9) continue;
 

@@ -1002,9 +1002,13 @@ export const calculateFactoryTotal = (
     }
     return plan;
   };
-  let contractPlan = rebalanceContracts(initialContractResults
-    ? { flows: [], contractResults: initialContractResults }
-    : getInitialContractPlan());
+  // With no contracts, planning and delivery have identical inputs. Go
+  // straight to delivery instead of solving that factory three times.
+  let contractPlan = contracts.length === 0
+    ? { flows: [], contractResults: [] }
+    : rebalanceContracts(initialContractResults
+        ? { flows: [], contractResults: initialContractResults }
+        : getInitialContractPlan());
   let dispatched = calculateWithContractPlan(contractPlan);
 
   // Planning seeds reveal demand even behind unavailable imports. They cannot

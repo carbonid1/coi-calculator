@@ -33,3 +33,34 @@ it('does not repeatedly size a full producer for every blocked surplus route', (
     outputQuantity.mockRestore()
   }
 })
+
+it('reuses fixed recipe capacities while checking constrained surplus routes', () => {
+  const fuel = { resourceId: 'coal' as const, quantity: 1 }
+  const producer: Recipe = {
+    id: 'water', name: 'Water', building: 'Test', group: 'production', balanceBy: 'output',
+    inputs: [fuel], outputs: [{ resourceId: 'water', quantity: 10 }],
+  }
+  const line = (recipe: Recipe): ProductionLine => ({
+    recipe, moduleId: 'test', activeBuildings: 1, builtBuildings: 1,
+    speedLevel: 1, operatingMode: 'balanced',
+  })
+  const consumers = Array.from({ length: 20 }, (_, index) => line({
+    id: `consumer-${index}`, name: 'Surplus conversion', building: 'Test', group: 'production',
+    balanceBy: 'output', balanceOutputIds: [], consumeSurplusInputIds: ['ethanol'],
+    inputs: [{ resourceId: 'ethanol', quantity: 1 }, { resourceId: 'water', quantity: 1 }],
+    outputs: [{ resourceId: 'fuelGas', quantity: 1 }],
+  }))
+  const inputQuantity = vi.spyOn(quantities, 'getRecipeInputQuantity')
+
+  try {
+    const result = calculateNet([line(producer), ...consumers], { coal: 0.1, ethanol: 100 }, 0, {}, { water: 10 })
+
+    expect(result.regularResults.find(result => result.recipe.id === producer.id)?.actualOutputs)
+      .toEqual([{ resourceId: 'water', quantity: 1 }])
+    expect(result.blockedRoutes).toHaveLength(20)
+    expect(result.allResourceFlows.find(flow => flow.resourceId === 'water')?.net).toBeCloseTo(-9, 5)
+    expect(inputQuantity.mock.calls.filter(([input]) => input === fuel).length).toBeLessThan(20)
+  } finally {
+    inputQuantity.mockRestore()
+  }
+})

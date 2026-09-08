@@ -6,6 +6,7 @@ import {
   type GameStateDataSource,
   type GameStateSnapshot,
 } from "../game-state";
+import { startGameStatePolling } from "../helpers/game-state-polling/game-state-polling";
 
 export interface GameStateResult {
   exportedAtUtc: string | null;
@@ -17,7 +18,6 @@ export interface GameStateResult {
 }
 
 const GAME_STATE_CACHE_KEY = "coi-game-state-last-valid-v1";
-const REFRESH_INTERVAL_MS = 5_000;
 const FRESHNESS_WINDOW_MS = 20_000;
 
 const isSnapshotFresh = (exportedAtUtc: string) => (
@@ -58,8 +58,6 @@ export const useGameState = (initialResult: GameStateResult): GameStateResult =>
 
   useEffect(() => {
     let isActive = true;
-    let refreshTimer: number | undefined;
-    const abortController = new AbortController();
     const cachedSnapshot = readCachedSnapshot();
     const initialSnapshot = initialSnapshotRef.current;
     const initialCacheWriteTimer = initialSnapshot
@@ -98,7 +96,7 @@ export const useGameState = (initialResult: GameStateResult): GameStateResult =>
       }));
     };
 
-    const refresh = async () => {
+    const refresh = async (signal: AbortSignal) => {
       try {
         const currentRevision = revisionRef.current;
         const response = await fetch("/api/game-state", {
@@ -106,8 +104,10 @@ export const useGameState = (initialResult: GameStateResult): GameStateResult =>
           headers: currentRevision
             ? { "If-None-Match": JSON.stringify(currentRevision) }
             : undefined,
-          signal: abortController.signal,
+          signal,
         });
+
+        if (!isActive || signal.aborted) return;
 
         if (response.status === 304) {
           const exportedAtUtc = response.headers.get("X-CoI-Exported-At-Utc");
@@ -152,6 +152,8 @@ export const useGameState = (initialResult: GameStateResult): GameStateResult =>
         }
 
         const value: unknown = await response.json();
+
+        if (!isActive || signal.aborted) return;
         const snapshot = normalizeGameStateSnapshot(value);
 
         if (!snapshot) {
@@ -189,27 +191,26 @@ export const useGameState = (initialResult: GameStateResult): GameStateResult =>
             };
           });
         }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+      } catch {
+        if (!isActive || signal.aborted) return;
         setUnavailable("error");
       }
     };
 
-    const poll = async () => {
-      await refresh();
-      if (isActive) {
-        refreshTimer = window.setTimeout(() => void poll(), REFRESH_INTERVAL_MS);
-      }
-    };
+    const polling = startGameStatePolling({
+      refresh,
+      isVisible: () => document.visibilityState !== "hidden",
+      onError: () => setUnavailable("error"),
+    });
 
-    void poll();
+    document.addEventListener("visibilitychange", polling.visibilityChanged);
 
     return () => {
       isActive = false;
-      abortController.abort();
+      polling.dispose();
+      document.removeEventListener("visibilitychange", polling.visibilityChanged);
       if (initialCacheWriteTimer !== undefined) window.clearTimeout(initialCacheWriteTimer);
       if (cacheTimer !== undefined) window.clearTimeout(cacheTimer);
-      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
     };
   }, []);
 

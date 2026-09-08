@@ -1,6 +1,6 @@
 import "server-only";
 
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -28,6 +28,34 @@ interface UnavailableResult {
 }
 
 export type GameStateSnapshotReadResult = AvailableResult | UnavailableResult;
+
+let cached: {
+  key: string;
+  value: Promise<{ snapshot: GameStateSnapshot; revision: string } | null>;
+} | null = null;
+
+const readSnapshot = async (snapshotPath: string) => {
+  const metadata = await stat(/* turbopackIgnore: true */ snapshotPath);
+  const key = JSON.stringify([
+    snapshotPath, metadata.dev, metadata.ino, metadata.size, metadata.mtimeMs, metadata.ctimeMs,
+  ]);
+
+  // Share the in-flight read too, so several tabs cannot parse the same export
+  // concurrently. Keep freshness outside this cache: an unchanged file ages.
+  if (cached?.key !== key) {
+    cached = {
+      key,
+      value: (async () => {
+        const value: unknown = JSON.parse(await readFile(/* turbopackIgnore: true */ snapshotPath, "utf8"));
+        const snapshot = normalizeGameStateSnapshot(value);
+
+        return snapshot ? { snapshot, revision: calculateGameStateSnapshotRevision(snapshot) } : null;
+      })(),
+    };
+  }
+
+  return cached.value;
+};
 
 const getSnapshotPath = () => {
   if (process.env.COI_CALCULATOR_STATE_PATH) {
@@ -61,14 +89,9 @@ export const readGameStateSnapshot = async (): Promise<GameStateSnapshotReadResu
   }
 
   try {
-    const value: unknown = JSON.parse(await readFile(
-      /* turbopackIgnore: true */
-      snapshotPath,
-      "utf8",
-    ));
-    const snapshot = normalizeGameStateSnapshot(value);
+    const result = await readSnapshot(snapshotPath);
 
-    if (!snapshot) {
+    if (!result) {
       return {
         error: "The game snapshot has an unsupported or invalid format.",
         httpStatus: 422,
@@ -79,15 +102,18 @@ export const readGameStateSnapshot = async (): Promise<GameStateSnapshotReadResu
       };
     }
 
+    const { snapshot, revision } = result;
+
     return {
       error: null,
       httpStatus: 200,
       isFresh: Date.now() - Date.parse(snapshot.exportedAtUtc) < 20_000,
-      revision: calculateGameStateSnapshotRevision(snapshot),
+      revision,
       snapshot,
       status: "available",
     };
   } catch (error) {
+    cached = null;
     const code = error && typeof error === "object" && "code" in error
       ? error.code
       : undefined;
