@@ -9,10 +9,11 @@ import {
   writeSavedFactoryCalculation,
 } from './factory-calculation-cache'
 
+const model = createCacheTestModel()
 const entry = {
   version: 'code-a',
-  revision: 'new:{}',
-  model: createCacheTestModel(),
+  revision: model.calculationRevision!,
+  model,
   calculation: calculateFactoryCalculation({
     contracts: [], contractsProfitMultiplier: 1, links: [], modules: [],
     outputModifiers: {}, recyclingEfficiencyPercent: 0, shipsFuelUseMultiplier: 1,

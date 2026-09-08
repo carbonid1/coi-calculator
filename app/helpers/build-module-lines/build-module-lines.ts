@@ -4,6 +4,7 @@ import { getConnectionOnlyResourceIds, getFactoryResourceRequests } from "../../
 import { type ProductionLine } from "../calculate/calculate";
 import { getRecipeOutputQuantity, type RecipeModifierMultipliers } from "../modifiers/recipe-output";
 import { withModuleInputLimits } from "../recipe-input-scope/recipe-input-scope";
+import { canPrioritizeProcessing } from "../resource-priorities/resource-priorities";
 
 export const buildModuleLines = (
   mod: Module,
@@ -28,7 +29,22 @@ export const buildModuleLines = (
   const lines: ProductionLine[] = visibleRecipes.map((originalRecipe) => {
     // Apply routing to static presets as well as recipes generated from a snapshot.
     const localInputIds = getConnectionOnlyResourceIds(originalRecipe.inputs.map(input => input.resourceId));
-    const recipe = withModuleInputLimits(originalRecipe, localInputIds);
+    const scopedRecipe = withModuleInputLimits(originalRecipe, localInputIds);
+    const localFirstInputIds = originalRecipe.inputs.map(input => input.resourceId).filter(resourceId => (
+      preset?.resourceProcessingPriorities?.[resourceId] === "local-first"
+      && canPrioritizeProcessing(originalRecipe, resourceId)
+      && !fixedIds.has(originalRecipe.id)
+      && !localInputIds.includes(resourceId)
+    ));
+    const recipe = localFirstInputIds.length > 0 ? {
+      ...scopedRecipe,
+      inputPriorities: {
+        ...scopedRecipe.inputPriorities,
+        ...Object.fromEntries(localFirstInputIds.map(resourceId => [
+          resourceId, scopedRecipe.inputPriorities?.[resourceId] ?? -1,
+        ])),
+      },
+    } : scopedRecipe;
     const built = builtBuildings[recipe.id] ?? 0;
     const speedLevel = preset?.speedLevels?.[recipe.id] ?? 1;
     const active = Math.max(
@@ -77,6 +93,7 @@ export const buildModuleLines = (
 
     return {
       recipe,
+      localFirstInputIds,
       moduleId: mod.id,
       dataSource: preset?.dataSources?.[recipe.id],
       capacityPoolId: recipe.sharedCapacity

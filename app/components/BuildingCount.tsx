@@ -41,7 +41,6 @@ const attentionLabel = (
     return `Remove ${count.toLocaleString()} ${animalPopulation.label}`;
   }
   if (attention === "can-pause") return `Can pause ${count}`;
-  if (attention === "rebalance-farms") return "Rebalance farms";
   if (attention === "unpause") return `Unpause ${count}`;
 
   return "Build capacity";

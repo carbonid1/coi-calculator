@@ -14,6 +14,7 @@ import {
 } from "../modifiers/recipe-output";
 import { getPresetResourceDemands } from "../preset-resource-demands/preset-resource-demands";
 import { isModuleInput } from "../recipe-input-scope/recipe-input-scope";
+import { allocateProcessingSupply, canPrioritizeProcessing } from "../resource-priorities/resource-priorities";
 import { typedEntries } from "../typed-entries/typed-entries";
 
 export interface FactoryTotalResult {
@@ -87,7 +88,7 @@ const getDemandSourceProduction = (
 };
 
 const calculateWithDispatch = (
-  lines: ProductionLine[],
+  inputLines: ProductionLine[],
   suppliedResources: Partial<Record<ResourceId, number>>,
   recyclingEfficiencyPercent: number,
   outputModifiers: RecipeModifierMultipliers,
@@ -108,11 +109,36 @@ const calculateWithDispatch = (
   > = new Map(),
   deferredDemands: Partial<Record<ResourceId, number>> = {},
 ) => {
+  const locallyPrioritizedIds = new Set(inputLines.flatMap(line => line.localFirstInputIds ?? []));
+  // Include competing primary consumers in the same allocation. Otherwise an
+  // output-balanced consumer can request already-reserved input as a deficit.
+  const lines = inputLines.map(line => {
+    if (line.operatingMode === "fixed" || line.allocationRatio != null) return line;
+    const competingIds = line.recipe.inputs.map(input => input.resourceId).filter(resourceId => (
+      locallyPrioritizedIds.has(resourceId) && canPrioritizeProcessing(line.recipe, resourceId)
+      && line.recipe.inputPriorities?.[resourceId] == null
+    ));
+
+    if (competingIds.length === 0) return line;
+    return { ...line, recipe: { ...line.recipe, inputPriorities: {
+      ...line.recipe.inputPriorities,
+      // Ordinary primary consumers currently run before recipe-dispatched ones.
+      ...Object.fromEntries(competingIds.map(resourceId => [resourceId, -1])),
+    } } };
+  });
   const groupsById = new Map<string, ElectricityDispatchGroup>();
-  const prioritizedLines = lines.filter((line) => (
+  const prioritizedLines = lines.filter((line) => line.operatingMode !== "fixed" && line.allocationRatio == null && (
     typedEntries(line.recipe.inputPriorities ?? {}).length > 0
+    || (line.recipe.group !== "source" && line.recipe.group !== "sink"
+      && line.recipe.balanceBy === "output"
+      && line.recipe.allocation !== "fallback" && line.recipe.allocation !== "surplus"
+      && !line.recipe.consumeSurplusInputIds?.length
+      && line.recipe.outputs.some(output => locallyPrioritizedIds.has(output.resourceId)))
   ));
   const prioritizedLineId = (line: ProductionLine) => `${line.moduleId}:${line.recipe.id}`;
+  const committedLineIds = new Set(inputLines
+    .filter(line => line.operatingMode === "fixed" || line.allocationRatio != null)
+    .map(prioritizedLineId));
   const getModuleResourceFlow = (
     calculation: ReturnType<typeof calculateNet>,
     moduleId: string,
@@ -498,20 +524,53 @@ const calculateWithDispatch = (
         ) - reservedModuleSupply,
       ));
 
+      const inputCapacity = (line: ProductionLine) => {
+        const input = line.recipe.inputs.find(input => input.resourceId === resourceId);
+
+        return input ? getRecipeInputQuantity(input, outputModifiers) * line.activeBuildings * line.speedLevel : 0;
+      };
+      const globalConsumers = consumersByScope.get("global") ?? [];
+      const localSupply = new Map<string, number>();
+
+      for (const line of globalConsumers) {
+        if (!line.localFirstInputIds?.includes(resourceId) || localSupply.has(line.moduleId)) continue;
+        const moduleFlow = getModuleResourceFlow(currentCalculation, line.moduleId, resourceId);
+        const controlledConsumption = globalConsumers.filter(consumer => consumer.moduleId === line.moduleId)
+          .reduce((sum, consumer) => sum + currentConsumption(consumer), 0);
+        const disposed = currentCalculation.sinkResults.filter(result => result.moduleId === line.moduleId)
+          .reduce((sum, result) => sum + (result.actualInputs.find(input => input.resourceId === resourceId)?.quantity ?? 0), 0);
+
+        localSupply.set(line.moduleId, Math.max(0, moduleFlow.produced - moduleFlow.consumed + controlledConsumption + disposed));
+      }
+      // Fixed operation and external demand remain committed. Ordinary recipes
+      // can yield to the requested local processing and consume its remainder.
+      const fixedConsumption = [...currentCalculation.regularResults, ...currentCalculation.sourceResults]
+        .filter(result => committedLineIds.has(`${result.moduleId}:${result.recipe.id}`))
+        .reduce((sum, result) => sum + (result.actualInputs.find(input => input.resourceId === resourceId)?.quantity ?? 0), 0);
+      const committedModuleDemand = [...moduleFixedDemands.values()]
+        .reduce((sum, demands) => sum + (demands[resourceId] ?? 0), 0);
+      const globalAllocations = allocateProcessingSupply(
+        globalConsumers.map(line => ({
+          id: prioritizedLineId(line), moduleId: line.moduleId,
+          desired: inputCapacity(line) * (desiredResourceRatios.get(prioritizedLineId(line)) ?? 0),
+          localFirst: line.localFirstInputIds?.includes(resourceId) ?? false,
+        })),
+        localSupply,
+        remainingByScope.get("global") ?? 0,
+        Math.max(0, (flow?.produced ?? 0) - reservedModuleSupply - fixedConsumption - committedModuleDemand
+          - Math.max(0, (fixedDemands[resourceId] ?? 0) - (deferredDemands[resourceId] ?? 0))),
+      );
+
       for (const line of consumers) {
         const id = prioritizedLineId(line);
         const key = scopeKey(line);
         const remaining = remainingByScope.get(key) ?? 0;
         const desiredRatio = desiredResourceRatios.get(id) ?? 0;
-        const input = line.recipe.inputs.find(
-          (candidate) => candidate.resourceId === resourceId,
-        );
-        const capacity = input
-          ? getRecipeInputQuantity(input, outputModifiers) * line.activeBuildings * line.speedLevel
-          : 0;
-        const allocatedRatio = capacity > 0
-          ? Math.min(desiredRatio, remaining / capacity)
-          : 0;
+        const capacity = inputCapacity(line);
+        const allocation = key === "global"
+          ? globalAllocations.get(id) ?? 0
+          : Math.min(capacity * desiredRatio, remaining);
+        const allocatedRatio = capacity > 0 ? allocation / capacity : 0;
 
         desiredResourceRatios.set(id, allocatedRatio);
         remainingByScope.set(key, Math.max(0, remaining - capacity * allocatedRatio));

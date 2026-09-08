@@ -10,6 +10,7 @@ export type DiagnosticMessage =
   | { kind: "shortage"; resourceIds: ResourceId[] }
   | { kind: "priority"; inputId: ResourceId; productIds: ResourceId[] }
   | { kind: "capacity"; actions: CapacityAction[] }
+  | { kind: "rebalance-crops"; target: "greenhouses" | "farms" }
   | { kind: "outside-recipes"; quantity: number }
   | { kind: "contract-import"; quantity: number; needed?: number }
   | { kind: "contract-export"; quantity: number }
@@ -44,6 +45,7 @@ const formatMessage = (message: DiagnosticMessage): string => {
   switch (message.kind) {
     case "no-producer": return "No producer";
     case "input-limited": return "Input supply limited";
+    case "rebalance-crops": return `Rebalance ${message.target}`;
     case "shortage": return formatInputShortage(resourceNames(message.resourceIds));
     case "priority":
       return `${resources[message.inputId].name} prioritized for ${resourceNames(message.productIds).join(", ")}`;

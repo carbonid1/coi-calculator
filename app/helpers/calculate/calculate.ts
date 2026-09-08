@@ -48,6 +48,8 @@ export interface ProductionLine {
   allocationRatio?: number;
   /** Explicit private supplies that can start this consumer without output demand. */
   drivingInputIds?: ResourceId[];
+  /** User-selected preference for processing locally produced inputs before export. */
+  localFirstInputIds?: ResourceId[];
 }
 
 export interface ResourceFlow {
@@ -625,9 +627,19 @@ export const calculateNet = (
   const ownedModuleSupplyKeysByResource = new Map<ResourceId, Set<string>>();
   const moduleScopedInputKeysByResource = new Map<ResourceId, Set<string>>();
   const moduleKeyResourceIds = new Map<string, ResourceId>();
+  const moduleResourceKeys = new Map<string, Map<ResourceId, string>>();
   const moduleResourceKey = (moduleId: string, resourceId: ResourceId) => {
+    let keys = moduleResourceKeys.get(moduleId);
+    const existing = keys?.get(resourceId);
+
+    if (existing !== undefined) return existing;
     const key = `${moduleId}:${resourceId}`;
 
+    if (!keys) {
+      keys = new Map();
+      moduleResourceKeys.set(moduleId, keys);
+    }
+    keys.set(resourceId, key);
     moduleKeyResourceIds.set(key, resourceId);
 
     return key;
@@ -1128,6 +1140,14 @@ export const calculateNet = (
       getDrivingConsumption(resourceId) - globallyProduced,
     );
     const key = moduleResourceKey(line.moduleId, resourceId);
+    const requiresLocalOutput = line.recipe.balanceOutputScope === "module"
+      || resourceSupplyRules[resourceId] === "connections";
+    const moduleDemand = moduleFixedDemands.get(line.moduleId)?.[resourceId] ?? 0;
+    const hasModuleScopedDemand = moduleScopedInputKeysByResource
+      .get(resourceId)
+      ?.has(key) ?? false;
+
+    if (!requiresLocalOutput && moduleDemand <= 0 && !hasModuleScopedDemand) return globalDemand / capacity;
     const moduleFlow = getActualModuleFlow(line.moduleId, resourceId);
     const moduleProduction = moduleFlow.produced
       - (totalModuleSourceCapacityByResource.get(key) ?? 0);
@@ -1136,16 +1156,9 @@ export const calculateNet = (
       getModuleDrivingConsumption(line.moduleId, resourceId) - moduleProduction,
     );
 
-    if (line.recipe.balanceOutputScope === "module" || resourceSupplyRules[resourceId] === "connections") {
+    if (requiresLocalOutput) {
       return selectedSourceDemand / capacity;
     }
-
-    const moduleDemand = moduleFixedDemands.get(line.moduleId)?.[resourceId] ?? 0;
-    const hasModuleScopedDemand = moduleScopedInputKeysByResource
-      .get(resourceId)
-      ?.has(key) ?? false;
-
-    if (moduleDemand <= 0 && !hasModuleScopedDemand) return globalDemand / capacity;
 
     return Math.max(globalDemand, selectedSourceDemand) / capacity;
   };
@@ -1859,6 +1872,10 @@ export const calculateNet = (
           remainingLineRatio,
           capacityTracker.availableRatio(line),
         );
+
+        // Demand propagation can only increase utilization. Full lines cannot
+        // help any of the repeated surplus-route feasibility probes.
+        if (ratio <= 1e-9) continue;
 
         for (const input of line.recipe.inputs) {
           if (line.recipe.balanceInputIds?.includes(input.resourceId)) {

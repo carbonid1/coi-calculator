@@ -156,11 +156,23 @@ export const getDeficitRootCause = (
 
   if (producers.every((producer) => producer.atCapacity)) {
     const deficit = Math.max(0, -(flow?.net ?? 0));
+    const cropFarms = producers.flatMap(pool => getProducerLines(resourceId, pool))
+      .map(({ recipe }) => recipe.inputs.find(input => input.weatherAdjustedFarm)?.weatherAdjustedFarm);
+    // A crop's share of the current rotation cannot size a farm expansion:
+    // rebalancing the schedules changes the yields of the other crops too.
+    const capacityMessage: DiagnosticMessage = cropFarms.every(farm => farm != null)
+      ? {
+          kind: "rebalance-crops",
+          target: cropFarms.every(farm => farm?.tierId === "greenhouse" || farm?.tierId === "greenhouseII")
+            ? "greenhouses"
+            : "farms",
+        }
+      : { kind: "capacity", actions: getCapacityActions(producers, resourceId, "outputs", deficit) };
 
     return {
       kind: "at-capacity",
       detail: formatDiagnosticMessages([
-        { kind: "capacity", actions: getCapacityActions(producers, resourceId, "outputs", deficit) },
+        capacityMessage,
         ...suffix,
       ]),
     };

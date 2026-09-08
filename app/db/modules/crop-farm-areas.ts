@@ -1,3 +1,4 @@
+import { allocateCropFarmPlan, type PlannedCropFarmInventory } from '../../helpers/crop-farm-plan/crop-farm-plan'
 import { type GroundwaterSourceConstraint } from '../../helpers/groundwater/calculate-groundwater-production'
 import {
   crops,
@@ -90,11 +91,8 @@ const withoutGenericCropFarmIssues = (module: Module) => module.liveArea
     }
   : undefined
 
-interface CropFarmGroupInventory {
-  group: CropFarmGroup
-  built: number
-  running: number
-}
+type CropFarmGroupInventory = Pick<PlannedCropFarmInventory, 'group' | 'built' | 'running'>
+  & Partial<Pick<PlannedCropFarmInventory, 'currentActive' | 'source' | 'mismatch'>>
 
 type CropFarmStatus = 'unconfigured' | 'unsupported-crop'
 
@@ -124,11 +122,19 @@ const attachCropFarms = (
   allEntities: readonly CurrentCropFarmEntity[],
   ownerZoneId: number | null,
   groundwaterConstraint?: GroundwaterSourceConstraint,
+  plan?: readonly CropFarmGroup[],
 ): Module => {
   const ownsEntity = (entity: CurrentCropFarmEntity) => (
     getCropFarmOwnerZone(entity)?.id ?? null
   ) === ownerZoneId
-  const entities = allEntities.filter(ownsEntity)
+  const ownedEntities = allEntities.filter(ownsEntity)
+  const inventoryPreset = module.presets.find(preset => preset.id === module.defaultPresetId)
+    ?? module.presets[0]
+  const planned = allocateCropFarmPlan(module.id, ownedEntities, plan ?? [], {
+    greenhouse: inventoryPreset?.capacityPools?.FarmT3?.constructionGhosts ?? 0,
+    greenhouseII: inventoryPreset?.capacityPools?.FarmT4?.constructionGhosts ?? 0,
+  })
+  const entities = planned.remaining
   const liveArea = withoutGenericCropFarmIssues(module)
 
   const grouped = new Map<string, CropFarmGroupInventory>()
@@ -217,8 +223,10 @@ const attachCropFarms = (
     })
   }
 
+  for (const inventory of planned.inventories) grouped.set(inventory.group.id, inventory)
+
   const farmRecipes = [...grouped.values()].map(inventory => {
-    inventory.group.farmCount = inventory.built
+    inventory.group.farmCount = Math.max(inventory.built, inventory.running)
 
     return createCropFarmRecipe(inventory.group)
   })
@@ -251,8 +259,14 @@ const attachCropFarms = (
   )
   const dataSources = Object.fromEntries(recipeIds.map(recipeId => [
     recipeId,
-    'synced' as const,
+    grouped.get(recipeId)?.source ?? 'synced' as const,
   ])) satisfies NonNullable<Preset['dataSources']>
+  const currentActiveBuildings = {
+    ...activeBuildings,
+    ...Object.fromEntries(planned.inventories.map(inventory => [
+      inventory.group.id, inventory.currentActive,
+    ])),
+  }
   const recipes = [...new Map([
     ...(module.recipes ?? []).map(recipe => [recipe.id, recipe] as const),
     ...addedRecipes.map(recipe => [recipe.id, recipe] as const),
@@ -318,13 +332,30 @@ const attachCropFarms = (
       },
       currentActiveBuildings: {
         ...preset.currentActiveBuildings,
-        ...activeBuildings,
+        ...currentActiveBuildings,
       },
       dataSources: {
         ...preset.dataSources,
         ...dataSources,
       },
       fixed: [...new Set([...preset.fixed, ...recipeIds])],
+      planMismatches: [
+        ...(preset.planMismatches ?? []),
+        ...planned.inventories.flatMap(inventory => inventory.mismatch ? [inventory.mismatch] : []),
+      ],
+      unplacedPlannedBuildings: {
+        ...preset.unplacedPlannedBuildings,
+        ...Object.fromEntries(planned.inventories.flatMap(inventory => (
+          inventory.running > inventory.built + inventory.constructionGhosts
+            ? [[inventory.group.id, inventory.running - inventory.built - inventory.constructionGhosts]]
+            : []
+        ))),
+      },
+      constructionGhosts: {
+        ...preset.constructionGhosts,
+        ...Object.fromEntries(planned.inventories.filter(inventory => inventory.constructionGhosts > 0)
+          .map(inventory => [inventory.group.id, inventory.constructionGhosts])),
+      },
     })),
     liveArea: liveArea ? { ...liveArea, issues } : undefined,
   }
@@ -334,12 +365,13 @@ export const createCropFarmAreaModule = (
   generatedArea: Module,
   entities: readonly CurrentCropFarmEntity[],
   groundwaterConstraint?: GroundwaterSourceConstraint,
+  plan?: readonly CropFarmGroup[],
 ) => {
   const zoneId = generatedArea.liveArea?.zoneId
 
   return zoneId === undefined
     ? generatedArea
-    : attachCropFarms(generatedArea, entities, zoneId, groundwaterConstraint)
+    : attachCropFarms(generatedArea, entities, zoneId, groundwaterConstraint, plan)
 }
 
 export const createDefaultCropFarmModule = (

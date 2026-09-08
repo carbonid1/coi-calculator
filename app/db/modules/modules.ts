@@ -1,9 +1,12 @@
 import { type ValueSource } from "../../data-source";
 import { type PlanDirection } from "../../helpers/resolve-directional-plan";
 import { type Recipe } from "../recipes";
+import { type ResourceProcessingPriorities } from "../resource-supply";
 import { type ResourceId } from "../resources";
 
 export interface Preset {
+  /** Prefer this module's useful processing of its own output before factory allocation. */
+  resourceProcessingPriorities?: ResourceProcessingPriorities;
   id: string;
   name: string;
   description: string;

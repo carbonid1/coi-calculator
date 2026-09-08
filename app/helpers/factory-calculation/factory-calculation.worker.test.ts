@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { createCacheTestModel } from '../../test-fixtures/factory-calculation-cache'
+import { deriveCalculatorModel } from '../calculator-model/derive-calculator-model'
 import { type FactoryCalculationRequest } from './factory-calculation.worker'
 
 const { calculate, read, write } = vi.hoisted(() => ({
@@ -63,4 +64,56 @@ it('calculates on a cache miss and reports solver failures without overwriting t
   await receive({ data: request })
   expect(postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'error', revision: 'new', error: 'Solver failed' })
   expect(write).not.toHaveBeenCalled()
+})
+
+it('updates snapshot-only values without solving the same factory inputs again', async () => {
+  await receive({ data: request })
+  const next = structuredClone(request)
+
+  next.revision = 'next'
+  next.model.calculationRevision = next.revision
+  next.model.snapshot.exportedAtUtc = '2026-09-04T00:00:05.000Z'
+  next.model.snapshot.storages.push({
+    entityId: 1, product: { productId: 'Wood', name: 'Wood' }, quantity: 100, capacity: 1000,
+    trainLinked: false, hasAssignedInputs: false,
+  })
+  next.model = deriveCalculatorModel({ snapshot: next.model.snapshot, revision: next.revision, machineZoneAssignments: {} })
+  next.revision = next.model.calculationRevision
+  await receive({ data: next })
+
+  expect(calculate).toHaveBeenCalledTimes(1)
+  expect(postMessage).toHaveBeenLastCalledWith({
+    type: 'settled', revision: next.revision, result: { ...next, calculation: { fresh: true } },
+  })
+  expect(write).toHaveBeenLastCalledWith({ ...next, calculation: { fresh: true } })
+})
+
+it('reuses saved calculation inputs when only the snapshot revision changed', async () => {
+  const saved = { ...request, revision: 'old', calculation: { cached: true } }
+
+  read.mockResolvedValue(saved)
+  await receive({ data: request })
+
+  expect(calculate).not.toHaveBeenCalled()
+  expect(postMessage).toHaveBeenCalledExactlyOnceWith({
+    type: 'settled', revision: request.revision, result: { ...request, calculation: { cached: true } },
+  })
+})
+
+it.each(['input', 'save', 'version', 'reserve availability'])('recalculates when the %s changes', async change => {
+  await receive({ data: request })
+  const next = structuredClone(request)
+
+  next.revision = 'next'
+  if (change === 'input') next.model.factoryCalculationInput.externalDemands = { water: 123 }
+  if (change === 'save') next.model.snapshot.saveId = 'another-save'
+  if (change === 'version') next.version = 'code-b'
+  if (change === 'reserve availability') {
+    next.model.snapshot.reserves.gold = 100
+    next.model = deriveCalculatorModel({ snapshot: next.model.snapshot, revision: next.revision, machineZoneAssignments: {} })
+    next.revision = next.model.calculationRevision
+  }
+  await receive({ data: next })
+
+  expect(calculate).toHaveBeenCalledTimes(2)
 })

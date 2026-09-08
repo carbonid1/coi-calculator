@@ -1,12 +1,14 @@
 'use client'
 
-import { Button, TableScrollRegion, Tooltip, type Column } from '@carbonid1/design-system'
+import { Button, Select, TableScrollRegion, Tooltip, type Column } from '@carbonid1/design-system'
 import { useMemo, useState } from 'react'
 
 import { type Module } from '../db/modules/modules'
+import { resourceSupplyRules, type ResourceProcessingPriority } from '../db/resource-supply'
 import { resources, type ResourceId } from '../db/resources'
 import { formatDiagnosticMessages } from '../helpers/diagnostic-display/diagnostic-display'
 import { type FactoryCalculation } from '../helpers/factory-calculation/factory-calculation'
+import { canPrioritizeProcessing, isResourceProcessingPriority } from '../helpers/resource-priorities/resource-priorities'
 import {
   getResourceSupplyAccess,
   getResourceSupplyRows,
@@ -36,9 +38,13 @@ const resourceQuantities = (quantities: { resourceId: ResourceId; quantity: numb
 export const ResourceSupplyView = ({
   modules,
   calculation,
+  priorityModules = modules,
+  onProcessingPriorityChange,
 }: {
   modules: readonly Module[]
   calculation: FactoryCalculation
+  priorityModules?: readonly Module[]
+  onProcessingPriorityChange?: (zoneId: number, resourceId: ResourceId, priority: ResourceProcessingPriority) => void
 }) => {
   const [resourceId, setResourceId] = useState<ResourceId>('carbonDioxide')
   const [consumerId, setConsumerId] = useState<string | null>(null)
@@ -130,9 +136,35 @@ export const ResourceSupplyView = ({
         const localShortfall = factoryAccess ? 0 : Math.max(
           0, -row.balance - (row.boundary?.rule.requestedImport ?? 0),
         )
+        const priorityModule = priorityModules.find(module => module.id === row.moduleId)
+        const priorityPreset = priorityModule?.presets.find(preset => preset.id === priorityModule.defaultPresetId)
+        const priority = priorityPreset?.resourceProcessingPriorities?.[resourceId] ?? 'factory'
+        const localResult = calculation.linkedModulesResult.moduleResults.get(row.moduleId)
+          ?? calculation.factoryResult.calculation
+        const canPrioritize = priorityModule?.includedInFactoryTotals !== false
+          && factoryAccess && resourceSupplyRules[resourceId] !== 'connections'
+          && localResult.regularResults.some(result => (
+            result.moduleId === row.moduleId && !priorityPreset?.fixed.includes(result.recipe.id)
+            && canPrioritizeProcessing(result.recipe, resourceId)
+          ))
+        const zoneId = priorityModule?.liveArea?.zoneId
 
         return (
           <div className="space-y-1 text-xs text-muted-foreground">
+            {canPrioritize && zoneId != null && onProcessingPriorityChange && (
+              <Select
+                aria-label={`${resources[resourceId].name} processing priority in ${row.moduleName}`}
+                value={priority}
+                options={[
+                  { value: 'factory', label: 'Factory priorities' },
+                  { value: 'local-first', label: 'Process here first' },
+                ]}
+                onChange={value => {
+                  if (isResourceProcessingPriority(value)) onProcessingPriorityChange(zoneId, resourceId, value)
+                }}
+              />
+            )}
+            {priority === 'local-first' && <div className="text-highlight-foreground">Planned</div>}
             {factoryAccess && <div>{row.boundary ? 'Local first · factory pool' : 'Factory pool'}</div>}
             {factoryDemand > 0.001 && <div>Needs {formatQuantity(factoryDemand)} from factory</div>}
             {row.incoming.map(transfer => (

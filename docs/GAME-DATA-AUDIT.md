@@ -3,6 +3,20 @@
 Target: Captain of Industry v0.8.7 installed under Steam. All rates below are
 normalized to one 60-second production cycle.
 
+## Computing expansion
+
+Verified 2026-09-08 against installed v0.8.7 `DataCenterData`, `WaterChillerData`,
+and `Costs`: a Data Center holds 48 Basic racks and employs 6 workers. Each rack
+provides 4 TFLOPS, uses 85 kW and 0.5 Chilled Water per production cycle, and
+returns 0.5 Water. A Water Chiller employs 3 workers, uses 1 MW, and converts
+30 Water into 24 Chilled Water per production cycle.
+
+The Last-Stop Waters plan targets 8 Data Centers, 384 installed racks, and
+8 Water Chillers in area 13. Compared with the synced 5 full centers and
+5 chillers, this adds 576 TFLOPS, 27 workers, 15.24 MW, and 18 net Water per
+production cycle. Running inventory above the target is retained; paused
+inventory and construction ghosts count toward the expansion before new builds.
+
 ## Chicken Carcass disposal
 
 Verified 2026-09-08 against installed `FoodProcessorData`: per production cycle,
@@ -676,3 +690,19 @@ history's total averaging window. Non-cargo consumption is retained. Unknown
 voyage timing or fuel is surfaced as incomplete, without a guessed trip rate.
 Maintenance retains its existing rolling history, so pausing equipment does not
 erase previously observed consumption. No new wiki discrepancy was established.
+
+## Greenhouse rotation plan — 2026-09-08
+
+Rechecked the installed v0.8.7 `Mafi.Base.dll` and `Mafi.Core.dll` before
+setting the saved Greenhouses plan. `FarmsData` confirms Greenhouse II's 1.5
+yield multiplier and 1.25 crop-demand multiplier; `Costs.Buildings.FarmT4`
+confirms 20 workers. `CropsData` harvest quantities and growth months match
+the calculator's crop catalog. `Ids.Products` gives Fertilizer II 2.5 fertility
+points per unit, and `Farm` sets the fertility slider maximum to 14 × 10%.
+No new game-data or wiki discrepancy was found.
+
+The plan uses fixed rotations at 140% fertility with Fertilizer II and the
+snapshot's crop modifiers (1.48 output, 1.2325 gross water). Optimization runs
+offline against projected factory demand; fuel-sink consumption is excluded
+from required crop demand, while Canola milling's Cooking Oil demand remains.
+Existing matching rotations are retained before assigning other built farms.

@@ -1,6 +1,9 @@
 import { typedEntries } from '../helpers/typed-entries/typed-entries'
 import { type ResourceId } from './resources'
 
+export type ResourceProcessingPriority = 'factory' | 'local-first'
+export type ResourceProcessingPriorities = Partial<Record<ResourceId, ResourceProcessingPriority>>
+
 /** Calculator routing assumptions, independent of production/disposal preferences. */
 export const resourceSupplyRules: Partial<Record<ResourceId, 'connections'>> = {
   seaWater: 'connections',

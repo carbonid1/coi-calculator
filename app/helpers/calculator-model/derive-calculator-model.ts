@@ -126,6 +126,7 @@ import { calculateTreeGrowthSpeed } from '../modifiers/calculate-tree-growth-spe
 import { calculateUnityCapacity } from '../modifiers/calculate-unity-capacity'
 import { applySettlementState, resolveProjectedPopulation } from '../population-entity-sync/apply-settlement-state'
 import { resolvePopulationEntityInventory } from '../population-entity-sync/population-entity-sync'
+import { type ResourcePriorityOverrides } from '../resource-priorities/resource-priorities'
 import {
   getSyncedChickenFarmEntities,
   getSyncedCropFarmEntities,
@@ -135,6 +136,7 @@ import { getAverageSunIntensityPercent } from '../weather/generate-planning-weat
 import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
 export interface DeriveCalculatorModelOptions {
+  resourcePriorityOverrides?: ResourcePriorityOverrides
   machineZoneAssignments: MachineZoneAssignments
   /** Snapshot revision; falls back to the export time when unavailable. */
   revision: string | null
@@ -150,6 +152,7 @@ export const deriveCalculatorModel = ({
   machineZoneAssignments,
   revision,
   snapshot,
+  resourcePriorityOverrides = {},
 }: DeriveCalculatorModelOptions) => {
   const averageSunIntensityPercent = getAverageSunIntensityPercent(snapshot.weather)
   const currentCropFarmEntities = getSyncedCropFarmEntities(snapshot.cropFarms)
@@ -441,6 +444,10 @@ export const deriveCalculatorModel = ({
         areaComputingConfigs.built,
         areaComputingConfigs.running,
         module,
+        liveAreaPlans[module.liveArea.zoneId]?.computing,
+        areaComputingConfigs.entities
+          .filter(entity => entity.prototypeId === 'DataCenter' && !entity.running)
+          .map(entity => entity.dataCenterRacks ?? 0),
       )
     }
 
@@ -450,11 +457,12 @@ export const deriveCalculatorModel = ({
       areaEntities,
     )
 
-    if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId)) {
+    if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId) || liveAreaPlans[module.liveArea.zoneId]?.cropFarms) {
       configuredModule = createCropFarmAreaModule(
         configuredModule,
         currentCropFarmEntities,
         groundwaterClaimLimits[getCropFarmGroundwaterClaimId(module.liveArea.zoneId)],
+        liveAreaPlans[module.liveArea.zoneId]?.cropFarms,
       )
     }
 
@@ -566,13 +574,22 @@ export const deriveCalculatorModel = ({
   })
   const configuredModules = configuredBaseModules.map(module => {
     const assignment = staticInfrastructureAssignments[module.id]
-
-    return assignment
+    const configured = assignment
       ? attachStaticInfrastructureToModule(
           module,
           assignment,
         )
       : module
+    const zoneId = configured.liveArea?.zoneId
+    const priorities = zoneId == null ? {} : {
+      ...liveAreaPlans[zoneId]?.resourceProcessingPriorities,
+      ...resourcePriorityOverrides[zoneId],
+    }
+
+    return Object.keys(priorities).length === 0 ? configured : {
+      ...configured,
+      presets: configured.presets.map(preset => ({ ...preset, resourceProcessingPriorities: priorities })),
+    }
   })
   const configuredComputingModules = configuredModules.filter(module => (
     hasModuleCapability(module, 'computing') && module.liveArea
@@ -685,9 +702,9 @@ export const deriveCalculatorModel = ({
   )
   const calculationRevision = `${
     revision ?? snapshot.exportedAtUtc
-  }:${JSON.stringify(machineZoneAssignments)}`
+  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}`
   // Every calculation input above is a pure derivation of the game-state
-  // revision and machine-zone assignments identified by `calculationRevision`.
+  // revision, machine-zone assignments, and saved priorities identified by `calculationRevision`.
   const factoryCalculationInput: FactoryCalculationInput = {
     contracts: enabledContracts,
     externalSupplies: worldMines.supplies,

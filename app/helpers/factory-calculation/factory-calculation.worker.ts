@@ -19,29 +19,45 @@ export type FactoryCalculationResponse =
 
 const respond = (response: FactoryCalculationResponse) => self.postMessage(response)
 let restored = false
+let previous: SavedFactoryCalculation | null = null
+let previousInput: string | undefined
 
 self.addEventListener('message', async ({ data }: MessageEvent<FactoryCalculationRequest>) => {
   try {
+    const input = JSON.stringify(data.model.factoryCalculationInput)
+
     if (!restored) {
       restored = true
       const saved = await readSavedFactoryCalculation(data.model.snapshot.saveId, data.version)
 
       if (saved) {
+        previous = saved
+        previousInput = JSON.stringify(saved.model.factoryCalculationInput)
         if (saved.revision === data.revision) {
-          respond({ type: 'settled', result: { ...saved, model: data.model }, revision: data.revision })
+          previous = { ...saved, model: data.model }
+          previousInput = input
+          respond({ type: 'settled', result: previous, revision: data.revision })
           return
         }
-        respond({ type: 'preview', result: saved, revision: data.revision })
+        if (previousInput !== input) respond({ type: 'preview', result: saved, revision: data.revision })
       }
     }
 
+    // Stock levels and other snapshot-only changes need a fresh model, but do
+    // not invalidate a solve of identical inputs. Keep only the latest result.
+    const reusable = previous && previousInput === input
+      && previous.version === data.version
+      && previous.model.snapshot.saveId === data.model.snapshot.saveId
+      ? previous : null
     const result: SavedFactoryCalculation = {
-      calculation: calculateFactoryCalculation(data.model.factoryCalculationInput),
+      calculation: reusable?.calculation ?? calculateFactoryCalculation(data.model.factoryCalculationInput),
       model: data.model,
       revision: data.revision,
       version: data.version,
     }
 
+    previous = result
+    previousInput = input
     respond({ type: 'settled', result, revision: data.revision })
     await writeSavedFactoryCalculation(result)
   } catch (error) {

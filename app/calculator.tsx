@@ -61,6 +61,7 @@ import { createSpaceResearchAttention } from './helpers/space-research-attention
 import { useFactoryCalculation } from './hooks/use-factory-calculation'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 import { useKeepReadyPreferences } from './hooks/use-keep-ready-preferences'
+import { useResourcePriorities } from './hooks/use-resource-priorities'
 
 const groupLabels: Record<RecipeGroup, string> = {
   source: 'Sources',
@@ -86,6 +87,7 @@ interface Props {
 
 export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersion }) => {
   const gameState = useGameState(initialGameState)
+  const resourcePriorities = useResourcePriorities(gameState.snapshot?.saveId)
   const { preferences: keepReadyPreferences, canSave: canSaveKeepReady, setKeepReady } = useKeepReadyPreferences(gameState.snapshot?.saveId)
   const changeKeepReady = canSaveKeepReady ? (diagnostic: BuildingDiagnostic, enabled: boolean) => {
     if (!setKeepReady(diagnostic.key, enabled)) {
@@ -125,11 +127,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     latestSnapshot
       ? deriveCalculatorModel({
           machineZoneAssignments,
+          resourcePriorityOverrides: resourcePriorities.overrides,
           revision: latestRevision,
           snapshot: latestSnapshot,
         })
       : null
-  ), [latestRevision, latestSnapshot, machineZoneAssignments])
+  ), [latestRevision, latestSnapshot, machineZoneAssignments, resourcePriorities.overrides])
   const groundwaterPumpClaimIds = (latestModel?.groundwaterPumpClaims ?? [])
     .map(claim => claim.id)
     .join('|')
@@ -137,7 +140,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
     : null
   const { failed, retry, settled } = useFactoryCalculation(
-    loadedAssignmentsKey === machineZoneAssignmentsStorageKey ? latestModel : null,
+    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && resourcePriorities.ready ? latestModel : null,
     calculationVersion,
   )
 
@@ -720,7 +723,16 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       )}
 
       {isResourceSupply && (
-        <ResourceSupplyView modules={configuredModules} calculation={settled.calculation} />
+        <ResourceSupplyView
+          modules={configuredModules}
+          priorityModules={latestModel?.configuredModules ?? configuredModules}
+          calculation={settled.calculation}
+          onProcessingPriorityChange={(zoneId, resourceId, priority) => {
+            if (!resourcePriorities.setPriority(zoneId, resourceId, priority)) {
+              toast.error('Could not save processing priority. Check browser storage and try again.')
+            }
+          }}
+        />
       )}
 
       {isResearch && (
@@ -797,13 +809,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           {activeModule.id !== MINES_MODULE_ID &&
             activeModule.id !== RESERVES_MODULE_ID &&
             grouped.map(({ group, label, items }) => {
-              const containsCropFarms = items.some(item => item.recipe.inputs.some(
-                input => input.weatherAdjustedFarm != null,
-              ))
-              const groupTargetKey =
-                containsCropFarms && group === 'production'
-                  ? `${activeModule.id}:crop-rebalance`
-                  : `${activeModule.id}:group:${group}`
+              const groupTargetKey = `${activeModule.id}:group:${group}`
 
               return (
                 <BuildingCardTarget

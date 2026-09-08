@@ -1,11 +1,10 @@
 import { Button, Tooltip } from '@carbonid1/design-system'
-import { CircleMinus, CirclePause, CirclePlus, Hammer, Play, RefreshCw } from 'lucide-react'
+import { CircleMinus, CirclePause, CirclePlus, Hammer, Play } from 'lucide-react'
 
 import {
   type BuildingAttention,
   type BuildingDiagnostic,
 } from '../helpers/building-diagnostics/building-diagnostics'
-import { formatInputShortage } from '../helpers/diagnostic-display/diagnostic-display'
 import { KeepReadyMenu, type KeepReadyChange } from './KeepReadyMenu'
 
 interface Props {
@@ -19,7 +18,6 @@ type ActionableDiagnostic = BuildingDiagnostic & { attention: BuildingAttention 
 const labels = {
   build: 'Build',
   'can-pause': 'Can pause',
-  'rebalance-farms': 'Rebalance farms',
   upgrade: 'Upgrade',
   unpause: 'Unpause',
 } as const
@@ -28,7 +26,6 @@ const icons = {
   'add-animals': CirclePlus,
   build: Hammer,
   'can-pause': CirclePause,
-  'rebalance-farms': RefreshCw,
   'remove-animals': CircleMinus,
   upgrade: Hammer,
   unpause: Play,
@@ -78,9 +75,6 @@ const getTooltip = (diagnostic: BuildingDiagnostic) => {
   if (diagnostic.attention === 'remove-animals' && diagnostic.animalPopulation) {
     return `Every direct output remains covered with ${diagnostic.attentionCount.toLocaleString()} fewer ${diagnostic.animalPopulation.label}.`
   }
-  if (diagnostic.attention === 'rebalance-farms') {
-    return `Fixed crop rotations no longer cover ${diagnostic.affectedResources.join(', ')}. Rebalance the schedules before adding Greenhouse capacity.`
-  }
   if (diagnostic.attention === 'can-pause') {
     return `Current average load fits in fewer active buildings.${affected}`
   }
@@ -111,15 +105,11 @@ const getAttentionLabel = (diagnostic: ActionableDiagnostic) => {
 }
 
 const isAttentionNotice = (attention: BuildingAttention) =>
-  attention === 'can-pause' || attention === 'rebalance-farms' || attention === 'remove-animals'
+  attention === 'can-pause' || attention === 'remove-animals'
 
 const getAttentionStatus = (diagnostic: BuildingDiagnostic) => {
   if (diagnostic.level) {
     return `Level ${diagnostic.level.current} / ${diagnostic.level.target}`
-  }
-
-  if (diagnostic.attention === 'rebalance-farms') {
-    return formatInputShortage(diagnostic.affectedResources)
   }
 
   if (diagnostic.animalPopulation) {

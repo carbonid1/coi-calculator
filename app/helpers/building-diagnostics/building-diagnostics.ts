@@ -14,7 +14,6 @@ export type BuildingAttention =
   | "add-animals"
   | "build"
   | "can-pause"
-  | "rebalance-farms"
   | "remove-animals"
   | "upgrade"
   | "unpause";
@@ -216,20 +215,7 @@ export const calculateBuildingDiagnostics = (
     groups.set(key, group);
   }
 
-  const cropKeysByModule = new Map<string, Set<string>>();
-
-  for (const [key, results] of groups) {
-    const firstCropResult = results.find((result) => result.recipe.farmFertilizer != null);
-
-    if (!firstCropResult) continue;
-
-    const keys = cropKeysByModule.get(firstCropResult.moduleId) ?? new Set<string>();
-
-    keys.add(key);
-    cropKeysByModule.set(firstCropResult.moduleId, keys);
-  }
-
-  const diagnostics: BuildingDiagnostic[] = [...groups.entries()].map(([key, results]) => {
+  return [...groups.entries()].map(([key, results]) => {
     const first = results[0];
 
     if (!first) throw new Error(`Building group ${key} has no results`);
@@ -338,8 +324,10 @@ export const calculateBuildingDiagnostics = (
     const canPause = suppressPauseAttention
       ? 0
       : Math.max(0, active - Math.ceil(Math.max(0, load - EPSILON)));
+    const isCropFarm = results.some(result => result.recipe.inputs.some(input => input.weatherAdjustedFarm != null));
     const attention = getAttention({
-      tracksPhysicalCapacity,
+      // Crop rotations are addressed on the affected resource rows.
+      tracksPhysicalCapacity: tracksPhysicalCapacity && !isCropFarm,
       plannedCapacity,
       active,
       built,
@@ -376,38 +364,4 @@ export const calculateBuildingDiagnostics = (
       ),
     };
   });
-
-  for (const [moduleId, cropKeys] of cropKeysByModule) {
-    const cropDiagnostics = diagnostics.filter((diagnostic) => cropKeys.has(diagnostic.key));
-    const affectedResources = [...new Set(cropDiagnostics.flatMap(
-      (diagnostic) => diagnostic.affectedResources,
-    ))];
-    const plannedCapacity = cropDiagnostics.every(
-      (diagnostic) => diagnostic.plannedCapacity,
-    );
-
-    for (const diagnostic of cropDiagnostics) {
-      diagnostic.attention = null;
-      diagnostic.attentionCount = 0;
-    }
-
-    if (affectedResources.length === 0 || plannedCapacity) continue;
-
-    diagnostics.push({
-      key: `${moduleId}:crop-rebalance`,
-      moduleId,
-      moduleName: moduleNames.get(moduleId) ?? moduleId,
-      buildingName: "Crop farms",
-      recipeName: "Crop rotations",
-      plannedCapacity: false,
-      load: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.load, 0),
-      active: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.active, 0),
-      built: cropDiagnostics.reduce((total, diagnostic) => total + diagnostic.built, 0),
-      attention: "rebalance-farms",
-      attentionCount: 0,
-      affectedResources,
-    });
-  }
-
-  return diagnostics;
 };

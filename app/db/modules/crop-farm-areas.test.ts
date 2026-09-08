@@ -65,6 +65,52 @@ const farm = (
 });
 
 describe("synced crop-farm areas", () => {
+  it("projects saved rotations over built inventory and accounts for their water and fertilizer", () => {
+    const entities = [farm({ schedule: [], running: false })];
+    const planned = createCropFarmAreaModule(area(17), entities, undefined, [{
+      id: "corn-wheat", name: "Corn / Wheat", farmCount: 1, tierId: "greenhouseII",
+      schedule: ["corn", "wheat"],
+      fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    }]);
+    const recipeId = "live-area-17:crop-farm-plan:corn-wheat";
+    const result = calculateFactoryTotal([planned], { recyclingEfficiencyPercent: 0 });
+
+    expect(planned.builtBuildings[recipeId]).toBe(1);
+    expect(planned.presets[0]).toMatchObject({
+      activeBuildings: { [recipeId]: 1 }, currentActiveBuildings: { [recipeId]: 0 },
+      dataSources: { [recipeId]: "planned" }, unplacedPlannedBuildings: {},
+      planMismatches: [expect.objectContaining({ recipeId, current: 0, target: 1 })],
+    });
+    expect(result.flows.find(flow => flow.resourceId === "corn")?.produced).toBeCloseTo(13.86);
+    expect(result.flows.find(flow => flow.resourceId === "water")?.consumed).toBeGreaterThan(0);
+    expect(result.flows.find(flow => flow.resourceId === "fertilizerII")?.consumed).toBeGreaterThan(0);
+    expect(createCropFarmAreaModule(area(18), entities).recipes).toHaveLength(0);
+  });
+
+  it("counts a greenhouse under construction toward the rotation plan", () => {
+    const generated = area(17);
+
+    generated.presets[0].capacityPools = {
+      FarmT4: { built: 0, active: 1, currentActive: 0, constructionGhosts: 1 },
+    };
+    const planned = createCropFarmAreaModule(generated, [], undefined, [{
+      id: "corn-wheat", name: "Corn / Wheat", farmCount: 1, tierId: "greenhouseII",
+      schedule: ["corn", "wheat"],
+      fertilizer: { id: "fertilizerII", targetFertilityPercent: 140 },
+    }]);
+    const recipeId = "live-area-17:crop-farm-plan:corn-wheat";
+
+    expect(planned.presets[0]).toMatchObject({
+      activeBuildings: { [recipeId]: 1 }, currentActiveBuildings: { [recipeId]: 0 },
+      builtBuildings: { [recipeId]: 0 }, constructionGhosts: { [recipeId]: 1 },
+      unplacedPlannedBuildings: {}, dataSources: { [recipeId]: "planned" },
+      planMismatches: [expect.objectContaining({ actions: [
+        { type: "configure", label: "Set 1 to Corn / Wheat · 140% fertility" },
+      ] })],
+    });
+    expect(planned.presets[0].unplacedPlannedBuildings).toEqual({});
+  });
+
   it("specializes any generated area using its exact synced farm configuration", () => {
     const farmModule = createCropFarmAreaModule(area(17), [farm()]);
     const recipe = farmModule.recipes?.find(candidate => candidate.farmFertilizer);

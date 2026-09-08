@@ -3,9 +3,15 @@ import {
   type ComputingConfig,
   getDataCenterCount,
 } from "../computing";
-import { type Module } from "./modules";
+import { type Module, type PlanMismatchAction } from "./modules";
 
 const COMPUTING_MODULE_ID = "computing";
+
+const computingItems = [
+  { recipeId: computingRecipeIds.dataCenter, key: "dataCenterCount", name: "Data Center" },
+  { recipeId: computingRecipeIds.basicRack, key: "rackCount", name: "Basic rack" },
+  { recipeId: computingRecipeIds.waterChiller, key: "waterChillers", name: "Water Chiller" },
+] as const;
 
 const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
   const rackCount = Math.max(0, Math.trunc(config.rackCount));
@@ -20,40 +26,109 @@ const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
   };
 };
 
+const applyComputingPlan = (
+  module: Module,
+  config?: ComputingConfig,
+  pausedDataCenterRacks?: readonly number[],
+): Module => {
+  if (!config) return module;
+
+  return {
+    ...module,
+    presets: module.presets.map(preset => {
+      const target = normalizeComputingConfig(config);
+      const builtCount = (id: string) => preset.builtBuildings?.[id] ?? module.builtBuildings[id] ?? 0;
+      const currentCount = (id: string) => preset.currentActiveBuildings?.[id]
+        ?? Math.max(0, (preset.activeBuildings[id] ?? 0) - (preset.constructionGhosts?.[id] ?? 0));
+      const currentCenters = currentCount(computingRecipeIds.dataCenter);
+      const currentRacks = currentCount(computingRecipeIds.basicRack);
+      const centerGhosts = preset.constructionGhosts?.[computingRecipeIds.dataCenter] ?? 0;
+      const neededCenters = Math.max(0, target.dataCenterCount - currentCenters - centerGhosts);
+      const neededInstalledRacks = Math.max(0,
+        Math.min(target.rackCount, builtCount(computingRecipeIds.basicRack)) - currentRacks);
+      let reusedCenters = 0;
+      let reusedRacks = 0;
+
+      if (pausedDataCenterRacks) {
+        // Start the fullest paused centers first, including all racks housed in each one.
+        for (const racks of pausedDataCenterRacks.toSorted((a, b) => b - a)) {
+          if (reusedCenters >= neededCenters && reusedRacks >= neededInstalledRacks) break;
+          reusedCenters++;
+          reusedRacks += racks;
+        }
+      } else if (neededCenters > 0 || neededInstalledRacks > 0) {
+        // Aggregate callers cannot locate installed racks; keep every paused host in the plan.
+        reusedCenters = Math.max(0, builtCount(computingRecipeIds.dataCenter) - currentCenters);
+        reusedRacks = Math.max(0, builtCount(computingRecipeIds.basicRack) - currentRacks);
+      }
+      target.dataCenterCount = Math.max(target.dataCenterCount, currentCenters + centerGhosts + reusedCenters);
+      target.rackCount = Math.max(target.rackCount, currentRacks + reusedRacks);
+
+      const planned = {
+        ...preset,
+        activeBuildings: { ...preset.activeBuildings },
+        currentActiveBuildings: { ...preset.currentActiveBuildings },
+        unplacedPlannedBuildings: { ...preset.unplacedPlannedBuildings },
+        dataSources: { ...preset.dataSources },
+        planMismatches: [...(preset.planMismatches ?? [])],
+        nonActionablePlanRecipeIds: [...(preset.nonActionablePlanRecipeIds ?? [])],
+      };
+
+      for (const { recipeId, key, name } of computingItems) {
+        const built = preset.builtBuildings?.[recipeId] ?? module.builtBuildings[recipeId] ?? 0;
+        const ghosts = preset.constructionGhosts?.[recipeId] ?? 0;
+        const current = preset.currentActiveBuildings?.[recipeId]
+          ?? Math.max(0, (preset.activeBuildings[recipeId] ?? 0) - ghosts);
+        const projected = Math.max(preset.activeBuildings[recipeId] ?? 0, target[key]);
+
+        planned.activeBuildings[recipeId] = projected;
+        planned.currentActiveBuildings[recipeId] = current;
+        planned.unplacedPlannedBuildings[recipeId] = Math.max(0, projected - built - ghosts);
+        planned.dataSources[recipeId] = projected > current ? "planned" : "synced";
+        if (projected <= current) continue;
+
+        const missing = Math.max(0, projected - built - ghosts);
+        const unpause = Math.min(Math.max(0, built - current), Math.max(0, projected - current - ghosts));
+        const actions: PlanMismatchAction[] = [];
+
+        if (key === "rackCount") {
+          // Paused racks start with their Data Center; only new racks need
+          // their own installation action.
+          planned.nonActionablePlanRecipeIds.push(recipeId);
+          if (missing > 0) actions.push({ type: "configure", label: `Install ${missing} Basic racks` });
+        } else if (unpause > 0) {
+          actions.push({ type: "unpause", label: `Unpause ${unpause} ${name}` });
+          if (missing > 0) actions.push({ type: "build", label: `Build ${missing} ${name}` });
+        }
+        if (actions.length > 0) planned.planMismatches.push({
+          recipeId, current, target: projected, direction: "at-least", format: "count", actions,
+        });
+      }
+
+      return planned;
+    }),
+  };
+};
+
 export const createComputingModule = (
   builtConfig: ComputingConfig,
   runningConfig: ComputingConfig = builtConfig,
   generatedArea?: Module,
+  plannedConfig?: ComputingConfig,
+  pausedDataCenterRacks?: readonly number[],
 ): Module => {
   const built = normalizeComputingConfig(builtConfig);
   const running = normalizeComputingConfig(runningConfig);
-  const items = [
-    {
-      recipeId: computingRecipeIds.dataCenter,
-      key: "dataCenterCount" as const,
-      name: "Data Center",
-    },
-    {
-      recipeId: computingRecipeIds.basicRack,
-      key: "rackCount" as const,
-      name: "Basic Server Rack",
-    },
-    {
-      recipeId: computingRecipeIds.waterChiller,
-      key: "waterChillers" as const,
-      name: "Water Chiller",
-    },
-  ];
   const builtBuildings = {
     [computingRecipeIds.dataCenter]: built.dataCenterCount,
     [computingRecipeIds.basicRack]: built.rackCount,
     [computingRecipeIds.waterChiller]: built.waterChillers,
   };
-  const activeBuildings = Object.fromEntries(items.map((item) => [
+  const activeBuildings = Object.fromEntries(computingItems.map((item) => [
     item.recipeId,
     running[item.key],
   ]));
-  const dataSources = Object.fromEntries(items.map((item) => [
+  const dataSources = Object.fromEntries(computingItems.map((item) => [
     item.recipeId,
     "synced" as const,
   ]));
@@ -75,7 +150,7 @@ export const createComputingModule = (
     defaultPresetId: "current-data-centers",
   };
 
-  if (!generatedArea) return computingModule;
+  if (!generatedArea) return applyComputingPlan(computingModule, plannedConfig, pausedDataCenterRacks);
 
   const handledPrototypeIds = new Set(["DataCenter", "WaterChiller"]);
   const handledRecipeMarkers = [...handledPrototypeIds].map(id => `:${id}:`);
@@ -164,7 +239,7 @@ export const createComputingModule = (
     : computingPreset;
   const handledIssuePrefixes = [...handledPrototypeIds].map(id => `${id}:`);
 
-  return {
+  return applyComputingPlan({
     ...generatedArea,
     includedInFactoryTotals: true,
     builtBuildings: {
@@ -182,5 +257,5 @@ export const createComputingModule = (
           )),
         }
       : undefined,
-  };
+  }, plannedConfig, pausedDataCenterRacks);
 };

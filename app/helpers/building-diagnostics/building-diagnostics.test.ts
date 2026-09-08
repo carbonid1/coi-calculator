@@ -177,7 +177,7 @@ describe("chicken farm building diagnostics", () => {
 });
 
 describe("crop farm building diagnostics", () => {
-  it("consolidates crop capacity warnings into one rebalance action", () => {
+  it.each([0.25, 1])("leaves crop shortages to resource rows at %s load", (supplyRatio) => {
     const cropRecipes = [
       createCropFarmRecipe({
         id: "test-potato-farm",
@@ -210,7 +210,7 @@ describe("crop farm building diagnostics", () => {
       activeBuildings: 1,
       builtBuildings: 1,
       operatingMode: "fixed",
-      supplyRatio: 1,
+      supplyRatio,
       speedLevel: 1,
       actualInputs: [],
       actualOutputs: [],
@@ -224,19 +224,10 @@ describe("crop farm building diagnostics", () => {
       affectedIds.map((resourceId) => resourceFlow(resourceId, -1)),
       results,
     );
-    const cropDiagnostics = diagnostics.filter((diagnostic) => (
-      diagnostic.key !== "farms:crop-rebalance"
-    ));
 
-    expect(cropDiagnostics.every((diagnostic) => diagnostic.attention == null)).toBe(true);
-    expect(diagnostics.find((diagnostic) => (
-      diagnostic.key === "farms:crop-rebalance"
-    ))).toMatchObject({
-      buildingName: "Crop farms",
-      moduleName: "Farms",
-      attention: "rebalance-farms",
-      affectedResources: affectedIds.map((resourceId) => resources[resourceId].name),
-    });
+    expect(diagnostics).toHaveLength(cropRecipes.length);
+    expect(diagnostics.every((diagnostic) => diagnostic.attention == null)).toBe(true);
+    expect(diagnostics.every((diagnostic) => diagnostic.attentionCount === 0)).toBe(true);
   });
 });
 
