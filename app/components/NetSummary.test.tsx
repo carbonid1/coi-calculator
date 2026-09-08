@@ -6,6 +6,7 @@ import { recipes } from "../db/recipes";
 import { calculateNet, type RegularResult } from "../helpers/calculate/calculate";
 
 vi.mock("@carbonid1/design-system", () => ({
+  Button: ({ children, 'aria-label': label }: { children: ReactNode; 'aria-label'?: string }) => <button aria-label={label}>{children}</button>,
   Tooltip: ({
     children,
     label,
@@ -18,6 +19,26 @@ vi.mock("./BuildingAttentionView", () => ({ BuildingAttentionView: () => null })
 vi.mock("./PlannedBuildsView", () => ({ PlannedBuildsView: () => null }));
 
 import { NetSummary } from "./NetSummary";
+
+it.each([false, true])('links deficits to supply inspection with a capacity section: %s', withCapacity => {
+  const producer: RegularResult = {
+    recipe: { id: 'salt', name: 'Salt', building: 'Evaporation Pond', group: 'production',
+      inputs: [], outputs: [{ resourceId: 'salt', quantity: 10 }] },
+    moduleId: 'general', activeBuildings: 1, builtBuildings: 1, supplyRatio: 1, speedLevel: 1,
+    operatingMode: 'balanced', actualInputs: [], actualOutputs: [{ resourceId: 'salt', quantity: 10 }],
+    recyclableSourceValueProduced: 0,
+  };
+  const html = renderToStaticMarkup(<NetSummary groupByBalance onInspectResource={() => {}}
+    flows={[
+      { resourceId: 'foodPack', name: 'Food Pack', produced: 26, consumed: 31, net: -5 },
+      ...(withCapacity ? [{ resourceId: 'salt' as const, name: 'Salt', produced: 10, consumed: 11, net: -1 }] : []),
+    ]}
+    regularResults={withCapacity ? [producer] : []}
+  />);
+
+  expect(html).toContain('aria-label="Inspect Food Pack supply"');
+  if (withCapacity) expect(html).toContain('aria-label="Inspect Salt supply"');
+});
 
 it("omits excess already handled by conversion or disposal from the surplus section", () => {
   const recipe = recipes.find(candidate => candidate.id === "anaerobic-digester-corn");

@@ -39,6 +39,7 @@ import { RESEARCH_MODULE_ID } from './db/modules/research'
 import { RESERVES_MODULE_ID } from './db/modules/reserves'
 import { type RecipeGroup } from './db/recipes'
 import { mapReserveResources } from './db/reserve-resources'
+import { type ResourceId } from './db/resources'
 import { calculateUnityBudget } from './db/unity'
 import {
   calculateBuildingDiagnostics,
@@ -113,6 +114,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     })
   } : undefined
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID)
+  const [supplyResourceId, setSupplyResourceId] = useState<ResourceId>('carbonDioxide')
   const [machineZoneAssignments, setMachineZoneAssignments] = useState<MachineZoneAssignments>({})
   const [loadedAssignmentsKey, setLoadedAssignmentsKey] = useState<string | null>(null)
   const [buildingTarget, setBuildingTarget] = useState<{
@@ -719,11 +721,17 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           onAssignMachineZone={assignMachineZone}
           onOpenBuilding={openBuilding}
           onKeepReadyChange={changeKeepReady}
+          onInspectResource={resourceId => {
+            setSupplyResourceId(resourceId)
+            setActiveModuleId(RESOURCE_SUPPLY_ID)
+          }}
         />
       )}
 
       {isResourceSupply && (
         <ResourceSupplyView
+          key={supplyResourceId}
+          initialResourceId={supplyResourceId}
           modules={configuredModules}
           priorityModules={latestModel?.configuredModules ?? configuredModules}
           calculation={settled.calculation}

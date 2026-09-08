@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, Select, TableScrollRegion, Tooltip, type Column } from '@carbonid1/design-system'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { type Module } from '../db/modules/modules'
 import { resourceSupplyRules, type ResourceProcessingPriority } from '../db/resource-supply'
@@ -16,7 +16,9 @@ import {
   type ContractSupplyRow,
   type ResourceSupplyRow,
 } from '../helpers/resource-supply/resource-supply'
+import { createSupplyInspector, supplyTargetKey, type SupplyTarget } from '../helpers/resource-supply/supply-diagnosis'
 import { ResourcePicker } from './ResourcePicker'
+import { SupplyDiagnosis } from './SupplyDiagnosis'
 
 const formatQuantity = (quantity: number) => quantity.toLocaleString('en-US', {
   maximumFractionDigits: 2,
@@ -40,14 +42,38 @@ export const ResourceSupplyView = ({
   calculation,
   priorityModules = modules,
   onProcessingPriorityChange,
+  initialResourceId = 'carbonDioxide',
 }: {
   modules: readonly Module[]
   calculation: FactoryCalculation
   priorityModules?: readonly Module[]
   onProcessingPriorityChange?: (zoneId: number, resourceId: ResourceId, priority: ResourceProcessingPriority) => void
+  initialResourceId?: ResourceId
 }) => {
-  const [resourceId, setResourceId] = useState<ResourceId>('carbonDioxide')
+  const [trail, setTrail] = useState<SupplyTarget[]>([{ resourceId: initialResourceId }])
+  const target = trail[trail.length - 1] ?? { resourceId: initialResourceId }
+  const { resourceId } = target
   const [consumerId, setConsumerId] = useState<string | null>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const focusAfterInspect = useRef(false)
+
+  useEffect(() => {
+    if (focusAfterInspect.current) {
+      headingRef.current?.focus()
+      focusAfterInspect.current = false
+    }
+  }, [trail])
+  const inspector = useMemo(() => createSupplyInspector(modules, calculation), [modules, calculation])
+  const inspect = (next: SupplyTarget) => {
+    focusAfterInspect.current = true
+    setTrail(current => {
+      const index = current.findIndex(step => supplyTargetKey(step) === supplyTargetKey(next))
+
+      return index >= 0 ? current.slice(0, index + 1) : [...current, next]
+    })
+    setConsumerId(null)
+  }
+  const getScopeName = (next: SupplyTarget) => modules.find(module => module.id === next.moduleId)?.name ?? 'Factory'
   const options = useMemo(() => {
     const results = [
       calculation.factoryResult.calculation,
@@ -56,7 +82,7 @@ export const ResourceSupplyView = ({
     const resourceIds = new Set<ResourceId>(results.flatMap(result => [
       ...result.regularResults, ...result.sourceResults, ...result.sinkResults,
     ]).flatMap(result => [
-      ...result.actualInputs, ...result.actualOutputs,
+      ...result.recipe.inputs, ...result.recipe.outputs,
     ]).filter(ingredient => ingredient.quantity > 0.001).map(ingredient => ingredient.resourceId))
 
     for (const flow of calculation.factoryResult.calculation.allResourceFlows) {
@@ -71,14 +97,13 @@ export const ResourceSupplyView = ({
     return [...resourceIds].filter(id => id !== 'electricity' && id !== 'computing')
       .toSorted((left, right) => resources[left].name.localeCompare(resources[right].name))
   }, [calculation])
-  const rows = useMemo(() => getResourceSupplyRows(modules, calculation, resourceId), [
-    modules, calculation, resourceId,
+  const rows = useMemo(() => getResourceSupplyRows(modules, calculation, resourceId)
+    .filter(row => !target.moduleId || row.moduleId === target.moduleId), [
+    modules, calculation, resourceId, target.moduleId,
   ])
   const contractRows = useMemo(() => getContractSupplyRows(calculation.factoryResult.contractFlows, resourceId), [
     calculation, resourceId,
   ])
-  const factoryBalance = calculation.factoryResult.calculation.allResourceFlows
-    .find(flow => flow.resourceId === resourceId)?.net ?? 0
   const contractColumns: Column<ContractSupplyRow>[] = [
     {
       accessorKey: 'contractName', header: 'Contract',
@@ -169,7 +194,12 @@ export const ResourceSupplyView = ({
             {factoryDemand > 0.001 && <div>Needs {formatQuantity(factoryDemand)} from factory</div>}
             {row.incoming.map(transfer => (
               <div key={transfer.id}>
-                From {transfer.sourceModuleName}: {formatQuantity(transfer.quantity)}
+                From{' '}
+                <Button variant="link" size="small" className="h-auto px-0 py-1 text-left whitespace-normal"
+                  aria-label={`Inspect ${resources[resourceId].name} in ${transfer.sourceModuleName}`}
+                  onClick={() => inspect({ resourceId, moduleId: transfer.sourceModuleId })}>
+                  {transfer.sourceModuleName}
+                </Button>: {formatQuantity(transfer.quantity)}
                 {transfer.requestedQuantity - transfer.quantity > 0.001 && (
                   <span> · {formatQuantity(transfer.requestedQuantity - transfer.quantity)} short</span>
                 )}
@@ -193,28 +223,34 @@ export const ResourceSupplyView = ({
     <section className="space-y-4 rounded-lg bg-card p-4 shadow-card" aria-label="Resource supply">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-foreground">Resource supply</h2>
-          <p className="text-xs text-muted-foreground">Calculated per production cycle</p>
+          <h2 ref={headingRef} tabIndex={-1} className="font-semibold text-foreground outline-hidden">Resource supply</h2>
+          <p className="text-xs text-muted-foreground">{getScopeName(target)} · Calculated per production cycle</p>
         </div>
         <ResourcePicker
           value={resourceId}
           options={options}
           onChange={value => {
-            setResourceId(value)
+            setTrail([{ resourceId: value }])
             setConsumerId(null)
           }}
         />
       </div>
-      {contractRows.length > 0 && (
+      <nav aria-label="Supply trail" className="flex flex-wrap items-center gap-1 text-sm">
+        {trail.map((step, index) => (
+          <span key={supplyTargetKey(step)} className="inline-flex items-center gap-1">
+            {index > 0 && <span aria-hidden="true" className="text-muted-foreground">→</span>}
+            <Button variant="ghost" size="small" selected={index === trail.length - 1}
+              aria-current={index === trail.length - 1 ? 'page' : undefined} onClick={() => inspect(step)}>
+              {resources[step.resourceId].name}{step.moduleId ? ` · ${getScopeName(step)}` : ''}
+            </Button>
+          </span>
+        ))}
+      </nav>
+      <SupplyDiagnosis key={supplyTargetKey(target)} inspector={inspector} target={target} onInspect={inspect} getScopeName={getScopeName} />
+      {!target.moduleId && contractRows.length > 0 && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <h3 className="font-medium text-foreground">Contracts</h3>
-            <span className="text-muted-foreground">
-              Factory balance{' '}
-              <span className="font-mono tabular-nums text-foreground">
-                {Math.abs(factoryBalance) <= 0.001 ? '0' : `${factoryBalance > 0 ? '+' : ''}${formatQuantity(factoryBalance)}`}
-              </span>
-            </span>
           </div>
           <TableScrollRegion
             label={`${resources[resourceId].name} contracts`}

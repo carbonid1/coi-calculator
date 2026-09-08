@@ -1,4 +1,4 @@
-import { Tooltip } from "@carbonid1/design-system";
+import { Button, Tooltip } from "@carbonid1/design-system";
 import { ArrowLeft, ArrowRight, Cpu, Sparkles } from "lucide-react";
 
 import { type ModuleResourceTransfer } from "../db/module-resource-links";
@@ -55,6 +55,7 @@ interface Props {
   onAssignMachineZone?: (zoneId: number, claimId: string | null) => void;
   onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
   onKeepReadyChange?: KeepReadyChange;
+  onInspectResource?: (resourceId: ResourceId) => void;
 }
 
 const BALANCE_THRESHOLD = 0.001;
@@ -123,6 +124,7 @@ export const NetSummary: React.FC<Props> = ({
   onAssignMachineZone,
   onOpenBuilding,
   onKeepReadyChange,
+  onInspectResource,
 }) => {
   const requestedImportRows = typedEntries(requestedImports)
     .filter(([, quantity]) => quantity > 0)
@@ -223,6 +225,12 @@ export const NetSummary: React.FC<Props> = ({
     || (computingConsumptionTflops ?? 0) > 0
     || (workers ?? 0) > 0
   );
+  const renderResourceName = (flow: ResourceFlow) => onInspectResource ? (
+    <Button variant="link" size="small" className="h-auto justify-start p-0 text-left"
+      aria-label={`Inspect ${flow.name} supply`} onClick={() => onInspectResource(flow.resourceId)}>
+      {flow.name}
+    </Button>
+  ) : <span>{flow.name}</span>;
   const renderBalanceGroup = (group: (typeof balanceGroups)[number]) => {
     if (group.label === "Deficit" && capacityLimitedDeficits.length > 0) {
       return (
@@ -235,7 +243,7 @@ export const NetSummary: React.FC<Props> = ({
               {capacityLimitedDeficits.map(({ flow, capacityLimit }) => (
                 <div key={flow.resourceId} className="-mx-1 flex items-start justify-between gap-3 rounded px-1 py-1 text-sm hover:bg-accent">
                   <span className="flex flex-col text-foreground">
-                    <span className="font-medium">{flow.name}</span>
+                    {renderResourceName(flow)}
                     <span className="text-xs text-muted-foreground">
                       {capacityLimit}
                     </span>
@@ -256,7 +264,7 @@ export const NetSummary: React.FC<Props> = ({
               {otherDeficits.map(({ flow, rootCause }) => (
                 <div key={flow.resourceId} className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-1 text-sm hover:bg-accent">
                   <span className="flex flex-col text-foreground">
-                    <span>{flow.name}</span>
+                    {renderResourceName(flow)}
                     <span className="text-xs text-muted-foreground">
                       {rootCause.detail}
                     </span>
@@ -278,7 +286,7 @@ export const NetSummary: React.FC<Props> = ({
           {otherDeficits.map(({ flow, rootCause }) => (
             <div key={flow.resourceId} className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-1 text-sm hover:bg-accent">
               <span className="flex flex-col text-foreground">
-                <span>{flow.name}</span>
+                {renderResourceName(flow)}
                 <span className="text-xs text-muted-foreground">
                   {rootCause.detail}
                 </span>
