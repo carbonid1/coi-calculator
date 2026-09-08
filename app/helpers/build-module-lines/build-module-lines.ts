@@ -112,6 +112,7 @@ export const buildModuleLines = (
       speedLevel,
       operatingMode: fixedIds.has(recipe.id) ? "fixed" : "balanced",
       allocationRatio,
+      hasOutputTarget: targetRatios.length > 0 && allocationRatio != null,
       drivingInputIds: drivingInputIds.length > 0 ? drivingInputIds : undefined,
     };
   });

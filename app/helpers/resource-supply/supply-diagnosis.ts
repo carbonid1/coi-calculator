@@ -7,6 +7,8 @@ import { type FactoryCalculation } from '../factory-calculation/factory-calculat
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
 import { getRecipeDisplayName } from '../recipe-display/recipe-display'
 import { isModuleInput } from '../recipe-input-scope/recipe-input-scope'
+import { canPrioritizeProcessing } from '../resource-priorities/resource-priorities'
+import { getRecipePriorityNotes, type RecipePriorityNote } from './recipe-priorities'
 
 const EPSILON = 0.001
 
@@ -28,6 +30,7 @@ export interface SupplyProducer {
   moduleName: string
   recipeName: string
   building: string
+  capacityPoolKey: string
   produced: number
   poolUtilization: number | null
   sharedCapacity: boolean
@@ -35,12 +38,24 @@ export interface SupplyProducer {
   mainProducts: ResourceId[]
   inputs: { target: SupplyTarget; quantity: number }[]
   limits: SupplyLimit[]
+  priorities: RecipePriorityNote[]
 }
 
 export interface SupplyUse {
   key: string
   name: string
   moduleName?: string
+  moduleId?: string
+  recipeName?: string
+  quantity: number
+  contractId?: string
+  priorities?: RecipePriorityNote[]
+}
+
+export interface ModuleSupply {
+  moduleId: string
+  moduleName: string
+  name: string
   quantity: number
 }
 
@@ -57,6 +72,15 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
   const { factoryResult, linkedModulesResult } = calculation
   const factory = factoryResult.calculation
   const modulesById = new Map(modules.map(module => [module.id, module]))
+  const getPreset = (area: Module | undefined) => area?.defaultPresetId
+    ? area.presets.find(preset => preset.id === area.defaultPresetId) ?? area.presets[0]
+    : undefined
+  const getModuleDemands = (area: Module | undefined) => {
+    const preset = getPreset(area)
+
+    return area?.liveArea && area.includedInFactoryTotals !== false
+      ? preset?.fixedDemands : getPresetResourceDemands(preset)
+  }
   const context = (moduleId?: string) => {
     const result = moduleId ? linkedModulesResult.moduleResults.get(moduleId) ?? factory : factory
     const lines: PoolResult[] = [...result.regularResults, ...result.sourceResults, ...result.sinkResults]
@@ -87,11 +111,8 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
         consumed += line.actualInputs.find(input => input.resourceId === resourceId)?.quantity ?? 0
       }
       const area = modulesById.get(moduleId)
-      const preset = area?.defaultPresetId
-        ? area.presets.find(preset => preset.id === area.defaultPresetId) ?? area.presets[0]
-        : undefined
-      const demands = area?.liveArea && area.includedInFactoryTotals !== false
-        ? preset?.fixedDemands : getPresetResourceDemands(preset)
+      const preset = getPreset(area)
+      const demands = getModuleDemands(area)
 
       produced += Math.max(0, getFactoryResourceRequests(preset?.requestedImports)[resourceId] ?? 0)
       consumed += demands?.[resourceId] ?? 0
@@ -114,6 +135,15 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
       || isModuleInput(line.recipe, resourceId) || resourceSupplyRules[resourceId] === 'connections'
       ? { moduleId: line.moduleId } : {}),
   })
+  const priorityNotes = (line: PoolResult, lines: PoolResult[], target: SupplyTarget, side: 'inputs' | 'outputs') => {
+    const peers = lines.filter(peer => (peer.activeBuildings > 0 || peer.builtBuildings > 0)
+      && peer.recipe[side].some(item => item.resourceId === target.resourceId && item.quantity > 0)
+      && (side === 'outputs' || supplyTargetKey(inputTarget(peer, target.resourceId)) === supplyTargetKey(inputTarget(line, target.resourceId))))
+    const localFirst = side === 'inputs' && canPrioritizeProcessing(line.recipe, target.resourceId)
+      && getPreset(modulesById.get(line.moduleId))?.resourceProcessingPriorities?.[target.resourceId] === 'local-first'
+
+    return getRecipePriorityNotes(line, peers, target.resourceId, side, localFirst)
+  }
   const producerCache = new Map<string, SupplyProducer[]>()
   const getProducers = (target: SupplyTarget): SupplyProducer[] => {
     const key = supplyTargetKey(target)
@@ -172,32 +202,73 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
         key: `${line.moduleId}:${recipe.id}`, moduleId: line.moduleId,
         moduleName: modulesById.get(line.moduleId)?.name ?? line.moduleId,
         recipeName: getRecipeDisplayName(recipe), building: recipe.building,
+        capacityPoolKey: line.capacityPoolId ?? `${line.moduleId}:${recipe.id}`,
         produced: line.actualOutputs.find(output => output.resourceId === target.resourceId)?.quantity ?? 0,
         poolUtilization: pool && pool.capacity > 0 ? pool.used / pool.capacity : null,
         sharedCapacity: (pool?.members.length ?? 0) > 1,
         status, mainProducts,
         inputs: line.actualInputs.map(input => ({ target: inputTarget(line, input.resourceId), quantity: input.quantity })),
         limits: status === 'inputs' ? limits : [],
+        priorities: priorityNotes(line, lines, target, 'outputs'),
       }
     })
 
     producerCache.set(key, producers)
     return producers
   }
-  const getUses = (target: SupplyTarget): SupplyUse[] => {
-    const uses = context(target.moduleId).lines.flatMap(line => {
+  const getUses = (target: SupplyTarget, includeInactive = false): SupplyUse[] => {
+    const { lines } = context(target.moduleId)
+    const uses: SupplyUse[] = lines.flatMap(line => {
       const quantity = line.actualInputs.find(input => input.resourceId === target.resourceId)?.quantity ?? 0
+      const output = line.recipe.outputs.length === 1 ? line.recipe.outputs[0] : undefined
 
-      return quantity > EPSILON ? [{
-        key: `${line.moduleId}:${line.recipe.id}`, name: getRecipeDisplayName(line.recipe),
+      const visible = quantity > EPSILON || (includeInactive && (line.activeBuildings > 0 || line.builtBuildings > 0)
+        && line.recipe.inputs.some(input => input.resourceId === target.resourceId && input.quantity > 0))
+
+      return visible ? [{
+        key: `${line.moduleId}:${line.recipe.id}`, name: output ? resources[output.resourceId].name : getRecipeDisplayName(line.recipe),
+        moduleId: line.moduleId, recipeName: getRecipeDisplayName(line.recipe),
         moduleName: modulesById.get(line.moduleId)?.name ?? line.moduleId, quantity,
+        priorities: priorityNotes(line, lines, target, 'inputs'),
       }] : []
     })
 
+    for (const area of modules) {
+      if (target.moduleId ? area.id !== target.moduleId : area.includedInFactoryTotals === false) continue
+      const fixed = Math.max(0, getPreset(area)?.fixedDemands?.[target.resourceId] ?? 0)
+      const exported = (getModuleDemands(area)?.[target.resourceId] ?? 0) - fixed
+
+      for (const demand of [
+        { key: 'fixed', name: 'Demand outside recipes', quantity: fixed },
+        { key: 'exports', name: 'Planned exports', quantity: exported },
+      ]) {
+        if (demand.quantity > EPSILON) uses.push({ ...demand, key: `${area.id}:${demand.key}`, moduleId: area.id, moduleName: area.name })
+      }
+    }
+    if (target.moduleId) {
+      for (const transfer of linkedModulesResult.transfers) {
+        if (transfer.sourceModuleId !== target.moduleId || transfer.resourceId !== target.resourceId) continue
+        const requested = transfer.mode === 'produce-to-demand'
+        const quantity = requested ? transfer.requestedQuantity : transfer.quantity
+
+        if (quantity > EPSILON) uses.push({ key: `delivery:${transfer.id}`, name: requested ? 'Requested delivery' : 'Delivery',
+          moduleId: transfer.targetModuleId, moduleName: transfer.targetModuleName, quantity })
+      }
+    }
     if (!target.moduleId) {
+      for (const boundary of linkedModulesResult.boundaries) {
+        if (boundary.resourceId !== target.resourceId || boundary.factoryDemand <= EPSILON
+          || modulesById.get(boundary.moduleId)?.includedInFactoryTotals !== false) continue
+        uses.push({ key: `boundary:${boundary.moduleId}`, name: 'Factory supply', moduleId: boundary.moduleId,
+          moduleName: modulesById.get(boundary.moduleId)?.name ?? boundary.moduleId, quantity: boundary.factoryDemand })
+      }
       for (const exchange of factoryResult.contractFlows) {
         if (exchange.resourceId !== target.resourceId || exchange.kind === 'import' || exchange.quantity <= EPSILON) continue
-        uses.push({ key: `${exchange.routeId}:${exchange.kind}`, name: exchange.contractName,
+        const key = `contract:${exchange.contractId}:${exchange.kind}`
+        const existing = uses.find(use => use.key === key)
+
+        if (existing) existing.quantity += exchange.quantity
+        else uses.push({ key, name: exchange.contractName, contractId: exchange.contractId,
           moduleName: exchange.kind === 'fuel' ? 'Ship fuel' : 'Contract export', quantity: exchange.quantity })
       }
     }
@@ -205,6 +276,25 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
 
     if (remaining > EPSILON) uses.push({ key: 'other', name: 'Other demand', moduleName: '', quantity: remaining })
     return uses.toSorted((a, b) => b.quantity - a.quantity)
+  }
+  const getModuleSupplies = (target: SupplyTarget): ModuleSupply[] => {
+    const supplies: ModuleSupply[] = []
+
+    for (const area of modules) {
+      if (target.moduleId ? area.id !== target.moduleId : area.includedInFactoryTotals === false) continue
+      const imported = getFactoryResourceRequests(getPreset(area)?.requestedImports)[target.resourceId] ?? 0
+
+      if (imported > EPSILON) supplies.push({ moduleId: area.id, moduleName: area.name, name: 'Planned imports', quantity: imported })
+    }
+    if (!target.moduleId) {
+      for (const boundary of linkedModulesResult.boundaries) {
+        if (boundary.resourceId !== target.resourceId || boundary.factorySupply <= EPSILON
+          || modulesById.get(boundary.moduleId)?.includedInFactoryTotals !== false) continue
+        supplies.push({ moduleId: boundary.moduleId, moduleName: modulesById.get(boundary.moduleId)?.name ?? boundary.moduleId,
+          name: 'Available to factory', quantity: boundary.factorySupply })
+      }
+    }
+    return supplies
   }
   const trace = (limit: SupplyLimit, path: SupplyTarget[] = []): SupplyTrace[] => {
     const nextPath = [...path, limit.target]
@@ -238,7 +328,7 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
     return upstream.flatMap(next => trace(next, nextPath))
   }
 
-  return { getFlow, getProducers, getUses, trace }
+  return { getFlow, getProducers, getUses, getModuleSupplies, trace }
 }
 
 export type SupplyInspector = ReturnType<typeof createSupplyInspector>

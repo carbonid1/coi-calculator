@@ -1,19 +1,17 @@
 'use client'
 
 import { Button, Select, TableScrollRegion, Tooltip, type Column } from '@carbonid1/design-system'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { type Module } from '../db/modules/modules'
 import { resourceSupplyRules, type ResourceProcessingPriority } from '../db/resource-supply'
 import { resources, type ResourceId } from '../db/resources'
-import { formatDiagnosticMessages } from '../helpers/diagnostic-display/diagnostic-display'
 import { type FactoryCalculation } from '../helpers/factory-calculation/factory-calculation'
 import { canPrioritizeProcessing, isResourceProcessingPriority } from '../helpers/resource-priorities/resource-priorities'
 import {
   getResourceSupplyAccess,
   getResourceSupplyRows,
   getContractSupplyRows,
-  type ContractSupplyRow,
   type ResourceSupplyRow,
 } from '../helpers/resource-supply/resource-supply'
 import { createSupplyInspector, supplyTargetKey, type SupplyTarget } from '../helpers/resource-supply/supply-diagnosis'
@@ -25,16 +23,6 @@ const formatQuantity = (quantity: number) => quantity.toLocaleString('en-US', {
 })
 const numeric = (quantity: number) => (
   <span className="font-mono tabular-nums">{quantity > 0.001 ? formatQuantity(quantity) : '—'}</span>
-)
-const resourceQuantities = (quantities: { resourceId: ResourceId; quantity: number }[]) => (
-  <div className="space-y-1">
-    {quantities.map(ingredient => (
-      <div key={ingredient.resourceId}>
-        <span className="font-mono tabular-nums">{formatQuantity(ingredient.quantity)}</span>
-        {' '}<span className="text-muted-foreground">{resources[ingredient.resourceId].name}</span>
-      </div>
-    ))}
-  </div>
 )
 
 export const ResourceSupplyView = ({
@@ -53,7 +41,8 @@ export const ResourceSupplyView = ({
   const [trail, setTrail] = useState<SupplyTarget[]>([{ resourceId: initialResourceId }])
   const target = trail[trail.length - 1] ?? { resourceId: initialResourceId }
   const { resourceId } = target
-  const [consumerId, setConsumerId] = useState<string | null>(null)
+  const [showRouting, setShowRouting] = useState(false)
+  const routingId = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const focusAfterInspect = useRef(false)
 
@@ -71,7 +60,6 @@ export const ResourceSupplyView = ({
 
       return index >= 0 ? current.slice(0, index + 1) : [...current, next]
     })
-    setConsumerId(null)
   }
   const getScopeName = (next: SupplyTarget) => modules.find(module => module.id === next.moduleId)?.name ?? 'Factory'
   const options = useMemo(() => {
@@ -104,44 +92,10 @@ export const ResourceSupplyView = ({
   const contractRows = useMemo(() => getContractSupplyRows(calculation.factoryResult.contractFlows, resourceId), [
     calculation, resourceId,
   ])
-  const contractColumns: Column<ContractSupplyRow>[] = [
-    {
-      accessorKey: 'contractName', header: 'Contract',
-      render: row => (
-        <div className="space-y-1">
-          <div>{row.contractName}</div>
-          {row.importLimits.length > 0 && (
-            <div className="text-xs text-muted-foreground">
-              {formatDiagnosticMessages(row.importLimits.map(limit => ({ kind: 'contract-limit', limit })))}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    { accessorKey: 'imports', header: 'Imports', align: 'end', render: row => resourceQuantities(row.imports) },
-    { accessorKey: 'exports', header: 'Exports', align: 'end', render: row => resourceQuantities(row.exports) },
-    { accessorKey: 'fuel', header: 'Ship fuel', align: 'end', render: row => resourceQuantities(row.fuel) },
-  ]
-  const consumer = rows.find(row => row.moduleId === consumerId && row.used > 0.001)
-    ?? rows.toSorted((left, right) => right.used - left.used).find(row => row.used > 0.001)
   const columns: Column<ResourceSupplyRow>[] = [
     { accessorKey: 'moduleName', header: 'Module' },
     { accessorKey: 'produced', header: 'Produces', align: 'end', render: row => numeric(row.produced) },
-    {
-      accessorKey: 'used', header: 'Uses', align: 'end',
-      render: row => row.used > 0.001 ? (
-        <Button
-          variant="ghost"
-          size="small"
-          selected={row.moduleId === consumer?.moduleId}
-          aria-pressed={row.moduleId === consumer?.moduleId}
-          aria-label={`Show ${resources[resourceId].name} use in ${row.moduleName}`}
-          onClick={() => setConsumerId(row.moduleId)}
-        >
-          {numeric(row.used)}
-        </Button>
-      ) : numeric(0),
-    },
+    { accessorKey: 'used', header: 'Uses', align: 'end', render: row => numeric(row.used) },
     { accessorKey: 'disposed', header: 'Disposes', align: 'end', render: row => numeric(row.disposed) },
     {
       accessorKey: 'exported',
@@ -231,11 +185,10 @@ export const ResourceSupplyView = ({
           options={options}
           onChange={value => {
             setTrail([{ resourceId: value }])
-            setConsumerId(null)
           }}
         />
       </div>
-      <nav aria-label="Supply trail" className="flex flex-wrap items-center gap-1 text-sm">
+      {trail.length > 1 && <nav aria-label="Supply trail" className="flex flex-wrap items-center gap-1 text-sm">
         {trail.map((step, index) => (
           <span key={supplyTargetKey(step)} className="inline-flex items-center gap-1">
             {index > 0 && <span aria-hidden="true" className="text-muted-foreground">→</span>}
@@ -245,40 +198,26 @@ export const ResourceSupplyView = ({
             </Button>
           </span>
         ))}
-      </nav>
-      <SupplyDiagnosis key={supplyTargetKey(target)} inspector={inspector} target={target} onInspect={inspect} getScopeName={getScopeName} />
-      {!target.moduleId && contractRows.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <h3 className="font-medium text-foreground">Contracts</h3>
-          </div>
-          <TableScrollRegion
-            label={`${resources[resourceId].name} contracts`}
-            columns={contractColumns}
-            rows={contractRows}
-            rowKey={row => row.contractId}
-          />
-        </div>
-      )}
-      <div className={`grid items-start gap-4 ${consumer ? 'lg:grid-cols-[minmax(0,1fr)_18rem]' : ''}`}>
-        <TableScrollRegion
-          label={`${resources[resourceId].name} supply by module`}
-          columns={columns}
-          rows={rows}
-          rowKey={row => row.moduleId}
-          empty="No production or consumption."
-        />
-        {consumer && (
-          <div className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface lg:sticky lg:top-4">
-            <h3 className="text-sm font-medium text-foreground">{resources[resourceId].name} used in {consumer.moduleName}</h3>
-            <div className="space-y-1">
-              {consumer.uses.map(use => (
-                <div key={use.name} className="flex justify-between gap-3 py-1 text-sm">
-                  <span className="text-muted-foreground">{use.name}</span>
-                  {numeric(use.quantity)}
-                </div>
-              ))}
-            </div>
+      </nav>}
+      <SupplyDiagnosis key={supplyTargetKey(target)} inspector={inspector} target={target}
+        factoryAccess={Boolean(target.moduleId) && rows.some(row => getResourceSupplyAccess(row, resourceId) === 'factory')}
+        contracts={target.moduleId ? [] : contractRows}
+        deliveries={target.moduleId ? rows.flatMap(row => row.incoming) : []}
+        onInspect={inspect} getScopeName={getScopeName} />
+      <div className="space-y-3">
+        <Button variant="ghost" size="small" aria-expanded={showRouting} aria-controls={routingId}
+          onClick={() => setShowRouting(value => !value)}>
+          {showRouting ? 'Hide supply rules' : 'Supply rules & priorities'}
+        </Button>
+        {showRouting && (
+          <div id={routingId}>
+            <TableScrollRegion
+              label={`${resources[resourceId].name} supply by module`}
+              columns={columns}
+              rows={rows}
+              rowKey={row => row.moduleId}
+              empty="No production or consumption."
+            />
           </div>
         )}
       </div>

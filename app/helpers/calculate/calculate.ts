@@ -46,6 +46,8 @@ export interface ProductionLine {
   operatingMode: OperatingMode;
   /** Factory-wide dispatch can assign a utilization without changing installed capacity. */
   allocationRatio?: number;
+  /** An explicit output target reserved this line before ordinary balanced production. */
+  hasOutputTarget?: boolean;
   /** Explicit private supplies that can start this consumer without output demand. */
   drivingInputIds?: ResourceId[];
   /** User-selected preference for processing locally produced inputs before export. */
@@ -98,6 +100,7 @@ export interface RegularResult {
   constructionGhosts?: number;
   unplacedPlannedBuildings?: number;
   operatingMode: OperatingMode;
+  hasOutputTarget?: boolean;
   supplyRatio: number;
   speedLevel: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
@@ -2217,6 +2220,7 @@ export const calculateNet = (
       constructionGhosts: line.constructionGhosts,
       unplacedPlannedBuildings: line.unplacedPlannedBuildings,
       operatingMode: line.operatingMode,
+      hasOutputTarget: line.hasOutputTarget,
       supplyRatio: allocationRatios.get(line) ?? 0,
       speedLevel: line.speedLevel,
       actualInputs: line.recipe.inputs.map((input) => ({
