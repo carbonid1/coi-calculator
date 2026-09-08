@@ -13,7 +13,10 @@ import {
 import { type ResearchEfficiencyBreakdown } from "../helpers/modifiers/calculate-research-efficiency";
 
 interface ResearchSettingsProps {
-  efficiency: ResearchEfficiencyBreakdown;
+  efficiency: ResearchEfficiencyBreakdown & {
+    populationIsPlanned?: boolean;
+    stationIsPlanned?: boolean;
+  };
 }
 
 interface InfiniteResearchSettingsProps {
@@ -148,7 +151,7 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({ efficiency }
             value={`+${efficiency.edictBonusPercent}%`}
           />
           <EfficiencyMetric
-            label="Space station"
+            label={efficiency.stationIsPlanned ? "Planned space station" : "Space station"}
             value={`+${efficiency.stationBonusPercent}%`}
           />
           <EfficiencyMetric
@@ -156,7 +159,7 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({ efficiency }
             value={`+${efficiency.focusBonusPercent}%`}
           />
           <EfficiencyMetric
-            label={`Population (${efficiency.population.toLocaleString()})`}
+            label={`${efficiency.populationIsPlanned ? "Planned population" : "Population"} (${efficiency.population.toLocaleString()})`}
             value={`+${efficiency.populationBonusPercent}%`}
           />
         </div>

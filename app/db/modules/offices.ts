@@ -12,7 +12,7 @@ import {
   type OfficeTierId,
 } from '../offices'
 import { recipes } from '../recipes'
-import { type Module, type Preset } from './modules'
+import { type Module, type PlanMismatch, type PlanMismatchAction, type Preset } from './modules'
 
 export const FOCUS_DASHBOARD_ID = 'focus'
 const defaultAreaZoneId = -1
@@ -128,6 +128,20 @@ export const getSyncedOfficeConfigurations = (
   })
 ))
 
+/** Use the same projected inventory for Focus generation and factory demand. */
+export const getModuleOfficeConfigurations = (
+  modules: readonly Module[],
+): OfficeConfigurationCount[] => modules.flatMap(module => {
+  const preset = module.presets.find(candidate => candidate.id === module.defaultPresetId)
+
+  return officeTierIds.flatMap(tierId => officeBoostSteps.flatMap(computingBoostStep => {
+    const recipeId = getOfficeRecipeId(tierId, computingBoostStep)
+    const count = preset?.activeBuildings[recipeId] ?? 0
+
+    return count > 0 ? [{ tierId, computingBoostStep, count }] : []
+  }))
+})
+
 /** Planned fallback used when no generated area can own the Office inventory. */
 export const createPlannedOfficeModule = (
   plan: OfficePlan,
@@ -189,6 +203,7 @@ export const createOfficeAreaModule = (
   generatedArea: Module,
   entities: readonly SyncedAreaEntity[],
   plan: OfficePlan,
+  targets: readonly OfficeConfigurationCount[] = [],
 ): Module => {
   const zoneId = generatedArea.liveArea?.zoneId
 
@@ -200,7 +215,7 @@ export const createOfficeAreaModule = (
   ))
   const zoneEntities = relatedZoneEntities
 
-  if (zoneEntities.length === 0) {
+  if (zoneEntities.length === 0 && targets.length === 0) {
     return {
       ...generatedArea,
       liveArea: withoutOfficeNoRecipeIssues(generatedArea),
@@ -212,8 +227,10 @@ export const createOfficeAreaModule = (
   const officeActiveBuildings: Record<string, number> = {}
   const officeCurrentActiveBuildings: Record<string, number> = {}
   const officeConstructionGhosts: Record<string, number> = {}
+  const officeUnplacedPlannedBuildings: Record<string, number> = {}
   const officeDataSources: NonNullable<Preset['dataSources']> = {}
   const officeRecipeIds: string[] = []
+  const officePlanMismatches: PlanMismatch[] = []
 
   for (const tierId of officeTierIds) {
     const prototypeId = officePrototypeIdByTier[tierId]
@@ -229,14 +246,50 @@ export const createOfficeAreaModule = (
       entitiesByBoostStep.set(computingBoostStep, groupedEntities)
     }
 
+    const targetCounts = new Map<OfficeBoostStep, number>()
+
+    for (const target of targets.filter(target => target.tierId === tierId)) {
+      targetCounts.set(target.computingBoostStep, Math.max(
+        targetCounts.get(target.computingBoostStep) ?? 0, Math.trunc(target.count),
+      ))
+    }
+    // A boost target is a configuration of existing Offices. Reuse their
+    // physical inventory before adding buildings, including construction ghosts.
+    const reconfiguredCounts = new Map<OfficeBoostStep, number>()
+
+    for (const [computingBoostStep, target] of targetCounts) {
+      const configured = entitiesByBoostStep.get(computingBoostStep) ?? []
+
+      entitiesByBoostStep.set(computingBoostStep, configured)
+      for (const [otherStep, available] of entitiesByBoostStep) {
+        if (otherStep === computingBoostStep) continue
+        const count = Math.min(
+          Math.max(0, target - configured.length),
+          Math.max(0, available.length - (targetCounts.get(otherStep) ?? 0)),
+        )
+
+        if (count <= 0) continue
+        available.sort((left, right) => Number(right.constructed) - Number(left.constructed)
+          || Number(left.running) - Number(right.running) || left.entityId - right.entityId)
+        configured.push(...available.splice(0, count))
+        reconfiguredCounts.set(computingBoostStep, (reconfiguredCounts.get(computingBoostStep) ?? 0) + count)
+      }
+    }
+
     for (const [computingBoostStep, configuredEntities] of entitiesByBoostStep) {
       const built = configuredEntities.filter(entity => entity.constructed).length
       const running = configuredEntities.filter(entity => (
         entity.constructed && entity.running
       )).length
+      const currentRunning = configuredEntities.filter(entity => (
+        entity.constructed && entity.running
+        && (entity.office?.computingBoostStep ?? plan.offices[tierId].computingBoostStep) === computingBoostStep
+      )).length
       const constructionGhosts = configuredEntities.filter(entity => !entity.constructed).length
+      const target = targetCounts.get(computingBoostStep) ?? 0
+      const projected = Math.max(running + constructionGhosts, target)
 
-      if (built + constructionGhosts === 0) continue
+      if (built + projected === 0) continue
 
       const recipeId = getOfficeRecipeId(tierId, computingBoostStep)
       const recipe = recipes.find(candidate => candidate.id === recipeId)
@@ -246,12 +299,29 @@ export const createOfficeAreaModule = (
       officeRecipeIds.push(recipeId)
       officeRecipes.push(recipe)
       builtBuildings[recipeId] = built
-      officeActiveBuildings[recipeId] = running + constructionGhosts
-      officeCurrentActiveBuildings[recipeId] = running
+      officeActiveBuildings[recipeId] = projected
+      officeCurrentActiveBuildings[recipeId] = currentRunning
       officeConstructionGhosts[recipeId] = constructionGhosts
-      officeDataSources[recipeId] = configuredEntities.every(entity => entity.office)
-        ? 'synced'
-        : 'planned'
+      officeUnplacedPlannedBuildings[recipeId] = Math.max(0, target - built - constructionGhosts)
+      officeDataSources[recipeId] = projected > currentRunning
+        || !configuredEntities.every(entity => entity.office) ? 'planned' : 'synced'
+      const reconfigured = reconfiguredCounts.get(computingBoostStep) ?? 0
+
+      if (reconfigured > 0) {
+        const name = recipe.building
+        const unpause = Math.min(built - running, Math.max(0, target - running - constructionGhosts))
+        const actions: PlanMismatchAction[] = [
+          ...(unpause > 0 ? [{ type: 'unpause' as const, label: `Unpause ${unpause} ${name}` }] : []),
+          { type: 'configure', label: `Set ${reconfigured} ${name} to computing boost ${computingBoostStep}` },
+          ...(officeUnplacedPlannedBuildings[recipeId] > 0 ? [{
+            type: 'build' as const, label: `Build ${officeUnplacedPlannedBuildings[recipeId]} ${name}`,
+          }] : []),
+        ]
+
+        officePlanMismatches.push({
+          recipeId, current: currentRunning, target, direction: 'at-least', format: 'configuration', actions,
+        })
+      }
     }
   }
 
@@ -284,10 +354,15 @@ export const createOfficeAreaModule = (
         ...preset.constructionGhosts,
         ...officeConstructionGhosts,
       },
+      unplacedPlannedBuildings: {
+        ...preset.unplacedPlannedBuildings,
+        ...officeUnplacedPlannedBuildings,
+      },
       dataSources: {
         ...preset.dataSources,
         ...officeDataSources,
       },
+      planMismatches: [...(preset.planMismatches ?? []), ...officePlanMismatches],
       fixed: [...new Set([...preset.fixed, ...officeRecipeIds])],
     })),
     liveArea: withoutOfficeNoRecipeIssues(generatedArea),

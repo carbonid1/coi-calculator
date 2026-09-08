@@ -11,6 +11,7 @@ type RuntimeRecipeBehavior = Partial<Pick<
   | "balanceOutputIds"
   | "balanceOutputScope"
   | "consumeSurplusInputIds"
+  | "consumeSurplusOutputIds"
   | "consumeSurplusInputScope"
   | "demandPriority"
   | "displayName"
@@ -290,14 +291,17 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceBy: "output",
     balanceOutputIds: ["meat"],
     consumeSurplusInputIds: ["chickenCarcass"],
+    consumeSurplusOutputIds: ["meat"],
     surplusConsumptionPhase: "before-fallback",
-    surplusConsumptionPriority: 100,
+    surplusConsumptionPriority: 115,
   },
   "FoodProcessor:MeatProcessingTrimmings": {
     balanceBy: "output",
     balanceInputIds: ["chickenCarcass"],
     balanceOutputIds: ["meatTrimmings"],
     demandPriority: 1,
+    consumeSurplusInputIds: ["chickenCarcass"],
+    surplusConsumptionPhase: "before-disposal",
   },
   "FoodProcessor:SnackProductionCorn": {
     balanceBy: "output",

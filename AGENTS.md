@@ -19,6 +19,10 @@ Do not narrate familiar game mechanics; show only calculated results, actionable
 
 When updating database files, verify numerical values and mechanics against the installed game files for the targeted game version. Log confirmed wiki discrepancies in `docs/WIKI-DISCREPANCIES.md`.
 
+## Solver debugging
+
+For solver bugs, isolate the failure in a small regression test before experimenting with allocation changes, then verify the fix against a saved factory snapshot while checking that existing priorities still hold.
+
 ## Data states
 
 Only actionable values from a compatible game snapshot or a future plan receive state treatment.

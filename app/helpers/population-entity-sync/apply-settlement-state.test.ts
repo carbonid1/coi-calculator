@@ -6,7 +6,7 @@ import { type SyncedProductionEntity } from "../../game-state";
 import { isSyncedSettlementState, type SyncedSettlementState } from "../../settlement-state";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateNet } from "../calculate/calculate";
-import { applySettlementState } from "./apply-settlement-state";
+import { applySettlementState, resolveProjectedPopulation } from "./apply-settlement-state";
 
 const residents = settlementRecipeIds.residents;
 const householdGoodsModule = settlementRecipeIds.householdGoodsModule;
@@ -59,6 +59,49 @@ it("preserves full projected occupancy for an explicit housing expansion", () =>
   })) });
 
   expect(result?.actualInputs.find(item => item.resourceId === "potato")?.quantity).toBeCloseTo(30.24);
+});
+
+it("does not turn spare housing capacity into research population without a plan", () => {
+  const area = applySettlementState(populationModule, state, entities);
+
+  expect(resolveProjectedPopulation([area], state, entities))
+    .toEqual({ population: 120, isPlanned: false });
+});
+
+it.each(["planned", "ghost"])("includes %s residents while preserving population outside that housing", source => {
+  const otherHouse = { entityId: 3, population: 80, capacity: 240 };
+  const snapshot = { ...state, population: 230, settlements: state.settlements.map(settlement => ({
+    ...settlement, population: 200, capacity: 720, housing: [...settlement.housing, otherHouse],
+  })) };
+  const area = applySettlementState({ ...populationModule, presets: populationModule.presets.map(preset => ({
+    ...preset,
+    activeBuildings: { [residents]: 3 },
+    speedLevels: { [residents]: 1.2 },
+    dataSources: { [residents]: source === "planned" ? "planned" : "synced" },
+    constructionGhosts: { [residents]: source === "ghost" ? 1 : 0 },
+  })) }, snapshot, entities);
+
+  expect(resolveProjectedPopulation([area], snapshot, entities))
+    .toEqual({ population: 974, isPlanned: true }); // 864 planned + 80 elsewhere + 30 unhoused.
+  expect(resolveProjectedPopulation([{ ...area, includedInFactoryTotals: false }], snapshot, entities))
+    .toEqual({ population: 230, isPlanned: false });
+});
+
+it("replaces residents in an upgraded tier instead of counting them again", () => {
+  const residentsII = settlementRecipeIds.residentsII;
+  const housingII = { ...entities[0], entityId: 3, prototypeId: "HousingT2" };
+  const snapshot = { ...state, population: 220, settlements: state.settlements.map(settlement => ({
+    ...settlement, population: 220, capacity: 620,
+    housing: [...settlement.housing, { entityId: 3, population: 100, capacity: 140 }],
+  })) };
+  const allEntities = [...entities, housingII];
+  const area = applySettlementState({ ...populationModule, presets: populationModule.presets.map(preset => ({
+    ...preset, activeBuildings: { [residents]: 3, [residentsII]: 0 },
+    dataSources: { [residents]: "planned", [residentsII]: "planned" },
+  })) }, snapshot, allEntities);
+
+  expect(resolveProjectedPopulation([area], snapshot, allEntities))
+    .toEqual({ population: 720, isPlanned: true });
 });
 
 it("validates signed Unity, unavailable records, and unique housing assignments", () => {

@@ -7,12 +7,14 @@ import {
 import { calculateFactoryTotal } from '../../helpers/factory-total/factory-total'
 import { createLiveAreaModules } from '../../helpers/live-area-modules/live-area-modules'
 import { baseConfig } from '../config'
-import { defaultOfficePlan } from '../offices'
+import { getLiveAreaPlans } from '../live-area-plans'
+import { calculateOfficePlan, defaultOfficePlan, plannedOfficePlan } from '../offices'
 import {
   applySyncedOfficeInventory,
   createOfficeAreaModule,
   createPlannedOfficeModule,
   getOfficeAreaZoneIds,
+  getModuleOfficeConfigurations,
   getSyncedOfficeConfigurations,
   hasAttachedOfficeRecipes,
 } from './offices'
@@ -59,6 +61,116 @@ const plan = {
 }
 
 describe('synced Office areas', () => {
+  it('reconfigures existing offices at another boost instead of planning extra buildings', () => {
+    const entities = ([2, 0, 0] as const).map((computingBoostStep, index) => ({
+      ...areaEntity(index + 1, 'OfficeBuildingT3', 'Office III'),
+      office: { computingBoostStep },
+    }))
+    const [generatedArea] = createLiveAreaModules([zone], entities)
+    const officeModule = createOfficeAreaModule(generatedArea!, entities, plannedOfficePlan,
+      getLiveAreaPlans('Last-Stop Waters')[zone.id]?.offices)
+    const preset = officeModule.presets[0]
+
+    expect(getModuleOfficeConfigurations([officeModule])).toEqual([
+      { tierId: 'officeIII', computingBoostStep: 2, count: 3 },
+    ])
+    expect(Object.values(preset.builtBuildings ?? {}).reduce((sum, count) => sum + count, 0)).toBe(3)
+    expect(preset.unplacedPlannedBuildings?.['officeIII-boost-2']).toBe(0)
+    expect(preset.planMismatches).toEqual([expect.objectContaining({
+      recipeId: 'officeIII-boost-2', current: 1, target: 3,
+      actions: [{ type: 'configure', label: 'Set 2 Office III to computing boost 2' }],
+    })])
+    expect(calculateOfficePlan(plannedOfficePlan, 8, getModuleOfficeConfigurations([officeModule])))
+      .toMatchObject({ focusPointsCapacity: 5460, computingTflops: 576, workers: 3000 })
+  })
+
+  it.each(['paused', 'ghost'] as const)('uses %s offices at another boost to satisfy the target', state => {
+    const entities = [0, 1, 2].map(index => ({
+      ...areaEntity(index + 1, 'OfficeBuildingT3', 'Office III'),
+      constructed: state !== 'ghost' || index === 0,
+      running: index === 0,
+      office: { computingBoostStep: index === 0 ? 2 as const : 0 as const },
+    }))
+    const [generatedArea] = createLiveAreaModules([zone], entities)
+    const officeModule = createOfficeAreaModule(generatedArea!, entities, plannedOfficePlan,
+      getLiveAreaPlans('Last-Stop Waters')[zone.id]?.offices)
+    const preset = officeModule.presets[0]
+
+    expect(getModuleOfficeConfigurations([officeModule])).toEqual([
+      { tierId: 'officeIII', computingBoostStep: 2, count: 3 },
+    ])
+    expect(preset.unplacedPlannedBuildings?.['officeIII-boost-2']).toBe(0)
+    expect(preset.builtBuildings?.['officeIII-boost-2']).toBe(state === 'ghost' ? 1 : 3)
+    expect(preset.constructionGhosts?.['officeIII-boost-2']).toBe(state === 'ghost' ? 2 : 0)
+    expect(preset.planMismatches?.[0]?.actions).toEqual([
+      ...(state === 'paused' ? [{ type: 'unpause', label: 'Unpause 2 Office III' }] : []),
+      { type: 'configure', label: 'Set 2 Office III to computing boost 2' },
+    ])
+  })
+
+  it('adds planned full-load offices to the owning area and the Focus budget', () => {
+    const entities = [
+      { ...areaEntity(1, 'OfficeBuildingT3', 'Office III'), office: { computingBoostStep: 2 as const } },
+      areaEntity(2, 'AssemblyRoboticT2', 'Assembly V', [officeSuppliesRecipe]),
+    ]
+    const [generatedArea] = createLiveAreaModules([zone], entities)
+    const targets = getLiveAreaPlans('Last-Stop Waters')[zone.id]?.offices
+    const officeModule = createOfficeAreaModule(generatedArea!, entities, plannedOfficePlan, targets)
+    const result = calculateFactoryTotal([officeModule], {
+      recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
+    })
+    const office = result.calculation.regularResults.find(row => row.recipe.id === 'officeIII-boost-2')
+    const configurations = getModuleOfficeConfigurations([officeModule])
+
+    expect(officeModule.presets[0]).toMatchObject({
+      activeBuildings: { 'officeIII-boost-2': 3 },
+      currentActiveBuildings: { 'officeIII-boost-2': 1 },
+      builtBuildings: { 'officeIII-boost-2': 1 },
+      unplacedPlannedBuildings: { 'officeIII-boost-2': 2 },
+      dataSources: { 'officeIII-boost-2': 'planned' },
+    })
+    expect(office).toMatchObject({ activeBuildings: 3, builtBuildings: 1, supplyRatio: 1, dataSource: 'planned' })
+    expect(result.flows.find(flow => flow.resourceId === 'officeSupplies')).toMatchObject({ consumed: 24, produced: 24, net: 0 })
+    expect(result.flows.find(flow => flow.resourceId === 'paper')?.net).toBeCloseTo(-12)
+    expect(result.flows.find(flow => flow.resourceId === 'householdGoods')?.net).toBeCloseTo(-8)
+    expect(result.flows.find(flow => flow.resourceId === 'electronicsII')?.net).toBeCloseTo(-4)
+    expect(result.computingDemandTflops).toBe(582)
+    expect(calculateOfficePlan(plannedOfficePlan, 8, configurations)).toMatchObject({
+      focusPointsCapacity: 5460, focusPointsRequired: 5375, focusPointsAvailable: 85,
+      computingTflops: 576, workers: 3000,
+    })
+    expect(getLiveAreaPlans('another save')[zone.id]?.offices).toBeUndefined()
+  })
+
+  it.each([
+    { built: 1, ghosts: 1, running: 1, active: 3, unplaced: 1, source: 'planned' },
+    { built: 3, ghosts: 0, running: 2, active: 3, unplaced: 0, source: 'planned' },
+    { built: 3, ghosts: 0, running: 3, active: 3, unplaced: 0, source: 'synced' },
+    { built: 4, ghosts: 0, running: 4, active: 4, unplaced: 0, source: 'synced' },
+  ])('keeps a fixed target as synced offices change: %o', ({ built, ghosts, running, active, unplaced, source }) => {
+    const entities = Array.from({ length: built + ghosts }, (_, index) => ({
+      ...areaEntity(index + 1, 'OfficeBuildingT3', 'Office III'),
+      constructed: index < built,
+      running: index < running,
+      office: { computingBoostStep: 2 as const },
+    }))
+    const [generatedArea] = createLiveAreaModules([zone], entities)
+    const officeModule = createOfficeAreaModule(generatedArea!, entities, plannedOfficePlan,
+      getLiveAreaPlans('Last-Stop Waters')[zone.id]?.offices)
+
+    expect(officeModule.presets[0]).toMatchObject({
+      activeBuildings: { 'officeIII-boost-2': active },
+      currentActiveBuildings: { 'officeIII-boost-2': running },
+      builtBuildings: { 'officeIII-boost-2': built },
+      constructionGhosts: { 'officeIII-boost-2': ghosts },
+      unplacedPlannedBuildings: { 'officeIII-boost-2': unplaced },
+      dataSources: { 'officeIII-boost-2': source },
+    })
+    expect(getModuleOfficeConfigurations([officeModule])).toEqual([
+      { tierId: 'officeIII', computingBoostStep: 2, count: active },
+    ])
+  })
+
   it('adapts Office buildings in any generated area without changing their balance', () => {
     const entities = [
       {

@@ -277,9 +277,8 @@ const calculateWithDispatch = (
           // flows do not show yet. Dispatching for it lets the next pass
           // accept the route instead of settling on the refusal.
           const latentDemand = currentCalculation.blockedRoutes.reduce((total, route) => (
-            route.blockedBy?.resourceId === output.resourceId
-              ? total + route.blockedBy.deficitIncrease
-              : total
+            total + ((route.blockingResources ?? (route.blockedBy ? [route.blockedBy] : []))
+              .find(shortage => shortage.resourceId === output.resourceId)?.deficitIncrease ?? 0)
           ), 0);
 
           return [

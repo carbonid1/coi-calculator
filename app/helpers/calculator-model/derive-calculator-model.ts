@@ -58,7 +58,7 @@ import {
   createOfficeAreaModule,
   createPlannedOfficeModule,
   getOfficeAreaZoneIds,
-  getSyncedOfficeConfigurations,
+  getModuleOfficeConfigurations,
   hasAttachedOfficeRecipes,
 } from '../../db/modules/offices'
 import {
@@ -70,7 +70,7 @@ import {
   createSpaceStationModule,
   selectSpaceStationZone,
 } from '../../db/modules/space-station'
-import { calculateOfficePlan, defaultOfficePlan, plannedOfficePlan } from '../../db/offices'
+import { calculateOfficePlan, defaultOfficePlan, officeCatalog, plannedOfficePlan } from '../../db/offices'
 import { emptyPlanningBaselines, resolvePlanningBaselines } from '../../db/planning-baselines'
 import {
   emptyRocketInfrastructureConfig,
@@ -124,7 +124,7 @@ import { calculateShipsFuelUse } from '../modifiers/calculate-ships-fuel-use'
 import { calculateSolarPower } from '../modifiers/calculate-solar-power'
 import { calculateTreeGrowthSpeed } from '../modifiers/calculate-tree-growth-speed'
 import { calculateUnityCapacity } from '../modifiers/calculate-unity-capacity'
-import { applySettlementState } from '../population-entity-sync/apply-settlement-state'
+import { applySettlementState, resolveProjectedPopulation } from '../population-entity-sync/apply-settlement-state'
 import { resolvePopulationEntityInventory } from '../population-entity-sync/population-entity-sync'
 import {
   getSyncedChickenFarmEntities,
@@ -306,20 +306,13 @@ export const deriveCalculatorModel = ({
     researchLevels.rocketsCapacity,
   )
   const hasSyncedOfficeAreaInventory = officeAreaZoneIds.size > 0
-  const officePlan = hasSyncedOfficeAreaInventory
+  const officeInventoryPlan = hasSyncedOfficeAreaInventory
     ? applySyncedOfficeInventory(plannedOfficePlan, productionEntities)
     : plannedOfficePlan
   const officeBuiltPlan = hasSyncedOfficeAreaInventory
     ? applySyncedOfficeInventory(plannedOfficePlan, productionEntities, 'built')
     : defaultOfficePlan
-  const officeCurrentPlan = hasSyncedOfficeAreaInventory ? officePlan : defaultOfficePlan
-  const syncedOfficeConfigurations = getSyncedOfficeConfigurations(areaEntities)
-  const officePlanCalculation = calculateOfficePlan(
-    officePlan,
-    researchLevels.focusPoints,
-    syncedOfficeConfigurations,
-  )
-  const focusBonuses = officePlanCalculation.bonuses
+  const officeCurrentPlan = hasSyncedOfficeAreaInventory ? officeInventoryPlan : defaultOfficePlan
   const resolvedEdictLevels = mapEdictValues(edictId =>
     resolveEdictLevel(edictId, snapshot.edicts[edictId].activeLevel),
   )
@@ -369,13 +362,14 @@ export const deriveCalculatorModel = ({
     mines,
     createReservesModule(snapshot.reserves),
   ]
+  const liveAreaPlans = getLiveAreaPlans(snapshot.saveId)
   const generatedLiveAreaModules = createLiveAreaModules(
     [
       { id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' },
       ...snapshot.logisticsZones,
     ],
     areaEntities,
-    getLiveAreaPlans(snapshot.saveId),
+    liveAreaPlans,
     snapshot.mineTowers,
   )
   const terrainSorterEntityIds = getModeledTerrainSorterEntityIds(
@@ -464,28 +458,51 @@ export const deriveCalculatorModel = ({
       )
     }
 
-    return officeAreaZoneIds.has(module.liveArea.zoneId)
+    return officeAreaZoneIds.has(module.liveArea.zoneId) || liveAreaPlans[module.liveArea.zoneId]?.offices
       ? createOfficeAreaModule(
           configuredModule,
           areaEntities,
-          officePlan,
+          officeInventoryPlan,
+          liveAreaPlans[module.liveArea.zoneId]?.offices,
         )
       : configuredModule
   })
   const hasGeneratedOfficeModule = configuredLiveAreaModules.some(hasAttachedOfficeRecipes)
   const hasOfficeFallbackInventory = (
-    officePlan.officeSuppliesAssemblyVCount > 0
+    officeInventoryPlan.officeSuppliesAssemblyVCount > 0
     || officeBuiltPlan.officeSuppliesAssemblyVCount > 0
-    || Object.values(officePlan.offices).some(office => office.count > 0)
+    || Object.values(officeInventoryPlan.offices).some(office => office.count > 0)
     || Object.values(officeBuiltPlan.offices).some(office => office.count > 0)
   )
   const officeFallbackModules = !hasGeneratedOfficeModule && hasOfficeFallbackInventory
     ? [createPlannedOfficeModule(
-        officePlan,
+        officeInventoryPlan,
         officeBuiltPlan,
         officeCurrentPlan,
       )]
     : []
+  const officeConfigurations = getModuleOfficeConfigurations([
+    ...configuredLiveAreaModules,
+    ...officeFallbackModules,
+  ])
+  const officePlan = {
+    ...officeInventoryPlan,
+    offices: { ...officeInventoryPlan.offices },
+  }
+
+  for (const office of officeCatalog) {
+    officePlan.offices[office.id] = {
+      ...officePlan.offices[office.id],
+      count: officeConfigurations.filter(configuration => configuration.tierId === office.id)
+        .reduce((total, configuration) => total + configuration.count, 0),
+    }
+  }
+  const officePlanCalculation = calculateOfficePlan(
+    officePlan,
+    researchLevels.focusPoints,
+    officeConfigurations,
+  )
+  const focusBonuses = officePlanCalculation.bonuses
   const baseAreaModules = configuredAreaModules.filter(module => (
     module.id !== DEFAULT_MODULE_ID
   ))
@@ -588,14 +605,26 @@ export const deriveCalculatorModel = ({
   const spaceStationIncludedInFactoryTotals = configuredSpaceStationModules.some(module => (
     module.includedInFactoryTotals !== false
   )) && currentSpaceStationLevel.level > 0
-  const researchEfficiency = calculateResearchEfficiency({
-    edictLevel: edictLevels.researchEfficiency,
-    focusBonusPercent: focusBonuses.researchEfficiency,
-    population: snapshot.settlement.population,
-    stationBonusPercent: spaceStationIncludedInFactoryTotals
-      ? currentSpaceStationLevel.researchEfficiencyBonusPercent
-      : 0,
-  })
+  const projectedPopulation = resolveProjectedPopulation(
+    configuredPopulationModules,
+    snapshot.settlement,
+    productionEntities,
+  )
+  const hasProjectedSpaceStation = configuredSpaceStationModules.length > 0
+    && projectedSpaceStationLevel.level > 0
+  const researchEfficiency = {
+    ...calculateResearchEfficiency({
+      edictLevel: edictLevels.researchEfficiency,
+      focusBonusPercent: focusBonuses.researchEfficiency,
+      population: projectedPopulation.population,
+      stationBonusPercent: hasProjectedSpaceStation
+        ? projectedSpaceStationLevel.researchEfficiencyBonusPercent
+        : 0,
+    }),
+    populationIsPlanned: projectedPopulation.isPlanned,
+    stationIsPlanned: hasProjectedSpaceStation
+      && projectedSpaceStationLevel.level > currentSpaceStationLevel.level,
+  }
 
   const recyclingEfficiencyPercent = calculateRecyclingEfficiency(
     edictLevels.recyclingIncrease,

@@ -13,7 +13,8 @@ import {
 import { settlementRecipeIds } from "../settlement";
 import { type Module, type PlanMismatch, type PlanMismatchAction } from "./modules";
 
-const plannedHousingCount = 18;
+// Fixed total: 18 existing blocks plus 8 at 288 residents each (+2,304).
+const plannedHousingCount = 26;
 const householdGoodsModuleName = "Household Goods Module";
 /** One unpaused module covers the settlement's whole Household Goods need. */
 const plannedHouseholdGoodsModuleCount = 1;
@@ -54,7 +55,7 @@ export const resolvePopulationHousingPlanTargets = (
     );
 
     projectedHousingTotal += projectedHousing;
-    if (builtHousingIi > 0) {
+    if (builtHousingIi > 0 || (syncedInventory.counts[settlementRecipeIds.residents]?.built ?? 0) > 0 || projectedHousing > 0) {
       candidates.push({ builtHousingIi, pausedHousingIi, projectedHousing, zoneId });
     }
   }
@@ -161,12 +162,16 @@ export const createPopulationModule = (
   const pendingHousingCount = plannedHousingTarget == null
     ? 0
     : Math.max(0, plannedHousingTarget - projectedHousingCount);
-  const promotionCount = Math.min(builtHousingIiCount, pendingHousingCount);
+  const unpauseHousingCount = Math.min(
+    Math.max(0, builtHousingCount - currentHousingCount),
+    pendingHousingCount,
+  );
+  const promotionCount = Math.min(builtHousingIiCount, pendingHousingCount - unpauseHousingCount);
   const unpausePromotionCount = Math.max(0, promotionCount - runningHousingIiCount);
-  const buildHousingCount = Math.max(0, pendingHousingCount - promotionCount);
+  const buildHousingCount = Math.max(0, pendingHousingCount - unpauseHousingCount - promotionCount);
   const hasHousingPlan = plannedHousingTarget != null
     && pendingHousingCount > 0
-    && builtHousingIiCount > 0;
+    && (builtHousingCount > 0 || builtHousingIiCount > 0 || projectedHousingCount > 0);
 
   if (hasHousingPlan) {
     specialActiveBuildings[settlementRecipeIds.residents] = plannedHousingTarget;
@@ -198,6 +203,12 @@ export const createPopulationModule = (
 
   const housingPlanActions: PlanMismatchAction[] = hasHousingPlan
     ? [
+        ...(unpauseHousingCount > 0
+          ? [{
+              type: "unpause" as const,
+              label: `Unpause ${unpauseHousingCount} ${activeHousingType.name}`,
+            }]
+          : []),
         ...(unpausePromotionCount > 0
           ? [{
               type: "unpause" as const,
@@ -298,6 +309,7 @@ export const createPopulationModule = (
       ...new Set([
         ...rawGeneratedPreset.fixed.filter(id => !isReplacedGeneratedRecipeId(id)),
         ...specialItems.filter(item => item.fixed).map(item => item.recipeId),
+        ...(hasHousingPlan ? [settlementRecipeIds.residents] : []),
       ]),
     ],
     speedLevels: {

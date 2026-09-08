@@ -76,6 +76,8 @@ export interface BlockedSurplusRoute {
   /** Utilization the guard allowed, in the same units as `wantedRatio`. */
   appliedRatio: number;
   blockedBy: { resourceId: ResourceId; deficitIncrease: number } | null;
+  /** All supporting shortages, including those smaller than the displayed reason. */
+  blockingResources?: { resourceId: ResourceId; deficitIncrease: number }[];
 }
 
 export interface RegularResult {
@@ -583,10 +585,16 @@ export const calculateNet = (
   const preferredByproductProducers = demandBalancedLines.filter(line => (
     line.recipe.outputs.some(output => preferredSurplusOutputIds.has(output.resourceId))
   ));
+  const beforeDisposalSurplusConsumerLines = orderSurplusConsumers(
+    balancedLines.filter((line) => (
+      (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
+      && line.recipe.surplusConsumptionPhase === "before-disposal"
+    )),
+  );
   const finalSurplusConsumerLines = orderSurplusConsumers(
     balancedLines.filter((line) => (
       (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
-      && line.recipe.surplusConsumptionPhase !== "before-fallback"
+      && line.recipe.surplusConsumptionPhase == null
     )),
   );
   const drivenInputLines = orderAllocatedLines(
@@ -1550,22 +1558,32 @@ export const calculateNet = (
   const consumeSlackAllowance = (
     baseline: ReturnType<typeof snapshotAllocationState>,
   ) => {
+    // The allowance includes slack already visible before the retry. Spending
+    // that visible stock must reduce it too, even before a deficit appears;
+    // otherwise the next pass can claim the same stock as late supply.
+    const spentSlack = (
+      before: { consumed: number; produced: number } | undefined,
+      after: { consumed: number; produced: number } | undefined,
+    ) => Math.max(0,
+      (before?.produced ?? 0) - (before?.consumed ?? 0)
+        - ((after?.produced ?? 0) - (after?.consumed ?? 0)),
+    );
+
     for (const [resourceId, allowance] of slackAllowance) {
-      const increase = getGlobalDeficitIncrease(
-        resourceId,
+      const spent = spentSlack(
         baseline.flows.get(resourceId),
         flows.get(resourceId),
       );
 
-      if (increase > 0) slackAllowance.set(resourceId, Math.max(0, allowance - increase));
+      if (spent > 0) slackAllowance.set(resourceId, Math.max(0, allowance - spent));
     }
     for (const [key, allowance] of moduleSlackAllowance) {
-      const increase = getDeficitIncrease(
+      const spent = spentSlack(
         baseline.actualModuleFlows.get(key),
         actualModuleFlows.get(key),
       );
 
-      if (increase > 0) moduleSlackAllowance.set(key, Math.max(0, allowance - increase));
+      if (spent > 0) moduleSlackAllowance.set(key, Math.max(0, allowance - spent));
     }
   };
   // The tolerance forgives float residue on a route's full ratio. The binary
@@ -1636,11 +1654,14 @@ export const calculateNet = (
 
     if (previous) blockedRouteLines.delete(previous);
   };
-  const findBlockingResource = (
+  const findBlockingResources = (
     baseline: ReturnType<typeof snapshotAllocationState>,
     line: ProductionLine,
-  ): BlockedSurplusRoute["blockedBy"] => {
-    let blockedBy: BlockedSurplusRoute["blockedBy"] = null;
+  ): NonNullable<BlockedSurplusRoute["blockingResources"]> => {
+    const shortages = new Map<ResourceId, number>();
+    const sortedShortages = () => [...shortages].map(([resourceId, deficitIncrease]) => ({
+      resourceId, deficitIncrease,
+    })).sort((a, b) => b.deficitIncrease - a.deficitIncrease);
 
     for (const resourceId of new Set([...baseline.flows.keys(), ...flows.keys()])) {
       const deficitIncrease = getGlobalDeficitIncrease(
@@ -1649,12 +1670,10 @@ export const calculateNet = (
         flows.get(resourceId),
       ) - getSlackAllowance(line, resourceId, baseline.flows.get(resourceId));
 
-      if (deficitIncrease > (blockedBy?.deficitIncrease ?? DEFICIT_TOLERANCE)) {
-        blockedBy = { resourceId, deficitIncrease };
-      }
+      if (deficitIncrease > DEFICIT_TOLERANCE) shortages.set(resourceId, deficitIncrease);
     }
 
-    if (blockedBy) return blockedBy;
+    if (shortages.size > 0) return sortedShortages();
 
     // Nothing moved globally, so a module-restricted supply must have run short.
     for (const key of new Set([...baseline.actualModuleFlows.keys(), ...actualModuleFlows.keys()])) {
@@ -1668,12 +1687,10 @@ export const calculateNet = (
       ) - getModuleSlackAllowance(line, key, baseline.actualModuleFlows.get(key))
         - getModuleKeySlackAllowance(line, key, baseline);
 
-      if (deficitIncrease > (blockedBy?.deficitIncrease ?? DEFICIT_TOLERANCE)) {
-        blockedBy = { resourceId, deficitIncrease };
-      }
+      if (deficitIncrease > Math.max(DEFICIT_TOLERANCE, shortages.get(resourceId) ?? 0)) shortages.set(resourceId, deficitIncrease);
     }
 
-    return blockedBy;
+    return sortedShortages();
   };
   const applyAdditionalSurplusConsumption = (surplusConsumerLines: ProductionLine[]) => {
     for (const line of surplusConsumerLines) {
@@ -1734,18 +1751,57 @@ export const calculateNet = (
       const hasSupportingInputs = line.recipe.inputs.some(
         input => !surplusInputIds.has(input.resourceId),
       );
+      const consumedOutputIds = line.recipe.consumeSurplusOutputIds ?? [];
+      const outputConsumers = consumedOutputIds.length > 0
+        ? orderSurplusConsumers(beforeFallbackSurplusConsumerLines.filter(consumer => (
+            consumer !== line && consumedOutputIds.some(resourceId => (
+              consumer.recipe.consumeSurplusInputIds?.includes(resourceId)
+              && (consumer.recipe.consumeSurplusInputScope !== "module" || consumer.moduleId === line.moduleId)
+            ))
+          )))
+        : [];
+      const applyAttempt = (candidateRatio: number) => {
+        applyRegularLine(line, candidateRatio, true);
+        if (hasSupportingInputs) propagateAdditionalDemand();
+        // Include packing's supporting inputs before accepting extra Meat.
+        for (const consumer of outputConsumers) {
+          let consumerRatio = Math.min(
+            1 - (allocationRatios.get(consumer) ?? 0),
+            capacityTracker.availableRatio(consumer),
+          );
 
-      applyRegularLine(line, ratio, true);
-      if (hasSupportingInputs) propagateAdditionalDemand();
+          for (const input of consumer.recipe.inputs) {
+            if (!consumer.recipe.consumeSurplusInputIds?.includes(input.resourceId)) continue;
+            const needed = getRecipeInputQuantity(input, outputModifiers) * lineFactor(consumer);
+            const flow = consumer.recipe.consumeSurplusInputScope === "module"
+              ? getActualModuleFlow(consumer.moduleId, input.resourceId) : getFlow(input.resourceId);
 
-      if (!allocationIntroducedDeficit(baseline, line)) {
+            if (needed > 0) consumerRatio = Math.min(consumerRatio, Math.max(0, (flow.produced - flow.consumed) / needed));
+          }
+          if (consumerRatio <= 1e-9) continue;
+          applyRegularLine(consumer, consumerRatio, true);
+          propagateAdditionalDemand();
+        }
+      };
+      const leavesUnusedOutput = () => consumedOutputIds.some(resourceId => {
+        const before = baseline.flows.get(resourceId);
+        const after = getFlow(resourceId);
+
+        return Math.max(0, after.produced - after.consumed)
+          > Math.max(0, (before?.produced ?? 0) - (before?.consumed ?? 0)) + STRICT_TOLERANCE;
+      });
+
+      applyAttempt(ratio);
+
+      if (!allocationIntroducedDeficit(baseline, line) && !leavesUnusedOutput()) {
         consumeSlackAllowance(baseline);
         clearBlockedRoute(line);
         continue;
       }
 
       // Record the blocker while the state still reflects the wanted ratio.
-      const blockedBy = findBlockingResource(baseline, line);
+      const blockingResources = findBlockingResources(baseline, line);
+      const blockedBy = blockingResources[0] ?? null;
       let feasibleRatio = 0;
       let infeasibleRatio = ratio;
 
@@ -1753,10 +1809,9 @@ export const calculateNet = (
         const candidateRatio = (feasibleRatio + infeasibleRatio) / 2;
 
         restoreAllocationState(baseline);
-        applyRegularLine(line, candidateRatio, true);
-        if (hasSupportingInputs) propagateAdditionalDemand();
+        applyAttempt(candidateRatio);
 
-        if (allocationIntroducedDeficit(baseline, line, STRICT_TOLERANCE)) {
+        if (allocationIntroducedDeficit(baseline, line, STRICT_TOLERANCE) || leavesUnusedOutput()) {
           infeasibleRatio = candidateRatio;
         } else {
           feasibleRatio = candidateRatio;
@@ -1766,13 +1821,12 @@ export const calculateNet = (
       restoreAllocationState(baseline);
 
       if (feasibleRatio > 1e-6) {
-        applyRegularLine(line, feasibleRatio, true);
-        if (hasSupportingInputs) propagateAdditionalDemand();
+        applyAttempt(feasibleRatio);
         consumeSlackAllowance(baseline);
       }
 
       clearBlockedRoute(line);
-      if (ratio - feasibleRatio <= DEFICIT_TOLERANCE) continue;
+      if (ratio - feasibleRatio <= 1e-9) continue;
 
       const blockedRoute: BlockedSurplusRoute = {
         recipe: line.recipe,
@@ -1782,6 +1836,7 @@ export const calculateNet = (
         wantedRatio: ratio,
         appliedRatio: feasibleRatio,
         blockedBy,
+        blockingResources,
       };
 
       blockedRoutes.push(blockedRoute);
@@ -1872,7 +1927,11 @@ export const calculateNet = (
   // sized) then leaves a demand-balanced producer above what its outputs are
   // used for. Trim that back, and keep trimming while a cut frees the next
   // line upstream, unless the cut would open a deficit somewhere else.
-  const trimOverproduction = (candidates = demandBalancedLines, minimumCut = DEFICIT_TOLERANCE) => {
+  const trimOverproduction = (
+    candidates = demandBalancedLines,
+    minimumCut = DEFICIT_TOLERANCE,
+    pendingSurplusPhase?: Recipe["surplusConsumptionPhase"],
+  ) => {
     let trimmed = false;
 
     for (let iteration = 0; iteration <= candidates.length; iteration += 1) {
@@ -1881,13 +1940,14 @@ export const calculateNet = (
       for (const line of candidates) {
         const ratio = allocationRatios.get(line) ?? 0;
 
-        // Surplus routes and input-driven lines run past their output demand
-        // on purpose.
+        // Surplus routes and input-driven lines run past demand on purpose.
+        // A pending cleanup route still yields to preferred food byproducts.
         if (
           ratio <= 1e-9
           || line.recipe.sortsRecyclableSources
           || line.recipe.balanceOutputScope === "module"
-          || (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
+          || ((line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
+            && !(pendingSurplusPhase != null && line.recipe.surplusConsumptionPhase === pendingSurplusPhase))
           || (line.drivingInputIds?.length ?? 0) > 0
         ) {
           continue;
@@ -2096,13 +2156,15 @@ export const calculateNet = (
     // digestion or another fallback reserves them.
     for (let iteration = 0; iteration < 32; iteration += 1) {
       applyAdditionalSurplusConsumption(beforeFallbackSurplusConsumerLines);
-      if (!trimOverproduction(preferredByproductProducers, STRICT_TOLERANCE)) break;
+      if (!trimOverproduction(preferredByproductProducers, STRICT_TOLERANCE, "before-disposal")) break;
     }
 
     // Fallbacks may create supporting demand (for example Sour Water recovery
     // needs Steam). Resolve that demand before final surplus converters run.
     settleFallbackDemand();
     reservePlannedSourceInputs();
+    // Convert what food production leaves behind before digesters take their inputs.
+    applyAdditionalSurplusConsumption(beforeDisposalSurplusConsumerLines);
     applyLowerPriorityLines(surplusLines);
     propagateAdditionalDemand();
     // Let late Ethanol demand claim CO2 held by Graphite. Other fallback
@@ -2528,9 +2590,9 @@ export const calculateNet = (
   // Routes refused for an input that the finished factory still leaves in
   // surplus were judged too early: the producer that covers that input only
   // settles later in the pipeline. Rerun with that slack as an allowance.
-  const retryableRoutes = blockedRoutes.filter((route) => (
-    route.blockedBy != null
-    && (firstSlack.global.get(route.blockedBy.resourceId) ?? 0) > 1e-7
+  const retryableRoutes = blockedRoutes.filter(route => (
+    (route.blockingResources ?? (route.blockedBy ? [route.blockedBy] : []))
+      .some(shortage => (firstSlack.global.get(shortage.resourceId) ?? 0) > 1e-7)
   ));
 
   if (retryableRoutes.length > 0) {
@@ -2555,7 +2617,7 @@ export const calculateNet = (
     // for Bread and its Water. Share the remaining allowance along that chain.
     // Set iteration also visits newly added consumers, covering longer chains.
     for (const producer of allowanceLines) {
-      for (const consumer of [...beforeFallbackSurplusConsumerLines, ...finalSurplusConsumerLines]) {
+      for (const consumer of [...beforeFallbackSurplusConsumerLines, ...beforeDisposalSurplusConsumerLines, ...finalSurplusConsumerLines]) {
         if (allowanceLines.has(consumer)) continue;
         if (
           consumer.recipe.consumeSurplusInputScope === "module"
@@ -2639,7 +2701,7 @@ export const calculateNet = (
       // shorter, so that trade-off is the reason they stay refused, not the
       // input the first pass named.
       blockedRoutes.splice(0, blockedRoutes.length, ...firstRunRoutes.map((route) => (
-        retryableRoutes.includes(route) ? { ...route, blockedBy: leftShorter } : route
+        retryableRoutes.includes(route) ? { ...route, blockedBy: leftShorter, blockingResources: [leftShorter] } : route
       )));
     }
   }

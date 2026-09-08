@@ -130,12 +130,14 @@ export interface Recipe {
   yieldToSurplus?: boolean
   /** Inputs whose remaining surplus may drive additional utilization after ordinary demand. */
   consumeSurplusInputIds?: ResourceId[]
+  /** Extra output must be consumed by downstream surplus routes in the same allocation. */
+  consumeSurplusOutputIds?: ResourceId[]
   /** Limits additional surplus consumption to production inside the same physical module. */
   consumeSurplusInputScope?: 'module'
   /** Lower values receive a shared surplus resource first. */
   surplusConsumptionPriority?: number
-  /** Reserve supporting demand before fallback byproducts are allocated. */
-  surplusConsumptionPhase?: 'before-fallback'
+  /** Preferred conversion runs before fallbacks; residual conversion runs before disposal. */
+  surplusConsumptionPhase?: 'before-fallback' | 'before-disposal'
   /** Input-balanced recipes can consume only net production from their own physical module. */
   balanceInputScope?: 'module'
   /** Inputs supplied only inside this module, independently of utilization limits. */
@@ -2025,8 +2027,9 @@ export const recipes: Recipe[] = [
     balanceOutputIds: ['meat'],
     // Cover population demand before routing spare carcass through Food Packs.
     consumeSurplusInputIds: ['chickenCarcass'],
+    consumeSurplusOutputIds: ['meat'],
     surplusConsumptionPhase: 'before-fallback',
-    surplusConsumptionPriority: 100,
+    surplusConsumptionPriority: 115,
     inputs: [
       { resourceId: 'chickenCarcass', quantity: 30 },
       { resourceId: 'water', quantity: 9 },
@@ -2048,7 +2051,9 @@ export const recipes: Recipe[] = [
     balanceInputIds: ['chickenCarcass'],
     balanceOutputIds: ['meatTrimmings'],
     demandPriority: 1,
-    // Make only the Trimmings Sausages still need after Meat's byproduct.
+    // Supply Sausages first, then send carcass left after food production to digestion.
+    consumeSurplusInputIds: ['chickenCarcass'],
+    surplusConsumptionPhase: 'before-disposal',
     inputs: [{ resourceId: 'chickenCarcass', quantity: 30 }],
     outputs: [{ resourceId: 'meatTrimmings', quantity: 27 }],
   },

@@ -138,13 +138,13 @@ export const plannedOfficePlan: OfficePlan = {
   officeSuppliesAssemblyVCount: 1,
   offices: {
     ...defaultOfficePlan.offices,
-    officeIII: { count: 1, computingBoostStep: 2 },
+    officeIII: { count: 3, computingBoostStep: 2 },
   },
   focusSteps: {
     ...emptyFocusSteps,
     maintenanceProduction: 5,
     recyclingEfficiency: 2,
-    contractsProfitability: 7,
+    contractsProfitability: 15,
   },
 };
 

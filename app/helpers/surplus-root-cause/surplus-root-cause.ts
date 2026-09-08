@@ -128,7 +128,7 @@ export const getSurplusRootCause = (
 
   const blocked = blockedRoutes.filter((route) => (
     route.surplusResourceIds.includes(resourceId)
-    && route.wantedRatio - route.appliedRatio > BALANCE_THRESHOLD
+    && route.wantedRatio - route.appliedRatio > 1e-9
   ));
 
   if (blocked.length > 0) {

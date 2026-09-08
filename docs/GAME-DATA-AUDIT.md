@@ -3,6 +3,24 @@
 Target: Captain of Industry v0.8.7 installed under Steam. All rates below are
 normalized to one 60-second production cycle.
 
+## Chicken Carcass disposal
+
+Verified 2026-09-08 against installed `FoodProcessorData`: per production cycle,
+MeatProcessing uses 30 Chicken Carcass, 9 Water, and 3 Salt for 15 Meat and
+6 Meat Trimmings. MeatProcessingTrimmings uses 30 Chicken Carcass for 27
+Meat Trimmings, with no Water or Salt input.
+
+Population Meat and Sausages retain first claim, followed by Food Packs. Extra
+Meat processing and packing are evaluated together, including Bread demand, so
+unused Meat does not replace a carcass surplus. All supporting shortages are
+retained for upstream dispatch, even when another shortage is the displayed
+reason; a Wheat shortage must not hide the Salt demand from Evaporation Ponds.
+Remaining carcass is
+converted to Trimmings after preferred food production settles and before
+digestion. Both catalog and synced recipes use these priorities. Small blocked
+routes retain their explanation rather than comparing their utilization fraction
+to a resource-quantity threshold.
+
 ## Synced reserve resources
 
 The installed v0.8.7 assemblies define Fuel Gas as `Ids.Products.FuelGas`
@@ -539,13 +557,31 @@ computing, and recurring material pressure without inventing a current state.
 An Office that overlaps multiple generated areas is assigned to one
 stable area so its physical load is never counted twice.
 
-The current plan uses computing boost step 2 and allocates 1,695 Focus Points to
-Contracts Profitability step 7 (+14%), Maintenance Production step 5 (+5%), and
-Recycling Efficiency step 2 (+2%). The Focus view calculates generated capacity
-from running synced Offices, then shows allocated and available points. Office
-III's 192 TFLOPS demand remains visible in its owning area and Factory Total.
+The current plan targets three Office III buildings at computing boost step 2
+in the save's Office area (zone 23), retaining the synced built/running counts.
+The target stays fixed as construction completes. The projected Office inventory
+reuses built Offices and construction ghosts at other computing boost settings
+before planning new buildings, with the required configuration changes listed.
+That inventory
+drives both recurring factory demand and the Focus budget: 24 Office Supplies,
+576 TFLOPS, 1,800 kW, and 3,000 workers. It allocates 5,375 Focus Points to
+Contracts Profitability step 15 (+30%), Maintenance Production step 5 (+5%), and
+Recycling Efficiency step 2 (+2%). At synced Focus Points research level 8,
+the three offices generate 5,460 points, leaving 85 available.
 An explicit Housing expansion exposes full projected occupancy. Otherwise,
 settlement demand follows the residents reported for each housing block.
+The research summary uses the same planned occupancy, preserving synced residents
+outside planned housing, and includes the projected Space Station research bonus.
+With 26 Housing III at capacity research level 4 and Space Station IV, these
+contributions are +37% from 7,488 residents and +25% from the station.
+
+Verified the Housing II to III upgrade against installed `SettlementsData` tier
+bindings, `UpgradesManager.TryStartUpgrade`, and
+`SettlementHousingModule.TryReplaceSelf`. Housing replaces its prototype in place
+and retains its pause state. The expansion therefore plans to unpause the two
+existing Housing II, upgrade both, and build six Housing III.
+Paused Housing III satisfy the target through an unpause action before any
+Housing II upgrades or new Housing III construction are planned.
 
 Verified against the installed v0.8.7 `OfficeBuilding.ComputingBoostStep`, Office
 prototypes, `OfficeFocusProto`, Focus property implementations, Focus Points

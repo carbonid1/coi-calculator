@@ -68,14 +68,17 @@ describe('runtime recipe behaviors', () => {
       balanceBy: 'output',
       balanceOutputIds: ['meat'],
       consumeSurplusInputIds: ['chickenCarcass'],
+      consumeSurplusOutputIds: ['meat'],
       surplusConsumptionPhase: 'before-fallback',
-      surplusConsumptionPriority: 100,
+      surplusConsumptionPriority: 115,
     })
     expect(runtimeRecipeBehaviors['FoodProcessor:MeatProcessingTrimmings']).toEqual({
       balanceBy: 'output',
       balanceInputIds: ['chickenCarcass'],
       balanceOutputIds: ['meatTrimmings'],
       demandPriority: 1,
+      consumeSurplusInputIds: ['chickenCarcass'],
+      surplusConsumptionPhase: 'before-disposal',
     })
   })
 

@@ -238,6 +238,52 @@ it("clears an earlier shortage when a byproduct frees enough input for the next 
     .toBe("at-capacity");
 });
 
+it("spends visible Salt once across retries without rejecting unrelated Egg packs", () => {
+  const salt: Recipe = {
+    id: "test-salt", name: "Salt", building: "Test", group: "production",
+    inputs: [], outputs: [{ resourceId: "salt", quantity: 1 }],
+  };
+  const meat: Recipe = {
+    id: "test-meat", name: "Meat", building: "Test", group: "production",
+    balanceBy: "output", balanceOutputIds: ["meat"], consumeSurplusInputIds: ["chickenCarcass"],
+    surplusConsumptionPhase: "before-fallback", surplusConsumptionPriority: 100,
+    inputs: [{ resourceId: "chickenCarcass", quantity: 1 }, { resourceId: "salt", quantity: 1 }, { resourceId: "water", quantity: 1 }],
+    outputs: [{ resourceId: "meat", quantity: 1 }, { resourceId: "meatTrimmings", quantity: 1 }],
+  };
+  const trimmings: Recipe = {
+    id: "test-trimmings", name: "Trimmings", building: "Test", group: "production",
+    balanceBy: "output", balanceInputIds: ["chickenCarcass"],
+    inputs: [{ resourceId: "chickenCarcass", quantity: 1 }], outputs: [{ resourceId: "meatTrimmings", quantity: 1 }],
+  };
+  const bread: Recipe = {
+    id: "test-bread", name: "Bread", building: "Test", group: "production", balanceBy: "output",
+    inputs: [{ resourceId: "water", quantity: 1 }], outputs: [{ resourceId: "bread", quantity: 1 }],
+  };
+  const packs: Recipe = {
+    id: "test-egg-packs", name: "Egg packs", building: "Test", group: "production", balanceBy: "output",
+    consumeSurplusInputIds: ["eggs"], surplusConsumptionPhase: "before-fallback", surplusConsumptionPriority: 110,
+    inputs: [{ resourceId: "eggs", quantity: 1 }, { resourceId: "bread", quantity: 1 }],
+    outputs: [{ resourceId: "foodPack", quantity: 1 }],
+  };
+  const recovery: Recipe = {
+    id: "test-recovery", name: "Recovery", building: "Test", group: "sink",
+    inputs: [{ resourceId: "steamDepleted", quantity: 1 }], outputs: [{ resourceId: "water", quantity: 1 }],
+  };
+  const result = calculateNet([
+    fixedLine(salt), balancedLine(meat, 4), balancedLine(trimmings, 4),
+    balancedLine(bread), balancedLine(packs), balancedLine(recovery, 3),
+  ], { chickenCarcass: 4, eggs: 1, steamDepleted: 3 }, undefined, {}, { meatTrimmings: 2 });
+
+  // Recovered Water allows both routes to retry. The Meat byproduct releases
+  // more carcass, but the next pass must not spend the same Salt again.
+  expect(quantity(result, packs.id, "foodPack", "actualOutputs")).toBeCloseTo(1);
+  expect(quantity(result, meat.id, "meat", "actualOutputs")).toBeCloseTo(1);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "eggs")?.net).toBeCloseTo(0);
+  expect(result.allResourceFlows.filter(flow => flow.net < -0.001)).toEqual([]);
+  expect(result.blockedRoutes.find(route => route.recipe.id === packs.id)).toBeUndefined();
+  expect(result.blockedRoutes.find(route => route.recipe.id === meat.id)?.blockedBy?.resourceId).toBe("salt");
+});
+
 it("reports the input that blocked the carcass route when water runs short", () => {
   const carcassSource: Recipe = {
     id: "test-carcass-source",
@@ -266,7 +312,7 @@ it("reports the input that blocked the carcass route when water runs short", () 
       balancedLine(getRecipe("food-processor-meat"), 2),
       balancedLine(getRecipe("assembly-v-food-pack-meat"), 2),
     ],
-    { salt: 1000 },
+    { salt: 1000, bread: 1000 },
   );
   const water = allResourceFlows.find((flow) => flow.resourceId === "water");
   const meatRoute = blockedRoutes.find((route) => route.recipe.id === "food-processor-meat");
@@ -279,4 +325,94 @@ it("reports the input that blocked the carcass route when water runs short", () 
   });
   expect(meatRoute?.wantedRatio).toBeGreaterThan(meatRoute?.appliedRatio ?? 0);
   expect(meatRoute?.blockedBy?.deficitIncrease).toBeGreaterThan(0);
+});
+
+it.each([0.02, 10])("sends the last %s Carcass through Trimmings to Fuel Gas after population food", leftover => {
+  const result = calculateNet(foodLines(),
+    { chickenCarcass: 30 + leftover, water: 9, salt: 1000, bread: 1000, wheat: 1.5 },
+    undefined, {}, { meat: 15, sausage: 6 });
+
+  expect(quantity(result, "food-processor-meat", "meat", "actualOutputs")).toBeCloseTo(15);
+  expect(quantity(result, "food-processor-sausage", "sausage", "actualOutputs")).toBeCloseTo(6);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "chickenCarcass")?.net).toBeCloseTo(0, 6);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "meatTrimmings")?.net).toBeCloseTo(0, 6);
+  expect(quantity(result, "anaerobic-digester-meat-trimmings", "fuelGas", "actualOutputs"))
+    .toBeCloseTo(leftover * 0.9 * 0.5, 6);
+  expect(result.allResourceFlows.filter(flow => flow.net < -0.001)).toEqual([]);
+});
+
+it("keeps a visible shortage explanation for a small blocked carcass route", () => {
+  const water: Recipe = {
+    id: "test-water", name: "Water", building: "Pump", group: "production", balanceBy: "output",
+    inputs: [], outputs: [{ resourceId: "water", quantity: 9 }],
+  };
+  const result = calculateNet([
+    balancedLine(water), balancedLine(getRecipe("food-processor-meat"), 2),
+    balancedLine(getRecipe("assembly-v-food-pack-meat")),
+  ], { chickenCarcass: 30.02, salt: 1000, bread: 1000 }, undefined, {}, { meat: 15 });
+
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "chickenCarcass")?.net).toBeCloseTo(0.02, 5);
+  expect(result.blockedRoutes.find(route => route.recipe.id === "food-processor-meat")?.blockedBy?.resourceId)
+    .toBe("water");
+  expect(getSurplusRootCause("chickenCarcass", result.regularResults, result.blockedRoutes, [], 0.02).kind)
+    .toBe("input-blocked");
+});
+
+it.each([false, true])("reclaims carcass from cleanup when recovered Water allows Food Packs (reversed: %s)", reverse => {
+  const recovery: Recipe = {
+    id: "test-water-recovery", name: "Recovery", building: "Tower", group: "sink",
+    inputs: [{ resourceId: "steamDepleted", quantity: 1000 }],
+    outputs: [{ resourceId: "water", quantity: 1000 }],
+  };
+  const lines = [...foodLines(), balancedLine(recovery)];
+  const result = calculateNet(reverse ? lines.toReversed() : lines,
+    { chickenCarcass: 60, wheat: 100, salt: 1000, steamDepleted: 1000 },
+    undefined, {}, { meat: 12, sausage: 15 });
+
+  expect(quantity(result, "assembly-v-food-pack-meat", "foodPack", "actualOutputs"))
+    .toBeCloseTo(((54 - 15) / 0.7 / 2 - 12) * 32 / 24);
+  expect(quantity(result, "anaerobic-digester-meat-trimmings", "meatTrimmings", "actualInputs"))
+    .toBeCloseTo(0);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "chickenCarcass")?.net).toBeCloseTo(0, 6);
+  expect(result.allResourceFlows.filter(flow => flow.net < -0.001)).toEqual([]);
+});
+
+it("uses only population Meat when packing is blocked, then digests remaining carcass", () => {
+  const lines = foodLines().map(line => line.recipe.id === "food-processor-meat-trimmings"
+    ? { ...line, activeBuildings: 2, builtBuildings: 2 } : line);
+  const result = calculateNet(lines,
+    { chickenCarcass: 60, wheat: 3.75, water: 1000, salt: 1000 },
+    undefined, {}, { meat: 12, sausage: 15 });
+
+  expect(quantity(result, "food-processor-meat", "meat", "actualOutputs")).toBeCloseTo(12);
+  expect(quantity(result, "food-processor-sausage", "sausage", "actualOutputs")).toBeCloseTo(15);
+  expect(quantity(result, "assembly-v-food-pack-meat", "foodPack", "actualOutputs")).toBeCloseTo(0);
+  expect(quantity(result, "anaerobic-digester-meat-trimmings", "fuelGas", "actualOutputs")).toBeGreaterThan(2);
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "chickenCarcass")?.net).toBeCloseTo(0, 6);
+  expect(result.allResourceFlows.filter(flow => flow.net < -0.001)).toEqual([]);
+});
+
+it("shares scarce Water across processing and packing before sending remaining carcass to fuel", () => {
+  const water: Recipe = {
+    id: "test-water", name: "Water", building: "Pump", group: "production", balanceBy: "output",
+    inputs: [], outputs: [{ resourceId: "water", quantity: 7.8 }],
+  };
+  const bread: Recipe = {
+    id: "test-bread", name: "Bread", building: "Bakery", group: "production", balanceBy: "output",
+    inputs: [{ resourceId: "water", quantity: 48 }], outputs: [{ resourceId: "bread", quantity: 48 }],
+  };
+  const result = calculateNet([
+    balancedLine(water), balancedLine(bread),
+    balancedLine(getRecipe("food-processor-meat"), 2),
+    balancedLine(getRecipe("food-processor-meat-trimmings")),
+    balancedLine(getRecipe("assembly-v-food-pack-meat"), 2),
+    balancedLine(getRecipe("anaerobic-digester-meat-trimmings"), 4),
+  ], { chickenCarcass: 30, salt: 1000 });
+
+  expect(quantity(result, "assembly-v-food-pack-meat", "foodPack", "actualOutputs")).toBeCloseTo(4, 5);
+  expect(quantity(result, "anaerobic-digester-meat-trimmings", "fuelGas", "actualOutputs")).toBeCloseTo(11.4, 5);
+  for (const id of ["chickenCarcass", "meat", "meatTrimmings", "water"]) {
+    expect(result.allResourceFlows.find(flow => flow.resourceId === id)?.net).toBeCloseTo(0, 5);
+  }
+  expect(result.allResourceFlows.filter(flow => flow.net < -0.001)).toEqual([]);
 });

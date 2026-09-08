@@ -1,10 +1,60 @@
 import { housingTypes } from '../../db/housing'
-import { type Module } from '../../db/modules/modules'
+import { type Module, type Preset } from '../../db/modules/modules'
 import { recipes, type Ingredient, type Recipe } from '../../db/recipes'
 import { calculateSettlementPopulationFlows, settlementRecipeIds } from '../../db/settlement'
 import { type SyncedProductionEntity } from '../../game-state'
 import { type SyncedSettlementState } from '../../settlement-state'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
+
+const housingTiers = [
+  { recipeId: settlementRecipeIds.residents, prototypeId: 'HousingT3', housing: housingTypes.housingIII },
+  { recipeId: settlementRecipeIds.residentsII, prototypeId: 'HousingT2', housing: housingTypes.housingII },
+]
+
+const hasHousingPlan = (preset: Preset, recipeId: string) => (
+  preset.dataSources?.[recipeId] === 'planned'
+  || (preset.constructionGhosts?.[recipeId] ?? 0) > 0
+)
+
+/** Replace only planned housing occupancy, using modules after applySettlementState. */
+export const resolveProjectedPopulation = (
+  modules: readonly Module[],
+  state: SyncedSettlementState,
+  entities: readonly SyncedProductionEntity[],
+) => {
+  const replacedHousingIds = new Set<number>()
+  let plannedPopulation = 0
+  let isPlanned = false
+
+  for (const area of modules) {
+    const preset = area.presets.find(candidate => candidate.id === area.defaultPresetId)
+
+    if (!preset || !area.liveArea || area.includedInFactoryTotals === false) continue
+    const zoneId = area.liveArea.zoneId
+
+    for (const { recipeId, prototypeId, housing } of housingTiers) {
+      if (!hasHousingPlan(preset, recipeId)) continue
+      isPlanned = true
+      plannedPopulation += (preset.activeBuildings[recipeId] ?? 0)
+        * (preset.speedLevels?.[recipeId] ?? 1) * housing.populationCapacity
+      for (const entity of entities) {
+        if (entity.prototypeId === prototypeId && entity.zones.some(zone => zone.id === zoneId)) {
+          replacedHousingIds.add(entity.entityId)
+        }
+      }
+    }
+  }
+  const replacedPopulation = state.settlements.reduce((total, settlement) => (
+    total + settlement.housing.reduce((sum, house) => (
+      sum + (replacedHousingIds.has(house.entityId) ? house.population : 0)
+    ), 0)
+  ), 0)
+
+  return {
+    population: Math.max(0, Math.round(state.population - replacedPopulation + plannedPopulation)),
+    isPlanned,
+  }
+}
 
 /** Keep physical building counts, but derive resident demand from occupied housing. */
 export const applySettlementState = (
@@ -26,12 +76,8 @@ export const applySettlementState = (
   const speedLevels = { ...preset.speedLevels }
   const replacements: Recipe[] = []
   let projectedPopulation = 0
-  const tiers = [
-    { recipeId: settlementRecipeIds.residents, prototypeId: 'HousingT3', housing: housingTypes.housingIII },
-    { recipeId: settlementRecipeIds.residentsII, prototypeId: 'HousingT2', housing: housingTypes.housingII },
-  ]
 
-  for (const { recipeId, prototypeId, housing } of tiers) {
+  for (const { recipeId, prototypeId, housing } of housingTiers) {
     const base = recipes.find(recipe => recipe.id === recipeId)
     const active = preset.activeBuildings[recipeId] ?? 0
 
@@ -46,8 +92,7 @@ export const applySettlementState = (
     const occupants = groups.reduce((total, group) => (
       total + group.houses.reduce((sum, house) => sum + house.population, 0)
     ), 0)
-    const hasPlan = preset.dataSources?.[recipeId] === 'planned'
-      || (preset.constructionGhosts?.[recipeId] ?? 0) > 0
+    const hasPlan = hasHousingPlan(preset, recipeId)
     const population = hasPlan
       ? active * housing.populationCapacity * (preset.speedLevels?.[recipeId] ?? 1)
       : occupants

@@ -24,6 +24,36 @@ const baselineFactoryOptions = {
   recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
 };
 
+it("dispatches a secondary input shortage when a larger packing shortage masks it", () => {
+  const salt: Recipe = {
+    id: "test-salt", name: "Salt", building: "Pond", group: "production", balanceBy: "output",
+    inputPriorities: { brine: 1 }, inputs: [{ resourceId: "brine", quantity: 1 }],
+    outputs: [{ resourceId: "salt", quantity: 1 }],
+  };
+  const meat: Recipe = {
+    id: "test-meat", name: "Meat", building: "Processor", group: "production", balanceBy: "output",
+    consumeSurplusInputIds: ["chickenCarcass"], consumeSurplusOutputIds: ["meat"],
+    surplusConsumptionPhase: "before-fallback", surplusConsumptionPriority: 100,
+    inputs: [{ resourceId: "chickenCarcass", quantity: 1 }, { resourceId: "salt", quantity: 1 }],
+    outputs: [{ resourceId: "meat", quantity: 1 }],
+  };
+  const packs: Recipe = {
+    id: "test-packs", name: "Packs", building: "Assembly", group: "production", balanceBy: "output",
+    consumeSurplusInputIds: ["meat"], surplusConsumptionPhase: "before-fallback", surplusConsumptionPriority: 120,
+    inputs: [{ resourceId: "meat", quantity: 1 }, { resourceId: "bread", quantity: 10 }],
+    outputs: [{ resourceId: "foodPack", quantity: 1 }],
+  };
+  const testRecipes = [salt, meat, packs];
+  const buildings = Object.fromEntries(testRecipes.map(recipe => [recipe.id, 1]));
+  const result = calculateFactoryTotal([{
+    id: "test", name: "Test", description: "", recipes: testRecipes, builtBuildings: buildings,
+    defaultPresetId: "test", presets: [{ id: "test", name: "Test", description: "", activeBuildings: buildings, fixed: [] }],
+  }], { ...baselineFactoryOptions, externalSupplies: { chickenCarcass: 1, brine: 1, bread: 2 } });
+
+  expect(result.flows.find(flow => flow.resourceId === "foodPack")?.produced).toBeCloseTo(0.2, 5);
+  expect(result.flows.find(flow => flow.resourceId === "meat")?.net ?? 0).toBeCloseTo(0, 5);
+});
+
 it.each([30, 0])('recalculates a reused contract plan when factory demand changes to %s', demand => {
   const contracts = activeContracts.filter(contract => contract.id === 'titanium-ore-for-construction-parts-iv');
   const initial = calculateFactoryTotal([], {
