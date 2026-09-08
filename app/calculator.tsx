@@ -56,7 +56,7 @@ import { type MachineZoneAssignments } from './helpers/machine-allocation/machin
 import { getRecipeOutputQuantity } from './helpers/modifiers/recipe-output'
 import { extractModuleResult } from './helpers/module-result/module-result'
 import { getPresetResourceDemands } from './helpers/preset-resource-demands/preset-resource-demands'
-import { groupProductionCardLines } from './helpers/production-card-groups/production-card-groups'
+import { groupProductionCardLines, hasBuildingInventory } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import { createSpaceResearchAttention } from './helpers/space-research-attention/space-research-attention'
 import { useFactoryCalculation } from './hooks/use-factory-calculation'
@@ -290,7 +290,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     housingIiCount,
     maintenanceOutputLevel,
     maintenanceStatueCount,
-    officePlan,
+    focusAllocations,
     officePlanCalculation,
     outputModifiers,
     populationCapacity,
@@ -438,7 +438,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     : null
 
   const displayedModuleLines = moduleResult?.lines.filter(
-    line => !line.recipe.hiddenFromModuleView,
+    line => !line.recipe.hiddenFromModuleView && hasBuildingInventory(line),
   ) ?? []
   const displayedRegularResults = moduleResult?.regularResults ?? []
   const displayedSourceResults = moduleResult?.sourceResults ?? []
@@ -612,7 +612,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const supplementalAreaLines =
     usesSpecializedAreaLayout && moduleResult
       ? [
-          ...selectMaintenanceDepotLines(moduleResult.lines),
+          ...selectMaintenanceDepotLines(moduleResult.lines).filter(hasBuildingInventory),
           ...selectStaticInfrastructureLines(stationSections.content),
         ]
       : []
@@ -750,8 +750,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       {isFocus && (
         <FocusView
           calculation={officePlanCalculation}
-          plan={officePlan}
-          source="planned"
+          allocations={focusAllocations}
         />
       )}
 
@@ -774,7 +773,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
               <MinesView
                 focusedTargetKey={focusedModuleTargetKey}
                 sourceResults={[]}
-                sinkResults={moduleResult.sinkResults}
+                sinkResults={moduleResult.sinkResults.filter(hasBuildingInventory)}
               />
             </>
           )}

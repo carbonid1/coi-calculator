@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { defaultEdictLevels, edictCatalog } from './db/edicts'
+import { mapFocusValues } from './db/offices'
 import { defaultInfiniteResearchLevels } from './db/research'
 import {
   CURRENT_GAME_STATE_SCHEMA_VERSION,
@@ -36,6 +37,7 @@ const currentSnapshot = {
   mineTowers: [],
   vehicles: { workersAssigned: 0 },
   research: defaultInfiniteResearchLevels,
+  focus: mapFocusValues(() => ({ targetStep: 0, activeStep: 0 })),
   edicts,
   reserves: { fuelGas: 0, gold: 0, sulfur: 0 },
   history: {
@@ -87,6 +89,7 @@ describe('game-state snapshot validation', () => {
     'vehicles',
     'research',
     'edicts',
+    'focus',
     'world',
     'storages',
     'history',

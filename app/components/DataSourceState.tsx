@@ -8,8 +8,8 @@ const dataSourceSurfaceClassNames: Record<ValueSource, string> = {
     "bg-[color-mix(in_oklab,var(--card)_94%,var(--success))]",
   ),
   planned: cn(
-    "border-dashed border-highlight/70",
-    "bg-[color-mix(in_oklab,var(--card)_94%,var(--highlight))] shadow-none",
+    "border-dashed border-highlight",
+    "bg-[color-mix(in_oklab,var(--card)_82%,var(--highlight))] shadow-none",
   ),
 };
 

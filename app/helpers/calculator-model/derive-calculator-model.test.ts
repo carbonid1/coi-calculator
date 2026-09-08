@@ -81,7 +81,7 @@ it('uses the rack distribution in the synced computing inventory', () => {
 })
 
 it.each([
-  { saveId: 'Last-Stop Waters', zoneId: 13, racks: 384 },
+  { saveId: 'Last-Stop Waters', zoneId: 13, racks: 369 },
   { saveId: 'Different factory', zoneId: 13, racks: 48 },
   { saveId: 'Last-Stop Waters', zoneId: 99, racks: 48 },
 ])('scopes the computing expansion to its saved area ($saveId, $zoneId)', ({ saveId, zoneId, racks }) => {

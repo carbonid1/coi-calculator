@@ -70,7 +70,7 @@ import {
   createSpaceStationModule,
   selectSpaceStationZone,
 } from '../../db/modules/space-station'
-import { calculateOfficePlan, defaultOfficePlan, officeCatalog, plannedOfficePlan } from '../../db/offices'
+import { calculateOfficePlan, defaultOfficePlan, mapFocusValues, officeCatalog, plannedOfficePlan } from '../../db/offices'
 import { emptyPlanningBaselines, resolvePlanningBaselines } from '../../db/planning-baselines'
 import {
   emptyRocketInfrastructureConfig,
@@ -92,6 +92,7 @@ import {
   emptyStaticInfrastructureConfig,
   type StaticInfrastructureConfig,
 } from '../../db/static-infrastructure'
+import { resolveFocusAllocations } from '../../focus-state'
 import { type GameStateSnapshot } from '../../game-state'
 import {
   resolveAreaBuildingCounts,
@@ -493,9 +494,11 @@ export const deriveCalculatorModel = ({
     ...configuredLiveAreaModules,
     ...officeFallbackModules,
   ])
+  const focusAllocations = resolveFocusAllocations(snapshot.focus, {})
   const officePlan = {
     ...officeInventoryPlan,
     offices: { ...officeInventoryPlan.offices },
+    focusSteps: mapFocusValues(id => snapshot.focus[id].targetStep),
   }
 
   for (const office of officeCatalog) {
@@ -734,6 +737,7 @@ export const deriveCalculatorModel = ({
     enabledContracts,
     factoryCalculationInput,
     focusBonuses,
+    focusAllocations,
     groundwaterPumpClaims,
     hasMaintenanceHistory,
     housingCount,

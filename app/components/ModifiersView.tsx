@@ -203,6 +203,7 @@ export const EdictCard = ({
 
   return (
     <Card.Root
+      data-source={source}
       className={cn(
         value === 0 && "[&>*]:opacity-40 shadow-none",
         getDataSourceSurfaceClassName(source, { inactive: value === 0 }),

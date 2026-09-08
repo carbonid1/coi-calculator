@@ -1,3 +1,4 @@
+import { normalizeFocusStates } from '../../focus-state'
 import { type CalculatorModel } from '../calculator-model/derive-calculator-model'
 import { type FactoryCalculation } from './factory-calculation'
 
@@ -26,8 +27,10 @@ export const isCompatibleFactoryCalculation = (
   return value.version === version
     && typeof value.revision === 'string'
     && isRecord(model.snapshot) && model.snapshot.saveId === saveId
+    && normalizeFocusStates(model.snapshot.focus) !== null
     && model.calculationRevision === value.revision
     && Array.isArray(model.configuredModules)
+    && isRecord(model.focusAllocations)
     && isRecord(calculation.factoryResult)
     && Array.isArray(calculation.factoryResult.allLines)
     && Array.isArray(calculation.factoryResult.contractFlows)

@@ -6,6 +6,7 @@ import {
 } from './db/research'
 import { type ReserveBalances } from './db/reserve-resources'
 import { isWeatherConfig, type WeatherConfig } from './db/weather'
+import { normalizeFocusStates, type SyncedFocusStates } from './focus-state'
 import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balances'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
 import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCargoOperation, type SyncedWorldCargoRoute, type SyncedWorldState, type SyncedStorage } from './world-state'
@@ -310,6 +311,7 @@ export interface GameStateSnapshot {
   }
   research: SyncedResearchLevels
   edicts: SyncedEdictStates
+  focus: SyncedFocusStates
   world: SyncedWorldState
   storages: SyncedStorage[]
   reserves: SyncedReserves
@@ -1069,6 +1071,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const workersAssigned = vehicles?.workersAssigned
   const research = normalizeResearchLevels(snapshot.research)
   const edicts = normalizeEdictStates(snapshot.edicts)
+  const focus = normalizeFocusStates(snapshot.focus)
   const world = normalizeWorld(snapshot.world)
   const storages = normalizeStorages(snapshot.storages)
   const reserves = storages ? resolveReserveBalances(storages) : null
@@ -1099,6 +1102,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     !isNonNegativeInteger(workersAssigned) ||
     !research ||
     !edicts ||
+    focus === null ||
     !world ||
     !storages ||
     !reserves ||
@@ -1177,6 +1181,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     },
     research,
     edicts,
+    focus,
     world,
     storages,
     reserves,

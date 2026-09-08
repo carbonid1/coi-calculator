@@ -36,6 +36,8 @@ it('rejects missing, corrupt, JSON-flattened, or mismatched model/result records
     JSON.parse(JSON.stringify(entry)),
     { ...entry, revision: 'revision-b' },
     { ...entry, calculation: {} },
+    { ...entry, model: { ...entry.model, focusAllocations: undefined } },
+    { ...entry, model: { ...entry.model, snapshot: { ...entry.model.snapshot, focus: undefined } } },
     { ...entry, calculation: {
       ...entry.calculation,
       factoryResult: { ...entry.calculation.factoryResult, contractFlows: undefined },

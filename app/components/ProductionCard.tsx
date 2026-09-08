@@ -20,6 +20,7 @@ export const ProductionCard: React.FC<Props> = ({
   ...props
 }) => (
   <Card.Root
+    data-source={dataSource}
     className={cn(
       passive && !dataSource && "shadow-none",
       inactive && "[&>*]:opacity-40 shadow-none",

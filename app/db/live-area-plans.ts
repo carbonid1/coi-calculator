@@ -28,7 +28,7 @@ const liveAreaPlansBySave: Readonly<Record<string, LiveAreaPlans>> = {
       resourceProcessingPriorities: { brine: 'local-first' },
     },
     13: {
-      computing: { dataCenterCount: 8, rackCount: 384, waterChillers: 8 },
+      computing: { dataCenterCount: 8, rackCount: 369, waterChillers: 8 },
     },
     16: {
       resourcePool: 'factory',

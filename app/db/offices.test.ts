@@ -60,23 +60,23 @@ describe("offices and focuses", () => {
     });
   });
 
-  it("plans three maximally boosted Offices III and maximum contract profitability", () => {
+  it("plans Office capacity without imposing completed Focus allocations", () => {
     const result = calculateOfficePlan(plannedOfficePlan, 8);
 
     expect(result).toMatchObject({
       computingTflops: 576,
       electricityKw: 1_800,
-      focusPointsAvailable: 85,
+      focusPointsAvailable: 5_460,
       focusPointsCapacity: 5_460,
-      focusPointsRequired: 5_375,
+      focusPointsRequired: 0,
       isAffordable: true,
       officeSuppliesPerCycle: 24,
       recyclablesPerCycle: 24,
       workers: 3_000,
     });
-    expect(result.bonuses.maintenanceProduction).toBe(5);
-    expect(result.bonuses.recyclingEfficiency).toBe(2);
-    expect(result.bonuses.contractsProfitability).toBe(30);
+    expect(result.bonuses.maintenanceProduction).toBe(0);
+    expect(result.bonuses.recyclingEfficiency).toBe(0);
+    expect(result.bonuses.contractsProfitability).toBe(0);
   });
 
   it("calculates a source-owned future plan", () => {

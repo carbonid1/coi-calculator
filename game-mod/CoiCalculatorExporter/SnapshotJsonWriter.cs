@@ -388,6 +388,8 @@ internal static partial class SnapshotJsonWriter
             }
         }
         json.Append("},");
+        appendFocusStates(json, snapshot.FocusStates);
+        json.Append(',');
         appendWorldState(json, snapshot.World);
         json.Append(",\"storages\":[");
         for (int i = 0; i < snapshot.Storages.Count; i++)

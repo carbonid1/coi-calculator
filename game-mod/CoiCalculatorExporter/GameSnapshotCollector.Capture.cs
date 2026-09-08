@@ -44,6 +44,7 @@ internal sealed partial class GameSnapshotCollector
             workersAssigned,
             researchLevels,
             edictStates,
+            getFocusStates(),
             storages,
             world,
             m_maintenanceI,

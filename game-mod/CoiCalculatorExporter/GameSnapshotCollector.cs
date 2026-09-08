@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 using Mafi;
 using Mafi.Core;
+using Mafi.Core.Buildings.Offices;
 using Mafi.Core.Entities;
 using Mafi.Core.Factory;
 using Mafi.Core.Factory.ElectricPower;
@@ -34,6 +35,7 @@ internal sealed partial class GameSnapshotCollector
     private readonly MaintenanceManager m_maintenanceManager;
     private readonly ResearchManager m_researchManager;
     private readonly EdictsManager m_edictsManager;
+    private readonly OfficeBuildingsManager m_officeBuildingsManager;
     private readonly OrbitManager m_orbitManager;
     private readonly ContractsManager m_contractsManager;
     private readonly Mafi.Core.World.WorldMapManager m_worldMapManager;
@@ -60,6 +62,7 @@ internal sealed partial class GameSnapshotCollector
         m_maintenanceManager = resolver.Resolve<MaintenanceManager>();
         m_researchManager = resolver.Resolve<ResearchManager>();
         m_edictsManager = resolver.Resolve<EdictsManager>();
+        m_officeBuildingsManager = resolver.Resolve<OfficeBuildingsManager>();
         m_orbitManager = resolver.Resolve<OrbitManager>();
         m_contractsManager = resolver.Resolve<ContractsManager>();
         m_worldMapManager = resolver.Resolve<Mafi.Core.World.WorldMapManager>();

@@ -136,7 +136,7 @@ describe('synced Office areas', () => {
     expect(result.flows.find(flow => flow.resourceId === 'electronicsII')?.net).toBeCloseTo(-4)
     expect(result.computingDemandTflops).toBe(582)
     expect(calculateOfficePlan(plannedOfficePlan, 8, configurations)).toMatchObject({
-      focusPointsCapacity: 5460, focusPointsRequired: 5375, focusPointsAvailable: 85,
+      focusPointsCapacity: 5460, focusPointsRequired: 0, focusPointsAvailable: 5460,
       computingTflops: 576, workers: 3000,
     })
     expect(getLiveAreaPlans('another save')[zone.id]?.offices).toBeUndefined()

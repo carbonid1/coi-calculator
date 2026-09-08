@@ -14,6 +14,7 @@ internal sealed class SnapshotDocument
     public readonly int WorkersAssigned;
     public readonly int[] ResearchLevels;
     public readonly EdictState[] EdictStates;
+    public readonly List<FocusStateSnapshot> FocusStates;
     public readonly List<StorageSnapshot> Storages;
     public readonly WorldStateSnapshot World;
     public readonly HistoryAverage MaintenanceI;
@@ -36,6 +37,7 @@ internal sealed class SnapshotDocument
         int workersAssigned,
         int[] researchLevels,
         EdictState[] edictStates,
+        List<FocusStateSnapshot> focusStates,
         List<StorageSnapshot> storages,
         WorldStateSnapshot world,
         HistoryAverage maintenanceI,
@@ -57,6 +59,7 @@ internal sealed class SnapshotDocument
         WorkersAssigned = workersAssigned;
         ResearchLevels = researchLevels;
         EdictStates = edictStates;
+        FocusStates = focusStates;
         Storages = storages;
         World = world;
         MaintenanceI = maintenanceI;

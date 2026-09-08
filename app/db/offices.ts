@@ -63,6 +63,21 @@ type FocusId =
 
 export type FocusEffectId = FocusId;
 
+export const mapFocusValues = <Value>(map: (id: FocusId) => Value): Record<FocusId, Value> => ({
+  trucksCapacity: map('trucksCapacity'),
+  trainsCapacity: map('trainsCapacity'),
+  researchEfficiency: map('researchEfficiency'),
+  maintenanceProduction: map('maintenanceProduction'),
+  cropYield: map('cropYield'),
+  recyclingEfficiency: map('recyclingEfficiency'),
+  foodConsumption: map('foodConsumption'),
+  settlementConsumption: map('settlementConsumption'),
+  unityProduction: map('unityProduction'),
+  contractsProfitability: map('contractsProfitability'),
+  contractsUnityCost: map('contractsUnityCost'),
+  worldMinesEfficiency: map('worldMinesEfficiency'),
+});
+
 export interface FocusDefinition {
   id: FocusId;
   name: string;
@@ -139,12 +154,6 @@ export const plannedOfficePlan: OfficePlan = {
   offices: {
     ...defaultOfficePlan.offices,
     officeIII: { count: 3, computingBoostStep: 2 },
-  },
-  focusSteps: {
-    ...emptyFocusSteps,
-    maintenanceProduction: 5,
-    recyclingEfficiency: 2,
-    contractsProfitability: 15,
   },
 };
 

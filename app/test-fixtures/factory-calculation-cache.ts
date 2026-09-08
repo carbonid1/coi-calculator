@@ -1,4 +1,5 @@
 import { defaultEdictLevels, edictCatalog } from '../db/edicts'
+import { mapFocusValues } from '../db/offices'
 import { defaultInfiniteResearchLevels } from '../db/research'
 import { CURRENT_GAME_STATE_SCHEMA_VERSION, normalizeGameStateSnapshot } from '../game-state'
 import { deriveCalculatorModel } from '../helpers/calculator-model/derive-calculator-model'
@@ -21,6 +22,7 @@ export const createCacheTestModel = () => {
     productionEntities: [], areaEntities: [], mineTowers: [],
     vehicles: { workersAssigned: 0 },
     research: defaultInfiniteResearchLevels,
+    focus: mapFocusValues(() => ({ targetStep: 0, activeStep: 0 })),
     edicts: Object.fromEntries(edictCatalog.map(edict => [edict.id, {
       activeLevel: defaultEdictLevels[edict.id], enabledLevel: defaultEdictLevels[edict.id], inactiveReason: null,
     }])),

@@ -11,10 +11,11 @@ provides 4 TFLOPS, uses 85 kW and 0.5 Chilled Water per production cycle, and
 returns 0.5 Water. A Water Chiller employs 3 workers, uses 1 MW, and converts
 30 Water into 24 Chilled Water per production cycle.
 
-The Last-Stop Waters plan targets 8 Data Centers, 384 installed racks, and
-8 Water Chillers in area 13. Compared with the synced 5 full centers and
-5 chillers, this adds 576 TFLOPS, 27 workers, 15.24 MW, and 18 net Water per
-production cycle. Running inventory above the target is retained; paused
+The Last-Stop Waters plan targets 8 Data Centers, 369 installed racks, and
+8 Water Chillers in area 13, providing 1,476 TFLOPS. The reviewed snapshot has
+336 racks running and another 33 in a paused center, so unpausing that center
+covers the 1,357.31 TFLOPS projected demand without installing more racks.
+Running inventory above the target is retained; paused
 inventory and construction ghosts count toward the expansion before new builds.
 
 ## Chicken Carcass disposal
@@ -562,8 +563,18 @@ per-production-cycle rates of 48, 24, 16, and 8 respectively.
 Office buildings and their owning areas come from the named-area snapshot. An
 area can have any name; its Office I–III buildings are attached by prototype and
 stable zone ID. The selected Office Supplies recipe on Assembly V is synced
-directly, as is each Office's computing boost. Focus allocation remains an
-explicit planned setting.
+directly, as is each Office's computing boost. The exporter also reads all 12
+Focus allocations from installed v0.8.7 `OfficeBuildingsManager.AllFocuses`:
+`OfficeFocus.TargetStep` is the selected allocation, while `CurrentActiveStep`
+can fall below it when Offices supply fewer points. A compatible schema 41
+snapshot must contain all 12 Focuses, including confirmed zero allocations.
+Earlier exports and saved calculations without Focus data are rejected so they
+cannot silently remove bonuses or report the entire Focus budget as available.
+
+Steady-state calculations use selected allocations. The completed Last-Stop Waters
+Focus overrides have been removed; all Focuses now follow the synced selection.
+Cards use the shared border/background treatment without separate state labels.
+Reduced active levels are displayed only when they differ from the selection.
 
 If no generated area can own the Office inventory, the same explicit plan is
 kept as an `Office plan` preset. This preserves its projected workers, power,
@@ -578,10 +589,9 @@ reuses built Offices and construction ghosts at other computing boost settings
 before planning new buildings, with the required configuration changes listed.
 That inventory
 drives both recurring factory demand and the Focus budget: 24 Office Supplies,
-576 TFLOPS, 1,800 kW, and 3,000 workers. It allocates 5,375 Focus Points to
-Contracts Profitability step 15 (+30%), Maintenance Production step 5 (+5%), and
-Recycling Efficiency step 2 (+2%). At synced Focus Points research level 8,
-the three offices generate 5,460 points, leaving 85 available.
+576 TFLOPS, 1,800 kW, and 3,000 workers. Focus allocation and remaining points
+come from the selected game allocations. At synced Focus Points research level 8,
+the three offices provide 5,460 points.
 An explicit Housing expansion exposes full projected occupancy. Otherwise,
 settlement demand follows the residents reported for each housing block.
 The research summary uses the same planned occupancy, preserving synced residents

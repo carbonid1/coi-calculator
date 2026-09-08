@@ -6,6 +6,20 @@ export interface ProductionCardGroup {
   lines: ProductionLine[]
 }
 
+/** Shared recipes use their physical pool; idle and paused buildings still have inventory. */
+export const hasBuildingInventory = (line: Partial<ProductionLine>) => [
+  line.builtBuildings,
+  line.activeBuildings,
+  line.currentActiveBuildings,
+  line.constructionGhosts,
+  line.unplacedPlannedBuildings,
+  line.capacityPoolBuiltBuildings,
+  line.capacityPoolActiveBuildings,
+  line.capacityPoolCurrentActiveBuildings,
+  line.capacityPoolConstructionGhosts,
+  line.capacityPoolUnplacedPlannedBuildings,
+].some(count => (count ?? 0) > 0)
+
 const hasSharedResource = (left: ReadonlySet<string>, right: ReadonlySet<string>) => {
   for (const resourceId of left) {
     if (right.has(resourceId)) return true

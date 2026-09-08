@@ -1,14 +1,51 @@
 import { describe, expect, it } from 'vitest'
 
 import { type Module } from '../../db/modules/modules'
+import { createPopulationModule } from '../../db/modules/population'
 import { createSpaceStationModule } from '../../db/modules/space-station'
 import {
   emptyRocketInfrastructureConfig,
 } from '../../db/rocket-infrastructure'
+import { settlementRecipeIds } from '../../db/settlement'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
-import { calculateProductionCardLoad, groupProductionCardLines } from './production-card-groups'
+import { calculateProductionCardLoad, groupProductionCardLines, hasBuildingInventory } from './production-card-groups'
 
 describe('production card groups', () => {
+  it('hides empty Housing II entries left by an expansion of Housing III', () => {
+    const area: Module = {
+      id: 'population', name: 'Population', description: '', builtBuildings: {},
+      presets: [{ id: 'live', name: 'Live', description: '', activeBuildings: {}, fixed: [] }],
+    }
+    const population = createPopulationModule({
+      counts: { [settlementRecipeIds.residents]: { built: 20, running: 20 } },
+      entities: [], housingIiCandidates: { built: 0, running: 0 }, unmappedEntities: [],
+    }, area, 4, 26)
+    const { lines } = buildModuleLines(population, population.presets[0])
+    const emptyHousing = lines.find(line => line.recipe.id === settlementRecipeIds.residentsII)
+    const visible = lines.filter(hasBuildingInventory)
+
+    expect(emptyHousing).toMatchObject({ activeBuildings: 0, builtBuildings: 0, dataSource: 'planned' })
+    expect(visible).not.toContain(emptyHousing)
+    expect(visible).toContainEqual(expect.objectContaining({
+      recipe: expect.objectContaining({ id: settlementRecipeIds.residents }),
+      activeBuildings: 26, builtBuildings: 20, unplacedPlannedBuildings: 6,
+    }))
+  })
+
+  it('retains paused buildings, construction, unplaced plans, and shared physical inventory', () => {
+    const empty = { activeBuildings: 0, builtBuildings: 0 }
+
+    expect(hasBuildingInventory(empty)).toBe(false)
+    expect(hasBuildingInventory({ ...empty, dataSource: 'planned' })).toBe(false)
+    for (const inventory of [
+      { builtBuildings: 1 }, { activeBuildings: 1 }, { currentActiveBuildings: 1 },
+      { constructionGhosts: 1 }, { unplacedPlannedBuildings: 1 },
+      { capacityPoolBuiltBuildings: 1 }, { capacityPoolActiveBuildings: 1 },
+      { capacityPoolCurrentActiveBuildings: 1 }, { capacityPoolConstructionGhosts: 1 },
+      { capacityPoolUnplacedPlannedBuildings: 1 },
+    ]) expect(hasBuildingInventory({ ...empty, ...inventory })).toBe(true)
+  })
+
   it('shows the two station operations as one physical card', () => {
     const station = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
