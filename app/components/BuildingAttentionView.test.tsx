@@ -107,7 +107,7 @@ it("shows Space Research as a level-based station action", () => {
   expect(html).toContain("Level 3 / 4");
 });
 
-it("keeps the notice free of extra buttons while its context menu is closed", () => {
+it("collapses pause suggestions while leaving required changes and module names visible", () => {
   const html = renderToStaticMarkup(
     <BuildingAttentionView
       diagnostics={[
@@ -119,7 +119,12 @@ it("keeps the notice free of extra buttons while its context menu is closed", ()
     />,
   );
 
-  expect(html.match(/<button>/g)).toHaveLength(2);
+  expect(html.match(/<button>/g)).toHaveLength(3);
+  expect(html).toContain("Show pause suggestions (1)");
+  expect(html).toContain('hidden=""');
+  expect(html.indexOf("Build 1")).toBeLessThan(html.indexOf('hidden=""'));
+  expect(html.indexOf("Can pause 1")).toBeGreaterThan(html.indexOf('hidden=""'));
+  expect(html).toContain("Nuclear · Steam chain");
   expect(html).not.toContain(">Keep ready<");
   expect(html).toContain("Build 1");
 });

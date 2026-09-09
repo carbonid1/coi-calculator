@@ -850,6 +850,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                     {groupProductionCardLines(items).map(({ key, targetKey, lines }) => {
                       const line = lines[0]
                       const diagnostic = activeBuildingDiagnostics.find(candidate => candidate.key === targetKey)
+                      // Long flows need their own row instead of stretching neighboring cards.
+                      const cardClassName = lines.reduce((count, { recipe }) => count + recipe.inputs.length + recipe.outputs.length, 0) > 12
+                        ? 'md:col-span-full' : undefined
 
                       if (!line) return null
 
@@ -861,6 +864,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                         return result ? (
                           <BuildingCardTarget
                             key={key}
+                            className={cardClassName}
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
@@ -876,6 +880,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                         return result ? (
                           <BuildingCardTarget
                             key={key}
+                            className={cardClassName}
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
@@ -888,10 +893,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                         return (
                           <BuildingCardTarget
                             key={key}
+                            className={cardClassName}
                             focused={buildingTarget?.key === targetKey}
                             targetKey={targetKey}
                           >
                             <SharedRecipeCard
+                              wide={cardClassName != null}
                               dataSource={line.dataSource}
                               lines={lines}
                               results={lines.map(sharedLine =>
@@ -914,6 +921,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                       return (
                         <BuildingCardTarget
                           key={key}
+                          className={cardClassName}
                           focused={buildingTarget?.key === targetKey}
                           targetKey={targetKey}
                         >
@@ -960,6 +968,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                   return (
                     <BuildingCardTarget
                       key={line.recipe.id}
+                      className={line.recipe.inputs.length + line.recipe.outputs.length > 12 ? 'md:col-span-full' : undefined}
                       focused={buildingTarget?.key === targetKey}
                       targetKey={targetKey}
                     >

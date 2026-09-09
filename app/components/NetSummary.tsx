@@ -1,6 +1,6 @@
 import { Button, Tooltip } from "@carbonid1/design-system";
-import { ArrowLeft, ArrowRight, Cpu, Sparkles } from "lucide-react";
-import { type Ref } from "react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import { type ReactNode, type Ref } from "react";
 
 import { type ModuleResourceTransfer } from "../db/module-resource-links";
 import { type Module } from "../db/modules/modules";
@@ -80,24 +80,39 @@ const formatCapacity = (value: number) => parseFloat(value.toFixed(2));
 const getComputingSummary = (demand: number, capacity?: number) => {
   if (capacity == null) {
     return {
-      label: "Computing demand",
+      detail: "Demand",
       value: `${formatCapacity(demand)} TFLOPS`,
     };
   }
 
   if (demand > 0) {
     return {
-      label: "Computing demand / capacity",
+      detail: "Demand / capacity",
       value: `${formatCapacity(demand)} / ${formatCapacity(capacity)} TFLOPS`,
     };
   }
 
   return {
-    label: "Computing capacity",
+    detail: "Capacity",
     value: `${formatCapacity(capacity)} TFLOPS`,
   };
 };
 
+const SummaryMetric = ({ label, detail, children }: {
+  label: string;
+  detail?: string;
+  children: ReactNode;
+}) => (
+  <div className="min-w-0 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+    <dt className="text-sm font-medium text-foreground">
+      {label}
+      {detail && <span className="block text-xs font-normal text-muted-foreground">{detail}</span>}
+    </dt>
+    <dd className="mt-2 font-mono text-base font-semibold tabular-nums text-foreground">
+      {children}
+    </dd>
+  </div>
+);
 
 export const NetSummary: React.FC<Props> = ({
   flows,
@@ -437,7 +452,7 @@ export const NetSummary: React.FC<Props> = ({
     <div className="space-y-3 rounded-lg bg-card p-3 shadow-card">
       <h3 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="font-semibold text-foreground outline-hidden">
         {groupByBalance ? "Factory Summary" : "Net Summary"}{" "}
-        <span className="text-sm font-normal text-gray-500">(per 60s)</span>
+        <span className="text-xs font-normal text-muted-foreground">per production cycle</span>
       </h3>
 
       {hasOperationalSummary && (() => {
@@ -453,72 +468,40 @@ export const NetSummary: React.FC<Props> = ({
         );
 
         return (
-          <div className="space-y-1 border-b border-gray-200 pb-3 dark:border-gray-700">
+          <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-2">
             {showsCapacity && (
-              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  ⚡ Consumption / generation cap
-                </span>
-                <span className="font-mono font-semibold text-foreground">
-                  {formatPower(consumptionMw)} / {formatPower(electricityGenerationCapacityMw)}
-                </span>
-              </div>
+              <SummaryMetric label="Electricity" detail="Consumption / generation cap">
+                {formatPower(consumptionMw)} / {formatPower(electricityGenerationCapacityMw)}
+              </SummaryMetric>
             )}
             {!showsCapacity && consumptionMw > 0 && (
-              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  ⚡ Consumption
-                </span>
-                <span className="font-mono text-red-600 dark:text-red-400">
-                  -{formatPower(consumptionMw)}
-                </span>
-              </div>
+              <SummaryMetric label="Electricity" detail="Consumption">
+                {formatPower(consumptionMw)}
+              </SummaryMetric>
             )}
             {!showsCapacity && electricityFlow && (
-              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                  ⚡ Net
-                </span>
-                <span className={`font-mono font-semibold ${netMw > 0 ? "text-yellow-500 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
-                  {formatPower(netMw)}
-                </span>
-              </div>
+              <SummaryMetric label="Electricity" detail="Net">
+                {formatPower(netMw)}
+              </SummaryMetric>
             )}
             {(showsComputingCapacity || computingDemand > 0) && (
-              <div className="-mx-2 flex items-center justify-between rounded px-2 py-1 hover:bg-accent">
-                <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Cpu aria-hidden="true" className="size-3.5 shrink-0" />
-                  {computingSummary.label}
-                </span>
-                <span className="font-mono font-semibold tabular-nums text-foreground">
-                  {computingSummary.value}
-                </span>
-              </div>
+              <SummaryMetric label="Computing" detail={computingSummary.detail}>
+                {computingSummary.value}
+              </SummaryMetric>
             )}
             {unityBudget && (
-              <div className="-mx-2 flex items-center justify-between rounded px-2 py-1 hover:bg-accent">
-                <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Sparkles aria-hidden="true" className="size-3.5 shrink-0" />
-                  Unity demand / generation
-                </span>
-                <span className="font-mono font-semibold tabular-nums text-foreground">
-                  {formatCapacity(unityBudget.consumptionPerCycle)} / {unityBudget.generationPerCycle === null ? 'Unavailable' : formatCapacity(unityBudget.generationPerCycle)}
-                </span>
-              </div>
+              <SummaryMetric label="Unity" detail="Demand / generation">
+                {formatCapacity(unityBudget.consumptionPerCycle)} / {unityBudget.generationPerCycle === null ? 'Unavailable' : formatCapacity(unityBudget.generationPerCycle)}
+              </SummaryMetric>
             )}
             {workers != null && workers > 0 && (
-              <div className="flex items-center justify-between rounded px-2 -mx-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700/50">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                  👷 {populationCapacity != null ? "Workers / population cap" : "Workers"}
-                </span>
-                <span className="font-mono font-semibold text-gray-500 dark:text-gray-400">
-                  {populationCapacity != null
-                    ? `${workers.toLocaleString("en-US")} / ${populationCapacity.toLocaleString("en-US")}`
-                    : workers.toLocaleString("en-US")}
-                </span>
-              </div>
+              <SummaryMetric label="Workers" detail={populationCapacity != null ? "Assigned / population cap" : "Assigned"}>
+                {populationCapacity != null
+                  ? `${workers.toLocaleString("en-US")} / ${populationCapacity.toLocaleString("en-US")}`
+                  : workers.toLocaleString("en-US")}
+              </SummaryMetric>
             )}
-          </div>
+          </dl>
         );
       })()}
 

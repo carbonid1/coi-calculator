@@ -1,5 +1,6 @@
 import { Button, Tooltip } from '@carbonid1/design-system'
-import { CircleMinus, CirclePause, CirclePlus, Hammer, Play } from 'lucide-react'
+import { ChevronDown, CircleMinus, CirclePause, CirclePlus, Hammer, Play } from 'lucide-react'
+import { useId, useState } from 'react'
 
 import {
   type BuildingAttention,
@@ -49,7 +50,9 @@ const steamChainBuildings = new Set(
 
 const formatCount = (value: number) => parseFloat(value.toFixed(2))
 const getDiagnosticDetail = (diagnostic: BuildingDiagnostic) =>
-  diagnostic.recipeName === diagnostic.buildingName ? diagnostic.moduleName : diagnostic.recipeName
+  diagnostic.recipeName === diagnostic.buildingName
+    ? diagnostic.moduleName
+    : `${diagnostic.moduleName} · ${diagnostic.recipeName}`
 
 const getTooltip = (diagnostic: BuildingDiagnostic) => {
   const affected =
@@ -124,6 +127,8 @@ export const BuildingAttentionView: React.FC<Props> = ({
   onOpenBuilding,
   onKeepReadyChange,
 }) => {
+  const [showPauseSuggestions, setShowPauseSuggestions] = useState(false)
+  const pauseSuggestionsId = useId()
   const actionable = diagnostics
     .filter(
       (diagnostic): diagnostic is ActionableDiagnostic =>
@@ -138,13 +143,11 @@ export const BuildingAttentionView: React.FC<Props> = ({
 
   if (actionable.length === 0) return null
 
-  return (
-    <section className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground">
-        Building attention
-      </h4>
+  const requiredChanges = actionable.filter(diagnostic => diagnostic.attention !== 'can-pause')
+  const pauseSuggestions = actionable.filter(diagnostic => diagnostic.attention === 'can-pause')
+  const renderDiagnostics = (items: ActionableDiagnostic[]) => (
       <div className="grid gap-1 md:grid-cols-2">
-        {actionable.map(diagnostic => {
+        {items.map(diagnostic => {
           const attention = diagnostic.attention
 
           const Icon = icons[attention]
@@ -164,6 +167,7 @@ export const BuildingAttentionView: React.FC<Props> = ({
                       variant="ghost"
                       size="small"
                       fullWidth
+                      aria-label={`${diagnostic.buildingName} · ${diagnostic.moduleName} · ${getAttentionLabel(diagnostic)}`}
                       className="h-auto min-w-0 justify-between gap-2 px-2 py-1.5 text-left"
                       onClick={() => onOpenBuilding(diagnostic)}
                     >
@@ -207,6 +211,28 @@ export const BuildingAttentionView: React.FC<Props> = ({
           )
         })}
       </div>
+  )
+
+  return (
+    <section className="space-y-2 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+      {requiredChanges.length > 0 && <>
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">
+          Building attention
+        </h4>
+        {renderDiagnostics(requiredChanges)}
+      </>}
+      {pauseSuggestions.length > 0 && <>
+        <Button variant="ghost" size="small" fullWidth
+          className="justify-between gap-2 text-left"
+          aria-expanded={showPauseSuggestions} aria-controls={pauseSuggestionsId}
+          onClick={() => setShowPauseSuggestions(shown => !shown)}>
+          {showPauseSuggestions ? 'Hide' : 'Show'} pause suggestions ({pauseSuggestions.length})
+          <ChevronDown aria-hidden="true" className={`size-4 shrink-0 transition-transform motion-reduce:transition-none ${showPauseSuggestions ? 'rotate-180' : ''}`} />
+        </Button>
+        <div id={pauseSuggestionsId} hidden={!showPauseSuggestions}>
+          {renderDiagnostics(pauseSuggestions)}
+        </div>
+      </>}
     </section>
   )
 }

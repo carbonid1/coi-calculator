@@ -20,7 +20,7 @@ export const ResourceTooltip = ({ label, detail, className, children, onClick }:
 
   return (
     <Tooltip.Root open={open} onOpenChange={setOpen} triggerId={triggerId}>
-      <Tooltip.Trigger id={triggerId} delay={300} closeOnClick={false}
+      <Tooltip.Trigger id={triggerId} delay={400} closeOnClick={false}
         onClick={() => {
           if (onClick) {
             setOpen(false)
@@ -35,7 +35,7 @@ export const ResourceTooltip = ({ label, detail, className, children, onClick }:
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Positioner>
-          <Tooltip.Popup>
+          <Tooltip.Popup className="max-w-[min(22rem,calc(100vw-1rem))] flex-col items-start gap-1 whitespace-normal [overflow-wrap:anywhere]">
             <span className="block font-medium">{label}</span>
             {detail && <span className="block whitespace-pre-line">{detail}</span>}
           </Tooltip.Popup>

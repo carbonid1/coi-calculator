@@ -22,6 +22,7 @@ import { RecipeTitle } from './RecipeTitle'
 
 interface Props {
   lines: ProductionLine[]
+  wide?: boolean
   dataSource?: ValueSource
   results: (RegularResult | PassiveResult | undefined)[]
   outputModifiers?: RecipeModifierMultipliers
@@ -33,6 +34,7 @@ const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(2))
 
 export const SharedRecipeCard: React.FC<Props> = ({
   lines,
+  wide = false,
   dataSource,
   results,
   outputModifiers,
@@ -92,7 +94,8 @@ export const SharedRecipeCard: React.FC<Props> = ({
       </div>
 
       <KeepReadyNote enabled={diagnostic?.keepReady} />
-      <div className="space-y-1">
+      <div className={cn('grid grid-cols-1 gap-1', wide && 'md:grid-cols-2',
+        wide && lines.length % 3 === 0 && 'xl:grid-cols-3')}>
         {lines.map((line, index) => {
           const result = results[index]
           const supplyRatio = result?.supplyRatio ?? 0
@@ -100,6 +103,8 @@ export const SharedRecipeCard: React.FC<Props> = ({
           const ioMultiplier = buildingMultiplier * line.speedLevel
           const inactive = buildingMultiplier === 0
           const presentation = getRecipePresentation(line.recipe)
+          const powerMultiplier = line.recipe.electricityMultiplier
+          const showsPowerMultiplier = powerMultiplier != null && powerMultiplier !== 1
 
           return (
             <section
@@ -111,18 +116,10 @@ export const SharedRecipeCard: React.FC<Props> = ({
                   : 'bg-surface-inset inset-shadow-surface',
               )}
             >
-              <div className="mb-2 flex items-center justify-end gap-3">
-                <h4 className={cn('min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]', presentation.configuration ? 'mr-auto' : 'sr-only')}>
-                  {presentation.configuration ?? presentation.name}
-                </h4>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatQuantity(supplyRatio * 100)}% load
-                  {line.recipe.electricityMultiplier != null &&
-                  line.recipe.electricityMultiplier !== 1
-                    ? ` · ${formatQuantity(line.recipe.electricityMultiplier)}× power`
-                    : ''}
-                </span>
-              </div>
+              <h4 className={cn('text-sm font-medium text-foreground [overflow-wrap:anywhere]',
+                presentation.configuration ? 'mb-2' : 'sr-only')}>
+                {presentation.configuration ?? presentation.name}
+              </h4>
 
               <RecipeFlow name={presentation.name}
                 inputs={line.recipe.inputs.map(input => ({
@@ -134,6 +131,9 @@ export const SharedRecipeCard: React.FC<Props> = ({
                   quantity: getRecipeOutputQuantity(line.recipe, output, outputModifiers) * ioMultiplier,
                 }))}
               />
+              {showsPowerMultiplier && <p className="mt-1 text-right text-xs text-muted-foreground">
+                {formatQuantity(powerMultiplier)}× power
+              </p>}
             </section>
           )
         })}

@@ -40,6 +40,8 @@ interface Props {
 }
 
 const formatCount = (value: number) => parseFloat(value.toFixed(2));
+const checklistButtonClassName = "h-auto min-w-0 flex-col items-stretch gap-1 px-2 py-1.5 text-left whitespace-normal sm:flex-row sm:items-center sm:justify-between sm:gap-3";
+const checklistStatusClassName = "min-w-0 pl-6 text-left sm:pl-0 sm:text-right";
 const getChecklistDetail = (planned: {
   buildingName: string;
   moduleName: string;
@@ -291,7 +293,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                     variant="ghost"
                     size="small"
                     fullWidth
-                    className="h-auto justify-between px-2 py-1.5 text-left"
+                    className={checklistButtonClassName}
                     onClick={() => onOpenBuilding(mismatch.diagnostic)}
                   >
                     <span className="flex min-w-0 items-center gap-2">
@@ -308,7 +310,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                         </span>
                       </span>
                     </span>
-                    <span className="min-w-0 shrink text-right">
+                    <span className={checklistStatusClassName}>
                       <span className="block text-xs font-medium text-highlight-foreground">
                         {actionLabel}
                       </span>
@@ -338,7 +340,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                     variant="ghost"
                     size="small"
                     fullWidth
-                    className="h-auto justify-between px-2 py-1.5 text-left"
+                    className={checklistButtonClassName}
                     onClick={() => onOpenBuilding(planned.diagnostic)}
                   >
                     <span className="flex min-w-0 items-center gap-2">
@@ -355,7 +357,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                         </span>
                       </span>
                     </span>
-                    <span className="shrink-0 text-right">
+                    <span className={checklistStatusClassName}>
                       <span className="block text-xs font-medium text-highlight-foreground">
                         {planned.count} to build
                       </span>
@@ -384,7 +386,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                   variant="ghost"
                   size="small"
                   fullWidth
-                  className="h-auto justify-between px-2 py-1.5 text-left"
+                  className={checklistButtonClassName}
                   onClick={() => onOpenBuilding(planned.diagnostic)}
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -401,7 +403,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                       </span>
                     </span>
                   </span>
-                  <span className="shrink-0 text-right">
+                  <span className={checklistStatusClassName}>
                     <span className="block text-xs font-medium text-highlight-foreground">
                       {planned.count} to configure
                     </span>
@@ -427,7 +429,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                   variant="ghost"
                   size="small"
                   fullWidth
-                  className="h-auto justify-between px-2 py-1.5 text-left"
+                  className={checklistButtonClassName}
                   onClick={() => onOpenBuilding(planned.diagnostic)}
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -444,7 +446,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
                       </span>
                     </span>
                   </span>
-                  <span className="min-w-0 shrink text-right">
+                  <span className={checklistStatusClassName}>
                     <span className="block text-xs font-medium text-highlight-foreground">
                       Pause {planned.count} later
                     </span>
