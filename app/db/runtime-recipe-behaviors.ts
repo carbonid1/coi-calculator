@@ -15,6 +15,7 @@ type RuntimeRecipeBehavior = Partial<Pick<
   | "consumeSurplusInputScope"
   | "demandPriority"
   | "displayName"
+  | "configurationLabel"
   | "electricityMultiplier"
   | "group"
   | "inputPriorities"
@@ -371,10 +372,10 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceOutputScope: "module",
     group: "waste",
   },
-  "OceanWaterPumpLarge:OceanWaterPumpingT2": { displayName: "Sea Water" },
-  "OceanWaterPumpLarge:OceanWaterPumping2xT2": { displayName: "Sea Water (2×)" },
-  "OceanWaterPumpT1:OceanWaterPumping": { displayName: "Sea Water" },
-  "OceanWaterPumpT1:OceanWaterPumping2x": { displayName: "Sea Water (2×)" },
+  "OceanWaterPumpLarge:OceanWaterPumpingT2": { displayName: "Sea Water", configurationLabel: "1× throughput" },
+  "OceanWaterPumpLarge:OceanWaterPumping2xT2": { displayName: "Sea Water (2×)", configurationLabel: "2× throughput" },
+  "OceanWaterPumpT1:OceanWaterPumping": { displayName: "Sea Water", configurationLabel: "1× throughput" },
+  "OceanWaterPumpT1:OceanWaterPumping2x": { displayName: "Sea Water (2×)", configurationLabel: "2× throughput" },
   "OxygenFurnace:SteelSmelting": {
     allocation: "fallback",
     allocationPriority: 10,

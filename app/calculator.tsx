@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, Toaster, toast } from '@carbonid1/design-system'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
@@ -17,11 +17,11 @@ import { NetSummary } from './components/NetSummary'
 import { RecipeCard } from './components/RecipeCard'
 import { InfiniteResearchSettings, ResearchSettings } from './components/ResearchSettings'
 import { ReservesView } from './components/ReservesView'
+import { ResourceNavigationProvider } from './components/ResourceNavigation'
 import { ResourceSupplyView } from './components/ResourceSupplyView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
 import { StationCardGroup } from './components/StationCardGroup'
-import { StorageCard } from './components/StorageCard'
 import { WorldMinesView } from './components/WorldMinesView'
 import { getBuildingData } from './db/buildings'
 import { baseConfig } from './db/config'
@@ -115,6 +115,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   } : undefined
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID)
   const [supplyResourceId, setSupplyResourceId] = useState<ResourceId>('carbonDioxide')
+  const factorySummaryRef = useRef<HTMLHeadingElement>(null)
+  const focusFactorySummary = useRef(false)
   const [machineZoneAssignments, setMachineZoneAssignments] = useState<MachineZoneAssignments>({})
   const [loadedAssignmentsKey, setLoadedAssignmentsKey] = useState<string | null>(null)
   const [buildingTarget, setBuildingTarget] = useState<{
@@ -236,6 +238,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       if (clearTimer !== undefined) window.clearTimeout(clearTimer)
     }
   }, [activeModuleId, buildingTarget])
+
+  useEffect(() => {
+    if (activeModuleId !== FACTORY_TOTAL_ID || !focusFactorySummary.current) return
+
+    factorySummaryRef.current?.scrollIntoView({ block: 'start' })
+    factorySummaryRef.current?.focus({ preventScroll: true })
+    focusFactorySummary.current = false
+  }, [activeModuleId])
 
   let calculationStatus: 'loading' | 'updating' | 'error' | 'ready' = 'ready'
 
@@ -619,8 +629,17 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const focusedModuleTargetKey = buildingTarget && buildingTarget.moduleId === activeModule?.id
     ? buildingTarget.key
     : undefined
+  const inspectResource = (resourceId: ResourceId) => {
+    if (resourceId === 'electricity' || resourceId === 'computing') {
+      focusFactorySummary.current = true
+      setActiveModuleId(FACTORY_TOTAL_ID)
+      return
+    }
+    setSupplyResourceId(resourceId)
+    setActiveModuleId(RESOURCE_SUPPLY_ID)
+  }
 
-  return (
+  const page = (
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
       <Toaster />
       {header}
@@ -689,6 +708,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       )}
       {isFactoryTotal && factoryResult && (
         <NetSummary
+          headingRef={factorySummaryRef}
           flows={factoryResult.flows}
           contractFlows={factoryResult.contractFlows}
           workers={factoryWorkers}
@@ -721,10 +741,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           onAssignMachineZone={assignMachineZone}
           onOpenBuilding={openBuilding}
           onKeepReadyChange={changeKeepReady}
-          onInspectResource={resourceId => {
-            setSupplyResourceId(resourceId)
-            setActiveModuleId(RESOURCE_SUPPLY_ID)
-          }}
+          onInspectResource={inspectResource}
         />
       )}
 
@@ -894,30 +911,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                         regularResult => regularResult.recipe.id === line.recipe.id,
                       )
 
-                      if (line.recipe.decayStorage) {
-                        return (
-                          <BuildingCardTarget
-                            key={key}
-                            focused={buildingTarget?.key === targetKey}
-                            targetKey={targetKey}
-                          >
-                            <StorageCard
-                              dataSource={line.dataSource}
-                              recipe={line.recipe}
-                              storage={line.recipe.decayStorage}
-                              activeBuildings={line.activeBuildings}
-                              currentActiveBuildings={line.currentActiveBuildings}
-                              builtBuildings={line.builtBuildings}
-                              constructionGhosts={line.constructionGhosts}
-                              unplacedPlannedBuildings={line.unplacedPlannedBuildings}
-                              operatingMode={result?.operatingMode ?? 'balanced'}
-                              diagnostic={diagnostic}
-                              onKeepReadyChange={changeKeepReady}
-                            />
-                          </BuildingCardTarget>
-                        )
-                      }
-
                       return (
                         <BuildingCardTarget
                           key={key}
@@ -1015,4 +1008,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       )}
     </div>
   )
+
+  return <ResourceNavigationProvider onInspectResource={inspectResource}>{page}</ResourceNavigationProvider>
 }

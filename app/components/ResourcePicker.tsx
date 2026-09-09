@@ -5,6 +5,7 @@ import { Button, Input } from '@carbonid1/design-system'
 import { ChevronDown } from 'lucide-react'
 
 import { resources, type ResourceId } from '../db/resources'
+import { ResourceToken } from './ResourceToken'
 
 const resourceName = (resourceId: ResourceId) => resources[resourceId].name
 
@@ -51,7 +52,7 @@ export const ResourcePicker = ({
                 value={resourceId}
                 className="flex min-h-9 cursor-default items-center rounded-lg px-2.5 py-2 text-sm outline-hidden select-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[selected]:font-medium"
               >
-                {resourceName(resourceId)}
+                <ResourceToken resourceId={resourceId} named />
               </Combobox.Item>
             )}
           </Combobox.List>

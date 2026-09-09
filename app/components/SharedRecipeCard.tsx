@@ -1,7 +1,6 @@
 import { cn } from '@carbonid1/design-system'
 
 import { type ValueSource } from '../data-source'
-import { resources } from '../db/resources'
 import { type BuildingDiagnostic } from '../helpers/building-diagnostics/building-diagnostics'
 import {
   type PassiveResult,
@@ -14,10 +13,12 @@ import {
   type RecipeModifierMultipliers,
 } from '../helpers/modifiers/recipe-output'
 import { calculateProductionCardLoad } from '../helpers/production-card-groups/production-card-groups'
-import { getRecipeDisplayName } from '../helpers/recipe-display/recipe-display'
+import { getRecipeDisplayName, getRecipePresentation } from '../helpers/recipe-display/recipe-display'
 import { BuildingCount } from './BuildingCount'
 import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from './KeepReadyMenu'
 import { ProductionCard } from './ProductionCard'
+import { RecipeFlow } from './RecipeFlow'
+import { RecipeTitle } from './RecipeTitle'
 
 interface Props {
   lines: ProductionLine[]
@@ -73,9 +74,9 @@ export const SharedRecipeCard: React.FC<Props> = ({
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <h3 className="font-semibold text-foreground">
-          {firstLine.recipe.displayGroup?.label ??
+          <RecipeTitle title={firstLine.recipe.displayGroup?.label ??
             firstLine.recipe.sharedCapacity?.label ??
-            firstLine.recipe.building}
+            firstLine.recipe.building} descriptions={lines.map(line => getRecipeDisplayName(line.recipe))} />
         </h3>
         <BuildingCount
           load={effective}
@@ -98,6 +99,7 @@ export const SharedRecipeCard: React.FC<Props> = ({
           const buildingMultiplier = line.activeBuildings * supplyRatio
           const ioMultiplier = buildingMultiplier * line.speedLevel
           const inactive = buildingMultiplier === 0
+          const presentation = getRecipePresentation(line.recipe)
 
           return (
             <section
@@ -109,9 +111,9 @@ export const SharedRecipeCard: React.FC<Props> = ({
                   : 'bg-surface-inset inset-shadow-surface',
               )}
             >
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <h4 className="min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
-                  {getRecipeDisplayName(line.recipe)}
+              <div className="mb-2 flex items-center justify-end gap-3">
+                <h4 className={cn('min-w-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]', presentation.configuration ? 'mr-auto' : 'sr-only')}>
+                  {presentation.configuration ?? presentation.name}
                 </h4>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {formatQuantity(supplyRatio * 100)}% load
@@ -122,40 +124,16 @@ export const SharedRecipeCard: React.FC<Props> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                <div className="min-w-0 space-y-1">
-                  {line.recipe.inputs.map(input => (
-                    <div key={input.resourceId} className="flex justify-between gap-2 text-sm">
-                      <span className="truncate text-muted-foreground">
-                        {resources[input.resourceId].name}
-                      </span>
-                      <span className="shrink-0 font-mono text-destructive">
-                        {formatQuantity(
-                          getRecipeInputQuantity(input, outputModifiers) * ioMultiplier,
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="text-xl text-muted-foreground">&rarr;</div>
-
-                <div className="min-w-0 space-y-1">
-                  {line.recipe.outputs.map(output => (
-                    <div key={output.resourceId} className="flex justify-between gap-2 text-sm">
-                      <span className="truncate text-muted-foreground">
-                        {resources[output.resourceId].name}
-                      </span>
-                      <span className="shrink-0 font-mono text-success">
-                        {formatQuantity(
-                          getRecipeOutputQuantity(line.recipe, output, outputModifiers) *
-                            ioMultiplier,
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <RecipeFlow name={presentation.name}
+                inputs={line.recipe.inputs.map(input => ({
+                  resourceId: input.resourceId,
+                  quantity: getRecipeInputQuantity(input, outputModifiers) * ioMultiplier,
+                }))}
+                outputs={line.recipe.outputs.map(output => ({
+                  resourceId: output.resourceId,
+                  quantity: getRecipeOutputQuantity(line.recipe, output, outputModifiers) * ioMultiplier,
+                }))}
+              />
             </section>
           )
         })}

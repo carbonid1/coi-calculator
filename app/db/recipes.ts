@@ -98,6 +98,8 @@ export interface Recipe {
   stationRole?: 'input' | 'export'
   /** Optional concise label used when the building name is already visible. */
   displayName?: string
+  /** Actual setting shown below the building name; recipe descriptions belong in tooltips. */
+  configurationLabel?: string
   /** Internal calculation line intentionally omitted from the module card list. */
   hiddenFromModuleView?: boolean
   name: string
@@ -237,6 +239,7 @@ export const createCropFarmRecipe = (group: CropFarmGroup): Recipe => {
   return {
     id: group.id,
     name: `${cropFarmTiers[group.tierId].name} (${group.name})`,
+    configurationLabel: group.name,
     building: cropFarmTiers[group.tierId].name,
     group: 'production',
     cycleDurationSeconds: 60,
@@ -355,6 +358,7 @@ export const recipes: Recipe[] = [
   // Electricity
   {
     id: 'fbr',
+    configurationLabel: '1× enrichment',
     gameBuildingId: 'FastBreederReactor',
     name: 'Fast Breeder Reactor',
     building: 'Fast Breeder Reactor',
@@ -372,6 +376,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'fbr-0x',
+    configurationLabel: '0× enrichment',
     gameBuildingId: 'FastBreederReactor',
     name: 'FBR (0x Enrichment)',
     building: 'Fast Breeder Reactor',
@@ -387,6 +392,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'fbr-3x',
+    configurationLabel: '3× enrichment',
     gameBuildingId: 'FastBreederReactor',
     name: 'FBR (3x Enrichment)',
     building: 'Fast Breeder Reactor',
@@ -1960,6 +1966,7 @@ export const recipes: Recipe[] = [
   // Fixed crop rotations and livestock
   {
     id: 'chicken-farm-slaughtering',
+    configurationLabel: 'Slaughtering enabled',
     displayName: 'Slaughtering enabled',
     name: 'Chicken Farm (Slaughtering on)',
     building: 'Chicken Farm',
@@ -1992,6 +1999,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'chicken-farm-eggs-only',
+    configurationLabel: 'Slaughtering disabled',
     displayName: 'Eggs only',
     name: 'Chicken Farm (Slaughtering off)',
     building: 'Chicken Farm',
@@ -2199,6 +2207,7 @@ export const recipes: Recipe[] = [
       (boostStep): Recipe => ({
         id: getOfficeRecipeId(office.id, boostStep),
         name: `${office.name} (Computing boost ${boostStep})`,
+        configurationLabel: `Computing boost ${boostStep}`,
         building: office.name,
         group: 'production',
         cycleDurationSeconds: 60,

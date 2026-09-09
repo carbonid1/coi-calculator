@@ -102,9 +102,21 @@ const matchers: readonly RecipeMatcher[] = [
   },
 ];
 
-export const nuclearHandledPrototypeIds = new Set([
-  "FastBreederReactor",
-  ...matchers.flatMap(({ prototypeId }) => prototypeId ? [prototypeId] : []),
+/** Ordinary recipe bindings retain calculator policy while the game supplies their flows. */
+export const nuclearRecipeBindings = [
+  ...matchers.filter((matcher): matcher is RecipeMatcher & { prototypeId: string; gameRecipeId: string } => (
+    matcher.prototypeId != null && matcher.gameRecipeId != null
+  )),
+  { prototypeId: 'ThermalDesalinator', gameRecipeId: 'DesalinationFromLP', recipeId: 'thermal-desalinator-low' },
+  { prototypeId: 'CoolingTowerT2', gameRecipeId: 'SteamDepletedCondensationT2', recipeId: 'cooling-tower-large-depleted' },
+  { prototypeId: 'CoolingTowerT2', gameRecipeId: 'SteamLpCondensationT2', recipeId: 'cooling-tower-large-low' },
+  { prototypeId: 'CoolingTowerT2', gameRecipeId: 'SteamSpCondensationT2', recipeId: 'cooling-tower-large-super' },
+];
+
+/** These machines do not export ordinary recipes; their physical models remain local. */
+export const nuclearSpecialPrototypeIds = new Set([
+  'FastBreederReactor', 'TurbineSuperPress', 'TurbineHighPressT2',
+  'TurbineLowPressT2', 'PowerGeneratorT2', 'NuclearWasteStorage',
 ]);
 
 const matches = (entity: SyncedProductionEntity, matcher: RecipeMatcher) => (

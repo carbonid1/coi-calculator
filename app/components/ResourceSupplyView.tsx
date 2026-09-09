@@ -15,6 +15,7 @@ import {
   type ResourceSupplyRow,
 } from '../helpers/resource-supply/resource-supply'
 import { createSupplyInspector, supplyTargetKey, type SupplyTarget } from '../helpers/resource-supply/supply-diagnosis'
+import { ResourceNavigationProvider, useResourceNavigation } from './ResourceNavigation'
 import { ResourcePicker } from './ResourcePicker'
 import { SupplyDiagnosis } from './SupplyDiagnosis'
 
@@ -38,13 +39,14 @@ export const ResourceSupplyView = ({
   onProcessingPriorityChange?: (zoneId: number, resourceId: ResourceId, priority: ResourceProcessingPriority) => void
   initialResourceId?: ResourceId
 }) => {
+  const inspectFactoryResource = useResourceNavigation()
   const [trail, setTrail] = useState<SupplyTarget[]>([{ resourceId: initialResourceId }])
   const target = trail[trail.length - 1] ?? { resourceId: initialResourceId }
   const { resourceId } = target
   const [showRouting, setShowRouting] = useState(false)
   const routingId = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
-  const focusAfterInspect = useRef(false)
+  const focusAfterInspect = useRef(true)
 
   useEffect(() => {
     if (focusAfterInspect.current) {
@@ -173,7 +175,7 @@ export const ResourceSupplyView = ({
     },
   ]
 
-  return (
+  const content = (
     <section className="space-y-4 rounded-lg bg-card p-4 shadow-card" aria-label="Resource supply">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -222,5 +224,15 @@ export const ResourceSupplyView = ({
         )}
       </div>
     </section>
+  )
+
+  return (
+    <ResourceNavigationProvider onInspectResource={nextResourceId => {
+      if (nextResourceId === 'electricity' || nextResourceId === 'computing') {
+        inspectFactoryResource?.(nextResourceId)
+      } else {
+        inspect({ resourceId: nextResourceId, moduleId: target.moduleId })
+      }
+    }}>{content}</ResourceNavigationProvider>
   )
 }

@@ -1,9 +1,9 @@
 import { type Recipe } from "../../db/recipes";
-import { resources } from "../../db/resources";
+import { resources, type ResourceId } from "../../db/resources";
 
 export type DisplayableRecipe = Pick<
   Recipe,
-  "building" | "displayName" | "gameRecipeId" | "name"
+  "building" | "displayName" | "configurationLabel" | "gameRecipeId" | "name"
 > & Partial<Pick<Recipe, "inputs" | "outputs">>;
 
 /** Last resort for exported labels that contain an identifier instead of a name. */
@@ -67,6 +67,37 @@ export const getRecipeDisplayName = (recipe: DisplayableRecipe) => {
   }
 
   return name;
+};
+
+export interface RecipePresentation {
+  name: string;
+  inputs: ResourceId[];
+  outputs: ResourceId[];
+  configuration?: string;
+  amounts?: RecipeFlowAmounts;
+}
+
+export interface RecipeFlowAmounts {
+  inputs: readonly { resourceId: ResourceId; quantity: number }[];
+  outputs: readonly { resourceId: ResourceId; quantity: number }[];
+}
+
+/** Settings are explicit; a recipe name never determines whether its flow uses icons. */
+export const getRecipePresentation = (recipe: DisplayableRecipe, amounts?: RecipeFlowAmounts): RecipePresentation => {
+  const name = getRecipeDisplayName(recipe);
+  const ids = (ingredients: Recipe['inputs'] = []) => (
+    [...new Set(ingredients.filter(ingredient => ingredient.quantity > 0).map(ingredient => ingredient.resourceId))]
+  );
+
+  return {
+    name,
+    inputs: ids(recipe.inputs),
+    outputs: ids(recipe.outputs),
+    configuration: recipe.configurationLabel?.trim() || (
+      !recipe.inputs?.length && !recipe.outputs?.length && name !== recipe.building ? name : undefined
+    ),
+    amounts,
+  };
 };
 
 /** The configuration shown beside a physical building group. */

@@ -5,7 +5,7 @@ import { type ResourceFlow } from '../calculate/calculate'
 import { getCapacityPools, type PoolResult } from '../capacity-pools/capacity-pools'
 import { type FactoryCalculation } from '../factory-calculation/factory-calculation'
 import { getPresetResourceDemands } from '../preset-resource-demands/preset-resource-demands'
-import { getRecipeDisplayName } from '../recipe-display/recipe-display'
+import { getRecipeDisplayName, getRecipePresentation, type RecipePresentation } from '../recipe-display/recipe-display'
 import { isModuleInput } from '../recipe-input-scope/recipe-input-scope'
 import { canPrioritizeProcessing } from '../resource-priorities/resource-priorities'
 import { getRecipePriorityNotes, type RecipePriorityNote } from './recipe-priorities'
@@ -29,6 +29,7 @@ export interface SupplyProducer {
   moduleId: string
   moduleName: string
   recipeName: string
+  recipe: RecipePresentation
   building: string
   capacityPoolKey: string
   produced: number
@@ -47,6 +48,8 @@ export interface SupplyUse {
   moduleName?: string
   moduleId?: string
   recipeName?: string
+  recipe?: RecipePresentation
+  inputTargets?: SupplyTarget[]
   quantity: number
   contractId?: string
   priorities?: RecipePriorityNote[]
@@ -201,13 +204,16 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
       return {
         key: `${line.moduleId}:${recipe.id}`, moduleId: line.moduleId,
         moduleName: modulesById.get(line.moduleId)?.name ?? line.moduleId,
-        recipeName: getRecipeDisplayName(recipe), building: recipe.building,
+        recipeName: getRecipeDisplayName(recipe),
+        recipe: getRecipePresentation(recipe, { inputs: line.actualInputs, outputs: line.actualOutputs }),
+        building: recipe.building,
         capacityPoolKey: line.capacityPoolId ?? `${line.moduleId}:${recipe.id}`,
         produced: line.actualOutputs.find(output => output.resourceId === target.resourceId)?.quantity ?? 0,
         poolUtilization: pool && pool.capacity > 0 ? pool.used / pool.capacity : null,
         sharedCapacity: (pool?.members.length ?? 0) > 1,
         status, mainProducts,
-        inputs: line.actualInputs.map(input => ({ target: inputTarget(line, input.resourceId), quantity: input.quantity })),
+        inputs: recipe.inputs.map(input => ({ target: inputTarget(line, input.resourceId),
+          quantity: line.actualInputs.find(actual => actual.resourceId === input.resourceId)?.quantity ?? 0 })),
         limits: status === 'inputs' ? limits : [],
         priorities: priorityNotes(line, lines, target, 'outputs'),
       }
@@ -228,6 +234,8 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
       return visible ? [{
         key: `${line.moduleId}:${line.recipe.id}`, name: output ? resources[output.resourceId].name : getRecipeDisplayName(line.recipe),
         moduleId: line.moduleId, recipeName: getRecipeDisplayName(line.recipe),
+        recipe: getRecipePresentation(line.recipe, { inputs: line.actualInputs, outputs: line.actualOutputs }),
+        inputTargets: line.recipe.inputs.map(input => inputTarget(line, input.resourceId)),
         moduleName: modulesById.get(line.moduleId)?.name ?? line.moduleId, quantity,
         priorities: priorityNotes(line, lines, target, 'inputs'),
       }] : []

@@ -1,5 +1,6 @@
 import { Button, Tooltip } from "@carbonid1/design-system";
 import { ArrowLeft, ArrowRight, Cpu, Sparkles } from "lucide-react";
+import { type Ref } from "react";
 
 import { type ModuleResourceTransfer } from "../db/module-resource-links";
 import { type Module } from "../db/modules/modules";
@@ -28,6 +29,7 @@ import { PlannedBuildsView } from "./PlannedBuildsView";
 import { isReportedFactoryDeficit } from "./net-summary-flows";
 
 interface Props {
+  headingRef?: Ref<HTMLHeadingElement>;
   flows: ResourceFlow[];
   workers?: number;
   electricityConsumptionKw?: number;
@@ -125,6 +127,7 @@ export const NetSummary: React.FC<Props> = ({
   onOpenBuilding,
   onKeepReadyChange,
   onInspectResource,
+  headingRef,
 }) => {
   const requestedImportRows = typedEntries(requestedImports)
     .filter(([, quantity]) => quantity > 0)
@@ -432,7 +435,7 @@ export const NetSummary: React.FC<Props> = ({
 
   return (
     <div className="space-y-3 rounded-lg bg-card p-3 shadow-card">
-      <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+      <h3 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="font-semibold text-foreground outline-hidden">
         {groupByBalance ? "Factory Summary" : "Net Summary"}{" "}
         <span className="text-sm font-normal text-gray-500">(per 60s)</span>
       </h3>

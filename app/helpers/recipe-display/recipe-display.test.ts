@@ -1,9 +1,52 @@
 import { describe, expect, it } from "vitest";
 
 import { recipes } from "../../db/recipes";
-import { getRecipeDisplayName } from "./recipe-display";
+import { getRecipeDisplayName, getRecipePresentation } from "./recipe-display";
 
 describe("recipe display names", () => {
+  it('preserves both routes to the same product using structured ingredients', () => {
+    const base = { building: 'Assembly V', name: 'FoodPack', outputs: [{ resourceId: 'foodPack' as const, quantity: 1 }] };
+    const eggs = getRecipePresentation({ ...base, inputs: [{ resourceId: 'eggs', quantity: 1 }, { resourceId: 'bread', quantity: 2 }] });
+    const meat = getRecipePresentation({ ...base, inputs: [{ resourceId: 'meat', quantity: 1 }, { resourceId: 'bread', quantity: 2 }] });
+
+    expect(eggs.inputs).toEqual(['eggs', 'bread']);
+    expect(meat.inputs).toEqual(['meat', 'bread']);
+    expect(eggs.configuration).toBeUndefined();
+    expect(meat.configuration).toBeUndefined();
+  });
+
+  it('keeps authored configuration and excludes zero-quantity recipe materials', () => {
+    const presentation = getRecipePresentation({
+      building: 'Chicken Farm', name: 'Chicken Farm', displayName: 'Slaughtering enabled',
+      configurationLabel: 'Slaughtering enabled',
+      inputs: [{ resourceId: 'water', quantity: 0 }],
+      outputs: [{ resourceId: 'chickenCarcass', quantity: 1 }],
+    });
+
+    expect(presentation.configuration).toBe('Slaughtering enabled');
+    expect(presentation.inputs).toEqual([]);
+    expect(presentation.outputs).toEqual(['chickenCarcass']);
+  });
+
+  it.each(['evaporation-pond-heated-salt-brine', 'chemical-plant-yellowcake', 'thermal-desalinator-super', 'nuclear-reprocessing'])(
+    'keeps %s descriptions available without treating them as settings', id => {
+      const recipe = recipes.find(recipe => recipe.id === id)!;
+      const presentation = getRecipePresentation(recipe);
+
+      expect(presentation.name).toBeTruthy();
+      expect(presentation.configuration).toBeUndefined();
+      expect(presentation.inputs.length).toBeGreaterThan(0);
+    },
+  );
+
+  it('shows an actual setting regardless of the wording of the recipe description', () => {
+    const reactor = recipes.find(recipe => recipe.id === 'fbr-3x')!;
+
+    expect(getRecipePresentation({ ...reactor, name: 'Localized reactor name' }).configuration).toBe('3× enrichment');
+    expect(getRecipePresentation({ building: 'Station module', name: 'Water · unloading', inputs: [], outputs: [] })
+      .configuration).toBe('Water · unloading');
+  });
+
   it("extracts the configuration from legacy building-prefixed names", () => {
     expect(getRecipeDisplayName({
       building: "Chemical Plant II",

@@ -1,12 +1,14 @@
 import { type ValueSource } from "../data-source";
 import { isUnboundedDemandSourceMode } from "../db/recipes";
-import { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import { type PassiveResult } from "../helpers/calculate/calculate";
-import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
+import { getRecipePresentation } from "../helpers/recipe-display/recipe-display";
 import { BuildingCount } from "./BuildingCount";
 import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from "./KeepReadyMenu";
 import { ProductionCard } from "./ProductionCard";
+import { RecipeFlow } from "./RecipeFlow";
+import { RecipeLabel } from "./RecipeLabel";
+import { RecipeTitle } from "./RecipeTitle";
 
 interface Props {
   result: PassiveResult;
@@ -28,7 +30,8 @@ export const SinkCard: React.FC<Props> = ({
 }) => {
   const hasWork = result.actualInputs.length > 0 || result.actualOutputs.length > 0;
   const inactive = result.activeBuildings === 0 || !hasWork;
-  const recipeDisplayName = getRecipeDisplayName(result.recipe);
+  const recipePresentation = getRecipePresentation(result.recipe);
+  const recipeDisplayName = recipePresentation.name;
   const groundwaterConstraint = result.recipe.groundwaterConstraint;
 
   // Effective building count based on the first produced or consumed resource.
@@ -64,12 +67,12 @@ export const SinkCard: React.FC<Props> = ({
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-            {result.recipe.building}
+          <h3 className="font-semibold text-foreground">
+            <RecipeTitle title={result.recipe.building} descriptions={[recipeDisplayName]} />
           </h3>
-          {recipeDisplayName !== result.recipe.building && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {recipeDisplayName}
+          {(recipePresentation.configuration || (inactive && recipeDisplayName !== result.recipe.building)) && (
+            <p className="text-sm text-muted-foreground">
+              <RecipeLabel recipe={recipePresentation} />
             </p>
           )}
         </div>
@@ -87,38 +90,8 @@ export const SinkCard: React.FC<Props> = ({
 
       <KeepReadyNote enabled={diagnostic?.keepReady} />
       {!inactive && (
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="space-y-1">
-            {result.actualInputs.map((input) => (
-              <div key={input.resourceId} className="flex justify-between text-sm whitespace-nowrap gap-2">
-                <span className="text-gray-600 dark:text-gray-300">
-                  {resources[input.resourceId].name}
-                </span>
-                <span className="font-mono text-red-600 dark:text-red-400">
-                  {formatQuantity(input.quantity)}
-                </span>
-              </div>
-            ))}
-            {result.actualInputs.length === 0 && (
-              <p className="text-sm text-gray-400 italic">none</p>
-            )}
-          </div>
-
-          <div className="text-xl text-gray-400">&rarr;</div>
-
-          <div className="space-y-1">
-            {result.actualOutputs.map((output) => (
-              <div key={output.resourceId} className="flex justify-between text-sm whitespace-nowrap gap-2">
-                <span className="text-gray-600 dark:text-gray-300">
-                  {resources[output.resourceId].name}
-                </span>
-                <span className="font-mono text-green-600 dark:text-green-400">
-                  {formatQuantity(output.quantity)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <RecipeFlow name={recipeDisplayName} inputs={result.actualInputs} outputs={result.actualOutputs}
+          formatQuantity={formatQuantity} />
       )}
 
       {groundwaterConstraint && (

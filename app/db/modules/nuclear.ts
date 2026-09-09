@@ -1,16 +1,15 @@
 import { type SyncedProductionEntity } from "../../game-state";
+import { nuclearOrdinaryRecipeIds, resolveNuclearAreaRecipes } from '../../helpers/nuclear-entity-sync/nuclear-area-recipes';
 import {
-  nuclearHandledPrototypeIds,
+  nuclearSpecialPrototypeIds,
   resolveNuclearEntityInventory,
 } from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
-import { resolveDirectionalPlan } from "../../helpers/resolve-directional-plan";
+import { applyNuclearOperationTargets, type NuclearOperationTarget } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets';
 import { type PlanningBaselines } from "../planning-baselines";
 import {
   type Module,
-  type PlanMismatch,
   type Preset,
 } from "./modules";
-import { createAtLeastBuildingActions } from "./plan-mismatch";
 
 const NUCLEAR_MODULE_ID = "nuclear";
 
@@ -20,13 +19,6 @@ export interface NuclearOperationPlan {
   chlorineProcessingCount: number;
   saltProcessingCount: number;
   superDesalinatorCount: number;
-}
-
-interface NuclearOperationTarget {
-  name: string;
-  pluralName?: string;
-  recipeId: string;
-  target: number;
 }
 
 export const plannedNuclearOperation: NuclearOperationPlan = {
@@ -65,21 +57,23 @@ export const createNuclearModule = (
   const turbineSteamPerCycle = dispatchedGenerationMw * 48 / (15 + 10 + 5);
   const hydrogenDemandPerCycle = Math.max(0, baselines.hydrogenFuelDemandPerCycle);
   const activeTurbineCount = Math.ceil(turbineSteamPerCycle / 48);
-  const recipeIds = Object.keys(syncedInventory.counts);
-  const builtBuildings = Object.fromEntries(recipeIds.map(recipeId => [
+  const liveRecipes = generatedArea?.recipes ? resolveNuclearAreaRecipes(generatedArea) : undefined;
+  const recipeIds = Object.keys(syncedInventory.counts).filter(id => (
+    !liveRecipes || !nuclearOrdinaryRecipeIds.has(id)
+  ));
+  const builtBuildings = { ...Object.fromEntries(recipeIds.map(recipeId => [
     recipeId,
     syncedInventory.counts[recipeId]?.built ?? 0,
-  ]));
-  const currentActiveBuildings = Object.fromEntries(recipeIds.map(recipeId => [
+  ])), ...liveRecipes?.builtBuildings };
+  const currentActiveBuildings = { ...Object.fromEntries(recipeIds.map(recipeId => [
     recipeId,
     syncedInventory.counts[recipeId]?.running ?? 0,
-  ]));
-  const activeBuildings = { ...currentActiveBuildings };
-  const speedLevels: Record<string, number> = { ...syncedInventory.speedLevels };
-  const dataSources: NonNullable<Preset["dataSources"]> = Object.fromEntries(
+  ])), ...liveRecipes?.preset.currentActiveBuildings };
+  const activeBuildings = { ...currentActiveBuildings, ...liveRecipes?.preset.activeBuildings };
+  const speedLevels: Record<string, number> = { ...syncedInventory.speedLevels, ...liveRecipes?.preset.speedLevels };
+  const dataSources: NonNullable<Preset["dataSources"]> = { ...Object.fromEntries(
     recipeIds.map(recipeId => [recipeId, "synced" as const]),
-  );
-  const planMismatches: PlanMismatch[] = [];
+  ), ...liveRecipes?.preset.dataSources };
   const operationTargets: NuclearOperationTarget[] = plan
     ? [
         {
@@ -130,38 +124,11 @@ export const createNuclearModule = (
       ]
     : [];
 
-  for (const target of operationTargets) {
-    const current = currentActiveBuildings[target.recipeId] ?? 0;
-    const resolved = resolveDirectionalPlan(
-      current,
-      { direction: "at-least", target: target.target },
-    );
-
-    activeBuildings[target.recipeId] = resolved.value;
-    if (resolved.satisfied) continue;
-
-    dataSources[target.recipeId] = "planned";
-    planMismatches.push({
-      recipeId: target.recipeId,
-      current,
-      target: resolved.target,
-      direction: resolved.direction,
-      format: "count",
-      actions: createAtLeastBuildingActions({
-        built: builtBuildings[target.recipeId] ?? 0,
-        running: current,
-        target: resolved.target,
-        name: target.name,
-        pluralName: target.pluralName,
-      }),
-    });
-  }
-
   const liveArea = generatedArea?.liveArea
     ? {
         ...generatedArea.liveArea,
         issues: generatedArea.liveArea.issues.filter(issue => (
-          ![...nuclearHandledPrototypeIds].some(prototypeId => (
+          ![...nuclearSpecialPrototypeIds].some(prototypeId => (
             issue.id.startsWith(`${prototypeId}:`)
           ))
         )),
@@ -176,8 +143,10 @@ export const createNuclearModule = (
     capabilities: generatedArea?.capabilities ?? ["nuclear"],
     includedInFactoryTotals: generatedArea ? true : undefined,
     builtBuildings,
+    recipes: liveRecipes?.recipes,
     presets: [
-      {
+      applyNuclearOperationTargets({
+        ...liveRecipes?.preset,
         id: "configured-target",
         name: "Configured target",
         description: "",
@@ -185,8 +154,8 @@ export const createNuclearModule = (
         activeBuildings,
         currentActiveBuildings,
         dataSources: Object.keys(dataSources).length > 0 ? dataSources : undefined,
-        planMismatches: planMismatches.length > 0 ? planMismatches : undefined,
         fixed: [
+          ...(liveRecipes?.preset.fixed ?? []),
           "fbr-0x",
           "fbr",
           "fbr-3x",
@@ -200,7 +169,7 @@ export const createNuclearModule = (
         electricityDispatchTargets: {
           "fbr-turbines": generationTargetMw,
         },
-      },
+      }, liveRecipes?.recipes ?? [], operationTargets, liveRecipes?.recipeIdsByPolicyId, liveRecipes?.unavailableRecipeIds),
     ],
     defaultPresetId: "configured-target",
     liveArea,

@@ -530,6 +530,7 @@ export const createLiveAreaModules = (
         gameBuildingId: entity.prototypeId,
         name: 'Sustainable forestry',
         displayName: getForestryDisplayName(entity),
+        configurationLabel: getForestryDisplayName(entity),
         building: entity.prototypeName,
         group: 'source',
         inputs:

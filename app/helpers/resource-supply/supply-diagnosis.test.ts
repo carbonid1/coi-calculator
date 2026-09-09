@@ -27,6 +27,20 @@ const setup = (lines: RegularResult[], flows: ResourceFlow[], blockedRoutes: Blo
   Object.assign(calculation.factoryResult.calculation, { regularResults: lines, allResourceFlows: flows, blockedRoutes })
   return { calculation, inspector: createSupplyInspector([], calculation) }
 }
+
+it('carries the same settled input and output amounts into supply and demand recipes', () => {
+  const scrubber = line('ExhaustScrubbing', ['exhaust'], 'sulfur', {
+    outputs: [{ resourceId: 'sulfur', quantity: 10 }, { resourceId: 'steamLow', quantity: 5 }],
+  });
+
+  scrubber.actualInputs = [{ resourceId: 'exhaust', quantity: 86.44 }];
+  scrubber.actualOutputs = [{ resourceId: 'sulfur', quantity: 17.288 }, { resourceId: 'steamLow', quantity: 8.644 }];
+  const { inspector } = setup([scrubber], [flow('exhaust', 86.44), flow('sulfur', 17.288, 0)]);
+
+  for (const recipe of [inspector.getProducers({ resourceId: 'sulfur' })[0]?.recipe, inspector.getUses({ resourceId: 'exhaust' })[0]?.recipe]) {
+    expect(recipe?.amounts).toEqual({ inputs: scrubber.actualInputs, outputs: scrubber.actualOutputs });
+  }
+});
 const liveModule = (id: string, recipes: Recipe[], preset: Partial<Preset> = {}, isolated = false): Module => ({
   id, name: id, description: '', recipes, includedInFactoryTotals: !isolated,
   builtBuildings: Object.fromEntries(recipes.map(recipe => [recipe.id, 1])),
@@ -88,6 +102,9 @@ describe('supply diagnosis', () => {
     const uses = inspector.getUses({ resourceId: 'steamDepleted' }, true)
 
     expect(uses.find(use => use.key === 'food:Cooling')?.quantity).toBeCloseTo(4)
+    expect(uses.find(use => use.key === 'food:Cooling')?.inputTargets).toEqual([
+      { resourceId: 'steamDepleted', moduleId: 'food' },
+    ])
     expect(uses.find(use => use.key === 'food:Disposal')?.quantity).toBeCloseTo(6)
     expect(uses.find(use => use.key === 'food:Cooling')?.priorities?.map(note => note.label)).toEqual(['Recovery', 'Excess input priority 1'])
     expect(uses.find(use => use.key === 'food:Disposal')?.priorities?.map(note => note.label)).toEqual(['Disposal', 'Excess input priority 2'])

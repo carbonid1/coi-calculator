@@ -6,9 +6,13 @@ import { useId, useState } from 'react'
 import { type ModuleResourceTransfer } from '../db/module-resource-links'
 import { resources } from '../db/resources'
 import { formatDiagnosticMessages } from '../helpers/diagnostic-display/diagnostic-display'
+import { type RecipePresentation } from '../helpers/recipe-display/recipe-display'
 import { type RecipePriorityNote } from '../helpers/resource-supply/recipe-priorities'
 import { type ContractSupplyRow } from '../helpers/resource-supply/resource-supply'
 import { type ModuleSupply, type SupplyInspector, type SupplyProducer, type SupplyTarget, type SupplyTrace, type SupplyUse, supplyTargetKey } from '../helpers/resource-supply/supply-diagnosis'
+import { RecipeLabel } from './RecipeLabel'
+import { useResourceNavigation } from './ResourceNavigation'
+import { ResourceToken } from './ResourceToken'
 
 const quantity = (value: number) => {
   if (Math.abs(value) <= 0.001) return '0'
@@ -41,16 +45,28 @@ const traceReason = (trace: SupplyTrace, inspector: SupplyInspector) => {
     case 'continue': return 'Continue tracing inputs'
   }
 }
+const TraceReason = ({ trace, inspector }: { trace: SupplyTrace; inspector: SupplyInspector }) => {
+  const last = trace.path.at(-1)
+
+  if (trace.additionalQuantity != null && last) {
+    return (
+      <Tooltip label={`Blocked increase: +${quantity(trace.additionalQuantity)} ${resources[last.resourceId].name} / cycle`}>
+        <span tabIndex={0} className="text-muted-foreground">· {traceReason(trace, inspector)}</span>
+      </Tooltip>
+    )
+  }
+  return <span className="text-muted-foreground">· {traceReason(trace, inspector)}</span>
+}
 
 interface InspectionProps {
   onInspect: (target: SupplyTarget) => void
   getScopeName: (target: SupplyTarget) => string
 }
 const ResourceLink = ({ target, onInspect, getScopeName }: InspectionProps & { target: SupplyTarget }) => (
-  <Button variant="link" size="small" className="h-auto justify-start px-0 py-1 text-left whitespace-normal"
+  <Button variant="link" size="small" className="h-auto justify-start p-1.5 text-left whitespace-normal"
     aria-label={`Inspect ${resources[target.resourceId].name}${target.moduleId ? ` in ${getScopeName(target)}` : ''}`}
     onClick={() => onInspect(target)}>
-    {resources[target.resourceId].name}
+    <ResourceToken resourceId={target.resourceId} named />
     {target.moduleId && <span className="text-muted-foreground"> · {getScopeName(target)}</span>}
   </Button>
 )
@@ -63,76 +79,54 @@ const RecipePriorities = ({ notes }: { notes: RecipePriorityNote[] }) => (
     ))}
   </ul>
 )
+const SupplyRecipeLabel = ({ recipe, inputTargets, onInspect }: {
+  recipe: RecipePresentation
+  inputTargets: SupplyTarget[]
+  onInspect: InspectionProps['onInspect']
+}) => {
+  const inspectResource = useResourceNavigation()
+
+  return <RecipeLabel recipe={recipe} onInspectInput={resourceId => {
+    if (resourceId === 'electricity' || resourceId === 'computing') {
+      inspectResource?.(resourceId)
+    } else {
+      onInspect(inputTargets.find(target => target.resourceId === resourceId) ?? { resourceId })
+    }
+  }} />
+}
 const SupplyRecipe = ({ producer, inspector, showPriorities, ...inspection }: InspectionProps & {
   producer: SupplyProducer
   inspector: SupplyInspector
   showPriorities: boolean
 }) => {
-  const [expanded, setExpanded] = useState(false)
-  const detailsId = useId()
   const traces = [...new Map(producer.limits.flatMap(limit => inspector.trace(limit))
-    .map(trace => [trace.path.map(supplyTargetKey).join('/'), trace])).values()]
-  const inputs = producer.inputs.filter(input => input.quantity > 0.001)
-  const increases = traces.flatMap(trace => {
-    const last = trace.path.at(-1)
-
-    return trace.additionalQuantity != null && last ? [{
-      key: trace.path.map(supplyTargetKey).join('/'), quantity: trace.additionalQuantity, resourceId: last.resourceId,
-    }] : []
-  })
+    .map(trace => [trace.path.map(supplyTargetKey).join('/'), trace])).values()].filter(trace => trace.kind !== 'exhausted')
+  const status = producer.status !== 'inputs' && producer.status !== 'unexplained' ? producerStatus(producer) : undefined
 
   return (
-    <div className="space-y-1 rounded-lg py-2 pl-3 hover:bg-accent">
-      <div className="grid grid-cols-[minmax(0,1fr)_max-content] items-baseline gap-3">
-        <h4 className="min-w-0 text-sm font-medium text-foreground">{producer.recipeName}</h4>
+    <div className="space-y-1 rounded-lg py-2 hover:bg-accent">
+      <div className="grid grid-cols-[minmax(0,1fr)_max-content] items-center gap-3">
+        <h4 aria-label={producer.recipeName} className="flex min-w-0 items-center text-sm font-medium text-foreground">
+          <SupplyRecipeLabel recipe={producer.recipe} inputTargets={producer.inputs.map(input => input.target)} onInspect={inspection.onInspect} />
+        </h4>
         <span className="text-right font-mono text-sm tabular-nums whitespace-nowrap text-foreground">{quantity(producer.produced)}</span>
       </div>
       {showPriorities && <RecipePriorities notes={producer.priorities.filter(note => note.label !== producerStatus(producer))} />}
       {traces.length > 0 ? (
         <ul className="space-y-1" aria-label={`${producer.recipeName} blockers`}>
           {traces.map(trace => (
-            <li key={trace.path.map(supplyTargetKey).join('/')} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+            <li key={trace.path.map(supplyTargetKey).join('/')} className="flex flex-wrap items-center gap-x-2 text-xs">
               {trace.path.map((next, index) => (
-                <span key={`${supplyTargetKey(next)}:${index}`} className="inline-flex items-baseline gap-2">
+                <span key={`${supplyTargetKey(next)}:${index}`} className="inline-flex items-center gap-2">
                   {index > 0 && <span aria-hidden="true" className="text-muted-foreground">→</span>}
                   <ResourceLink target={next} {...inspection} />
                 </span>
               ))}
-              <span className="text-muted-foreground">· {traceReason(trace, inspector)}</span>
+              <TraceReason trace={trace} inspector={inspector} />
             </li>
           ))}
         </ul>
-      ) : <p className="text-xs text-muted-foreground">{producerStatus(producer)}</p>}
-      {(inputs.length > 0 || increases.length > 0) && (
-        <Button variant="ghost" size="small" className="h-auto px-0 py-1 text-xs text-muted-foreground"
-          aria-label={`${expanded ? 'Hide' : 'Show'} ${producer.recipeName} details`}
-          aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(value => !value)}>
-          {expanded ? 'Hide details' : 'Details'}
-        </Button>
-      )}
-      {expanded && (
-        <div id={detailsId} className="space-y-2 pt-1 text-xs">
-          {inputs.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-muted-foreground">Inputs</p>
-              {inputs.map(input => (
-                <div key={supplyTargetKey(input.target)} className="grid grid-cols-[minmax(0,1fr)_max-content] items-baseline gap-3">
-                  <ResourceLink target={input.target} {...inspection} />
-                  <span className="text-right font-mono tabular-nums whitespace-nowrap text-foreground">{quantity(input.quantity)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {increases.map(increase => (
-            <Tooltip key={increase.key}
-              label="Additional input required by the blocked recipe increase. This is separate from the existing shortage.">
-              <span tabIndex={0} className="block w-fit text-muted-foreground">
-                Blocked increase: +{quantity(increase.quantity)} {resources[increase.resourceId].name}
-              </span>
-            </Tooltip>
-          ))}
-        </div>
-      )}
+      ) : status && <p className="text-xs text-muted-foreground">{status}</p>}
     </div>
   )
 }
@@ -147,8 +141,13 @@ const ContractFlow = ({ contract, amount, label }: { contract: ContractSupplyRow
 
   return (
     <li className="rounded-lg px-3 py-2 hover:bg-accent">
-      <div className="grid grid-cols-[minmax(0,1fr)_max-content] items-baseline gap-3 text-sm">
-        <span className="min-w-0 text-foreground">{contract.contractName}</span>
+      <div className="grid grid-cols-[minmax(0,1fr)_max-content] items-center gap-3 text-sm">
+        <span className="flex min-w-0 items-center text-foreground">
+          <RecipeLabel recipe={{ name: contract.contractName,
+            inputs: contract.exports.map(value => value.resourceId),
+            outputs: contract.imports.map(value => value.resourceId),
+            amounts: { inputs: contract.exports, outputs: contract.imports } }} />
+        </span>
         <span className="text-right font-mono tabular-nums whitespace-nowrap text-foreground">{quantity(amount)}</span>
       </div>
       <div className="flex flex-wrap items-baseline gap-x-3 text-xs text-muted-foreground">
@@ -167,8 +166,8 @@ const ContractFlow = ({ contract, amount, label }: { contract: ContractSupplyRow
       {expanded && (
         <dl id={detailsId} className="space-y-1 pt-2 text-xs">
           {details.flatMap(detail => detail.values.filter(value => value.quantity > 0.001).map(value => (
-            <div key={`${detail.label}:${value.resourceId}`} className="grid grid-cols-[minmax(0,1fr)_max-content] items-baseline gap-3">
-              <dt className="text-muted-foreground">{detail.label} · {resources[value.resourceId].name}</dt>
+            <div key={`${detail.label}:${value.resourceId}`} className="grid grid-cols-[minmax(0,1fr)_max-content] items-center gap-3">
+              <dt className="flex flex-wrap items-center gap-2 text-muted-foreground">{detail.label} <ResourceToken resourceId={value.resourceId} /></dt>
               <dd className="text-right font-mono tabular-nums whitespace-nowrap text-foreground">{quantity(value.quantity)}</dd>
             </div>
           )))}
@@ -218,7 +217,7 @@ const SupplyModule = ({ group, inspector, showPriorities, ...inspection }: Inspe
         </Button>
       )}
       {group.supplies.map(supply => (
-        <div key={supply.name} className="grid grid-cols-[minmax(0,1fr)_max-content] items-baseline gap-3 py-2 pl-3 text-sm text-foreground">
+        <div key={supply.name} className="grid grid-cols-[minmax(0,1fr)_max-content] items-center gap-3 py-2 text-sm text-foreground">
           <span>{supply.name}</span><span className="text-right font-mono tabular-nums whitespace-nowrap">{quantity(supply.quantity)}</span>
         </div>
       ))}
@@ -243,11 +242,11 @@ const ModuleDemand = ({ target, uses, showPriorities, ...inspection }: Inspectio
       </div>
       <ul className="space-y-1">
         {visible.map(use => (
-          <li key={use.key} className="space-y-1 rounded-lg py-2 pl-3 text-sm hover:bg-accent">
-            <div className="grid grid-cols-[minmax(0,1fr)_max-content] items-baseline gap-3">
-              {use.recipeName && use.recipeName !== use.name ? (
-                <Tooltip label={use.recipeName}><span tabIndex={0} className="min-w-0 text-foreground">{use.name}</span></Tooltip>
-              ) : <span className="min-w-0 text-foreground">{use.name}</span>}
+          <li key={use.key} className="space-y-1 rounded-lg py-2 text-sm hover:bg-accent">
+            <div className="grid grid-cols-[minmax(0,1fr)_max-content] items-center gap-3">
+              <span className="flex min-w-0 items-center text-foreground">{use.recipe
+                ? <SupplyRecipeLabel recipe={use.recipe} inputTargets={use.inputTargets ?? []} onInspect={inspection.onInspect} />
+                : use.name}</span>
               <span className="text-right font-mono tabular-nums whitespace-nowrap text-foreground">{quantity(use.quantity)}</span>
             </div>
             {showPriorities && use.priorities && <RecipePriorities notes={use.priorities} />}

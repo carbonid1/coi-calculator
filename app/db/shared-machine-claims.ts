@@ -22,10 +22,11 @@ const defaultGroundwaterPumpClaim = {
   target: 1,
 } as const satisfies SharedMachineClaim;
 
+/** Every named area can own pumps, including areas without crop farms. */
 export const createGroundwaterPumpClaims = (
-  cropFarmZones: readonly { id: number; name: string | null }[],
+  zones: readonly { id: number; name: string | null }[],
 ): SharedMachineClaim[] => [
-  ...cropFarmZones.flatMap(zone => zone.name ? [{
+  ...zones.flatMap(zone => zone.name ? [{
     id: getCropFarmGroundwaterClaimId(zone.id),
     zoneId: zone.id,
     moduleId: `live-area-${zone.id}`,

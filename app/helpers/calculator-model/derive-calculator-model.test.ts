@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { computingRecipeIds } from '../../db/computing'
 import { activeCropFarmGroups } from '../../db/crop-farm-plans'
 import { getLiveAreaPlans } from '../../db/live-area-plans'
+import { getCropFarmGroundwaterClaimId } from '../../db/modules/crop-farm-areas'
 import { type GameStateSnapshot, type SyncedProductionEntity } from '../../game-state'
 import { createCacheTestModel } from '../../test-fixtures/factory-calculation-cache'
 import { deriveCalculatorModel } from './derive-calculator-model'
@@ -139,6 +140,48 @@ const createSnapshot = (housingCount = 18): GameStateSnapshot => {
     },
   }
 }
+
+it.each([
+  { zoneId: 14, name: 'Population', running: true },
+  { zoneId: 42, name: 'Water supply', running: false },
+])('recognizes pumps already owned by a non-farm area ($name)', ({ zoneId, name, running }) => {
+  const snapshot = createSnapshot()
+  const zone = { id: zoneId, name }
+  const pump = {
+    entityId: 901, prototypeId: 'LandWaterPump', running,
+    zones: [zone], tile: { x: 1888, y: 821 },
+  }
+
+  if (!snapshot.logisticsZones.some(candidate => candidate.id === zoneId)) {
+    snapshot.logisticsZones.push(zone)
+  }
+  snapshot.machines.push({ ...pump, kind: 'groundwater-pump', customTitle: null, aquifer: null })
+  snapshot.productionEntities.push({ ...pump, recipeIds: ['LandWaterPumping'], nuclearReactor: null })
+  snapshot.areaEntities.push({
+    ...pump, prototypeName: 'Groundwater pump', constructionState: 'Constructed', constructed: true,
+    recipes: [{
+      id: 'LandWaterPumping', name: 'LandWaterPumping', assigned: true,
+      durationSeconds: 10, inputs: [],
+      outputs: [{ productId: 'Product_Water', name: 'Water', quantity: 8 }],
+    }],
+  })
+
+  const model = deriveCalculatorModel({ snapshot, revision: null, machineZoneAssignments: {} })
+  const pumpOwners = model.configuredModules.flatMap(module => (module.recipes ?? [])
+    .filter(recipe => recipe.gameBuildingId === 'LandWaterPump')
+    .map(recipe => ({ moduleId: module.id, built: module.builtBuildings[recipe.id] })))
+
+  expect(pumpOwners).toEqual([{ moduleId: `live-area-${zoneId}`, built: 1 }])
+  expect(model.sharedMachineAllocation.claims[getCropFarmGroundwaterClaimId(zoneId)])
+    .toMatchObject({ built: 1, running: Number(running), suggestedBuilt: 0, actions: [] })
+  expect(model.sharedMachineAllocation.inventory).toEqual([
+    expect.objectContaining({ built: 1, assigned: 1, unresolved: 0 }),
+  ])
+  expect(model.sharedMachineAllocation.zones).toEqual([
+    expect.objectContaining({ id: zoneId, needsAssignment: false }),
+  ])
+  expect(model.sharedMachineAllocation.issues).toEqual([])
+})
 
 it('uses the housing and station plans for the research summary', () => {
   const model = deriveCalculatorModel({ snapshot: createSnapshot(), machineZoneAssignments: {} })

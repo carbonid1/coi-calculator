@@ -36,7 +36,6 @@ import {
   createCropFarmAreaModule,
   createDefaultCropFarmModule,
   getCropFarmGroundwaterClaimId,
-  getCropFarmOwnerZones,
   getCropFarmRelatedZoneIds,
 } from '../../db/modules/crop-farm-areas'
 import {
@@ -157,9 +156,8 @@ export const deriveCalculatorModel = ({
 }: DeriveCalculatorModelOptions) => {
   const averageSunIntensityPercent = getAverageSunIntensityPercent(snapshot.weather)
   const currentCropFarmEntities = getSyncedCropFarmEntities(snapshot.cropFarms)
-  const cropFarmOwnerZones = getCropFarmOwnerZones(currentCropFarmEntities)
   const cropFarmRelatedZoneIds = getCropFarmRelatedZoneIds(currentCropFarmEntities)
-  const groundwaterPumpClaims = createGroundwaterPumpClaims(cropFarmOwnerZones)
+  const groundwaterPumpClaims = createGroundwaterPumpClaims(snapshot.logisticsZones)
   const sharedMachineAllocation =
     allocateSharedMachines(snapshot.machines, groundwaterPumpClaims, machineZoneAssignments, true)
   const defaultGroundwaterResolution = sharedMachineAllocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]

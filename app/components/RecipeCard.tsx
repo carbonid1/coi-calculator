@@ -1,7 +1,7 @@
 import { type ValueSource } from "../data-source";
 import { getBuildingData } from "../db/buildings";
 import { type Recipe } from "../db/recipes";
-import { resources } from "../db/resources";
+import type { resources } from "../db/resources";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import { type OperatingMode } from "../helpers/calculate/calculate";
 import {
@@ -10,10 +10,13 @@ import {
   getRecipeOutputQuantity,
   type RecipeModifierMultipliers,
 } from "../helpers/modifiers/recipe-output";
-import { getRecipeDisplayName } from "../helpers/recipe-display/recipe-display";
+import { getRecipePresentation } from "../helpers/recipe-display/recipe-display";
 import { BuildingCount } from "./BuildingCount";
 import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from './KeepReadyMenu';
 import { ProductionCard } from "./ProductionCard";
+import { RecipeFlow } from "./RecipeFlow";
+import { RecipeLabel } from "./RecipeLabel";
+import { RecipeTitle } from "./RecipeTitle";
 
 interface Props {
   recipe: Recipe;
@@ -58,7 +61,11 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
   const computingTflops = recipe.computingScalesWithSpeed
     ? tflopsPerMachine * buildingMultiplier * speedLevel
     : tflopsPerMachine;
-  const recipeDisplayName = getRecipeDisplayName(recipe);
+  const recipePresentation = getRecipePresentation(recipe);
+  const recipeDisplayName = recipePresentation.name;
+  const sustainableInput = recipe.decayStorage
+    ? recipe.decayStorage.capacity / recipe.decayStorage.decayCycles * activeBuildings
+    : undefined;
   const displaysConfiguration = showConfigurationSummary
     && recipe.showConfigurationSummary !== false
     && !compactSyncedElectricitySource;
@@ -76,11 +83,14 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
       >
         <div>
           <h3 className="font-semibold text-foreground">
-            {recipe.building}
+            <RecipeTitle title={recipe.building} descriptions={[
+              recipeDisplayName,
+              ...(sustainableInput != null ? [`Sustainable limit · ${parseFloat(sustainableInput.toFixed(2))} / cycle`] : []),
+            ]} />
           </h3>
-          {displaysConfiguration && recipeDisplayName !== recipe.building && (
+          {displaysConfiguration && (recipePresentation.configuration || (!displaysFlows && recipeDisplayName !== recipe.building)) && (
             <p className="text-sm text-muted-foreground">
-              {recipeDisplayName}
+              <RecipeLabel recipe={recipePresentation} />
             </p>
           )}
           {recipe.farmFertilizer && (
@@ -137,69 +147,29 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
 
       <KeepReadyNote enabled={diagnostic?.keepReady} />
       {displaysFlows && (
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="min-w-0 space-y-1">
-            {recipe.inputs.map((input) => {
-              const actualQuantity = actualInputs?.find(
-                (actual) => actual.resourceId === input.resourceId,
-              )?.quantity ?? getRecipeInputQuantity(input, outputModifiers) * ioMultiplier;
-              const grossQuantity = getRecipeGrossInputQuantity(input, outputModifiers)
-                * ioMultiplier;
-              const weatherAdjusted = Boolean(input.weatherAdjustedFarmId);
+        <RecipeFlow name={recipeDisplayName}
+          inputs={recipe.inputs.map(input => {
+            const quantity = actualInputs?.find(actual => actual.resourceId === input.resourceId)?.quantity
+              ?? getRecipeInputQuantity(input, outputModifiers) * ioMultiplier;
+            const grossQuantity = getRecipeGrossInputQuantity(input, outputModifiers) * ioMultiplier;
+            let detail: string | undefined;
 
-              if (weatherAdjusted) {
-                return (
-                  <div key={input.resourceId} className="space-y-1 text-sm">
-                    <span className="block truncate text-muted-foreground">
-                      {resources[input.resourceId].name}
-                    </span>
-                    <dl className="space-y-1 rounded-lg bg-surface-inset px-2 py-1.5 inset-shadow-surface">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <dt className="min-w-0 text-xs text-muted-foreground">Import after rain</dt>
-                        <dd className="shrink-0 font-mono text-destructive">
-                          {parseFloat(actualQuantity.toFixed(2))}
-                        </dd>
-                      </div>
-                      <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                        <dt className="min-w-0">Gross demand</dt>
-                        <dd className="shrink-0 font-mono">
-                          {parseFloat(grossQuantity.toFixed(2))}
-                        </dd>
-                      </div>
-                    </dl>
-                  </div>
-                );
-              }
+            if (input.weatherAdjustedFarmId) {
+              detail = `Import after rain · ${parseFloat(quantity.toFixed(2))}\nGross demand · ${parseFloat(grossQuantity.toFixed(2))}`;
+            } else if (sustainableInput != null) {
+              detail = `Input · ${parseFloat(quantity.toFixed(2))}\nSustainable limit · ${parseFloat(sustainableInput.toFixed(2))}`;
+            }
 
-              return (
-                <div key={input.resourceId} className="flex items-start justify-between gap-2 text-sm">
-                  <span className="min-w-0 truncate text-gray-600 dark:text-gray-300">
-                    {resources[input.resourceId].name}
-                  </span>
-                  <span className="shrink-0 font-mono text-red-600 dark:text-red-400">
-                    {parseFloat(actualQuantity.toFixed(2))}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="text-xl text-gray-400">&rarr;</div>
-
-          <div className="min-w-0 space-y-1">
-            {recipe.outputs.map((output) => (
-              <div key={output.resourceId} className="flex justify-between text-sm gap-2">
-                <span className="truncate text-gray-600 dark:text-gray-300">
-                  {resources[output.resourceId].name}
-                </span>
-                <span className="shrink-0 font-mono text-green-600 dark:text-green-400">
-                  {parseFloat((actualOutputs?.find((actual) => actual.resourceId === output.resourceId)?.quantity
-                    ?? getRecipeOutputQuantity(recipe, output, outputModifiers) * ioMultiplier).toFixed(2))}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+            return {
+              resourceId: input.resourceId, quantity, detail,
+            };
+          })}
+          outputs={recipe.outputs.map(output => ({
+            resourceId: output.resourceId,
+            quantity: actualOutputs?.find(actual => actual.resourceId === output.resourceId)?.quantity
+              ?? getRecipeOutputQuantity(recipe, output, outputModifiers) * ioMultiplier,
+          }))}
+        />
       )}
     </ProductionCard>
   );
