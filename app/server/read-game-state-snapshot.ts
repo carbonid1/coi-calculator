@@ -4,6 +4,7 @@ import { normalizeGameStateSnapshot, type GameStateSnapshot } from '../game-stat
 import { isGameIdentity, normalizeNativeProducts } from '../product-state'
 import { calculateGameStateSnapshotRevision } from './game-state-snapshot-revision'
 import { fetchGameWebApi } from './game-web-api'
+import { getGameMonth, normalizeHydrogenFuelHistory } from './native-hydrogen-history'
 
 interface AvailableResult {
   error: null
@@ -43,23 +44,25 @@ const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
   const before: unknown = beforeResponse.ok ? await beforeResponse.json() : null
 
   if (!isGameIdentity(before)) return unavailable(502, 'The game could not provide calculator data. Check the game log.')
-  const [response, catalogResponse, inventoryResponse] = await Promise.all([
+  const [response, catalogResponse, inventoryResponse, historyResponse] = await Promise.all([
     fetchGameWebApi(SNAPSHOT_ROUTE, signal),
     fetchGameWebApi('/api/v1/products?includeLocked=true', signal),
     fetchGameWebApi('/api/v1/products/stats?series=quantity,stored,storageCapacity', signal),
+    fetchGameWebApi('/api/v1/products/history?ids=Product_Hydrogen&resolution=month&series=consumedAsFuel&count=120', signal),
   ])
 
   if (response.status === 404) {
     return unavailable(404, 'Enable CoI Calculator Bridge in the loaded game.')
   }
-  if (!response.ok || !catalogResponse.ok || !inventoryResponse.ok) {
+  if (!response.ok || !catalogResponse.ok || !inventoryResponse.ok || !historyResponse.ok) {
     return unavailable(502, 'The game could not provide calculator data. Check the game log.')
   }
 
-  const [bridge, catalog, inventory, afterResponse] = await Promise.all([
+  const [bridge, catalog, inventory, rawHistory, afterResponse] = await Promise.all([
     response.json().then(normalizeGameStateSnapshot).catch(() => null),
     catalogResponse.json().catch(() => null),
     inventoryResponse.json().catch(() => null),
+    historyResponse.json().catch(() => null),
     fetchGameWebApi('/api/v1/game-info', signal),
   ])
   const after: unknown = afterResponse.ok ? await afterResponse.json() : null
@@ -71,11 +74,24 @@ const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
   if (!products) {
     return unavailable(502, 'The game could not provide product and inventory data. Check the game log.')
   }
+  const sampleMonths = Math.max(...Object.values(bridge.history.hydrogenFuel.byUse).map(use => use.sampleMonths))
+  const history = normalizeHydrogenFuelHistory(rawHistory, sampleMonths)
+
+  if (!history) {
+    return unavailable(502, 'The game could not provide fuel history. Check the game log.')
+  }
   if (!isGameIdentity(after) || before.gameId !== after.gameId || before.sessionId !== after.sessionId
-    || bridge.gameId !== before.gameId || bridge.sessionId !== before.sessionId) {
+    || bridge.gameId !== before.gameId || bridge.sessionId !== before.sessionId
+    || getGameMonth(before.date) !== history.month || getGameMonth(after.date) !== history.month) {
     return unavailable(503, 'The loaded game changed. Waiting for current factory data.')
   }
-  const snapshot: GameStateSnapshot = { ...bridge, products }
+  const snapshot: GameStateSnapshot = {
+    ...bridge, products,
+    history: {
+      ...bridge.history,
+      hydrogenFuel: { ...bridge.history.hydrogenFuel, total: history.total },
+    },
+  }
 
   return {
     error: null,
