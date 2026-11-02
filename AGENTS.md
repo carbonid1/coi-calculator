@@ -23,6 +23,8 @@ Prefer current game/API evidence and code over historical notes. Do not add sepa
 
 ## Solver debugging
 
+Prefer a small number of broad recorded-factory and browser smoke tests over isolated tests of rendering, formatting, or simple arithmetic. When adding smoke coverage, remove smaller tests it supersedes. Keep focused regressions for solver edge cases and data-boundary failures that the smoke scenarios do not cover.
+
 For solver bugs, isolate the failure in a small regression test before experimenting with allocation changes, then verify the fix against a saved factory snapshot while checking that existing priorities still hold.
 
 ## Debugging tools
