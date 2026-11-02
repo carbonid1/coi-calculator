@@ -1,22 +1,27 @@
-0.4.1
+v0.4.2 | 2026-11-02
+- Updated for Captain of Industry 0.8.8 (Update 4.3).
+- Fixed toolbar compatibility to restore game loading.
+- Fixed release notes appearing together under the latest version.
+
+v0.4.1 | 2026-08-30
 - Dashboard can now be disabled and is off by default.
 - Tightened the layout and aligned total trains with the other stats.
 - Disabling it hides the UI and stops dashboard updates.
 
-0.4.0
+v0.4.0 | 2026-08-30
 - Added a live capacity dashboard for non-empty Train Networks.
 - Shows occupied trains, busy Waiting bays, and train counts by wagon type.
 - Supports Unit, Loose, Fluid, Molten, Universal, Mixed, and generic trains.
 - Updates only while open and stores no history.
 
-0.3.9
+v0.3.9 | 2026-08-30
 - Removed the incorrect Trains expansion dependency.
 - Fixed COI Hub trying to install the expansion as a mod.
 
-0.3.8
+v0.3.8 | 2026-08-27
 - Fixed the jam delay carrying across separate track waits.
 
-0.3.7
+v0.3.7 | 2026-08-23
 - Added grouped jam alerts for sustained fleet congestion.
 - Alerts start at three trains and 10% of the active fleet.
 - Clicking the alert cycles through affected trains.

@@ -1,7 +1,7 @@
 # Train Network Monitor
 
-Captain of Industry 0.8.7 mod with an optional Train Network capacity dashboard
-and one grouped alert for sustained fleet jams.
+Captain of Industry 0.8.8 (Update 4.3) mod with an optional Train Network capacity
+dashboard and one grouped alert for sustained fleet jams.
 
 ## Capacity dashboard
 

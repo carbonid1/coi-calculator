@@ -50,6 +50,13 @@ $thumbnailFile = Join-Path $modSource "Thumbnail.png"
 $changelogFile = Join-Path $modSource "changelog.txt"
 $readmeFile = Join-Path $modSource "README.md"
 
+$manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
+$changelogHeading = (Get-Content -LiteralPath $changelogFile -TotalCount 1).Trim()
+$expectedHeadingPattern = '^v' + [regex]::Escape($manifest.version) + ' \| \d{4}-\d{2}-\d{2}$'
+if ($changelogHeading -notmatch $expectedHeadingPattern) {
+    throw "Start changelog.txt with 'v$($manifest.version) | YYYY-MM-DD' so COI Hub can separate releases."
+}
+
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 
 $references = @(
@@ -102,7 +109,6 @@ if ($Install) {
 }
 
 if ($Package) {
-    $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
     $buildsDirectory = Join-Path $repositoryRoot "Builds"
     $archivePath = Join-Path $buildsDirectory "$modId-$($manifest.version).zip"
     New-Item -ItemType Directory -Path $buildsDirectory -Force | Out-Null

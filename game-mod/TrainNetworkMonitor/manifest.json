@@ -1,12 +1,12 @@
 {
   "id": "TrainNetworkMonitor",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "display_name": "Train Network Monitor",
   "description_short": "Live Train Network capacity and one grouped alert for sustained fleet jams.",
   "description_long": "<b>Train Network Monitor</b>\n\nSee whether each Train Network has enough trains and get one clear alert when traffic stays jammed.\n\n<b>Capacity dashboard</b>\nEnable the optional dashboard in Mod Settings. It shows occupied / total trains, busy / total Waiting bays, and train counts for Unit, Loose, Fluid, Molten, Universal, Mixed, and generic formations. Only non-empty networks and wagon types are shown. The dashboard is off by default and stops updating when disabled.\n\n<b>Jam alerts</b>\nOne grouped red alert appears when at least three trains and 10% of the active fleet remain blocked for the configured delay. Click it to cycle through affected trains, starting with the longest wait.\n\nSet the delay from 1–12 in-game months and optionally pause when a new alert starts. The alert clears when traffic recovers.\n\nThe mod does not change train routing or behavior. Settings are stored per save.\n\n<i>Works with base-game trains and the official Trains expansion.</i>",
   "authors": "carbonid1",
-  "min_game_version": "0.8.7",
-  "max_verified_game_version": "0.8.7a",
+  "min_game_version": "0.8.8",
+  "max_verified_game_version": "0.8.8",
   "links": [
     "https://github.com/carbonid1/coi-calculator/tree/main/game-mod/TrainNetworkMonitor",
     "https://github.com/carbonid1/coi-calculator/issues"

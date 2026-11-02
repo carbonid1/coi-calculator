@@ -43,8 +43,7 @@ internal sealed class TrainNetworkDashboardController
             new LocStrFormatted("Train Network Monitor"),
             this,
             NetworkIconPath,
-            220f,
-            null);
+            220f);
         m_toolbarButton.Hide();
         SetEnabled(isEnabled);
     }

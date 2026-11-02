@@ -33,8 +33,7 @@ internal sealed class TrainNetworkSettingsController
             new LocStrFormatted("Train Network Monitor settings"),
             this,
             SettingsIconPath,
-            221f,
-            null);
+            221f);
     }
 
     public event Action<IToolbarItemController> VisibilityChanged
