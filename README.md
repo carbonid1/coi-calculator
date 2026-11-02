@@ -1,44 +1,24 @@
 # CoI Calculator
 
-Production chain calculator for [Captain of Industry](https://www.captain-of-industry.com/).
+Factory planning for [Captain of Industry](https://www.captain-of-industry.com/),
+connected through the game's local web server and **CoI Calculator Bridge**.
 
-Pick a module, plug in building counts, see net resource flows and where to place sinks.
-
-## Stack
-
-- **Next.js 16** (App Router, TypeScript)
-- **Tailwind CSS v4** via `@carbonid1/design-system/themes/dashboard`
-- **Configs** from [`@carbonid1/packages`](https://github.com/carbonid1/packages): `tsconfig`, `eslint-config`, `prettier-config`
-
-Factory data comes from the game's local web server through
-[CoI Calculator Bridge](./game-mod/CoiCalculatorExporter/README.md).
-Calculation rules and planning defaults live under `app/db`.
-
-## Develop
-
-Prerequisites: Node.js 24 and pnpm 11.20.0.
+Use the Node.js and pnpm versions in [package.json](./package.json) and the game
+version supported by the [Bridge manifest](./game-mod/CoiCalculatorExporter/manifest.json).
 
 ```sh
 pnpm install
+pnpm game-mod:install
 pnpm dev
 ```
 
-Open [localhost:3000](http://localhost:3000).
+Restart the game after installing the Bridge, enable it when loading your factory,
+then open [localhost:3000](http://localhost:3000). The Bridge starts the game server
+on port 3073 and works while paused.
 
-To connect a factory, install the bridge with `pnpm game-mod:install`, restart
-Captain of Industry, and enable **CoI Calculator Bridge** when loading a game.
-The bridge starts the game server on port 3073 and works while paused.
-The calculator requires the Update 4.3 bridge; previous export files are no longer read.
+For another game-server port, set `COI_WEB_API_URL=http://127.0.0.1:3099` in
+`.env.local` and restart the calculator.
 
-## Scripts
+Checks: `pnpm ts`, `pnpm exec vitest run`, `pnpm build`. `pnpm lint` also fixes lint issues.
 
-| Script | Purpose |
-| --- | --- |
-| `pnpm dev` | Next.js dev server |
-| `pnpm build` | Production build |
-| `pnpm ts` | Type-check |
-| `pnpm lint` | Lint + auto-fix |
-
-## Modules
-
-See [`docs/FBR-FUEL-LOOP.md`](./docs/FBR-FUEL-LOOP.md) for the canonical fuel-loop module reference.
+[Train Network Monitor](./game-mod/TrainNetworkMonitor/README.md) is maintained separately.

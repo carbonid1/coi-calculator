@@ -17,7 +17,9 @@ Do not narrate familiar game mechanics; show only calculated results, actionable
 
 ## Game data
 
-When updating database files, verify numerical values and mechanics against the installed game files for the targeted game version. Log confirmed wiki discrepancies in `docs/WIKI-DISCREPANCIES.md`.
+When updating database files, verify numerical values and mechanics against the current installed game or its live API for the targeted version. Keep necessary explanations with the implementation or regression tests.
+
+Prefer current game/API evidence and code over historical notes. Do not add separate game-data audits, implementation plans, or mechanics documentation unless requested.
 
 ## Solver debugging
 

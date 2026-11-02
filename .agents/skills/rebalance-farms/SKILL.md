@@ -16,10 +16,10 @@ separately and treat any persisted overrides as Planned. Without a compatible
 snapshot, use explicitly supplied planning inputs and identify missing inputs;
 current-state balances are unavailable.
 
-Use [the farm model](../../../docs/FARMS.md) for rotation and simulation behavior,
-[crop-farming.ts](../../../app/db/crop-farming.ts) for model types and crop data,
-and [crop-farm-areas.ts](../../../app/db/modules/crop-farm-areas.ts) when tracing
-how synced farms enter Factory Total. Reuse the calculator's farm simulation.
+Use [crop-farming.ts](../../../app/db/crop-farming.ts) for rotation simulation,
+model types, and crop data, [calculate-farm-irrigation.ts](../../../app/helpers/weather/calculate-farm-irrigation.ts)
+for water demand, and [crop-farm-areas.ts](../../../app/db/modules/crop-farm-areas.ts)
+when tracing how synced farms enter Factory Total. Reuse the calculator's farm simulation.
 Keep optimization outside the runtime; if there is no existing way to persist a
 proposed rotation, return the plan without changing synced data or adding a
 planning feature to complete a rebalance request.
