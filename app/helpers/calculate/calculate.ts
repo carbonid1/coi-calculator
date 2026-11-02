@@ -5,13 +5,14 @@ import {
   type Recipe,
 } from "../../db/recipes";
 import { resourceSupplyRules } from "../../db/resource-supply";
-import { type ResourceId, resources } from "../../db/resources";
+import { type ResourceId } from "../../db/resources";
 import {
   getRecipeInputQuantity,
   getRecipeOutputQuantity,
   withRecipeRecycling,
   type RecipeModifierMultipliers,
 } from "../modifiers/recipe-output";
+import { getResourceProducts } from '../products/products';
 import { getModuleInputIds, isModuleInput } from "../recipe-input-scope/recipe-input-scope";
 import { typedEntries } from "../typed-entries/typed-entries";
 
@@ -519,6 +520,7 @@ export const calculateNet = (
   const lines = inputLines.map(line => ({
     ...line, recipe: withRecipeRecycling(line.recipe, outputModifiers, recyclingEfficiencyPercent),
   }));
+  const resources = getResourceProducts(outputModifiers.products);
   const effectivePlannedSupportingResourceIds = new Map<string, Set<ResourceId>>();
 
   for (const [moduleId, resourceIds] of plannedSupportingResourceIds) {

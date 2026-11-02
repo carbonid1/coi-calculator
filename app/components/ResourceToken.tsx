@@ -3,9 +3,10 @@
 import { Button, cn, Tooltip } from '@carbonid1/design-system'
 import { type ReactNode, useId, useState } from 'react'
 
-import { resourceIcons } from '../db/resource-icons'
-import { resources, type ResourceId } from '../db/resources'
+import { type ResourceId } from '../db/resources'
+import { getProductIconUrl } from '../helpers/products/products'
 import { useResourceNavigation } from './ResourceNavigation'
+import { useProductState } from './ResourceProducts'
 
 /** The same reveal behavior for an icon or an authored recipe configuration. */
 export const ResourceTooltip = ({ label, detail, className, children, onClick }: {
@@ -56,16 +57,16 @@ export const ResourceToken = ({ resourceId, named = false, interactive = !named,
   onInspect?: () => void
 }) => {
   const inspectResource = useResourceNavigation()
+  const { resources, products } = useProductState()
   const onClick = interactive ? onInspect ?? (inspectResource ? () => inspectResource(resourceId) : undefined) : undefined
   const [failedSource, setFailedSource] = useState<string>()
-  const icon = resourceIcons[resourceId]
-  const source = icon ? `/resource-icons/${resourceId}.png` : undefined
+  const source = getProductIconUrl(resources[resourceId].productId, products?.sessionId)
   const name = resources[resourceId].name
   const showImage = source && source !== failedSource
   const content = (
     <>
       {showImage && (
-        // These small, local game assets already have a fixed display size.
+        // The game's icons have a fixed display size, including the loading state.
         <span className={cn('inline-flex shrink-0', amount != null && 'px-1.5')}>
           <img src={source} alt="" width={28} height={28} className="size-7 shrink-0 object-contain"
             decoding="async" onError={() => setFailedSource(source)} />

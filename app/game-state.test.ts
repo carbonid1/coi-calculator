@@ -8,6 +8,7 @@ import {
   isGameStateSnapshot,
   normalizeGameStateSnapshot,
 } from './game-state'
+import { testProducts } from './test-fixtures/products'
 import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
@@ -66,6 +67,21 @@ const currentSnapshot = {
 }
 
 describe('game-state snapshot validation', () => {
+  it('preserves native products from the same game session', () => {
+    const snapshot = { ...currentSnapshot, products: testProducts }
+
+    expect(normalizeGameStateSnapshot(snapshot)).toEqual(snapshot)
+  })
+
+  it('rejects native products from another game or session', () => {
+    expect(normalizeGameStateSnapshot({
+      ...currentSnapshot, products: { ...testProducts, gameId: '999' },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({
+      ...currentSnapshot, products: { ...testProducts, sessionId: '999' },
+    })).toBeNull()
+  })
+
   it('accepts and normalizes the current exporter schema', () => {
     expect(isGameStateSnapshot(currentSnapshot)).toBe(true)
     expect(normalizeGameStateSnapshot(currentSnapshot)).toEqual(currentSnapshot)

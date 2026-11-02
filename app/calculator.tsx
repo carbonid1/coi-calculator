@@ -18,6 +18,7 @@ import { RecipeCard } from './components/RecipeCard'
 import { InfiniteResearchSettings, ResearchSettings } from './components/ResearchSettings'
 import { ReservesView } from './components/ReservesView'
 import { ResourceNavigationProvider } from './components/ResourceNavigation'
+import { ResourceProductsProvider } from './components/ResourceProducts'
 import { ResourceSupplyView } from './components/ResourceSupplyView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
@@ -1019,5 +1020,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     </div>
   )
 
-  return <ResourceNavigationProvider onInspectResource={inspectResource}>{page}</ResourceNavigationProvider>
+  return (
+    <ResourceProductsProvider products={gameState.snapshot?.products}
+      current={gameState.source === 'live' && gameState.status === 'available' && gameState.isFresh}>
+      <ResourceNavigationProvider onInspectResource={inspectResource}>{page}</ResourceNavigationProvider>
+    </ResourceProductsProvider>
+  )
 }

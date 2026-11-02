@@ -1,14 +1,16 @@
 import { Item } from '@carbonid1/design-system'
 
-import { type ResourceId, resources } from '../db/resources'
+import { type ResourceId } from '../db/resources'
 import { resolveSyncedResourceId } from '../helpers/synced-resources/synced-resources'
 import { typedEntries } from '../helpers/typed-entries/typed-entries'
 import { type WorldMineResult } from '../helpers/world-mines/calculate-world-mines'
 import { type SyncedWorldState } from '../world-state'
+import { useResources } from './ResourceProducts'
 
 const format = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 2 })
 
 export const WorldMinesView = ({ world, result }: { world: SyncedWorldState; result: WorldMineResult }) => {
+  const resources = useResources()
   // World cargo is pooled by product; do not repeat that delivery for each mine.
   const products = new Map<string, { name: string; resourceId: ResourceId | undefined }>()
 

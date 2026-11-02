@@ -1,7 +1,9 @@
 import 'server-only'
 
 import { normalizeGameStateSnapshot, type GameStateSnapshot } from '../game-state'
+import { isGameIdentity, normalizeNativeProducts } from '../product-state'
 import { calculateGameStateSnapshotRevision } from './game-state-snapshot-revision'
+import { fetchGameWebApi } from './game-web-api'
 
 interface AvailableResult {
   error: null
@@ -36,25 +38,44 @@ const unavailable = (
 })
 
 const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
-  const url = new URL(SNAPSHOT_ROUTE, process.env.COI_WEB_API_URL || 'http://127.0.0.1:3073')
-  const response = await fetch(url, {
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
+  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  const beforeResponse = await fetchGameWebApi('/api/v1/game-info', signal)
+  const before: unknown = beforeResponse.ok ? await beforeResponse.json() : null
+
+  if (!isGameIdentity(before)) return unavailable(502, 'The game could not provide calculator data. Check the game log.')
+  const [response, catalogResponse, inventoryResponse] = await Promise.all([
+    fetchGameWebApi(SNAPSHOT_ROUTE, signal),
+    fetchGameWebApi('/api/v1/products?includeLocked=true', signal),
+    fetchGameWebApi('/api/v1/products/stats?series=quantity,stored,storageCapacity', signal),
+  ])
 
   if (response.status === 404) {
     return unavailable(404, 'Enable CoI Calculator Bridge in the loaded game.')
   }
-  if (!response.ok) {
+  if (!response.ok || !catalogResponse.ok || !inventoryResponse.ok) {
     return unavailable(502, 'The game could not provide calculator data. Check the game log.')
   }
 
-  const snapshot = await response.json().then(normalizeGameStateSnapshot).catch(() => null)
+  const [bridge, catalog, inventory, afterResponse] = await Promise.all([
+    response.json().then(normalizeGameStateSnapshot).catch(() => null),
+    catalogResponse.json().catch(() => null),
+    inventoryResponse.json().catch(() => null),
+    fetchGameWebApi('/api/v1/game-info', signal),
+  ])
+  const after: unknown = afterResponse.ok ? await afterResponse.json() : null
+  const products = normalizeNativeProducts(catalog, inventory, before)
 
-  if (!snapshot) {
+  if (!bridge) {
     return unavailable(422, 'Update CoI Calculator Bridge for this version of the calculator and game.')
   }
+  if (!products) {
+    return unavailable(502, 'The game could not provide product and inventory data. Check the game log.')
+  }
+  if (!isGameIdentity(after) || before.gameId !== after.gameId || before.sessionId !== after.sessionId
+    || bridge.gameId !== before.gameId || bridge.sessionId !== before.sessionId) {
+    return unavailable(503, 'The loaded game changed. Waiting for current factory data.')
+  }
+  const snapshot: GameStateSnapshot = { ...bridge, products }
 
   return {
     error: null,

@@ -686,6 +686,7 @@ export const deriveCalculatorModel = ({
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel)
   const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel)
   const outputModifiers = {
+    products: snapshot.products ? { catalog: snapshot.products.catalog } : undefined,
     recycling: { ...snapshot.recycling, efficiencyPercent: recyclingEfficiencyPercent },
     weather: snapshot.weather,
     foodConsumption: foodConsumption.multiplier,

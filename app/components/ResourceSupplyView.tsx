@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { type Module } from '../db/modules/modules'
 import { resourceSupplyRules, type ResourceProcessingPriority } from '../db/resource-supply'
-import { resources, type ResourceId } from '../db/resources'
+import { type ResourceId } from '../db/resources'
 import { type FactoryCalculation } from '../helpers/factory-calculation/factory-calculation'
 import { canPrioritizeProcessing, isResourceProcessingPriority } from '../helpers/resource-priorities/resource-priorities'
 import {
@@ -15,8 +15,10 @@ import {
   type ResourceSupplyRow,
 } from '../helpers/resource-supply/resource-supply'
 import { createSupplyInspector, supplyTargetKey, type SupplyTarget } from '../helpers/resource-supply/supply-diagnosis'
+import { ProductInventorySummary } from './ProductInventorySummary'
 import { ResourceNavigationProvider, useResourceNavigation } from './ResourceNavigation'
 import { ResourcePicker } from './ResourcePicker'
+import { useResources } from './ResourceProducts'
 import { SupplyDiagnosis } from './SupplyDiagnosis'
 
 const formatQuantity = (quantity: number) => quantity.toLocaleString('en-US', {
@@ -40,6 +42,7 @@ export const ResourceSupplyView = ({
   initialResourceId?: ResourceId
 }) => {
   const inspectFactoryResource = useResourceNavigation()
+  const resources = useResources()
   const [trail, setTrail] = useState<SupplyTarget[]>([{ resourceId: initialResourceId }])
   const target = trail[trail.length - 1] ?? { resourceId: initialResourceId }
   const { resourceId } = target
@@ -86,7 +89,7 @@ export const ResourceSupplyView = ({
     resourceIds.add('water')
     return [...resourceIds].filter(id => id !== 'electricity' && id !== 'computing')
       .toSorted((left, right) => resources[left].name.localeCompare(resources[right].name))
-  }, [calculation])
+  }, [calculation, resources])
   const rows = useMemo(() => getResourceSupplyRows(modules, calculation, resourceId)
     .filter(row => !target.moduleId || row.moduleId === target.moduleId), [
     modules, calculation, resourceId, target.moduleId,
@@ -201,6 +204,7 @@ export const ResourceSupplyView = ({
           </span>
         ))}
       </nav>}
+      <ProductInventorySummary resourceId={resourceId} />
       <SupplyDiagnosis key={supplyTargetKey(target)} inspector={inspector} target={target}
         factoryAccess={Boolean(target.moduleId) && rows.some(row => getResourceSupplyAccess(row, resourceId) === 'factory')}
         contracts={target.moduleId ? [] : contractRows}

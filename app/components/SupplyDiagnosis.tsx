@@ -4,7 +4,6 @@ import { Button, Tooltip } from '@carbonid1/design-system'
 import { useId, useState } from 'react'
 
 import { type ModuleResourceTransfer } from '../db/module-resource-links'
-import { resources } from '../db/resources'
 import { formatDiagnosticMessages } from '../helpers/diagnostic-display/diagnostic-display'
 import { type RecipePresentation } from '../helpers/recipe-display/recipe-display'
 import { type RecipePriorityNote } from '../helpers/resource-supply/recipe-priorities'
@@ -12,6 +11,7 @@ import { type ContractSupplyRow } from '../helpers/resource-supply/resource-supp
 import { type ModuleSupply, type SupplyInspector, type SupplyProducer, type SupplyTarget, type SupplyTrace, type SupplyUse, supplyTargetKey } from '../helpers/resource-supply/supply-diagnosis'
 import { RecipeLabel } from './RecipeLabel'
 import { useResourceNavigation } from './ResourceNavigation'
+import { useResources } from './ResourceProducts'
 import { ResourceToken } from './ResourceToken'
 
 const quantity = (value: number) => {
@@ -19,7 +19,7 @@ const quantity = (value: number) => {
   if (Math.abs(value) < 0.01) return value.toPrecision(1)
   return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
-const producerStatus = (producer: SupplyProducer) => {
+const producerStatus = (producer: SupplyProducer, resources: ReturnType<typeof useResources>) => {
   switch (producer.status) {
     case 'capacity': return 'At capacity'
     case 'paused': return 'Paused'
@@ -46,6 +46,7 @@ const traceReason = (trace: SupplyTrace, inspector: SupplyInspector) => {
   }
 }
 const TraceReason = ({ trace, inspector }: { trace: SupplyTrace; inspector: SupplyInspector }) => {
+  const resources = useResources()
   const last = trace.path.at(-1)
 
   if (trace.additionalQuantity != null && last) {
@@ -62,14 +63,18 @@ interface InspectionProps {
   onInspect: (target: SupplyTarget) => void
   getScopeName: (target: SupplyTarget) => string
 }
-const ResourceLink = ({ target, onInspect, getScopeName }: InspectionProps & { target: SupplyTarget }) => (
-  <Button variant="link" size="small" className="h-auto justify-start p-1.5 text-left whitespace-normal"
-    aria-label={`Inspect ${resources[target.resourceId].name}${target.moduleId ? ` in ${getScopeName(target)}` : ''}`}
-    onClick={() => onInspect(target)}>
-    <ResourceToken resourceId={target.resourceId} named />
-    {target.moduleId && <span className="text-muted-foreground"> · {getScopeName(target)}</span>}
-  </Button>
-)
+const ResourceLink = ({ target, onInspect, getScopeName }: InspectionProps & { target: SupplyTarget }) => {
+  const resources = useResources()
+
+  return (
+    <Button variant="link" size="small" className="h-auto justify-start p-1.5 text-left whitespace-normal"
+      aria-label={`Inspect ${resources[target.resourceId].name}${target.moduleId ? ` in ${getScopeName(target)}` : ''}`}
+      onClick={() => onInspect(target)}>
+      <ResourceToken resourceId={target.resourceId} named />
+      {target.moduleId && <span className="text-muted-foreground"> · {getScopeName(target)}</span>}
+    </Button>
+  )
+}
 const RecipePriorities = ({ notes }: { notes: RecipePriorityNote[] }) => (
   <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground" aria-label="Calculator recipe priorities">
     {notes.map(note => (
@@ -99,9 +104,10 @@ const SupplyRecipe = ({ producer, inspector, showPriorities, ...inspection }: In
   inspector: SupplyInspector
   showPriorities: boolean
 }) => {
+  const resources = useResources()
   const traces = [...new Map(producer.limits.flatMap(limit => inspector.trace(limit))
     .map(trace => [trace.path.map(supplyTargetKey).join('/'), trace])).values()].filter(trace => trace.kind !== 'exhausted')
-  const status = producer.status !== 'inputs' && producer.status !== 'unexplained' ? producerStatus(producer) : undefined
+  const status = producer.status !== 'inputs' && producer.status !== 'unexplained' ? producerStatus(producer, resources) : undefined
 
   return (
     <div className="space-y-1 rounded-lg py-2 hover:bg-accent">
@@ -111,7 +117,7 @@ const SupplyRecipe = ({ producer, inspector, showPriorities, ...inspection }: In
         </h4>
         <span className="text-right font-mono text-sm tabular-nums whitespace-nowrap text-foreground">{quantity(producer.produced)}</span>
       </div>
-      {showPriorities && <RecipePriorities notes={producer.priorities.filter(note => note.label !== producerStatus(producer))} />}
+      {showPriorities && <RecipePriorities notes={producer.priorities.filter(note => note.label !== producerStatus(producer, resources))} />}
       {traces.length > 0 ? (
         <ul className="space-y-1" aria-label={`${producer.recipeName} blockers`}>
           {traces.map(trace => (
@@ -187,6 +193,7 @@ interface SupplyModuleGroup {
 const SupplyModule = ({ group, inspector, showPriorities, ...inspection }: InspectionProps & {
   group: SupplyModuleGroup; inspector: SupplyInspector; showPriorities: boolean
 }) => {
+  const resources = useResources()
   const [expanded, setExpanded] = useState(false)
   const pools = expanded ? group.pools : group.pools.slice(0, 2)
 
@@ -227,6 +234,7 @@ const SupplyModule = ({ group, inspector, showPriorities, ...inspection }: Inspe
 const ModuleDemand = ({ target, uses, showPriorities, ...inspection }: InspectionProps & {
   target: SupplyTarget; uses: SupplyUse[]; showPriorities: boolean
 }) => {
+  const resources = useResources()
   const [expanded, setExpanded] = useState(false)
   const moduleName = inspection.getScopeName(target)
   const visible = expanded ? uses : uses.slice(0, 3)
@@ -270,6 +278,7 @@ export const SupplyDiagnosis = ({ inspector, target, contracts = [], deliveries 
   deliveries?: ModuleResourceTransfer[]
   factoryAccess?: boolean
 }) => {
+  const resources = useResources()
   const [showAllUses, setShowAllUses] = useState(false)
   const [showPriorities, setShowPriorities] = useState(false)
   const flow = inspector.getFlow(target)

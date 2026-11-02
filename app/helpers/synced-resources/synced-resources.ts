@@ -14,6 +14,7 @@ for (const resource of Object.values(resources)) {
 }
 
 const gameProductAliases = new Map<string, ResourceId>([
+  ['constructionparts', 'constructionPartsI'],
   ['electronics', 'electronicsI'],
   ['electronics2', 'electronicsII'],
   ['electronics3', 'electronicsIII'],

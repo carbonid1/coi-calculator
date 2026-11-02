@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { createCacheTestModel } from '../../test-fixtures/factory-calculation-cache'
+import { testProducts } from '../../test-fixtures/products'
 import { deriveCalculatorModel } from '../calculator-model/derive-calculator-model'
 import { type FactoryCalculationRequest } from './factory-calculation.worker'
 
@@ -97,6 +98,22 @@ it('reuses saved calculation inputs when only the snapshot revision changed', as
   expect(calculate).not.toHaveBeenCalled()
   expect(postMessage).toHaveBeenCalledExactlyOnceWith({
     type: 'settled', revision: request.revision, result: { ...request, calculation: { cached: true } },
+  })
+})
+
+it('refreshes native inventory without rerunning the solver', async () => {
+  const snapshot = { ...structuredClone(model.snapshot), products: structuredClone(testProducts) }
+  const first = deriveCalculatorModel({ snapshot, revision: 'stock-a', machineZoneAssignments: {} })
+
+  await receive({ data: { ...request, model: first, revision: first.calculationRevision } })
+  snapshot.products.inventory.Product_Salt.quantity += 100
+  const next = deriveCalculatorModel({ snapshot, revision: 'stock-b', machineZoneAssignments: {} })
+
+  await receive({ data: { ...request, model: next, revision: next.calculationRevision } })
+  expect(calculate).toHaveBeenCalledTimes(1)
+  expect(postMessage).toHaveBeenLastCalledWith({
+    type: 'settled', revision: next.calculationRevision,
+    result: { ...request, model: next, revision: next.calculationRevision, calculation: { fresh: true } },
   })
 })
 

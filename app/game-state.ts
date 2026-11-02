@@ -9,6 +9,7 @@ import { isWeatherConfig, type WeatherConfig } from './db/weather'
 import { normalizeFocusStates, type SyncedFocusStates } from './focus-state'
 import { isRecyclingData, isRecyclingSources, type RecyclingData, type RecyclingSource } from './helpers/recycling/recycling'
 import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balances'
+import { isNativeProducts, type NativeProducts } from './product-state'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
 import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCargoOperation, type SyncedWorldCargoRoute, type SyncedWorldState, type SyncedStorage } from './world-state'
 
@@ -294,6 +295,7 @@ type SyncedReserves = ReserveBalances
 export const CURRENT_GAME_STATE_SCHEMA_VERSION = 43 as const
 
 export interface GameStateSnapshot {
+  products?: NativeProducts
   recycling: RecyclingData
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
   gameVersion: string
@@ -1061,6 +1063,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const schemaVersion = snapshot.schemaVersion
 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
+  if (snapshot.products !== undefined && (!isNativeProducts(snapshot.products)
+    || snapshot.products.gameId !== snapshot.gameId || snapshot.products.sessionId !== snapshot.sessionId)) return null
   if (!isRecyclingData(snapshot.recycling)) return null
   if (typeof snapshot.gameVersion !== 'string' || !/^0\.8\.8[a-z]?$/.test(snapshot.gameVersion)) return null
   if (typeof snapshot.gameId !== 'string' || !/^-?\d+$/.test(snapshot.gameId)) return null
@@ -1176,6 +1180,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   return {
     schemaVersion,
+    ...(snapshot.products === undefined ? {} : { products: snapshot.products }),
     recycling: snapshot.recycling,
     gameVersion: snapshot.gameVersion,
     gameId: snapshot.gameId,

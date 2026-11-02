@@ -1,5 +1,6 @@
-import { resources, type ResourceId } from '../db/resources'
+import { type ResourceId } from '../db/resources'
 import { type RecipePresentation } from '../helpers/recipe-display/recipe-display'
+import { useResources } from './ResourceProducts'
 import { ResourceToken, ResourceTooltip } from './ResourceToken'
 
 const amountText = (quantity: number) => (
@@ -13,16 +14,18 @@ const resourceAmount = (recipe: RecipePresentation, side: 'inputs' | 'outputs', 
 const amountDetail = (recipe: RecipePresentation, side: 'inputs' | 'outputs', resourceId: ResourceId) => (
   recipe.amounts ? `${side === 'inputs' ? 'Input' : 'Output'} · ${amountText(resourceAmount(recipe, side, resourceId))}` : undefined
 )
-const configurationDetail = (recipe: RecipePresentation) => (
+const configurationDetail = (recipe: RecipePresentation, resources: ReturnType<typeof useResources>) => (
   recipe.amounts ? (['inputs', 'outputs'] as const).flatMap(side => recipe[side].map(resourceId => (
     `${resources[resourceId].name} · ${amountDetail(recipe, side, resourceId)}`
   ))).join('\n') : undefined
 )
-const ConfigurationLabel = ({ recipe }: { recipe: RecipePresentation }) => (
-  recipe.amounts ? <ResourceTooltip label={recipe.configuration ?? recipe.name} detail={configurationDetail(recipe)} className="text-left whitespace-normal">
+const ConfigurationLabel = ({ recipe }: { recipe: RecipePresentation }) => {
+  const resources = useResources()
+
+  return recipe.amounts ? <ResourceTooltip label={recipe.configuration ?? recipe.name} detail={configurationDetail(recipe, resources)} className="text-left whitespace-normal">
     {recipe.configuration}
   </ResourceTooltip> : <span>{recipe.configuration}</span>
-)
+}
 
 /** Resource IDs come from the recipe, never from parsing a display label. */
 export const RecipeLabel = ({ recipe, onInspectInput }: {

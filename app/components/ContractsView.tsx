@@ -1,13 +1,13 @@
 import { Card } from '@carbonid1/design-system'
 
 import { type Contract, type ContractRoute } from '../db/contracts'
-import { resources } from '../db/resources'
 import {
   calculateContractWorkerBreakdown,
   type ContractResult,
   type ContractRouteResult,
 } from '../helpers/contracts/calculate-contracts'
 import { type SyncedContractIssue } from '../helpers/contracts/resolve-synced-contracts'
+import { useResources } from './ResourceProducts'
 
 interface Props {
   contracts: Contract[]
@@ -18,6 +18,7 @@ interface Props {
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(3)).toLocaleString()
 
 const ContractTerms: React.FC<{ contract: Contract }> = ({ contract }) => {
+  const resources = useResources()
   const importedResource = resources[contract.exchange.imported.resourceId]
 
   return (
@@ -59,6 +60,7 @@ const RouteCard: React.FC<{
   exportSurplus: boolean
   result: ContractRouteResult
 }> = ({ exportedResourceId, importedResourceId, exportSurplus, result }) => {
+  const resources = useResources()
   const { route } = result
   const exportedResource = resources[exportedResourceId]
   const importedResource = resources[importedResourceId]
@@ -131,6 +133,7 @@ const RouteCard: React.FC<{
 }
 
 const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) => {
+  const resources = useResources()
   const { contract, exported, imported } = result
   const exportedResource = resources[contract.exchange.exported.resourceId]
   const importedResource = resources[contract.exchange.imported.resourceId]
@@ -207,6 +210,7 @@ const InactiveContractCard: React.FC<{ contract: Contract }> = ({ contract }) =>
 )
 
 export const ContractsView: React.FC<Props> = ({ contracts, issues, results }) => {
+  const resources = useResources()
   const activeIdSet = new Set(results.map(result => result.contract.id))
   const inactiveContracts = contracts
     .filter(contract => !activeIdSet.has(contract.id))

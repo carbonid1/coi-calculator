@@ -61,7 +61,7 @@ export const extractModuleResult = (
 
     return [{
       resourceId,
-      name: resources[resourceId].name,
+      name: calculation.allResourceFlows.find(flow => flow.resourceId === resourceId)?.name ?? resources[resourceId].name,
       consumed,
       produced,
       net,

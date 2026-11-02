@@ -9,6 +9,7 @@ import { calculateBuildingStats } from "../helpers/building-stats/building-stats
 import { calculateNet, type ProductionLine, type RegularResult } from "../helpers/calculate/calculate";
 import { createLiveAreaModules } from "../helpers/live-area-modules/live-area-modules";
 import { getRecipePresentation } from '../helpers/recipe-display/recipe-display';
+import { testProducts } from '../test-fixtures/products';
 
 vi.mock("@carbonid1/design-system", () => ({
   Button: ({ children, 'aria-label': label }: ComponentProps<'button'>) => <button aria-label={label}>{children}</button>,
@@ -27,25 +28,30 @@ vi.mock("@carbonid1/design-system", () => ({
 
 import { RecipeCard } from "./RecipeCard";
 import { RecipeLabel } from './RecipeLabel';
+import { ResourceProductsProvider } from './ResourceProducts';
 import { ResourceToken } from './ResourceToken';
 import { SharedRecipeCard } from "./SharedRecipeCard";
 import { SinkCard } from "./SinkCard";
 
 it('keeps search names inert, compact icons accessible, and unknown assets readable', () => {
-  const named = renderToStaticMarkup(<ResourceToken resourceId="salt" named />);
-  const compact = renderToStaticMarkup(<ResourceToken resourceId="salt" />);
+  const named = renderToStaticMarkup(<ResourceProductsProvider products={testProducts} current>
+    <ResourceToken resourceId="salt" named />
+  </ResourceProductsProvider>);
+  const compact = renderToStaticMarkup(<ResourceProductsProvider products={testProducts} current>
+    <ResourceToken resourceId="salt" />
+  </ResourceProductsProvider>);
   const fallback = renderToStaticMarkup(<ResourceToken resourceId="rocketII" />);
   const tier = renderToStaticMarkup(<ResourceToken resourceId="steamHigh" />);
 
-  expect(named).toContain('>Salt</span>');
+  expect(named).toContain('>Salt from the game</span>');
   expect(named).not.toContain('<button');
-  expect(compact).toContain('aria-label="Salt"');
-  expect(compact).toContain('/resource-icons/salt.png');
-  expect(compact).not.toContain('>Salt</span>');
+  expect(compact).toContain('aria-label="Salt from the game"');
+  expect(compact).toContain('/api/game-icons/Product_Salt?v=456');
+  expect(compact).not.toContain('>Salt from the game</span>');
   expect(fallback).toContain('>Rocket II</span>');
   expect(fallback).not.toContain('<img');
   expect(tier).not.toContain('>HP</span>');
-  expect(tier).toContain('aria-label="Steam (High)"');
+  expect(tier).toContain('>Steam (High)</span>');
 });
 
 it('exposes settled amounts for both sides of a recipe, including zero outputs', () => {

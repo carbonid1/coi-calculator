@@ -4,7 +4,7 @@ import { type ReactNode, type Ref } from "react";
 
 import { type ModuleResourceTransfer } from "../db/module-resource-links";
 import { type Module } from "../db/modules/modules";
-import { resources, type ResourceId } from "../db/resources";
+import { type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
@@ -26,6 +26,7 @@ import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
 import { type KeepReadyChange } from "./KeepReadyMenu";
 import { PlannedBuildsView } from "./PlannedBuildsView";
+import { useResources } from "./ResourceProducts";
 import { isReportedFactoryDeficit } from "./net-summary-flows";
 
 interface Props {
@@ -144,6 +145,7 @@ export const NetSummary: React.FC<Props> = ({
   onInspectResource,
   headingRef,
 }) => {
+  const resources = useResources();
   const requestedImportRows = typedEntries(requestedImports)
     .filter(([, quantity]) => quantity > 0)
     .toSorted(([left], [right]) => (

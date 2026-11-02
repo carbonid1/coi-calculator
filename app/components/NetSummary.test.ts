@@ -217,7 +217,7 @@ describe("NetSummary capacity diagnostics", () => {
       },
     ])).toEqual({
       kind: "demand-met",
-      detail: "Dirt, Fertilizer (Organic) demand met",
+      detail: "Dirt, Fertilizer Organic demand met",
     });
   });
 
