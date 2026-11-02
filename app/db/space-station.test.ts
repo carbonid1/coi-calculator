@@ -8,6 +8,7 @@ import {
   getPlanMismatchSummaries,
   getPlannedBuildSummaries,
 } from "../helpers/planned-builds/planned-builds";
+import { withTestBuildingRequirements } from '../test-fixtures/building-requirements'
 import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 import { baseConfig } from "./config";
 import {
@@ -157,7 +158,7 @@ describe("Space Station", () => {
   it("adds the complete synced station operation to Factory Total", () => {
     const stationModule = createTestSpaceStationModule();
     const result = calculateFactoryTotal(
-      [stationModule],
+      ([stationModule]).map(withTestBuildingRequirements),
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
     );
     const stats = calculateBuildingStats(result.allLines, result.calculation);
@@ -237,7 +238,7 @@ describe("Space Station", () => {
       { requiredPoints: 96 },
     );
     const result = calculateFactoryTotal(
-      [stationModule],
+      ([stationModule]).map(withTestBuildingRequirements),
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
     );
     const diagnostics = calculateBuildingDiagnostics(
@@ -300,7 +301,7 @@ describe("Space Station", () => {
       },
     );
     const result = calculateFactoryTotal(
-      [stationModule],
+      ([stationModule]).map(withTestBuildingRequirements),
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
     );
     const stats = calculateBuildingStats(result.allLines, result.calculation);
@@ -456,7 +457,7 @@ describe("Space Station", () => {
       },
     );
     const result = calculateFactoryTotal(
-      [stationModule],
+      ([stationModule]).map(withTestBuildingRequirements),
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
     );
     const diagnostics = calculateBuildingDiagnostics(
@@ -483,7 +484,7 @@ describe("Space Station", () => {
   it("exposes the synced station through standard module flows and building pressure", () => {
     const stationModule = createTestSpaceStationModule();
     const result = calculateFactoryTotal(
-      [stationModule],
+      ([stationModule]).map(withTestBuildingRequirements),
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
     );
     const planLines = result.allLines;
@@ -525,7 +526,7 @@ describe("Space Station", () => {
   it("does not expose orbital research mode as a physical planned build", () => {
     const stationModule = createTestSpaceStationModule();
     const result = calculateFactoryTotal(
-      [stationModule],
+      ([stationModule]).map(withTestBuildingRequirements),
       { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
     );
     const diagnostics = calculateBuildingDiagnostics(
@@ -556,7 +557,7 @@ describe("Space Station", () => {
       10,
     );
     const result = calculateFactoryTotal(
-      [spaceStation],
+      ([spaceStation]).map(withTestBuildingRequirements),
       {
         recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
         outputModifiers: {

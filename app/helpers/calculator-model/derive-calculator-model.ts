@@ -509,6 +509,7 @@ export const deriveCalculatorModel = ({
     officePlan,
     researchLevels.focusPoints,
     officeConfigurations,
+    snapshot.buildingDefinitions,
   )
   const focusBonuses = officePlanCalculation.bonuses
   const baseAreaModules = configuredAreaModules.filter(module => (
@@ -685,6 +686,7 @@ export const deriveCalculatorModel = ({
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel)
   const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel)
   const outputModifiers = {
+    buildingDefinitions: snapshot.buildingDefinitions,
     products: snapshot.products ? { catalog: snapshot.products.catalog } : undefined,
     recycling: { ...snapshot.recycling, efficiencyPercent: recyclingEfficiencyPercent },
     weather: snapshot.weather,

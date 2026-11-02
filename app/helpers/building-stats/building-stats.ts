@@ -1,4 +1,4 @@
-import { getBuildingData } from "../../db/buildings";
+import { getRecipeBuildingData } from "../../db/buildings";
 import {
   type PassiveResult,
   type ProductionLine,
@@ -43,7 +43,7 @@ export const calculateBuildingStats = (
   }
 
   const workers = [...standaloneLines, ...pooledLines.values()].reduce((total, line) => {
-    const building = getBuildingData(line.recipe.building);
+    const building = getRecipeBuildingData(line.recipe);
     const activeBuildings = line.capacityPoolActiveBuildings ?? line.activeBuildings;
 
     if (!building || activeBuildings <= 0) return total;
@@ -52,7 +52,7 @@ export const calculateBuildingStats = (
   }, 0);
 
   const regularElectricityKw = results.regularResults.reduce((total, result) => {
-    const building = getBuildingData(result.recipe.building);
+    const building = getRecipeBuildingData(result.recipe);
 
     if (!building) return total;
 
@@ -69,7 +69,7 @@ export const calculateBuildingStats = (
 
   const passiveElectricityKw = [...results.sourceResults, ...results.sinkResults]
     .reduce((total, result) => {
-      const building = getBuildingData(result.recipe.building);
+      const building = getRecipeBuildingData(result.recipe);
       const line = lines.find((candidate) => (
         candidate.moduleId === result.moduleId
         && candidate.recipe.id === result.recipe.id
@@ -109,7 +109,7 @@ export const calculateBuildingStats = (
   const machineComputing = new Map<string, { effectiveMachines: number; tflopsPerMachine: number }>();
 
   for (const result of results.regularResults) {
-    const building = getBuildingData(result.recipe.building);
+    const building = getRecipeBuildingData(result.recipe);
     const tflopsPerMachine = (building?.computingTflops ?? 0)
       * (result.recipe.computingMultiplier ?? 1)
       * (result.recipe.computingInputModifierId
@@ -127,9 +127,10 @@ export const calculateBuildingStats = (
       continue;
     }
 
-    const current = machineComputing.get(result.recipe.building);
+    const prototypeId = result.recipe.gameBuildingId ?? building?.prototypeId ?? result.recipe.building;
+    const current = machineComputing.get(prototypeId);
 
-    machineComputing.set(result.recipe.building, {
+    machineComputing.set(prototypeId, {
       effectiveMachines: (current?.effectiveMachines ?? 0) + effectiveMachines,
       tflopsPerMachine,
     });

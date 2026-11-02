@@ -1,3 +1,5 @@
+import { type BuildingDefinition } from '../building-state'
+import { getBuildingData } from './buildings'
 import { focusPointsResearch } from "./research";
 
 export type OfficeTierId = "officeI" | "officeII" | "officeIII";
@@ -6,10 +8,7 @@ export type OfficeBoostStep = 0 | 1 | 2;
 export interface OfficeTierDefinition {
   id: OfficeTierId;
   name: string;
-  workers: number;
-  electricityKw: number;
   officeSuppliesPerCycle: number;
-  computingTflopsAtStepOne: number;
   gameVersion: string;
 }
 
@@ -17,28 +16,19 @@ export const officeCatalog = [
   {
     id: "officeI",
     name: "Office I",
-    workers: 250,
-    electricityKw: 250,
     officeSuppliesPerCycle: 2,
-    computingTflopsAtStepOne: 12,
     gameVersion: "0.8.7",
   },
   {
     id: "officeII",
     name: "Office II",
-    workers: 500,
-    electricityKw: 400,
     officeSuppliesPerCycle: 4,
-    computingTflopsAtStepOne: 24,
     gameVersion: "0.8.7",
   },
   {
     id: "officeIII",
     name: "Office III",
-    workers: 1_000,
-    electricityKw: 600,
     officeSuppliesPerCycle: 8,
-    computingTflopsAtStepOne: 48,
     gameVersion: "0.8.7",
   },
 ] as const satisfies readonly OfficeTierDefinition[];
@@ -187,9 +177,9 @@ export const calculateOfficeBoostBonusPercent = (step: number) => {
 };
 
 export const calculateOfficeComputingTflops = (
-  office: OfficeTierDefinition,
+  computingTflopsAtStepOne: number,
   step: number,
-) => office.computingTflopsAtStepOne * clampBoostStep(step) ** 2;
+) => computingTflopsAtStepOne * clampBoostStep(step) ** 2;
 
 export interface OfficePlanCalculation {
   bonuses: Record<FocusEffectId, number>;
@@ -208,6 +198,7 @@ export const calculateOfficePlan = (
   plan: OfficePlan,
   focusResearchLevel: number,
   syncedConfigurations?: readonly OfficeConfigurationCount[],
+  buildingDefinitions: readonly BuildingDefinition[] = [],
 ): OfficePlanCalculation => {
   const normalizedResearchLevel = Math.min(
     focusPointsResearch.maxLevel,
@@ -233,19 +224,24 @@ export const calculateOfficePlan = (
     if (!office) continue;
 
     const count = normalizeCount(configuration.count);
+
+    if (count === 0) continue;
+    const building = getBuildingData(office.name, buildingDefinitions);
+
+    if (!building) throw new Error(`Building requirements unavailable for ${office.name}`);
     const boostStep = clampBoostStep(configuration.computingBoostStep);
     const baseFocusPerOffice = Math.round(
-      office.workers * (1 + focusResearchBonusPercent / 100),
+      building.workers * (1 + focusResearchBonusPercent / 100),
     );
     const boostFocusPerOffice = Math.round(
-      office.workers * calculateOfficeBoostBonusPercent(boostStep) / 100,
+      building.workers * calculateOfficeBoostBonusPercent(boostStep) / 100,
     );
 
     focusPointsCapacity += count * (baseFocusPerOffice + boostFocusPerOffice);
     officeSuppliesPerCycle += count * office.officeSuppliesPerCycle;
-    computingTflops += count * calculateOfficeComputingTflops(office, boostStep);
-    electricityKw += count * office.electricityKw;
-    workers += count * office.workers;
+    computingTflops += count * calculateOfficeComputingTflops(building.computingTflops ?? 0, boostStep);
+    electricityKw += count * building.electricityKw;
+    workers += count * building.workers;
   }
 
   const bonuses: Record<FocusEffectId, number> = { ...emptyFocusSteps };

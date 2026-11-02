@@ -507,6 +507,7 @@ export const createLiveAreaModules = (
         balanceBy: sortsRecyclableSources ? 'input' : undefined,
         cycleDurationSeconds: group.recipe.durationSeconds,
         ...runtimeBehavior,
+        electricityMultiplier: group.recipe.electricityMultiplier,
         sharedCapacity: group.capacityPoolId
           ? {
               id: group.capacityPoolId,

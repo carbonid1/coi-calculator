@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { type SyncedAreaEntity } from '../../game-state'
+import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateBuildingDiagnostics } from '../building-diagnostics/building-diagnostics'
 import { calculateBuildingStats } from '../building-stats/building-stats'
@@ -66,7 +67,7 @@ describe('createLiveAreaModules', () => {
       { ironScrap: 2 }, { copperScrap: 2 },
     ])
     expect(new Set(sorterRecipes.map(recipe => recipe.sharedCapacity?.id)).size).toBe(2)
-    const lines = module ? buildModuleLines(module, module.presets[0]).lines : []
+    const lines = module ? buildModuleLines(withTestBuildingRequirements(module), module.presets[0]).lines : []
 
     expect(lines.map(line => line.capacityPoolActiveBuildings)).toEqual([1, 1])
   })
@@ -144,7 +145,7 @@ describe('createLiveAreaModules', () => {
         }],
       },
     ])
-    const lines = modules.flatMap(module => buildModuleLines(module, module.presets[0] ?? null).lines)
+    const lines = modules.flatMap(module => buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null).lines)
     const result = calculateNet(lines, { wood: 12, limestone: 6 }, undefined, {}, { paper: 36 })
     const flow = (id: string) => result.allResourceFlows.find(flow => flow.resourceId === id)
 
@@ -168,7 +169,7 @@ describe('createLiveAreaModules', () => {
     expect(liveRecipe.gameRecipeId).toBe('AirSeparation')
     expect(getRecipeDisplayName(liveRecipe)).toBe('Oxygen + Nitrogen')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(lines)
     const [diagnostic] = calculateBuildingDiagnostics([module], result.allResourceFlows, result.regularResults)
 
@@ -212,7 +213,7 @@ describe('createLiveAreaModules', () => {
 
       if (!module) throw new Error('Missing live area')
 
-      const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+      const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
       const result = calculateNet(lines)
 
       return calculateBuildingDiagnostics(
@@ -264,7 +265,7 @@ describe('createLiveAreaModules', () => {
         if (!module) throw new Error('Missing live area')
 
         const preset = module.presets[0]
-        const { lines } = buildModuleLines(module, preset ?? null)
+        const { lines } = buildModuleLines(withTestBuildingRequirements(module), preset ?? null)
         const demands = getPresetResourceDemands(preset)
         const idle = calculateNet(lines, {}, undefined, {}, demands)
         const [diagnostic] = calculateBuildingDiagnostics([module], idle.allResourceFlows, idle.regularResults)
@@ -468,7 +469,7 @@ describe('createLiveAreaModules', () => {
           ],
           outputs: [{ productId: 'Product_Sulfur', name: 'Sulfur', quantity: 3 }],
         }),
-        configured(4, 'ChemicalPlant2', 'Chemical Plant II', {
+        configured(4, 'ChemicalPlant2', 'Chemical Plant II', { electricityMultiplier: 2,
           id: 'TitaniumChlorideReduction',
           name: 'Titanium reduction',
           durationSeconds: 20,
@@ -678,7 +679,7 @@ describe('createLiveAreaModules', () => {
     const forestryRecipe = module.recipes?.find(
       candidate => candidate.id === 'live-area-16:forestry:90',
     )
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const cappedResult = calculateNet(lines, {}, undefined, {}, { woodchips: 200 })
     const factoryDemandResult = calculateNet(
       lines,
@@ -1005,7 +1006,7 @@ describe('createLiveAreaModules', () => {
       if (!mine) throw new Error(`Missing ${name}`)
 
       const preset = mine.presets[0]
-      const { lines } = buildModuleLines(mine, preset ?? null)
+      const { lines } = buildModuleLines(withTestBuildingRequirements(mine), preset ?? null)
 
       return { mine, lines, result: calculateNet(lines, {}, undefined, {}, demand) }
     }
@@ -1096,7 +1097,7 @@ describe('createLiveAreaModules', () => {
         areaEntity(4, 31, 'Mine B', 'CrusherLarge', 'Crusher (large)', [titaniumMilling]),
       ],
     )
-    const lines = mineModules.flatMap(mine => buildModuleLines(mine, mine.presets[0] ?? null).lines)
+    const lines = mineModules.flatMap(mine => buildModuleLines(withTestBuildingRequirements(mine), mine.presets[0] ?? null).lines)
     const result = calculateNet(lines, {}, undefined, {}, { titaniumOreCrushed: 150 })
     const crusherResults = result.regularResults.filter(
       candidate => candidate.recipe.gameRecipeId === 'IlmeniteMilling',
@@ -1148,7 +1149,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Missing linked sorter module')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(
       lines,
       {},
@@ -1201,7 +1202,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Missing dedicated Rock mine module')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { rock: 80, dirt: 20 })
 
     expect(lines.map(line => line.recipe.outputs[0]?.resourceId)).toEqual(['rock'])
@@ -1370,7 +1371,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Missing Bauxite mine module')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { bauxitePowder: 96 })
     const sorterResult = result.regularResults.find(
       candidate => candidate.recipe.sourceKind === 'terrain-mine',
@@ -1417,7 +1418,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Missing paused sorter module')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { coal: 10 })
 
     expect(lines[0]).toMatchObject({ activeBuildings: 0, builtBuildings: 1 })
@@ -1445,7 +1446,7 @@ describe('createLiveAreaModules', () => {
       prototypeName: 'Crusher (large)',
     }
     const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [crusher])
-    const { lines } = buildModuleLines(module!, module?.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module!), module?.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { titaniumOreCrushed: 96 })
 
     expect(module?.recipes?.some(recipe => recipe.sourceMode === 'module-demand')).toBe(false)
@@ -1534,7 +1535,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Live area module was not created')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(lines)
 
     expect(module.recipes?.map(candidate => candidate.sharedCapacity)).toEqual([
@@ -1585,7 +1586,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Live area module was not created')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(lines, {}, undefined, {}, { fertilizerI: 80 })
     const supplyRatio = (gameRecipeId: string) =>
       result.regularResults.find(item => item.recipe.gameRecipeId === gameRecipeId)?.supplyRatio
@@ -1630,7 +1631,7 @@ describe('createLiveAreaModules', () => {
     if (!module) throw new Error('Live area module was not created')
 
     const preset = module.presets[0] ?? null
-    const { lines } = buildModuleLines(module, preset)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), preset)
     const result = calculateNet(
       lines,
       {},
@@ -1716,7 +1717,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Live area module was not created')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(
       lines,
       { steamLow: 96 },
@@ -1762,7 +1763,7 @@ describe('createLiveAreaModules', () => {
 
     if (!module) throw new Error('Live area module was not created')
 
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(lines)
 
     expect(result.regularResults[0]).toMatchObject({
@@ -1830,7 +1831,7 @@ describe('createLiveAreaModules', () => {
     const desalinatorRecipe = module.recipes?.find(
       candidate => candidate.gameRecipeId === 'DesalinationFromLP',
     )
-    const { lines } = buildModuleLines(module, module.presets[0] ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), module.presets[0] ?? null)
     const result = calculateNet(
       lines,
       {},
@@ -1880,7 +1881,7 @@ describe('createLiveAreaModules', () => {
         { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 12 },
       ],
     }
-    const arcScrapRecipe = {
+    const arcScrapRecipe = { electricityMultiplier: 0.6,
       id: 'CopperSmeltingArcScrap',
       name: 'Copper Smelting Arc Scrap',
       durationSeconds: 60,
@@ -1945,7 +1946,7 @@ describe('createLiveAreaModules', () => {
     if (!module) throw new Error('Copper #1 module was not created')
 
     const preset = module.presets[0]
-    const { lines } = buildModuleLines(module, preset ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), preset ?? null)
     const result = calculateNet(
       lines,
       { copperScrap: 120 },
@@ -2029,7 +2030,7 @@ describe('createLiveAreaModules', () => {
         { productId: 'Product_Exhaust', name: 'Exhaust', quantity: 12 },
       ],
     }
-    const arcScrapRecipe = {
+    const arcScrapRecipe = { electricityMultiplier: 0.6,
       id: 'IronSmeltingArcScrap',
       name: 'Iron Smelting Arc Scrap',
       durationSeconds: 60,
@@ -2109,7 +2110,7 @@ describe('createLiveAreaModules', () => {
 
     expect(preset?.requestedImports).toEqual({ ironOreCrushed: 384 })
 
-    const { lines } = buildModuleLines(module, preset ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), preset ?? null)
     const normalResult = calculateNet(
       lines.map(line => ({ ...line, drivingInputIds: undefined })),
       {
@@ -2343,7 +2344,7 @@ describe('createLiveAreaModules', () => {
     if (!module) throw new Error('Live area module was not created')
 
     const preset = module.presets[0]
-    const { lines } = buildModuleLines(module, preset ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), preset ?? null)
     const result = calculateNet(lines, {}, undefined, {}, getPresetResourceDemands(preset))
     const graphiteRecipe = module.recipes?.find(
       candidate => candidate.gameRecipeId === 'GraphiteProductionCo2',
@@ -2428,7 +2429,7 @@ describe('createLiveAreaModules', () => {
     )
 
     const preset = module.presets[0]
-    const { lines } = buildModuleLines(module, preset ?? null)
+    const { lines } = buildModuleLines(withTestBuildingRequirements(module), preset ?? null)
     const result = calculateNet(lines, {}, undefined, {}, getPresetResourceDemands(preset))
     const smokeStackResult = result.sinkResults.find(
       candidate => candidate.recipe.gameRecipeId === 'SmokeStackExhaust',

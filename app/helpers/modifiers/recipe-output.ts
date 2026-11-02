@@ -1,3 +1,4 @@
+import { type BuildingDefinition } from '../../building-state';
 import {
   type Ingredient,
   type InputModifierId,
@@ -13,7 +14,7 @@ import { calculateFarmIrrigationRates } from "../weather/calculate-farm-irrigati
 export type RecipeModifierMultipliers = Partial<Record<
   InputModifierId | OutputModifierId | "rainwaterYield",
   number
->> & { weather?: WeatherConfig; recycling?: RecyclingData; products?: Pick<NativeProducts, 'catalog'> };
+>> & { weather?: WeatherConfig; recycling?: RecyclingData; products?: Pick<NativeProducts, 'catalog'>; buildingDefinitions?: BuildingDefinition[] };
 
 const GAME_PERCENT_SCALE = 100_000;
 

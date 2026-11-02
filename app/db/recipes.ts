@@ -1,5 +1,6 @@
 import { type GroundwaterSourceConstraint } from '../helpers/groundwater/calculate-groundwater-production'
 import { type RecyclingSources } from '../helpers/recycling/recycling'
+import { type BuildingData } from './buildings'
 import { chickenFarm } from './chicken-farm'
 import { computingRecipeIds, dataCenter } from './computing'
 import {
@@ -88,6 +89,8 @@ export interface DecayStorage {
 }
 
 export interface Recipe {
+  /** Game definition attached when building lines from a compatible snapshot. */
+  buildingData?: BuildingData
   /** Keep intermittent capacity available without inventing demand or suggesting it can pause. */
   keepReady?: boolean
   id: string

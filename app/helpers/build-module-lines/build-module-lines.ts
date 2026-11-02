@@ -1,3 +1,4 @@
+import { getBuildingData } from '../../db/buildings';
 import { type Module, type Preset } from "../../db/modules/modules";
 import { recipes } from "../../db/recipes";
 import { getConnectionOnlyResourceIds, getFactoryResourceRequests } from "../../db/resource-supply";
@@ -27,7 +28,15 @@ export const buildModuleLines = (
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
   const lines: ProductionLine[] = visibleRecipes.map((unmodifiedRecipe) => {
-    const originalRecipe = withRecipeRecycling(unmodifiedRecipe, outputModifiers);
+    const buildingData = outputModifiers.buildingDefinitions
+      ? getBuildingData(unmodifiedRecipe.building, outputModifiers.buildingDefinitions, unmodifiedRecipe.gameBuildingId)
+      : unmodifiedRecipe.buildingData;
+
+    if (outputModifiers.buildingDefinitions && !buildingData) {
+      throw new Error(`Building requirements unavailable for ${unmodifiedRecipe.gameBuildingId ?? unmodifiedRecipe.building}`);
+    }
+    const originalRecipe = withRecipeRecycling(buildingData
+      ? { ...unmodifiedRecipe, buildingData } : unmodifiedRecipe, outputModifiers);
     // Apply routing to static presets as well as recipes generated from a snapshot.
     const localInputIds = getConnectionOnlyResourceIds(originalRecipe.inputs.map(input => input.resourceId));
     const scopedRecipe = withModuleInputLimits(originalRecipe, localInputIds);

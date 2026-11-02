@@ -12,6 +12,7 @@ vi.mock('../../db/recipes', async importOriginal => ({
 const zone = { id: 17, name: 'Current factory' }
 const recipe: SyncedAreaRecipe = {
   id: 'BauxiteDigestion', name: 'Current game recipe', assigned: true, durationSeconds: 30,
+  electricityMultiplier: 1.25,
   inputs: [{ productId: 'Product_BauxitePowder', name: 'Bauxite powder', quantity: 7 }],
   outputs: [{ productId: 'Product_HydratedAlumina', name: 'Hydrated alumina', quantity: 3 }],
 }
@@ -29,6 +30,7 @@ it('uses live quantities and duration with an empty static catalog, retaining al
 
   expect(line?.recipe).toMatchObject({
     name: 'Current game recipe', building: 'Chemical plant II', cycleDurationSeconds: 30,
+    electricityMultiplier: 1.25,
     inputs: [{ resourceId: 'bauxitePowder', quantity: 14 }],
     outputs: [{ resourceId: 'hydratedAlumina', quantity: 6 }],
     balanceBy: 'output', balanceOutputIds: ['hydratedAlumina'],

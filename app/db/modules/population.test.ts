@@ -5,6 +5,7 @@ import { calculateBuildingStats } from "../../helpers/building-stats/building-st
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
 import { type ResolvedPopulationEntityInventory } from "../../helpers/population-entity-sync/population-entity-sync";
+import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
 import { activeHousingType } from "../housing";
 import { defaultInfiniteResearchLevels } from "../research";
 import { settlementRecipeIds } from "../settlement";
@@ -149,7 +150,7 @@ it("plans 7,488 residents using two Housing II upgrades and six new Housing III 
     }],
   });
   const current = createPopulationModule(synced, area, 4, null);
-  const residents = (housing: Module) => calculateNet(buildModuleLines(housing, housing.presets[0]).lines)
+  const residents = (housing: Module) => calculateNet(buildModuleLines(withTestBuildingRequirements(housing), housing.presets[0]).lines)
     .regularResults.find(line => line.recipe.id === settlementRecipeIds.residents)!;
   const projectedResidents = residents(population);
   const currentResidents = residents(current);
@@ -264,7 +265,7 @@ it("preserves the generated area while supplying recipe-less settlement calculat
     expect.objectContaining({ id: "UnknownSettlementBuilding:no-recipe" }),
   ]);
 
-  const { lines } = buildModuleLines(population, preset);
+  const { lines } = buildModuleLines(withTestBuildingRequirements(population), preset);
   const result = calculateNet(lines);
   const stats = calculateBuildingStats(lines, result);
 
@@ -439,7 +440,7 @@ it("scales full-population housing electricity with capacity research", () => {
       null,
     );
     const { lines } = buildModuleLines(
-      populationModule,
+      withTestBuildingRequirements(populationModule),
       populationModule.presets[0] ?? null,
     );
     const residentLines = lines.filter(line => (

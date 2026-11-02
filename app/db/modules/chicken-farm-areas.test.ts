@@ -5,6 +5,7 @@ import { buildModuleLines } from "../../helpers/build-module-lines/build-module-
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { createLiveAreaModules } from "../../helpers/live-area-modules/live-area-modules";
+import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
 import { type CurrentChickenFarmEntity } from "../chicken-farm";
 import { createChickenFarmAreaModule } from "./farms";
 
@@ -45,7 +46,7 @@ const resolveAreas = (
   return createLiveAreaModules([{ id: -1, name: "Default" }, ...zones], inventory).map(module => {
     const configured = createChickenFarmAreaModule(module, current, inventory);
     const preset = configured.presets[0];
-    const { lines } = buildModuleLines(configured, preset);
+    const { lines } = buildModuleLines(withTestBuildingRequirements(configured), preset);
     const result = calculateNet(lines);
 
     return {

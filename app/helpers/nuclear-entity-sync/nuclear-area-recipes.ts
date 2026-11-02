@@ -42,6 +42,7 @@ export const resolveNuclearAreaRecipes = (area: Module) => {
       inputs: live.inputs,
       outputs: live.outputs,
       cycleDurationSeconds: live.cycleDurationSeconds,
+      electricityMultiplier: live.electricityMultiplier,
       sharedCapacity: live.sharedCapacity,
     } : live)
   }

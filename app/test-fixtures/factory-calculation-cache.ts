@@ -3,6 +3,7 @@ import { mapFocusValues } from '../db/offices'
 import { defaultInfiniteResearchLevels } from '../db/research'
 import { CURRENT_GAME_STATE_SCHEMA_VERSION, normalizeGameStateSnapshot } from '../game-state'
 import { deriveCalculatorModel } from '../helpers/calculator-model/derive-calculator-model'
+import { testBuildingDefinitions } from './building-requirements'
 import { emptySettlement, testWeather } from './synced-island-settings'
 
 export const createCacheTestModel = () => {
@@ -11,6 +12,7 @@ export const createCacheTestModel = () => {
     world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
     storages: [],
     schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
+    buildingDefinitions: testBuildingDefinitions,
     recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
     gameVersion: '0.8.8',
     gameId: '123',

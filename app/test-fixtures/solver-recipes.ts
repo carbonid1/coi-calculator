@@ -1,5 +1,6 @@
 import { type Module } from '../db/modules/modules'
 import { recipes, type Recipe } from '../db/recipes'
+import { withTestBuildingData } from './building-requirements'
 
 /** Fixed numerical inputs for solver regressions; never used as live game data. */
 const solverRecipeFixtures: Recipe[] = [
@@ -894,9 +895,9 @@ const solverRecipeFixtures: Recipe[] = [
   },
 ]
 
-export const testRecipes = [...recipes, ...solverRecipeFixtures]
+export const testRecipes = [...recipes, ...solverRecipeFixtures].map(withTestBuildingData)
 
 export const withSolverRecipes = (module: Module): Module => ({
   ...module,
-  recipes: [...solverRecipeFixtures, ...(module.recipes ?? [])],
+  recipes: [...solverRecipeFixtures, ...(module.recipes ?? [])].map(withTestBuildingData),
 })

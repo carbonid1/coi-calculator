@@ -26,8 +26,6 @@ export type CropSchedule =
 export interface CropFarmTier {
   id: CropFarmTierId;
   name: string;
-  workers: number;
-  electricityKw: number;
   maintenanceIPerMonth: number;
   supportsImportedWater: boolean;
   supportsFertilizer: boolean;
@@ -111,8 +109,6 @@ export const cropFarmTiers = {
   farm: {
     id: "farm",
     name: "Farm",
-    workers: 8,
-    electricityKw: 0,
     maintenanceIPerMonth: 0,
     supportsImportedWater: false,
     supportsFertilizer: false,
@@ -125,8 +121,6 @@ export const cropFarmTiers = {
   irrigatedFarm: {
     id: "irrigatedFarm",
     name: "Irrigated Farm",
-    workers: 10,
-    electricityKw: 0,
     maintenanceIPerMonth: 2,
     supportsImportedWater: true,
     supportsFertilizer: true,
@@ -139,8 +133,6 @@ export const cropFarmTiers = {
   greenhouse: {
     id: "greenhouse",
     name: "Greenhouse",
-    workers: 16,
-    electricityKw: 0,
     maintenanceIPerMonth: 6,
     supportsImportedWater: true,
     supportsFertilizer: true,
@@ -153,8 +145,6 @@ export const cropFarmTiers = {
   greenhouseII: {
     id: "greenhouseII",
     name: "Greenhouse II",
-    workers: 20,
-    electricityKw: 0,
     maintenanceIPerMonth: 8,
     supportsImportedWater: true,
     supportsFertilizer: true,

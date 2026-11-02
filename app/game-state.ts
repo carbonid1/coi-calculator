@@ -1,3 +1,4 @@
+import { isBuildingDefinitions, type BuildingDefinition } from './building-state'
 import { edictCatalog, type EdictId, type EdictLevel, mapEdictValues } from './db/edicts'
 import {
   emptyInfiniteResearchLevels,
@@ -201,6 +202,7 @@ interface SyncedAreaRecipeProduct {
 }
 
 export interface SyncedAreaRecipe {
+  electricityMultiplier?: number
   recyclesInputs?: boolean
   recyclingInputSources?: RecyclingSource[]
   id: string
@@ -292,9 +294,10 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 43 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 44 as const
 
 export interface GameStateSnapshot {
+  buildingDefinitions: BuildingDefinition[]
   products?: NativeProducts
   recycling: RecyclingData
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
@@ -780,6 +783,7 @@ const isAreaRecipe = (value: unknown): value is SyncedAreaRecipe => {
     return false
 
   if (value.recyclesInputs !== undefined && typeof value.recyclesInputs !== 'boolean') return false
+  if (!isNonNegativeFiniteNumber(value.electricityMultiplier)) return false
   if (value.recyclingInputSources !== undefined && !isRecyclingSources(value.recyclingInputSources)) return false
 
   const inputs = value.inputs.filter(isAreaRecipeProduct)
@@ -1063,6 +1067,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const schemaVersion = snapshot.schemaVersion
 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
+  if (!isBuildingDefinitions(snapshot.buildingDefinitions)) return null
   if (snapshot.products !== undefined && (!isNativeProducts(snapshot.products)
     || snapshot.products.gameId !== snapshot.gameId || snapshot.products.sessionId !== snapshot.sessionId)) return null
   if (!isRecyclingData(snapshot.recycling)) return null
@@ -1180,6 +1185,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   return {
     schemaVersion,
+    buildingDefinitions: snapshot.buildingDefinitions,
     ...(snapshot.products === undefined ? {} : { products: snapshot.products }),
     recycling: snapshot.recycling,
     gameVersion: snapshot.gameVersion,

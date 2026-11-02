@@ -1,4 +1,4 @@
-import { getBuildingData } from "../../db/buildings";
+import { getRecipeBuildingData } from "../../db/buildings";
 import { type Module } from "../../db/modules/modules";
 import { isUnboundedDemandSourceMode } from "../../db/recipes";
 import { type ResourceId, resources } from "../../db/resources";
@@ -319,7 +319,7 @@ export const calculateBuildingDiagnostics = (
     // Input-starved utilization is not evidence of spare production capacity
     // while one of the pool's main products still has unmet demand.
     const suppressPauseAttention = keepReady || hasUnmetOutputDemand || results.every((result) => (
-      getBuildingData(result.recipe.building)?.suppressPauseAttention === true
+      getRecipeBuildingData(result.recipe)?.suppressPauseAttention === true
     ));
     const canPause = suppressPauseAttention
       ? 0

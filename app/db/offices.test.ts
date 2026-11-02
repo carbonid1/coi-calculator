@@ -1,31 +1,45 @@
 import { describe, expect, it } from "vitest";
 
+import { testBuildingDefinitions } from '../test-fixtures/building-requirements'
+
 import {
   calculateFocusPointsCost,
   calculateOfficeBoostBonusPercent,
   calculateOfficeComputingTflops,
-  calculateOfficePlan,
+  calculateOfficePlan as calculateLiveOfficePlan,
+  type OfficePlan,
+  type OfficeConfigurationCount,
   focusCatalog,
   defaultOfficePlan,
   officeCatalog,
   plannedOfficePlan,
 } from "./offices";
 
+const calculateOfficePlan = (plan: OfficePlan, level: number, configurations?: readonly OfficeConfigurationCount[]) => (
+  calculateLiveOfficePlan(plan, level, configurations, testBuildingDefinitions)
+)
+
 describe("offices and focuses", () => {
-  it("matches installed v0.8.7 Office tiers and computing boosts", () => {
+  it("keeps Office recipes and computing boost arithmetic consistent", () => {
     expect(officeCatalog.map((office) => [
       office.name,
-      office.workers,
-      office.electricityKw,
       office.officeSuppliesPerCycle,
-      office.computingTflopsAtStepOne,
     ])).toEqual([
-      ["Office I", 250, 250, 2, 12],
-      ["Office II", 500, 400, 4, 24],
-      ["Office III", 1_000, 600, 8, 48],
+      ["Office I", 2],
+      ["Office II", 4],
+      ["Office III", 8],
     ]);
     expect([0, 1, 2].map(calculateOfficeBoostBonusPercent)).toEqual([0, 20, 50]);
-    expect(calculateOfficeComputingTflops(officeCatalog[2], 2)).toBe(192);
+    expect(calculateOfficeComputingTflops(48, 2)).toBe(192);
+  });
+
+  it('uses current building requirements for Office costs and Focus capacity', () => {
+    const result = calculateLiveOfficePlan(plannedOfficePlan, 8, undefined, [{
+      id: 'OfficeBuildingT3', name: 'Office III', workers: 10, electricityKw: 7, computingTflops: 2, unityPerCycle: 0,
+    }]);
+
+    expect(result).toMatchObject({ workers: 30, electricityKw: 21, computingTflops: 24, focusPointsCapacity: 54 });
+    expect(() => calculateLiveOfficePlan(plannedOfficePlan, 8)).toThrow('Building requirements unavailable for Office III');
   });
 
   it("uses the game's cumulative arithmetic-series Focus cost", () => {

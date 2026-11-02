@@ -121,6 +121,7 @@ internal sealed partial class GameSnapshotCollector
                 inputs,
                 outputs);
             snapshot.RecyclesInputs = recipe.RecyclablesOutput.HasValue;
+            snapshot.ElectricityMultiplier = recipe.PowerMultiplier.ToDouble();
             Machine machineEntity = entity as Machine;
             if (machineEntity != null)
             {

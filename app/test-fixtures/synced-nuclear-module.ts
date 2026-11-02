@@ -1,5 +1,6 @@
 import { createNuclearModule } from "../db/modules/nuclear";
 import { type SyncedProductionEntity } from "../game-state";
+import { withTestBuildingRequirements } from './building-requirements';
 
 let entityId = 1;
 const entity = (
@@ -59,11 +60,11 @@ const syncedNuclearEntities: SyncedProductionEntity[] = [
   ...many(1, 1, "Shredder", ["ShreddingRetiredWaste"]),
 ];
 
-export const syncedNuclearTestModule = createNuclearModule(
+export const syncedNuclearTestModule = withTestBuildingRequirements(createNuclearModule(
   {
     averageGeneratorOutputMw: 77,
     hydrogenFuelDemandPerCycle: 46.5,
   },
   undefined,
   syncedNuclearEntities,
-);
+));

@@ -15,7 +15,6 @@ type RuntimeRecipeBehavior = Partial<Pick<
   | "demandPriority"
   | "displayName"
   | "configurationLabel"
-  | "electricityMultiplier"
   | "group"
   | "inputPriorities"
   | "keepReady"
@@ -133,12 +132,10 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
   "ArcFurnace2:CopperSmeltingArcScrap": {
     balanceBy: "input",
     balanceInputIds: ["copperScrap"],
-    electricityMultiplier: 0.6,
   },
   "ArcFurnace2:AluminumSmeltingScrapArcT2": {
     balanceBy: "input",
     balanceInputIds: ["aluminumScrap"],
-    electricityMultiplier: 0.6,
   },
   "ArcFurnace2:GlassSmeltingArc": {
     balanceBy: "output",
@@ -147,7 +144,6 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
   "ArcFurnace2:GlassSmeltingArcWithBroken": {
     balanceBy: "input",
     balanceInputIds: ["brokenGlass"],
-    electricityMultiplier: 0.6,
   },
   "ArcFurnace2:IlmeniteSmeltingArc2": {
     balanceBy: "output",
@@ -163,7 +159,6 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
   "ArcFurnace2:IronSmeltingArcScrap": {
     balanceBy: "input",
     balanceInputIds: ["ironScrap"],
-    electricityMultiplier: 0.6,
   },
   "ArcFurnace2:SiliconSmeltingArc2": {
     balanceBy: "output",
@@ -205,7 +200,6 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceBy: "output",
     balanceInputIds: [],
     balanceOutputIds: ["ammonia"],
-    electricityMultiplier: 2,
   },
   "ChemicalPlant2:CarbonToEthanolProduction": {
     balanceBy: "output",
@@ -227,17 +221,14 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceBy: "output",
     balanceInputIds: [],
     balanceOutputIds: ["graphite"],
-    electricityMultiplier: 2,
   },
   "ChemicalPlant2:TitaniumChlorideReduction": {
     balanceBy: "output",
     balanceOutputIds: ["titaniumSponge"],
-    electricityMultiplier: 2,
   },
   "ChemicalPlant2:TitaniumChlorination": {
     balanceBy: "output",
     balanceOutputIds: ["titaniumChloride"],
-    electricityMultiplier: 2,
   },
   "CoolingTowerT2:SteamDepletedCondensationT2": { group: "sink" },
   "CoolingTowerT2:SteamHpCondensationT2": { group: "sink" },
@@ -326,7 +317,6 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
   "GoldFurnace:GoldScrapSmelting": {
     balanceBy: "input",
     balanceInputIds: ["goldScrap"],
-    electricityMultiplier: 0.6,
   },
   "HydrogenReformer:HydrogenProductionFromSteamSp": {
     balanceBy: "output",

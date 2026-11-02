@@ -4,6 +4,7 @@ import { expect, it, vi } from 'vitest'
 
 import { calculateOfficePlan, focusCatalog, plannedOfficePlan } from '../db/offices'
 import { normalizeFocusStates, resolveFocusAllocations } from '../focus-state'
+import { testBuildingDefinitions } from '../test-fixtures/building-requirements'
 
 vi.mock('@carbonid1/design-system', () => {
   const Part = (props: ComponentProps<'div'>) => <div {...props} />
@@ -23,7 +24,7 @@ const plan = {
 
 it('keeps missing allocations unknown without per-card state labels', () => {
   const html = renderToStaticMarkup(<FocusView
-    calculation={calculateOfficePlan(plannedOfficePlan, 8)}
+    calculation={calculateOfficePlan(plannedOfficePlan, 8, undefined, testBuildingDefinitions)}
     allocations={resolveFocusAllocations(undefined, {})}
   />)
 
@@ -41,7 +42,7 @@ it('uses the synced treatment for confirmed allocations, including Off, and show
     targetStep: plan.focusSteps[focus.id], activeStep: 0,
   }])))!
   const html = renderToStaticMarkup(<FocusView
-    calculation={calculateOfficePlan(plan, 8)}
+    calculation={calculateOfficePlan(plan, 8, undefined, testBuildingDefinitions)}
     allocations={resolveFocusAllocations(synced, {})}
   />)
 
@@ -60,7 +61,7 @@ it('uses borders and backgrounds for future plans without additional state label
     return [focus.id, { targetStep: step, activeStep: step }]
   })))!
   const html = renderToStaticMarkup(<FocusView
-    calculation={calculateOfficePlan(plan, 8)}
+    calculation={calculateOfficePlan(plan, 8, undefined, testBuildingDefinitions)}
     allocations={resolveFocusAllocations(synced, { contractsProfitability: 15 })}
   />)
 

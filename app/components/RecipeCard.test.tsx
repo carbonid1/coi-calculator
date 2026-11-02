@@ -2,7 +2,7 @@ import { cloneElement, type ComponentProps, type ReactElement, type ReactNode } 
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 
-import { recipes, type Recipe } from "../db/recipes";
+import { type Recipe } from "../db/recipes";
 import { buildModuleLines } from "../helpers/build-module-lines/build-module-lines";
 import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/building-diagnostics";
 import { calculateBuildingStats } from "../helpers/building-stats/building-stats";
@@ -10,6 +10,7 @@ import { calculateNet, type ProductionLine, type RegularResult } from "../helper
 import { createLiveAreaModules } from "../helpers/live-area-modules/live-area-modules";
 import { getRecipePresentation } from '../helpers/recipe-display/recipe-display';
 import { testProducts } from '../test-fixtures/products';
+import { testRecipes as recipes } from '../test-fixtures/solver-recipes';
 
 vi.mock("@carbonid1/design-system", () => ({
   Button: ({ children, 'aria-label': label }: ComponentProps<'button'>) => <button aria-label={label}>{children}</button>,

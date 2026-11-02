@@ -8,6 +8,7 @@ import {
   isGameStateSnapshot,
   normalizeGameStateSnapshot,
 } from './game-state'
+import { testBuildingDefinitions } from './test-fixtures/building-requirements'
 import { testProducts } from './test-fixtures/products'
 import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
@@ -22,6 +23,7 @@ const currentSnapshot = {
   world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
   storages: [],
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
+  buildingDefinitions: testBuildingDefinitions,
   recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
   gameVersion: '0.8.8',
   gameId: '123',
@@ -87,11 +89,19 @@ describe('game-state snapshot validation', () => {
     expect(normalizeGameStateSnapshot(currentSnapshot)).toEqual(currentSnapshot)
   })
 
+  it('rejects malformed building requirements instead of calculating partial totals', () => {
+    expect(isGameStateSnapshot({
+      ...currentSnapshot,
+      buildingDefinitions: [{ ...testBuildingDefinitions[0], workers: -1 }],
+    })).toBe(false)
+  })
+
   it('rejects every non-current exporter schema', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 39 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 42 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 44 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 43 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 45 })).toBe(false)
   })
 
   it.each(['0.8.7', '0.8.9', '', null])('rejects an incompatible game version: %s', gameVersion => {
@@ -125,6 +135,7 @@ describe('game-state snapshot validation', () => {
     'world',
     'storages',
     'history',
+    'buildingDefinitions',
   ])('rejects a snapshot without %s', field => {
     expect(isGameStateSnapshot({ ...currentSnapshot, [field]: undefined })).toBe(false)
   })
@@ -239,6 +250,7 @@ describe('game-state snapshot validation', () => {
       id: 'AirSeparation',
       name: 'Air Separation',
       durationSeconds: 10,
+      electricityMultiplier: 1,
       assigned: true,
       inputs: [],
       outputs: [{ productId: 'Product_Oxygen', name: 'Oxygen', quantity: 1 }],
@@ -269,6 +281,12 @@ describe('game-state snapshot validation', () => {
       ...currentSnapshot,
       areaEntities: [{ ...entity, recipes: [{ ...recipe, durationSeconds: 0 }] }],
     })).toBe(false)
+    for (const electricityMultiplier of [undefined, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(isGameStateSnapshot({
+        ...currentSnapshot,
+        areaEntities: [{ ...entity, recipes: [{ ...recipe, electricityMultiplier }] }],
+      })).toBe(false)
+    }
   })
 
   it('requires exact forestry, sorter, and office configurations', () => {

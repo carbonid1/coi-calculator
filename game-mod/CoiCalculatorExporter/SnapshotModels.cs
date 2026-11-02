@@ -27,6 +27,7 @@ internal sealed class SnapshotDocument
     public readonly SettlementStateSnapshot Settlement;
     public readonly WeatherConfigSnapshot Weather;
     public readonly RecyclingSnapshot Recycling;
+    public readonly List<BuildingDefinitionSnapshot> BuildingDefinitions;
 
     public SnapshotDocument(
         string saveId,
@@ -52,7 +53,8 @@ internal sealed class SnapshotDocument
         List<GenerationHistory> generationByType,
         SettlementStateSnapshot settlement,
         WeatherConfigSnapshot weather,
-        RecyclingSnapshot recycling)
+        RecyclingSnapshot recycling,
+        List<BuildingDefinitionSnapshot> buildingDefinitions)
     {
         SaveId = saveId;
         GameId = gameId;
@@ -78,5 +80,6 @@ internal sealed class SnapshotDocument
         Settlement = settlement;
         Weather = weather;
         Recycling = recycling;
+        BuildingDefinitions = buildingDefinitions;
     }
 }

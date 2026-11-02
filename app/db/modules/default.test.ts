@@ -6,6 +6,7 @@ import { calculateBuildingStats } from '../../helpers/building-stats/building-st
 import { calculateNet } from '../../helpers/calculate/calculate'
 import { getPlannedConfigurationSummaries } from '../../helpers/planned-builds/planned-builds'
 import { getPresetResourceDemands } from '../../helpers/preset-resource-demands/preset-resource-demands'
+import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
 import { type Recipe } from '../recipes'
 import {
   applyDefaultAreaPlan,
@@ -222,7 +223,7 @@ describe('Default area plans', () => {
   it('binds the plan to the equivalent runtime recipe', () => {
     const defaultModule = applyDefaultAreaPlan(syncedDefault({ built: 0, running: 0 }))
     const preset = defaultModule.presets[0]
-    const line = buildModuleLines(defaultModule, preset ?? null).lines.find(
+    const line = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
     )
 
@@ -273,7 +274,7 @@ describe('Default area plans', () => {
 
     const defaultModule = applyDefaultAreaPlan(synced)
     const preset = defaultModule.presets[0]
-    const line = buildModuleLines(defaultModule, preset ?? null).lines.find(
+    const line = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
     )
 
@@ -293,7 +294,7 @@ describe('Default area plans', () => {
   it('accepts a synced construction ghost as projected capacity', () => {
     const defaultModule = applyDefaultAreaPlan(syncedDefault({ built: 0, running: 0, ghosts: 1 }))
     const preset = defaultModule.presets[0]
-    const line = buildModuleLines(defaultModule, preset ?? null).lines.find(
+    const line = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
     )
 
@@ -313,7 +314,7 @@ describe('Default area plans', () => {
       syncedDefaultWithCrackingUnits({ built: 3, running: 3 }),
     )
     const preset = defaultModule.presets[0]
-    const crackingLine = buildModuleLines(defaultModule, preset ?? null).lines.find(
+    const crackingLine = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       line => line.recipe.id === runtimeCrackingUnitDiesel.id,
     )
 
@@ -351,7 +352,7 @@ describe('Default area plans', () => {
       syncedDefaultWithCrackingUnits({ built: 4, running: 4 }),
     )
     const preset = defaultModule.presets[0]
-    const crackingLine = buildModuleLines(defaultModule, preset ?? null).lines.find(
+    const crackingLine = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       line => line.recipe.id === runtimeCrackingUnitDiesel.id,
     )
 
@@ -394,7 +395,7 @@ describe('Default area plans', () => {
       syncedDefaultWithResearchLabs({ built: 3, running: 0 }),
     )
     const preset = defaultModule.presets[0]
-    const lines = buildModuleLines(defaultModule, preset ?? null).lines
+    const lines = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines
     const researchLine = lines.find(line => line.recipe.id === runtimeResearchLab.id)
     const calculation = calculateNet(lines)
 
@@ -434,7 +435,7 @@ describe('Default area plans', () => {
       syncedDefaultWithResearchLabs({ built: 3, running: 2 }),
     )
     const preset = defaultModule.presets[0]
-    const researchLine = buildModuleLines(defaultModule, preset ?? null).lines.find(
+    const researchLine = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       line => line.recipe.id === runtimeResearchLab.id,
     )
 
@@ -456,7 +457,7 @@ describe('Default area plans', () => {
       'before-space',
     )
     const preset = defaultModule.presets[0]
-    const researchLine = buildModuleLines(defaultModule, preset ?? null).lines.find(
+    const researchLine = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       line => line.recipe.id === runtimeResearchLab.id,
     )
 
@@ -489,7 +490,7 @@ describe('Default area plans', () => {
 
     const defaultModule = applyDefaultAreaPlan(synced)
     const preset = defaultModule.presets[0]
-    const lines = buildModuleLines(defaultModule, preset ?? null).lines
+    const lines = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines
     const calculation = calculateNet(
       lines,
       undefined,

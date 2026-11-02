@@ -384,7 +384,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
               name: 'Research Lab IV',
               amount:
                 activeResearchLabCount
-                * (getBuildingData('Research Lab IV')?.unityPerCycle ?? 0),
+                * (getBuildingData('Research Lab IV', snapshot.buildingDefinitions)?.unityPerCycle ?? 0),
             },
           ]
         : []),

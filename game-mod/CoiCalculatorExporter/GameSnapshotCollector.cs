@@ -11,6 +11,7 @@ using Mafi.Core.Maintenance;
 using Mafi.Core.Population;
 using Mafi.Core.Population.Edicts;
 using Mafi.Core.Products;
+using Mafi.Core.Prototypes;
 using Mafi.Core.PropertiesDb;
 using Mafi.Core.Research;
 using Mafi.Core.SpaceProgram;
@@ -24,6 +25,7 @@ using Mafi.Logging;
 internal sealed partial class GameSnapshotCollector
 {
     private readonly IVehiclesManager m_vehiclesManager;
+    private readonly ProtosDb m_protosDb;
     private readonly IGameIdProvider m_gameIdProvider;
     private readonly ILogisticsZonesManager m_logisticsZonesManager;
     private readonly GameNameConfig m_gameNameConfig;
@@ -52,6 +54,7 @@ internal sealed partial class GameSnapshotCollector
     private GameSnapshotCollector(DependencyResolver resolver)
     {
         m_vehiclesManager = resolver.Resolve<IVehiclesManager>();
+        m_protosDb = resolver.Resolve<ProtosDb>();
         m_gameIdProvider = resolver.Resolve<IGameIdProvider>();
         m_logisticsZonesManager = resolver.Resolve<ILogisticsZonesManager>();
         m_gameNameConfig = resolver.Resolve<GameNameConfig>();

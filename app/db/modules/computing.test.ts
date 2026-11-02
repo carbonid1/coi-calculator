@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
+import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
 import {
   computingRecipeIds,
   dataCenter,
@@ -17,7 +18,7 @@ it("projects the computing expansion with cooling, power, workers, and rack inst
   const current = { dataCenterCount: 5, rackCount: 240, waterChillers: 5 };
   const computing = createComputingModule(current, current, undefined, expansion);
   const preset = computing.presets[0];
-  const { lines } = buildModuleLines(computing, preset);
+  const { lines } = buildModuleLines(withTestBuildingRequirements(computing), preset);
   const result = calculateNet(lines);
 
   expect(preset.activeBuildings).toEqual({
@@ -63,7 +64,7 @@ it("unpauses the additional Data Center that houses the missing installed racks"
     { dataCenterCount: 8, rackCount: 336, waterChillers: 8 }, undefined, expansion,
   );
   const preset = computing.presets[0];
-  const { lines } = buildModuleLines(computing, preset);
+  const { lines } = buildModuleLines(withTestBuildingRequirements(computing), preset);
 
   expect(preset.activeBuildings[computingRecipeIds.dataCenter]).toBe(9);
   expect(preset.activeBuildings[computingRecipeIds.basicRack]).toBe(384);
