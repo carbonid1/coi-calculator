@@ -1,5 +1,7 @@
 allowBuilds:
   '@carbonid1/design-system': true
+  agent-browser: true
+  agent-desktop: true
   sharp: false
   unrs-resolver: false
 minimumReleaseAgeExclude:

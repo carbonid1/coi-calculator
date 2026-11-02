@@ -1,4 +1,5 @@
 import { type GroundwaterSourceConstraint } from '../helpers/groundwater/calculate-groundwater-production'
+import { type RecyclingSources } from '../helpers/recycling/recycling'
 import { chickenFarm } from './chicken-farm'
 import { computingRecipeIds, dataCenter } from './computing'
 import {
@@ -146,12 +147,12 @@ export interface Recipe {
   moduleInputIds?: ResourceId[]
   sharedCapacity?: SharedCapacity
   cycleDurationSeconds?: number
-  /**
-   * Whether creating Recyclables applies the global recycling-efficiency loss.
-   * Defaults to true. Captain of Industry v0.8.6 bypasses it for Shredder;
-   * settlement collection uses its own source-to-Recyclables conversion.
-   */
-  appliesRecyclingEfficiency?: boolean
+  /** Special game output computed from consumed products, with no fixed quantity. */
+  recyclesInputs?: boolean
+  /** Scrap produced per cycle after applying the current recycling context. */
+  recyclingSources?: RecyclingSources
+  /** Observed scrap units per recyclable received by this sorting plant. */
+  recyclingInputSources?: RecyclingSources
   /** Emits the recoverable material composition carried by Recyclables. */
   sortsRecyclableSources?: boolean
   /** Demand sources cover deficits; module variants remain owned by one physical area. */
@@ -502,9 +503,7 @@ export const recipes: Recipe[] = [
     tracksPhysicalCapacity: false,
     inputs: housingPopulationFlows.inputs,
     outputs: housingPopulationFlows.outputs,
-    // v0.8.6 settlement collection converts tracked recyclable sources with
-    // its own 2:1 rule; the global recycling modifier is not applied here.
-    appliesRecyclingEfficiency: false,
+    recyclesInputs: true,
     electricityInputModifierId: 'settlementConsumption',
     electricityScalesWithSpeed: true,
   },
@@ -518,7 +517,7 @@ export const recipes: Recipe[] = [
     tracksPhysicalCapacity: false,
     inputs: housingIiPopulationFlows.inputs,
     outputs: housingIiPopulationFlows.outputs,
-    appliesRecyclingEfficiency: false,
+    recyclesInputs: true,
     electricityInputModifierId: 'settlementConsumption',
     electricityScalesWithSpeed: true,
   },
@@ -2171,7 +2170,8 @@ export const recipes: Recipe[] = [
     showConfigurationSummary: false,
     group: 'production',
     inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
-    outputs: [{ resourceId: 'recyclables', quantity: 48 }],
+    recyclesInputs: true,
+    outputs: [{ resourceId: 'recyclables', quantity: 0 }],
   },
   {
     id: 'research-lab-iv-space',
@@ -2183,7 +2183,8 @@ export const recipes: Recipe[] = [
       { resourceId: 'labEquipmentIv', quantity: 48 },
       { resourceId: 'spaceResearchPoints', quantity: 48 },
     ],
-    outputs: [{ resourceId: 'recyclables', quantity: 48 }],
+    recyclesInputs: true,
+    outputs: [{ resourceId: 'recyclables', quantity: 0 }],
   },
   {
     // Installed v0.8.7 Assembly V binding: 3 Paper + 2 Household Goods
@@ -2212,6 +2213,7 @@ export const recipes: Recipe[] = [
         group: 'production',
         cycleDurationSeconds: 60,
         balanceBy: 'input',
+        recyclesInputs: true,
         inputs: [
           {
             resourceId: 'officeSupplies',
@@ -2221,7 +2223,7 @@ export const recipes: Recipe[] = [
         outputs: [
           {
             resourceId: 'recyclables',
-            quantity: office.recyclablesPerCycle,
+            quantity: 0,
           },
         ],
         computingMultiplier: boostStep ** 2,
@@ -3736,6 +3738,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'maintenance-i-recycling',
+    recyclesInputs: true,
     name: 'Maintenance I (Recycling)',
     building: 'Maintenance Depot',
     group: 'production',
@@ -3746,7 +3749,7 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: 'maintenanceI', quantity: 480, outputModifierId: 'maintenanceOutput' },
-      { resourceId: 'recyclables', quantity: 18 },
+      { resourceId: 'recyclables', quantity: 0 },
     ],
   },
   {
@@ -3765,6 +3768,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'maintenance-ii-recycling',
+    recyclesInputs: true,
     name: 'Maintenance II (Recycling)',
     building: 'Maintenance II Depot',
     group: 'production',
@@ -3775,7 +3779,7 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: 'maintenanceII', quantity: 480, outputModifierId: 'maintenanceOutput' },
-      { resourceId: 'recyclables', quantity: 24 },
+      { resourceId: 'recyclables', quantity: 0 },
     ],
   },
   {
@@ -3794,6 +3798,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'maintenance-iii-recycling',
+    recyclesInputs: true,
     name: 'Maintenance III (Recycling)',
     building: 'Maintenance III Depot',
     group: 'production',
@@ -3804,7 +3809,7 @@ export const recipes: Recipe[] = [
     ],
     outputs: [
       { resourceId: 'maintenanceIII', quantity: 240, outputModifierId: 'maintenanceOutput' },
-      { resourceId: 'recyclables', quantity: 24 },
+      { resourceId: 'recyclables', quantity: 0 },
     ],
   },
   {
@@ -3889,13 +3894,13 @@ export const recipes: Recipe[] = [
   },
   {
     id: 'shredder-retired-waste',
+    recyclesInputs: true,
     name: 'Shredder (Retired Waste)',
     building: 'Shredder',
     group: 'waste',
     inputs: [{ resourceId: 'retiredWaste', quantity: 6 }],
-    outputs: [{ resourceId: 'recyclables', quantity: 6 }],
+    outputs: [{ resourceId: 'recyclables', quantity: 0 }],
     // Preserve the recoverable source materials carried by Retired Waste.
-    appliesRecyclingEfficiency: false,
     balanceBy: 'input',
   },
 

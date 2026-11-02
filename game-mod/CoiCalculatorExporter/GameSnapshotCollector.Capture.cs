@@ -56,6 +56,7 @@ internal sealed partial class GameSnapshotCollector
             m_hydrogenFuel,
             m_generationByType,
             getSettlementState(),
-            m_weatherConfig);
+            m_weatherConfig,
+            getRecyclingSnapshot());
     }
 }

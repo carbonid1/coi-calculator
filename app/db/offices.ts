@@ -9,7 +9,6 @@ export interface OfficeTierDefinition {
   workers: number;
   electricityKw: number;
   officeSuppliesPerCycle: number;
-  recyclablesPerCycle: number;
   computingTflopsAtStepOne: number;
   gameVersion: string;
 }
@@ -21,7 +20,6 @@ export const officeCatalog = [
     workers: 250,
     electricityKw: 250,
     officeSuppliesPerCycle: 2,
-    recyclablesPerCycle: 2,
     computingTflopsAtStepOne: 12,
     gameVersion: "0.8.7",
   },
@@ -31,7 +29,6 @@ export const officeCatalog = [
     workers: 500,
     electricityKw: 400,
     officeSuppliesPerCycle: 4,
-    recyclablesPerCycle: 4,
     computingTflopsAtStepOne: 24,
     gameVersion: "0.8.7",
   },
@@ -41,7 +38,6 @@ export const officeCatalog = [
     workers: 1_000,
     electricityKw: 600,
     officeSuppliesPerCycle: 8,
-    recyclablesPerCycle: 8,
     computingTflopsAtStepOne: 48,
     gameVersion: "0.8.7",
   },
@@ -203,7 +199,6 @@ export interface OfficePlanCalculation {
   focusResearchBonusPercent: number;
   isAffordable: boolean;
   officeSuppliesPerCycle: number;
-  recyclablesPerCycle: number;
   computingTflops: number;
   electricityKw: number;
   workers: number;
@@ -222,7 +217,6 @@ export const calculateOfficePlan = (
     * focusPointsResearch.percentPerLevel;
   let focusPointsCapacity = 0;
   let officeSuppliesPerCycle = 0;
-  let recyclablesPerCycle = 0;
   let computingTflops = 0;
   let electricityKw = 0;
   let workers = 0;
@@ -249,7 +243,6 @@ export const calculateOfficePlan = (
 
     focusPointsCapacity += count * (baseFocusPerOffice + boostFocusPerOffice);
     officeSuppliesPerCycle += count * office.officeSuppliesPerCycle;
-    recyclablesPerCycle += count * office.recyclablesPerCycle;
     computingTflops += count * calculateOfficeComputingTflops(office, boostStep);
     electricityKw += count * office.electricityKw;
     workers += count * office.workers;
@@ -277,7 +270,6 @@ export const calculateOfficePlan = (
     focusResearchBonusPercent,
     isAffordable: focusPointsRequired <= focusPointsCapacity,
     officeSuppliesPerCycle,
-    recyclablesPerCycle,
     computingTflops,
     electricityKw,
     workers,

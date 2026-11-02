@@ -32,6 +32,8 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "agent-browser": "0.41.1",
+    "agent-desktop": "1.0.2",
     "eslint": "^9.0.0",
     "eslint-import-resolver-typescript": "^4.4.4",
     "postcss": "^8.5.26",

@@ -1,15 +1,15 @@
 import { type ValueSource } from "../../data-source";
-import { baseConfig } from "../../db/config";
 import {
   isModuleScopedSourceMode,
   isUnboundedDemandSourceMode,
   type Recipe,
 } from "../../db/recipes";
 import { resourceSupplyRules } from "../../db/resource-supply";
-import { type Resource, type ResourceId, resources } from "../../db/resources";
+import { type ResourceId, resources } from "../../db/resources";
 import {
   getRecipeInputQuantity,
   getRecipeOutputQuantity,
+  withRecipeRecycling,
   type RecipeModifierMultipliers,
 } from "../modifiers/recipe-output";
 import { getModuleInputIds, isModuleInput } from "../recipe-input-scope/recipe-input-scope";
@@ -466,15 +466,12 @@ const getDrivenSupportingResourceIds = (lines: ProductionLine[]) => {
   return result;
 };
 
-const getAppliedRecyclingEfficiencyPercent = (recipe: Recipe, globalEfficiencyPercent: number) => {
-  const createsRecyclables = recipe.outputs.some((output) => output.resourceId === "recyclables");
-
-  if (!createsRecyclables) return null;
-
-  return recipe.appliesRecyclingEfficiency === false
-    ? 100
-    : Math.min(100, Math.max(0, globalEfficiencyPercent));
-};
+const isRecyclableResource = (id: ResourceId) => id === 'recyclables' || id === 'recyclablesPressed';
+const getRecyclableInput = (recipe: Recipe) => (
+  recipe.sortsRecyclableSources || recipe.recyclingInputSources !== undefined
+    ? recipe.inputs.find(input => isRecyclableResource(input.resourceId))
+    : undefined
+);
 
 interface InternalFlow {
   consumed: number;
@@ -498,9 +495,9 @@ const makeGetFlow = (flows: FlowMap) => (id: ResourceId) => {
 };
 
 export const calculateNet = (
-  lines: ProductionLine[],
+  inputLines: ProductionLine[],
   suppliedResources: Partial<Record<ResourceId, number>> = {},
-  recyclingEfficiencyPercent: number = baseConfig.recyclingEfficiencyPercent,
+  recyclingEfficiencyPercent: number | undefined = undefined,
   outputModifiers: RecipeModifierMultipliers = {},
   fixedDemands: Partial<Record<ResourceId, number>> = {},
   nonConstrainingSuppliedResourceIds: ReadonlySet<ResourceId> = new Set(),
@@ -519,6 +516,9 @@ export const calculateNet = (
   /** Part of `fixedDemands` that yields to every recipe, such as vehicle fuel. */
   deferredDemands: Partial<Record<ResourceId, number>> = {},
 ) => {
+  const lines = inputLines.map(line => ({
+    ...line, recipe: withRecipeRecycling(line.recipe, outputModifiers, recyclingEfficiencyPercent),
+  }));
   const effectivePlannedSupportingResourceIds = new Map<string, Set<ResourceId>>();
 
   for (const [moduleId, resourceIds] of plannedSupportingResourceIds) {
@@ -991,7 +991,29 @@ export const calculateNet = (
   let createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   let sortedRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const capacityTracker = createCapacityTracker(regularLines);
-  const applyRegularLine = (line: ProductionLine, ratio: number, additive = false) => {
+  const applyRegularLine = (line: ProductionLine, requestedRatio: number, additive = false) => {
+    const recyclableInput = getRecyclableInput(line.recipe);
+    const inputMix = typedEntries(line.recipe.recyclingInputSources ?? {});
+    const inputFlow = recyclableInput ? getFlow(recyclableInput.resourceId) : undefined;
+    const physicalAvailable = inputFlow ? Math.max(0, inputFlow.produced - inputFlow.consumed) : 0;
+    const scrapPerInput = inputMix.reduce((sum, [, quantity]) => sum + quantity, 0);
+    const remainingTypedScrap = inputFlow ? [...inputFlow.recyclableSourcesProduced].reduce((sum, [id, quantity]) => (
+      sum + Math.max(0, quantity - (inputFlow.recyclableSourcesConsumed.get(id) ?? 0))
+    ), 0) : 0;
+    // Explicit external imports have no producer ledger; use the receiving
+    // plant's observed mix for that part instead of a factory-wide average.
+    const untypedInput = scrapPerInput > 0 ? Math.max(0, physicalAvailable - remainingTypedScrap / scrapPerInput) : 0;
+    const inputRate = recyclableInput ? getRecipeInputQuantity(recyclableInput, outputModifiers) * lineFactor(line) : 0;
+    const recyclingRatio = inputMix.length === 0 || inputRate <= 0 ? 0 : Math.min(
+      requestedRatio,
+      inputRate > 0 ? physicalAvailable / inputRate : 0,
+      ...inputMix.filter(([, quantity]) => quantity > 0).map(([id, quantity]) => (
+        Math.max(0, (inputFlow?.recyclableSourcesProduced.get(id) ?? 0)
+          - (inputFlow?.recyclableSourcesConsumed.get(id) ?? 0) + untypedInput * quantity)
+        / (inputRate * quantity)
+      )),
+    );
+    const ratio = recyclableInput ? recyclingRatio : requestedRatio;
     const previousRatio = allocationRatios.get(line) ?? 0;
 
     allocationRatios.set(
@@ -1003,9 +1025,6 @@ export const calculateNet = (
     const multiplier = lineFactor(line) * ratio;
 
     const sortedSources = new Map<ResourceId, number>();
-    const recyclableInput = line.recipe.sortsRecyclableSources
-      ? line.recipe.inputs.find((input) => input.resourceId === "recyclables")
-      : undefined;
 
     for (const input of line.recipe.inputs) {
       const flow = getFlow(input.resourceId);
@@ -1013,16 +1032,12 @@ export const calculateNet = (
       const actualQuantity = inputQuantity * multiplier;
 
       if (input === recyclableInput) {
-        const physicalAvailable = Math.max(0, flow.produced - flow.consumed);
-        const consumedShare = physicalAvailable > 0
-          ? Math.min(1, actualQuantity / physicalAvailable)
-          : 0;
-
-        for (const [resourceId, produced] of flow.recyclableSourcesProduced) {
+        for (const [resourceId, perInput] of inputMix) {
+          const produced = flow.recyclableSourcesProduced.get(resourceId) ?? 0;
           const consumed = flow.recyclableSourcesConsumed.get(resourceId) ?? 0;
-          const quantity = Math.max(0, produced - consumed) * consumedShare;
+          const quantity = perInput * actualQuantity;
 
-          flow.recyclableSourcesConsumed.set(resourceId, consumed + quantity);
+          flow.recyclableSourcesConsumed.set(resourceId, consumed + Math.min(quantity, Math.max(0, produced - consumed)));
           sortedSources.set(resourceId, quantity);
         }
 
@@ -1065,7 +1080,7 @@ export const calculateNet = (
     }
     for (const output of line.recipe.outputs) {
       const outputQuantity = getRecipeOutputQuantity(line.recipe, output, outputModifiers);
-      const actualQuantity = recyclableInput
+      const actualQuantity = line.recipe.sortsRecyclableSources
         ? (sortedSources.get(output.resourceId) ?? 0)
         : outputQuantity * multiplier;
       const flow = getFlow(output.resourceId);
@@ -1073,31 +1088,23 @@ export const calculateNet = (
       flow.produced += actualQuantity;
       getActualModuleFlow(line.moduleId, output.resourceId).produced += actualQuantity;
 
-      if (output.resourceId === "recyclables") {
-        const efficiency = getAppliedRecyclingEfficiencyPercent(
-          line.recipe,
-          recyclingEfficiencyPercent,
-        ) ?? 100;
+      if (isRecyclableResource(output.resourceId)) {
         const sourceComposition = new Map<ResourceId, number>();
 
-        for (const input of line.recipe.inputs) {
-          const inputResource: Resource = resources[input.resourceId];
-          const inputQuantity = getRecipeInputQuantity(input, outputModifiers);
+        const sources = recyclableInput
+          ? [...sortedSources] : typedEntries(line.recipe.recyclingSources ?? {});
 
-          for (const [resourceId, sourceQuantity] of typedEntries(
-            inputResource.recyclableSources ?? {},
-          )) {
-            const quantity = sourceQuantity * inputQuantity * multiplier * efficiency / 100;
+        for (const [resourceId, sourceQuantity] of sources) {
+          const quantity = recyclableInput ? sourceQuantity : sourceQuantity * multiplier;
 
-            sourceComposition.set(
-              resourceId,
-              (sourceComposition.get(resourceId) ?? 0) + quantity,
-            );
-            flow.recyclableSourcesProduced.set(
-              resourceId,
-              (flow.recyclableSourcesProduced.get(resourceId) ?? 0) + quantity,
-            );
-          }
+          sourceComposition.set(
+            resourceId,
+            (sourceComposition.get(resourceId) ?? 0) + quantity,
+          );
+          flow.recyclableSourcesProduced.set(
+            resourceId,
+            (flow.recyclableSourcesProduced.get(resourceId) ?? 0) + quantity,
+          );
         }
 
         const accumulatedSources = additive
@@ -2230,10 +2237,7 @@ export const calculateNet = (
           * (allocationRatios.get(line) ?? 0),
       })),
       actualOutputs: line.recipe.outputs.map((output) => {
-        const recyclableInput = line.recipe.sortsRecyclableSources
-          ? line.recipe.inputs.find((input) => input.resourceId === "recyclables")
-          : undefined;
-        const quantity = recyclableInput
+        const quantity = line.recipe.sortsRecyclableSources
           ? (sortedRecyclableSources.get(line)?.get(output.resourceId) ?? 0)
           : getRecipeOutputQuantity(line.recipe, output, outputModifiers)
             * lineFactor(line)
@@ -2735,14 +2739,11 @@ export const calculateNet = (
 
   const resourceFlows: ResourceFlow[] = [];
   const allResourceFlows: ResourceFlow[] = [];
-  const recyclableSourceValueProduced = regularResults.reduce((total, result) => {
-    return total + result.recyclableSourceValueProduced;
-  }, 0);
 
-  for (const [resourceId, { consumed, produced }] of flows) {
+  for (const [resourceId, { consumed, produced, recyclableSourcesProduced }] of flows) {
     const net = produced - consumed;
-    const recyclingMetadata = resourceId === "recyclables"
-      ? { recyclableSourceValueProduced }
+    const recyclingMetadata = isRecyclableResource(resourceId)
+      ? { recyclableSourceValueProduced: [...recyclableSourcesProduced.values()].reduce((sum, value) => sum + value, 0) }
       : {};
 
     allResourceFlows.push({ resourceId, name: resources[resourceId].name, consumed, produced, net, ...recyclingMetadata });

@@ -45,6 +45,12 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.3(@types/react@19.2.14)
+      agent-browser:
+        specifier: 0.41.1
+        version: 0.41.1
+      agent-desktop:
+        specifier: 1.0.2
+        version: 1.0.2
       eslint:
         specifier: ^9.0.0
         version: 9.39.4(jiti@2.7.0)(supports-color@7.2.0)
@@ -973,6 +979,18 @@ packages:
   acorn@8.16.0:
     resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
     engines: {node: '>=0.4.0'}
+    hasBin: true
+
+  agent-browser@0.41.1:
+    resolution: {integrity: sha512-9DhCeIhcpxu3Mj+f25Bolk6N+BT5SpOttRSZw0Ytz5MZ8zpKeVp2bv9Zxo1gajlvZE3l//rOoiRdq+qTYHBg1Q==}
+    engines: {node: '>=24.0.0', pnpm: '>=11.0.0'}
+    hasBin: true
+
+  agent-desktop@1.0.2:
+    resolution: {integrity: sha512-k2Qi3f0y1U60YaJOw1dob3EO55P/DuH4HK3WKdI9sMZLjVxpGZAzuG50rIWuIqS0JIVy07g+0pp9Of2JDjTX0w==}
+    engines: {node: '>=18'}
+    cpu: [arm64, x64]
+    os: [darwin, win32, linux]
     hasBin: true
 
   ajv@6.15.0:
@@ -3260,6 +3278,10 @@ snapshots:
       acorn: 8.16.0
 
   acorn@8.16.0: {}
+
+  agent-browser@0.41.1: {}
+
+  agent-desktop@1.0.2: {}
 
   ajv@6.15.0:
     dependencies:

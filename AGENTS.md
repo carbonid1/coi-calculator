@@ -25,6 +25,10 @@ Prefer current game/API evidence and code over historical notes. Do not add sepa
 
 For solver bugs, isolate the failure in a small regression test before experimenting with allocation changes, then verify the fix against a saved factory snapshot while checking that existing priorities still hold.
 
+## Debugging tools
+
+Prefer the project-pinned `agent-browser` for browser inspection and debugging, and `agent-desktop` for native app and OS inspection and debugging. Run them with `pnpm exec agent-browser` and `pnpm exec agent-desktop` to use the exact versions in this repository. Read the installed tools' help and bundled skills for current usage; use other tools when these do not support the required task.
+
 ## Data states
 
 Only actionable values from a compatible game snapshot or a future plan receive state treatment.

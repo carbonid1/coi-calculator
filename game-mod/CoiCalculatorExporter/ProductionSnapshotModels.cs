@@ -364,6 +364,8 @@ internal sealed class TrainStationProductSnapshot
 
 internal sealed class AreaRecipeSnapshot
 {
+    public bool RecyclesInputs;
+    public List<RecyclingSourceSnapshot> RecyclingInputSources;
     public readonly string Id;
     public readonly string Name;
     public readonly double DurationSeconds;

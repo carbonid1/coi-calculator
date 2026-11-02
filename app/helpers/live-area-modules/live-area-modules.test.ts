@@ -44,6 +44,70 @@ const entity = (
 })
 
 describe('createLiveAreaModules', () => {
+  it('retains a separate observed mix and capacity pool for each sorting plant', () => {
+    const sorter = (entityId: number, productId: string, name: string): SyncedAreaEntity => ({
+      ...entity(entityId, true, true, []),
+      prototypeId: 'WasteSortingPlant', prototypeName: 'Waste Sorting Plant',
+      recipes: [{
+        id: 'waste-sorting-recyclables', name: 'Recyclables', assigned: true, durationSeconds: 5,
+        inputs: [{ productId: 'Product_Recyclables', name: 'Recyclables', quantity: 12 }],
+        outputs: [{ productId, name, quantity: 0 }],
+        recyclingInputSources: [{ productId, name, quantity: 2 }],
+      }],
+    })
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [
+      sorter(1, 'Product_IronScrap', 'Iron Scrap'),
+      sorter(2, 'Product_CopperScrap', 'Copper Scrap'),
+    ])
+    const sorterRecipes = module?.recipes ?? []
+
+    expect(sorterRecipes).toHaveLength(2)
+    expect(sorterRecipes.map(recipe => recipe.recyclingInputSources)).toEqual([
+      { ironScrap: 2 }, { copperScrap: 2 },
+    ])
+    expect(new Set(sorterRecipes.map(recipe => recipe.sharedCapacity?.id)).size).toBe(2)
+    const lines = module ? buildModuleLines(module, module.presets[0]).lines : []
+
+    expect(lines.map(line => line.capacityPoolActiveBuildings)).toEqual([1, 1])
+  })
+
+  it('flags an unobserved sorter mixture instead of using a static fallback', () => {
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [{
+      ...entity(1, true, true, []),
+      prototypeId: 'WasteSortingPlant', prototypeName: 'Waste Sorting Plant',
+      recipes: [{
+        id: 'waste-sorting-recyclables', name: 'Recyclables', assigned: true, durationSeconds: 5,
+        inputs: [{ productId: 'Product_Recyclables', name: 'Recyclables', quantity: 12 }],
+        outputs: [], recyclingInputSources: [],
+      }],
+    }])
+
+    expect(module?.recipes).toEqual([])
+    expect(module?.liveArea?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('Recyclables mix unavailable') }),
+    ]))
+  })
+
+  it('does not flag an unused pressed input when the same sorter has an observed regular mix', () => {
+    const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [{
+      ...entity(1, true, true, []),
+      prototypeId: 'WasteSortingPlant', prototypeName: 'Waste Sorting Plant',
+      recipes: [{
+        id: 'waste-sorting-recyclables', name: 'Recyclables', assigned: true, durationSeconds: 20,
+        inputs: [{ productId: 'Product_Recyclables', name: 'Recyclables', quantity: 48 }],
+        outputs: [{ productId: 'Product_IronScrap', name: 'Iron scrap', quantity: 0 }],
+        recyclingInputSources: [{ productId: 'Product_IronScrap', name: 'Iron scrap', quantity: 2 }],
+      }, {
+        id: 'waste-sorting-Product_RecyclablesPressed', name: 'Recyclables pressed', assigned: true, durationSeconds: 20,
+        inputs: [{ productId: 'Product_RecyclablesPressed', name: 'Recyclables pressed', quantity: 16 }],
+        outputs: [], recyclingInputSources: [],
+      }],
+    }])
+
+    expect(module?.recipes).toHaveLength(1)
+    expect(module?.liveArea?.issues).toEqual([])
+  })
+
   it.each([true, false])('starts Paper and its Woodchips chain only with local Steam (local: %s)', localSteam => {
     const zone = { id: 16, name: 'Paper' }
     const steamZone = localSteam ? zone : { id: 17, name: 'Other' }
@@ -278,7 +342,7 @@ describe('createLiveAreaModules', () => {
             {
               productId: 'Product_Recyclables',
               name: 'Recyclables',
-              quantity: 48,
+              quantity: 0,
             },
           ],
         },
@@ -296,7 +360,7 @@ describe('createLiveAreaModules', () => {
     expect(module?.liveArea?.issues).toEqual([])
     expect(liveRecipe).toMatchObject({
       inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
-      outputs: [{ resourceId: 'recyclables', quantity: 48 }],
+      outputs: [{ resourceId: 'recyclables', quantity: 0 }],
     })
     expect(module?.presets[0]?.fixed).toEqual([liveRecipe?.id])
   })
@@ -318,7 +382,7 @@ describe('createLiveAreaModules', () => {
       gameRecipeId: 'research-lab-iv',
       building: 'Research Lab IV',
       inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
-      outputs: [{ resourceId: 'recyclables', quantity: 48 }],
+      outputs: [{ resourceId: 'recyclables', quantity: 0 }],
     })
     expect(module?.presets[0]).toMatchObject({
       activeBuildings: { [liveRecipe?.id ?? 'missing']: 0 },
@@ -328,12 +392,18 @@ describe('createLiveAreaModules', () => {
     })
   })
 
-  it('attaches fixed game recipes to synced buildings without selectable recipes', () => {
+  it('uses the observed mixture and native capacity of a synced sorter', () => {
     const wasteSorter = {
       ...entity(5, true, true, []),
       prototypeId: 'WasteSortingPlant',
       prototypeName: 'Waste Sorting Plant',
       zones: [],
+      recipes: [{
+        id: 'waste-sorting-recyclables', name: 'Recyclables', assigned: true, durationSeconds: 5,
+        inputs: [{ productId: 'Product_Recyclables', name: 'Recyclables', quantity: 12 }],
+        outputs: [{ productId: 'Product_IronScrap', name: 'Iron Scrap', quantity: 0 }],
+        recyclingInputSources: [{ productId: 'Product_IronScrap', name: 'Iron Scrap', quantity: 2 }],
+      }],
     }
     const [module] = createLiveAreaModules(
       [{ id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' }],
@@ -346,6 +416,8 @@ describe('createLiveAreaModules', () => {
       building: 'Waste Sorting Plant',
       balanceBy: 'input',
       sortsRecyclableSources: true,
+      inputs: [{ resourceId: 'recyclables', quantity: 144 }],
+      outputs: [{ resourceId: 'ironScrap', quantity: 288 }],
     })
     expect(module?.presets[0]).toMatchObject({
       activeBuildings: { [liveRecipe?.id ?? 'missing']: 1 },
@@ -2112,14 +2184,15 @@ describe('createLiveAreaModules', () => {
     })
   })
 
-  it('preserves the Shredder recycling exception', () => {
+  it('uses the native Shredder dynamic recycling flag', () => {
     const shredding = {
       id: 'ShreddingRetiredWaste',
       name: 'Shredding Retired Waste',
       durationSeconds: 60,
       assigned: true,
+      recyclesInputs: true,
       inputs: [{ productId: 'Product_RetiredWaste', name: 'Retired Waste', quantity: 6 }],
-      outputs: [{ productId: 'Product_Recyclables', name: 'Recyclables', quantity: 6 }],
+      outputs: [{ productId: 'Product_Recyclables', name: 'Recyclables', quantity: 0 }],
     }
     const shredder = {
       ...entity(3, true, true, [shredding]),
@@ -2128,7 +2201,7 @@ describe('createLiveAreaModules', () => {
     }
     const [module] = createLiveAreaModules([{ id: 16, name: 'Test' }], [shredder])
 
-    expect(module?.recipes?.[0]?.appliesRecyclingEfficiency).toBe(false)
+    expect(module?.recipes?.[0]?.recyclesInputs).toBe(true)
   })
 
   it('applies Nuclear balance and priority rules in any generated module', () => {

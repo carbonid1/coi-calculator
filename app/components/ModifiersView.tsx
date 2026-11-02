@@ -3,7 +3,6 @@ import { Sparkles } from "lucide-react";
 
 import { type ValueSource } from "../data-source";
 import { type ComputingConfig, getRackAllocation } from "../db/computing";
-import { baseConfig } from "../db/config";
 import {
   edictCatalog,
   type EdictDefinition,
@@ -28,7 +27,6 @@ import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-co
 import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
 import { calculateMaintenanceOutput } from "../helpers/modifiers/calculate-maintenance-output";
 import { calculateRainwaterYield } from "../helpers/modifiers/calculate-rainwater-yield";
-import { calculateRecyclingEfficiency } from "../helpers/modifiers/calculate-recycling-efficiency";
 import { calculateSettlementWaterUse } from "../helpers/modifiers/calculate-settlement-water-use";
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
@@ -40,6 +38,7 @@ interface Props {
   computingCapacityTflops: number;
   computingConfig?: ComputingConfig;
   electricityGenerationCapacityMw: number;
+  recyclingEfficiencyPercent: number;
   maintenanceHistory: GameStateSnapshot["history"]["maintenance"] | null;
   edictLevels: Record<EdictId, EdictLevel>;
   edictSources: Record<EdictId, ValueSource>;
@@ -236,6 +235,7 @@ export const ModifiersView: React.FC<Props> = ({
   computingCapacityTflops,
   computingConfig,
   electricityGenerationCapacityMw,
+  recyclingEfficiencyPercent,
   maintenanceHistory,
   edictLevels,
   edictSources,
@@ -252,10 +252,6 @@ export const ModifiersView: React.FC<Props> = ({
   populationCapacity,
   spaceStation,
 }) => {
-  const recyclingEfficiency = calculateRecyclingEfficiency(
-    edictLevels.recyclingIncrease,
-    focusBonuses.recyclingEfficiency,
-  );
   const foodConsumption = calculateFoodConsumption(
     edictLevels.foodSaver,
     edictLevels.plentyOfFood,
@@ -307,7 +303,7 @@ export const ModifiersView: React.FC<Props> = ({
           <Card.Content className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div><p className="text-sm text-muted-foreground">Electricity generation capacity</p><p className="font-mono font-semibold text-foreground">{formatPower(electricityGenerationCapacityMw)}</p></div>
             <div><p className="text-sm text-muted-foreground">Average sunlight ({planningWeather.horizonYears}Y)</p><p className="font-mono font-semibold text-foreground">{parseFloat(averageSunIntensityPercent.toFixed(2))}%</p></div>
-            <div><p className="text-sm text-muted-foreground">Base recycling</p><p className="font-mono font-semibold text-foreground">{baseConfig.recyclingEfficiencyPercent}%</p></div>
+            <div><p className="text-sm text-muted-foreground">Recycling efficiency</p><p className="font-mono font-semibold text-foreground">{parseFloat(recyclingEfficiencyPercent.toFixed(2))}%</p></div>
             {populationCapacity != null && (
               <PopulationCapacityOverview capacity={populationCapacity} />
             )}
@@ -401,7 +397,7 @@ export const ModifiersView: React.FC<Props> = ({
           <Card.Content className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ["Food consumption vs base", formatSignedPercent(foodConsumption.effectivePercent)],
-              ["Recycling efficiency", `${recyclingEfficiency.effectivePercent}%`],
+              ["Recycling efficiency", `${parseFloat(recyclingEfficiencyPercent.toFixed(2))}%`],
               ["Maintenance output", `+${maintenanceOutput.bonusPercent}%`],
               ["Solar power", `+${solarPower.bonusPercent}%`],
               ["Crop yield", `+${cropFarming.yieldBonusPercent}%`],

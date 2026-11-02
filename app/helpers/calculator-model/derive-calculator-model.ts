@@ -644,10 +644,17 @@ export const deriveCalculatorModel = ({
       && projectedSpaceStationLevel.level > currentSpaceStationLevel.level,
   }
 
-  const recyclingEfficiencyPercent = calculateRecyclingEfficiency(
+  const plannedRecyclingEfficiency = calculateRecyclingEfficiency(
     edictLevels.recyclingIncrease,
     focusBonuses.recyclingEfficiency,
   ).effectivePercent
+  const currentRecyclingEfficiency = calculateRecyclingEfficiency(
+    snapshot.edicts.recyclingIncrease.activeLevel,
+    snapshot.focus.recyclingEfficiency.activeStep,
+  ).effectivePercent
+  const recyclingEfficiencyPercent = Math.min(100, Math.max(0,
+    snapshot.recycling.efficiencyPercent + plannedRecyclingEfficiency - currentRecyclingEfficiency,
+  ))
   const foodConsumption = calculateFoodConsumption(
     edictLevels.foodSaver,
     edictLevels.plentyOfFood,
@@ -679,6 +686,7 @@ export const deriveCalculatorModel = ({
   const unityCapacity = calculateUnityCapacity(unityCapacityLevel)
   const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel)
   const outputModifiers = {
+    recycling: { ...snapshot.recycling, efficiencyPercent: recyclingEfficiencyPercent },
     weather: snapshot.weather,
     foodConsumption: foodConsumption.multiplier,
     maintenanceOutput: maintenanceOutput.multiplier,

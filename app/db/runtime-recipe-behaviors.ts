@@ -4,7 +4,6 @@ type RuntimeRecipeBehavior = Partial<Pick<
   Recipe,
   | "allocation"
   | "allocationPriority"
-  | "appliesRecyclingEfficiency"
   | "balanceBy"
   | "balanceInputIds"
   | "balanceInputScope"
@@ -420,7 +419,6 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceBy: "output",
     balanceOutputIds: ["yellowcake"],
   },
-  "Shredder:ShreddingRetiredWaste": { appliesRecyclingEfficiency: false },
   "Shredder:ShreddingSaplings": {
     allocation: "surplus",
     allocationPriority: 5,

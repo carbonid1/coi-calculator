@@ -51,10 +51,6 @@ export const extractModuleResult = (
     getFlow(resourceId).produced += quantity;
   }
 
-  const recyclableSourceValueProduced = regularResults.reduce((total, result) => {
-    return total + result.recyclableSourceValueProduced;
-  }, 0);
-
   const resourceFlows = [...flows].flatMap<ResourceFlow>(([
     resourceId,
     { consumed, produced },
@@ -69,7 +65,12 @@ export const extractModuleResult = (
       consumed,
       produced,
       net,
-      ...(resourceId === "recyclables" ? { recyclableSourceValueProduced } : {}),
+      ...(resourceId === "recyclables" || resourceId === "recyclablesPressed" ? {
+        recyclableSourceValueProduced: regularResults.reduce((total, result) => (
+          total + (result.actualOutputs.some(output => output.resourceId === resourceId && output.quantity > 0)
+            ? result.recyclableSourceValueProduced : 0)
+        ), 0),
+      } : {}),
     }];
   });
 

@@ -21,6 +21,7 @@ const currentSnapshot = {
   world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
   storages: [],
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
+  recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
   gameVersion: '0.8.8',
   gameId: '123',
   sessionId: '456',
@@ -73,7 +74,8 @@ describe('game-state snapshot validation', () => {
   it('rejects every non-current exporter schema', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 39 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 43 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 42 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 44 })).toBe(false)
   })
 
   it.each(['0.8.7', '0.8.9', '', null])('rejects an incompatible game version: %s', gameVersion => {

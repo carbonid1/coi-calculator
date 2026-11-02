@@ -666,6 +666,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       {isModifiers && (
         <ModifiersView
+          recyclingEfficiencyPercent={recyclingEfficiencyPercent}
           averageSunIntensityPercent={averageSunIntensityPercent}
           computingCapacityTflops={computingCapacityTflops}
           computingConfig={configuredComputingModules.length > 0

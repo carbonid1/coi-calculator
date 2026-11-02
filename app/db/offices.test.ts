@@ -55,7 +55,6 @@ describe("offices and focuses", () => {
       focusResearchBonusPercent: 20,
       isAffordable: true,
       officeSuppliesPerCycle: 0,
-      recyclablesPerCycle: 0,
       workers: 0,
     });
   });
@@ -71,7 +70,6 @@ describe("offices and focuses", () => {
       focusPointsRequired: 0,
       isAffordable: true,
       officeSuppliesPerCycle: 24,
-      recyclablesPerCycle: 24,
       workers: 3_000,
     });
     expect(result.bonuses.maintenanceProduction).toBe(0);
@@ -102,7 +100,6 @@ describe("offices and focuses", () => {
       focusPointsRequired: 1_400,
       isAffordable: true,
       officeSuppliesPerCycle: 8,
-      recyclablesPerCycle: 8,
       workers: 1_000,
     });
     expect(result.bonuses.researchEfficiency).toBe(20);
@@ -120,7 +117,6 @@ describe("offices and focuses", () => {
       electricityKw: 1_200,
       focusPointsCapacity: 2_900,
       officeSuppliesPerCycle: 16,
-      recyclablesPerCycle: 16,
       workers: 2_000,
     });
   });

@@ -8,7 +8,8 @@ internal static partial class SnapshotJsonWriter
     {
         StringBuilder json = new StringBuilder(3600);
         json.Append('{');
-        json.Append("\"schemaVersion\":42,");
+        json.Append("\"schemaVersion\":43,");
+        appendRecycling(json, snapshot.Recycling);
         appendString(json, "gameVersion", Mafi.GameVersion.Version.ToString(), true);
         appendString(json, "gameId", snapshot.GameId, true);
         appendString(json, "sessionId", snapshot.SessionId, true);
@@ -307,6 +308,13 @@ internal static partial class SnapshotJsonWriter
                 json.Append("\"assigned\":");
                 json.Append(recipe.Assigned ? "true" : "false");
                 json.Append(',');
+                json.Append("\"recyclesInputs\":").Append(recipe.RecyclesInputs ? "true" : "false");
+                json.Append(',');
+                if (recipe.RecyclingInputSources != null)
+                {
+                    appendRecyclingSources(json, "recyclingInputSources", recipe.RecyclingInputSources);
+                    json.Append(',');
+                }
                 appendAreaRecipeProducts(json, "inputs", recipe.Inputs, true);
                 appendAreaRecipeProducts(json, "outputs", recipe.Outputs, false);
                 json.Append('}');

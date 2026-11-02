@@ -8,6 +8,19 @@ import { type GameStateSnapshot, type SyncedProductionEntity } from '../../game-
 import { createCacheTestModel } from '../../test-fixtures/factory-calculation-cache'
 import { deriveCalculatorModel } from './derive-calculator-model'
 
+it('anchors recycling projections to the observed game efficiency', () => {
+  const snapshot = createSnapshot()
+
+  snapshot.recycling.efficiencyPercent = 37.25
+  snapshot.edicts.recyclingIncrease = { activeLevel: 5, enabledLevel: 5, inactiveReason: null }
+  snapshot.focus.recyclingEfficiency = { activeStep: 3, targetStep: 5 }
+  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} })
+
+  expect(model.recyclingEfficiencyPercent).toBe(39.25)
+  expect(model.outputModifiers.recycling.efficiencyPercent).toBe(39.25)
+  expect(model.factoryCalculationInput.recyclingEfficiencyPercent).toBe(39.25)
+})
+
 it.each([
   { saveId: 'Last-Stop Waters', zoneId: 10, planned: true },
   { saveId: 'Different factory', zoneId: 10, planned: false },

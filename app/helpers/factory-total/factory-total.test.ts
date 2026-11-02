@@ -14,6 +14,7 @@ import { createReservesModule } from "../../db/modules/reserves";
 import { recipes, type Recipe } from "../../db/recipes";
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { activeContracts } from "../../test-fixtures/active-contracts";
+import { testRecycling } from "../../test-fixtures/recycling";
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
 import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
@@ -130,7 +131,17 @@ const currentFactoryFixture: Module = {
     recipeById("hydrogen-reformer-super"),
     recipeById("crusher-large-titanium"),
     recipeById("coal-maker-wood"),
-    recipeById("waste-sorting-recyclables"),
+    {
+      ...recipeById("waste-sorting-recyclables"),
+      // Observed mix for this fixture's maintenance demand at 20% collection.
+      // I: 26.4 Fe + 13.2 Cu; II: 7.02 Fe + 10.53 Cu + 1.17 glass;
+      // III: 8.55 Fe + 28.5 Cu, before collection efficiency.
+      recyclingInputSources: {
+        ironScrap: 41.97 / 47.685,
+        copperScrap: 52.23 / 47.685,
+        brokenGlass: 1.17 / 47.685,
+      },
+    },
   ],
   presets: [{
     id: "fixture",
@@ -394,7 +405,7 @@ describe("Factory Total contracts", () => {
       {
         ...baselineFactoryOptions,
         contracts: activeContracts,
-        outputModifiers: { maintenanceOutput: maintenanceOutput.multiplier },
+        outputModifiers: { maintenanceOutput: maintenanceOutput.multiplier, recycling: testRecycling },
       },
     );
     const getLine = (recipeId: string) => result.calculation.regularResults.find(

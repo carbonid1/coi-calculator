@@ -25,7 +25,9 @@ import {
 import { formatDiagnosticMessages } from '../diagnostic-display/diagnostic-display'
 import { inferModuleCapabilities } from '../module-capabilities/module-capabilities'
 import { withModuleInputLimits } from '../recipe-input-scope/recipe-input-scope'
+import { resolveRecyclingSources } from '../recycling/recycling'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
+import { typedEntries } from '../typed-entries/typed-entries'
 
 const plannedConstructionStates = new Set([
   'NotStarted',
@@ -59,7 +61,6 @@ const fixedAreaRecipeByPrototypeId = new Map<string, Recipe>(
   Object.entries({
     ResearchLab4: 'research-lab-iv',
     ResearchLab5: 'research-lab-iv',
-    WasteSortingPlant: 'waste-sorting-recyclables',
   } as const).flatMap(([prototypeId, recipeId]) => {
     const recipe = recipeCatalog.find(candidate => candidate.id === recipeId)
 
@@ -269,13 +270,14 @@ export const createLiveAreaModules = (
         recipesForEntity.length === 0
           ? fixedAreaRecipeByPrototypeId.get(entity.prototypeId)
           : undefined
-      const sharedCapacityPoolId =
-        recipesForEntity.length > 1
+      const recipePoolId = recipesForEntity.length > 1
           ? `${entity.prototypeId}:${recipesForEntity
               .map(recipe => recipe.id)
               .toSorted()
               .join('+')}`
           : undefined
+      const sharedCapacityPoolId = recipesForEntity.some(recipe => recipe.recyclingInputSources !== undefined)
+        ? `${entity.prototypeId}:entity-${entity.entityId}` : recipePoolId
 
       if (sharedCapacityPoolId) {
         const sharedCapacityPool = sharedCapacityPools.get(sharedCapacityPoolId) ?? {
@@ -375,6 +377,12 @@ export const createLiveAreaModules = (
     const dataSources: NonNullable<Module['presets'][number]['dataSources']> = {}
     const presetCapacityPools: NonNullable<Module['presets'][number]['capacityPools']> = {}
     const fixedRecipeIds: string[] = []
+    const observedSorterPools = new Set(orderedGroups.flatMap(group => {
+      if (group.prototypeId !== 'WasteSortingPlant' || !group.recipe.recyclingInputSources) return []
+      const mix = resolveRecyclingSources(group.recipe.recyclingInputSources)
+
+      return mix && Object.values(mix).some(quantity => quantity > 0) ? [group.capacityPoolId] : []
+    }))
     let terrainSorterSourceCount = 0
     let forestrySourceCount = 0
 
@@ -457,7 +465,27 @@ export const createLiveAreaModules = (
       const runtimeBehavior =
         runtimeRecipeBehaviors[getGameRecipeKey(group.prototypeId, group.recipe.id)]
       const normalizedInputs = inputs.filter((input): input is Ingredient => Boolean(input))
-      const normalizedOutputs = outputs.filter((output): output is Ingredient => Boolean(output))
+      const recyclingInputSources = group.recipe.recyclingInputSources === undefined
+        ? undefined : resolveRecyclingSources(group.recipe.recyclingInputSources)
+
+      if (group.recipe.recyclingInputSources !== undefined
+        && (!recyclingInputSources || !Object.values(recyclingInputSources).some(quantity => quantity > 0))) {
+        const unusedSorterInput = group.prototypeId === 'WasteSortingPlant'
+          && group.recipe.recyclingInputSources.length === 0
+          && observedSorterPools.has(group.capacityPoolId)
+
+        if (!unusedSorterInput) {
+          addIssue(issues, `${group.capacityPoolId ?? group.prototypeId}:${group.recipe.id}:mix`,
+            group.prototypeName, 'Recyclables mix unavailable. Run the building with an input supply to observe it.')
+        }
+        continue
+      }
+      const sortsRecyclableSources = group.prototypeId === 'WasteSortingPlant'
+      const normalizedOutputs = sortsRecyclableSources && recyclingInputSources
+        ? typedEntries(recyclingInputSources).map(([resourceId, perInput]) => ({
+          resourceId, quantity: (normalizedInputs[0]?.quantity ?? 0) * perInput,
+        }))
+        : outputs.filter((output): output is Ingredient => Boolean(output))
       const isModuleSeaWaterPump =
         normalizedInputs.length === 0 &&
         normalizedOutputs.length > 0 &&
@@ -473,6 +501,10 @@ export const createLiveAreaModules = (
         sourceMode: isModuleSeaWaterPump ? 'module-demand-capped' : undefined,
         inputs: normalizedInputs,
         outputs: normalizedOutputs,
+        recyclesInputs: group.recipe.recyclesInputs,
+        recyclingInputSources: recyclingInputSources ?? undefined,
+        sortsRecyclableSources,
+        balanceBy: sortsRecyclableSources ? 'input' : undefined,
         cycleDurationSeconds: group.recipe.durationSeconds,
         ...runtimeBehavior,
         sharedCapacity: group.capacityPoolId

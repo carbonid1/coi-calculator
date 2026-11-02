@@ -26,6 +26,7 @@ internal sealed class SnapshotDocument
     public readonly List<GenerationHistory> GenerationByType;
     public readonly SettlementStateSnapshot Settlement;
     public readonly WeatherConfigSnapshot Weather;
+    public readonly RecyclingSnapshot Recycling;
 
     public SnapshotDocument(
         string saveId,
@@ -50,7 +51,8 @@ internal sealed class SnapshotDocument
         FuelHistory hydrogenFuel,
         List<GenerationHistory> generationByType,
         SettlementStateSnapshot settlement,
-        WeatherConfigSnapshot weather)
+        WeatherConfigSnapshot weather,
+        RecyclingSnapshot recycling)
     {
         SaveId = saveId;
         GameId = gameId;
@@ -75,5 +77,6 @@ internal sealed class SnapshotDocument
         GenerationByType = generationByType;
         Settlement = settlement;
         Weather = weather;
+        Recycling = recycling;
     }
 }

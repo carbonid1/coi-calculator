@@ -5,6 +5,7 @@ import {
 } from "../../db/modules/area-maintenance";
 import { type Module } from "../../db/modules/modules";
 import { type Recipe, recipes } from "../../db/recipes";
+import { testRecycling } from "../../test-fixtures/recycling";
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
@@ -957,7 +958,7 @@ it("installs two demand-balanced tanks with the verified per-building Yellowcake
     (candidate) => candidate.id === maintenance.defaultPresetId,
   )!;
   const maintenanceOutput = calculateMaintenanceOutput(3);
-  const outputModifiers = { maintenanceOutput: maintenanceOutput.multiplier };
+  const outputModifiers = { maintenanceOutput: maintenanceOutput.multiplier, recycling: testRecycling };
   const maintenanceLine = buildModuleLines(maintenance, maintenancePreset, outputModifiers).lines.find(
     (line) => line.recipe.id === "maintenance-i-recycling",
   )!;
@@ -974,16 +975,16 @@ it("installs two demand-balanced tanks with the verified per-building Yellowcake
   expect({
     produced: Number(recyclables.produced.toFixed(5)),
     sourceValue: Number(recyclables.recyclableSourceValueProduced?.toFixed(5)),
-  }).toEqual({ produced: 19.92, sourceValue: 19.92 });
+  }).toEqual({ produced: 9.96, sourceValue: 19.92 });
 });
 
 it("uses sorted Broken Glass before fresh Glass Mix", () => {
   const maintenanceRecycling = recipes.find(
     recipe => recipe.id === "maintenance-ii-recycling",
   )!;
-  const wasteSorter = recipes.find(
+  const wasteSorter: Recipe = { ...recipes.find(
     recipe => recipe.id === "waste-sorting-recyclables",
-  )!;
+  )!, recyclingInputSources: { ironScrap: 0.75, copperScrap: 1.125, brokenGlass: 0.125 } };
   const modeledBrokenGlass = recipes.find(
     recipe => recipe.id === "arc-furnace-ii-glass-broken",
   )!;
@@ -1026,7 +1027,7 @@ it("uses sorted Broken Glass before fresh Glass Mix", () => {
     sharedGlassLine(brokenGlass),
     sharedGlassLine(freshGlass),
     fixedLine(moltenGlassConsumer, "default"),
-  ]);
+  ], {}, 20, { recycling: testRecycling });
   const getResult = (recipeId: string) => result.regularResults.find(
     line => line.recipe.id === recipeId,
   );

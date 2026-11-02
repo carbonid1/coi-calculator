@@ -7,6 +7,7 @@ import {
 import { type ReserveBalances } from './db/reserve-resources'
 import { isWeatherConfig, type WeatherConfig } from './db/weather'
 import { normalizeFocusStates, type SyncedFocusStates } from './focus-state'
+import { isRecyclingData, isRecyclingSources, type RecyclingData, type RecyclingSource } from './helpers/recycling/recycling'
 import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balances'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
 import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCargoOperation, type SyncedWorldCargoRoute, type SyncedWorldState, type SyncedStorage } from './world-state'
@@ -199,6 +200,8 @@ interface SyncedAreaRecipeProduct {
 }
 
 export interface SyncedAreaRecipe {
+  recyclesInputs?: boolean
+  recyclingInputSources?: RecyclingSource[]
   id: string
   name: string
   durationSeconds: number
@@ -288,9 +291,10 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 42 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 43 as const
 
 export interface GameStateSnapshot {
+  recycling: RecyclingData
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
   gameVersion: string
   gameId: string
@@ -773,6 +777,9 @@ const isAreaRecipe = (value: unknown): value is SyncedAreaRecipe => {
   )
     return false
 
+  if (value.recyclesInputs !== undefined && typeof value.recyclesInputs !== 'boolean') return false
+  if (value.recyclingInputSources !== undefined && !isRecyclingSources(value.recyclingInputSources)) return false
+
   const inputs = value.inputs.filter(isAreaRecipeProduct)
   const outputs = value.outputs.filter(isAreaRecipeProduct)
 
@@ -1054,6 +1061,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const schemaVersion = snapshot.schemaVersion
 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
+  if (!isRecyclingData(snapshot.recycling)) return null
   if (typeof snapshot.gameVersion !== 'string' || !/^0\.8\.8[a-z]?$/.test(snapshot.gameVersion)) return null
   if (typeof snapshot.gameId !== 'string' || !/^-?\d+$/.test(snapshot.gameId)) return null
   if (typeof snapshot.sessionId !== 'string' || !/^-?\d+$/.test(snapshot.sessionId)) return null
@@ -1168,6 +1176,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   return {
     schemaVersion,
+    recycling: snapshot.recycling,
     gameVersion: snapshot.gameVersion,
     gameId: snapshot.gameId,
     sessionId: snapshot.sessionId,

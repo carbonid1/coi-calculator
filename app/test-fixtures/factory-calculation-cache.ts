@@ -11,6 +11,7 @@ export const createCacheTestModel = () => {
     world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
     storages: [],
     schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
+    recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
     gameVersion: '0.8.8',
     gameId: '123',
     sessionId: '456',

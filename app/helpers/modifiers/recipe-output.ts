@@ -5,12 +5,14 @@ import {
   type Recipe,
 } from "../../db/recipes";
 import { type WeatherConfig } from "../../db/weather";
+import { getProductRecyclingSources, type RecyclingData, type RecyclingSources } from '../recycling/recycling';
+import { typedEntries } from '../typed-entries/typed-entries';
 import { calculateFarmIrrigationRates } from "../weather/calculate-farm-irrigation";
 
 export type RecipeModifierMultipliers = Partial<Record<
   InputModifierId | OutputModifierId | "rainwaterYield",
   number
->> & { weather?: WeatherConfig };
+>> & { weather?: WeatherConfig; recycling?: RecyclingData };
 
 const GAME_PERCENT_SCALE = 100_000;
 
@@ -119,3 +121,33 @@ export const getRecipeGrossInputQuantity = (
 
   return input.quantity * multiplier;
 };
+
+/** 4.3 computes recyclable volume from live source provenance, not recipe output quantities. */
+export const withRecipeRecycling = (
+  recipe: Recipe,
+  modifiers: RecipeModifierMultipliers,
+  efficiencyPercent = modifiers.recycling?.efficiencyPercent ?? 0,
+): Recipe => {
+  const recyclingOutput = recipe.outputs.find(output => output.resourceId === 'recyclables')
+
+  if (!recyclingOutput || recipe.recyclesInputs === false) return recipe
+  const data = modifiers.recycling
+  const efficiency = Math.min(100, Math.max(0, efficiencyPercent)) / 100
+  const sources: RecyclingSources = {}
+
+  for (const input of recipe.inputs) {
+    for (const [id, quantity] of typedEntries(data ? getProductRecyclingSources(data, input.resourceId) ?? {} : {})) {
+      sources[id] = (sources[id] ?? 0) + quantity * getRecipeInputQuantity(input, modifiers) * efficiency
+    }
+  }
+  const quantity = Object.values(sources).reduce((total, value) => total + (value ?? 0), 0)
+    / (data?.scrapPerRecyclable ?? 2)
+
+  return {
+    ...recipe,
+    recyclingSources: sources,
+    outputs: recipe.outputs.map(output => output === recyclingOutput
+      ? { resourceId: output.resourceId, quantity }
+      : output),
+  }
+}

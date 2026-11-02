@@ -2,7 +2,7 @@ import { type Module, type Preset } from "../../db/modules/modules";
 import { recipes } from "../../db/recipes";
 import { getConnectionOnlyResourceIds, getFactoryResourceRequests } from "../../db/resource-supply";
 import { type ProductionLine } from "../calculate/calculate";
-import { getRecipeOutputQuantity, type RecipeModifierMultipliers } from "../modifiers/recipe-output";
+import { getRecipeOutputQuantity, withRecipeRecycling, type RecipeModifierMultipliers } from "../modifiers/recipe-output";
 import { withModuleInputLimits } from "../recipe-input-scope/recipe-input-scope";
 import { canPrioritizeProcessing } from "../resource-priorities/resource-priorities";
 
@@ -26,7 +26,8 @@ export const buildModuleLines = (
   );
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
-  const lines: ProductionLine[] = visibleRecipes.map((originalRecipe) => {
+  const lines: ProductionLine[] = visibleRecipes.map((unmodifiedRecipe) => {
+    const originalRecipe = withRecipeRecycling(unmodifiedRecipe, outputModifiers);
     // Apply routing to static presets as well as recipes generated from a snapshot.
     const localInputIds = getConnectionOnlyResourceIds(originalRecipe.inputs.map(input => input.resourceId));
     const scopedRecipe = withModuleInputLimits(originalRecipe, localInputIds);

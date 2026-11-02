@@ -1,17 +1,8 @@
 type ResourceState = "loose" | "fluid" | "unit";
-type RecyclableOutputId =
-  | "ironScrap"
-  | "copperScrap"
-  | "aluminumScrap"
-  | "goldScrap"
-  | "brokenGlass";
-
 export interface Resource {
   id: string;
   name: string;
   state: ResourceState;
-  /** Recoverable outputs carried by one unit of this product in the current production path. */
-  recyclableSources?: Partial<Record<RecyclableOutputId, number>>;
 }
 
 export const resources = {
@@ -53,7 +44,6 @@ export const resources = {
     id: "glass",
     name: "Glass",
     state: "unit",
-    recyclableSources: { brokenGlass: 1 },
   },
   plastic: { id: "plastic", name: "Plastic", state: "unit" },
   pcb: { id: "pcb", name: "PCB", state: "unit" },
@@ -77,7 +67,6 @@ export const resources = {
     id: "copper",
     name: "Copper",
     state: "unit",
-    recyclableSources: { copperScrap: 1 },
   },
   ironScrap: { id: "ironScrap", name: "Iron Scrap", state: "loose" },
   copperScrap: { id: "copperScrap", name: "Copper Scrap", state: "loose" },
@@ -141,8 +130,6 @@ export const resources = {
     id: "householdGoods",
     name: "Household Goods",
     state: "unit",
-    // 8 goods use 2 Steel (2 Iron Scrap sources each) and 4 Glass.
-    recyclableSources: { ironScrap: 0.5, brokenGlass: 0.5 },
   },
   householdAppliances: { id: "householdAppliances", name: "Household Appliances", state: "unit" },
   consumerElectronics: { id: "consumerElectronics", name: "Consumer Electronics", state: "unit" },
@@ -151,12 +138,6 @@ export const resources = {
     id: "officeSupplies",
     name: "Office Supplies",
     state: "unit",
-    // One six-unit recipe contains 2 Household Goods and 1 Electronics II.
-    recyclableSources: {
-      ironScrap: 1 / 6,
-      copperScrap: 3 / 8,
-      brokenGlass: 5 / 24,
-    },
   },
   diamond: { id: "diamond", name: "Diamond", state: "unit" },
   diamondPaste: { id: "diamondPaste", name: "Diamond Paste", state: "unit" },
@@ -170,6 +151,7 @@ export const resources = {
   fissionProduct: { id: "fissionProduct", name: "Fission Product", state: "unit" },
   retiredWaste: { id: "retiredWaste", name: "Retired Waste", state: "unit" },
   recyclables: { id: "recyclables", name: "Recyclables", state: "loose" },
+  recyclablesPressed: { id: "recyclablesPressed", name: "Recyclables pressed", state: "unit" },
   depletedUranium: { id: "depletedUranium", name: "Depleted Uranium", state: "unit" },
   yellowcake: { id: "yellowcake", name: "Yellowcake", state: "loose" },
   spentFuel: { id: "spentFuel", name: "Spent Fuel", state: "unit" },
@@ -208,8 +190,6 @@ export const resources = {
     id: "medicalEquipment",
     name: "Medical Equipment",
     state: "unit",
-    // v0.8.6: one unit contains one Steel, which carries two Iron Scrap sources.
-    recyclableSources: { ironScrap: 2 },
   },
   disinfectant: { id: "disinfectant", name: "Disinfectant", state: "unit" },
   antibiotics: { id: "antibiotics", name: "Antibiotics", state: "unit" },
@@ -219,8 +199,6 @@ export const resources = {
     id: "medicalSupplies",
     name: "Medical Supplies",
     state: "unit",
-    // v0.8.6: each unit carries one Iron Scrap source through its Steel input.
-    recyclableSources: { ironScrap: 1 },
   },
   medicalSuppliesII: { id: "medicalSuppliesII", name: "Medical Supplies II", state: "unit" },
   medicalSuppliesIII: { id: "medicalSuppliesIII", name: "Medical Supplies III", state: "unit" },
@@ -238,46 +216,27 @@ export const resources = {
     id: "gold",
     name: "Gold",
     state: "unit",
-    recyclableSources: { goldScrap: 1 },
   },
   ironOre: { id: "ironOre", name: "Iron Ore", state: "loose" },
   labEquipmentI: {
     id: "labEquipmentI",
     name: "Lab Equipment I",
     state: "unit",
-    recyclableSources: { ironScrap: 2 / 3, copperScrap: 1 / 3 },
   },
   labEquipmentII: {
     id: "labEquipmentII",
     name: "Lab Equipment II",
     state: "unit",
-    recyclableSources: {
-      ironScrap: 2 / 3,
-      copperScrap: 1 / 3,
-      brokenGlass: 1 / 3,
-    },
   },
   labEquipmentIII: {
     id: "labEquipmentIII",
     name: "Lab Equipment III",
     state: "unit",
-    recyclableSources: {
-      ironScrap: 2 / 3,
-      copperScrap: 17 / 24,
-      brokenGlass: 3 / 8,
-    },
   },
   labEquipmentIv: {
     id: "labEquipmentIv",
     name: "Lab Equipment IV",
     state: "unit",
-    // Source products propagated through the active Lab Equipment I-IV chain.
-    recyclableSources: {
-      ironScrap: 2 / 3,
-      copperScrap: 65 / 48,
-      goldScrap: 1 / 16,
-      brokenGlass: 7 / 16,
-    },
   },
   toxicSlurry: { id: "toxicSlurry", name: "Toxic Slurry", state: "fluid" },
   hydrogenFluoride: { id: "hydrogenFluoride", name: "Hydrogen Fluoride", state: "fluid" },
@@ -305,7 +264,6 @@ export const resources = {
     id: "aluminum",
     name: "Aluminum",
     state: "unit",
-    recyclableSources: { aluminumScrap: 1 },
   },
   sapphireWafer: { id: "sapphireWafer", name: "Sapphire Wafer", state: "unit" },
   moltenTitaniumAlloy: {
@@ -314,35 +272,25 @@ export const resources = {
     state: "fluid",
   },
   titaniumAlloy: { id: "titaniumAlloy", name: "Titanium Alloy", state: "unit" },
-  // Mechanical Parts use the Steel recipe in the current factory path. The
-  // game tracks this provenance dynamically; one part carries one Iron Scrap.
   mechanicalParts: {
     id: "mechanicalParts",
     name: "Mechanical Parts",
     state: "unit",
-    recyclableSources: { ironScrap: 1 },
   },
   electronicsI: {
     id: "electronicsI",
     name: "Electronics I",
     state: "unit",
-    recyclableSources: { copperScrap: 1 },
   },
   electronicsII: {
     id: "electronicsII",
     name: "Electronics II",
     state: "unit",
-    recyclableSources: { copperScrap: 2.25, brokenGlass: 0.25 },
   },
   electronicsIII: {
     id: "electronicsIII",
     name: "Electronics III",
     state: "unit",
-    recyclableSources: {
-      copperScrap: 31 / 6,
-      brokenGlass: 0.5,
-      goldScrap: 0.5,
-    },
   },
   electronicsIv: { id: "electronicsIv", name: "Electronics IV", state: "unit" },
   rocketII: { id: "rocketII", name: "Rocket II", state: "unit" },
