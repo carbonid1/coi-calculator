@@ -131,7 +131,6 @@ import {
   getSyncedChickenFarmEntities,
   getSyncedCropFarmEntities,
 } from '../synced-production-config/synced-production-config'
-import { transferTerrainMineOwnership } from '../terrain-mine-ownership/terrain-mine-ownership'
 import { getAverageSunIntensityPercent } from '../weather/generate-planning-weather'
 import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
@@ -516,7 +515,7 @@ export const deriveCalculatorModel = ({
     module.id !== DEFAULT_MODULE_ID
   ))
   const modulesWithLiveAreas = [
-    ...transferTerrainMineOwnership(baseAreaModules, configuredLiveAreaModules),
+    ...baseAreaModules,
     ...officeFallbackModules,
     ...configuredLiveAreaModules,
   ]

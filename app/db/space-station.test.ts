@@ -8,12 +8,12 @@ import {
   getPlanMismatchSummaries,
   getPlannedBuildSummaries,
 } from "../helpers/planned-builds/planned-builds";
+import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 import { baseConfig } from "./config";
 import {
   createSpaceStationModule,
   selectSpaceStationZone,
 } from "./modules/space-station";
-import { recipes } from "./recipes";
 import {
   emptyRocketInfrastructureConfig,
 } from "./rocket-infrastructure";

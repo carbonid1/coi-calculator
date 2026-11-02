@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { type Module } from "../../db/modules/modules";
-import { createCropFarmRecipe, recipes } from "../../db/recipes";
+import { createCropFarmRecipe } from '../../db/recipes'
 import { type ResourceId, resources } from "../../db/resources";
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import {
   type PassiveResult,
   type RegularResult,

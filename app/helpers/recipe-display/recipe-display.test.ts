@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { recipes } from "../../db/recipes";
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { getRecipeDisplayName, getRecipePresentation } from "./recipe-display";
 
 describe("recipe display names", () => {

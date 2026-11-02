@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest'
 
-import { type Recipe, recipes } from '../../db/recipes'
+import { type Recipe } from '../../db/recipes'
 import { testRecycling } from '../../test-fixtures/recycling'
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { extractModuleResult } from '../module-result/module-result'
 import { calculateNet } from './calculate'
 

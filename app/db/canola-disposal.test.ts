@@ -2,8 +2,9 @@ import { expect, it } from "vitest";
 
 import { buildModuleLines } from "../helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "../helpers/calculate/calculate";
+import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 import { defaultArea as general } from "./modules/default";
-import { type Recipe, recipes } from "./recipes";
+import { type Recipe } from './recipes'
 
 const getRecipe = (recipeId: string) => {
   const recipe = recipes.find((candidate) => candidate.id === recipeId);

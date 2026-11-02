@@ -4,8 +4,9 @@ import {
   resolveMaintenanceDepotModuleAssignments,
 } from "../../db/modules/area-maintenance";
 import { type Module } from "../../db/modules/modules";
-import { type Recipe, recipes } from "../../db/recipes";
+import { type Recipe } from '../../db/recipes'
 import { testRecycling } from "../../test-fixtures/recycling";
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";

@@ -11,10 +11,11 @@ import { createChickenFarmsModule } from "../../db/modules/farms";
 import { mines } from "../../db/modules/mines";
 import { type Module } from "../../db/modules/modules";
 import { createReservesModule } from "../../db/modules/reserves";
-import { recipes, type Recipe } from "../../db/recipes";
+import { type Recipe } from '../../db/recipes'
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { activeContracts } from "../../test-fixtures/active-contracts";
 import { testRecycling } from "../../test-fixtures/recycling";
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
 import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";

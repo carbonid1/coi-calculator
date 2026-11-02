@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { type ProductionLine, calculateNet } from "../../helpers/calculate/calculate";
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedNuclearTestModule as nuclear } from "../../test-fixtures/synced-nuclear-module";
-import { type Recipe, recipes } from "../recipes";
+import { type Recipe } from '../recipes'
 
 const recipeById = (id: string): Recipe => {
   const recipe = recipes.find((candidate) => candidate.id === id);

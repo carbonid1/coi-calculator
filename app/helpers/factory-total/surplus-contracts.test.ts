@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { type ActiveContract, contracts } from "../../db/contracts";
 import { type Module } from "../../db/modules/modules";
 import { activeContracts } from "../../test-fixtures/active-contracts";
+import { withSolverRecipes } from '../../test-fixtures/solver-recipes';
 import { calculateFactoryTotal } from "./factory-total";
 
 const uranium: ActiveContract = {
@@ -111,7 +112,7 @@ describe("surplus contract exports", () => {
       defaultPresetId: "food",
     };
     const run = (enabled: boolean, initialContractResults?: ReturnType<typeof calculateFactoryTotal>["contractResults"], limited = false) => (
-      calculateFactoryTotal([food], {
+      calculateFactoryTotal([withSolverRecipes(food)], {
         ...options, initialContractResults,
         contracts: [uranium, { ...carcass, routes: carcass.routes.map(route => ({
           ...route, enabled,
@@ -158,7 +159,7 @@ it("sends feasible food overproduction into Uranium surplus before digesting Tri
     presets: [{ id: "food", name: "Food", description: "", activeBuildings: builtBuildings, fixed: [] }],
     defaultPresetId: "food",
   };
-  const result = calculateFactoryTotal([foodModule], {
+  const result = calculateFactoryTotal([withSolverRecipes(foodModule)], {
     ...options,
     externalSupplies: { chickenCarcass: 60, eggs: 24, wheat: 100, water: 1000, salt: 1000, hydrogen: 100 },
     externalDemands: { meat: 12, sausage: 15, uraniumOre: 30 },

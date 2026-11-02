@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { recipes } from "../db/recipes";
 import { type BlockedSurplusRoute, calculateNet, type PassiveResult, type RegularResult } from "../helpers/calculate/calculate";
 import { type ContractResourceFlow } from "../helpers/contracts/contract-resource-flows";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
+import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 import { isReportedFactoryDeficit } from "./net-summary-flows";
 
 const getRecipe = (recipeId: string) => {

@@ -2,8 +2,8 @@ import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 
-import { recipes } from "../db/recipes";
 import { calculateNet, type RegularResult } from "../helpers/calculate/calculate";
+import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 
 vi.mock("@carbonid1/design-system", () => ({
   Button: ({ children, 'aria-label': label }: { children: ReactNode; 'aria-label'?: string }) => <button aria-label={label}>{children}</button>,

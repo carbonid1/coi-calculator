@@ -3,12 +3,12 @@ import { expect, it } from "vitest";
 import { calculateBuildingDiagnostics } from "../../helpers/building-diagnostics/building-diagnostics";
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { getReserveDrawPerProductionCycle } from "../../helpers/reserves/reserves";
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { baseConfig } from "../config";
 import {
   type ActiveContract,
   contracts,
 } from "../contracts";
-import { recipes } from "../recipes";
 import { reserveResourceCatalog } from "../reserve-resources";
 import { type ResourceId } from "../resources";
 import { type Module } from "./modules";
@@ -149,6 +149,7 @@ it("uses synced Gold reserves before fresh Gold Ore production", () => {
     id: "gold-production",
     name: "Gold production",
     description: "",
+    recipes: [goldFurnace, settlingTank],
     builtBuildings: {
       [goldFurnace.id]: 1,
       [settlingTank.id]: 2,

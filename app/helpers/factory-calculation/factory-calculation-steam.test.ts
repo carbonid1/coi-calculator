@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { type ModuleResourceLink } from '../../db/module-resource-links'
 import { type Module } from '../../db/modules/modules'
-import { recipes, type Recipe } from '../../db/recipes'
+import { type Recipe } from '../../db/recipes'
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { getResourceSupplyRows } from '../resource-supply/resource-supply'
 import { calculateFactoryCalculation } from './factory-calculation'
 

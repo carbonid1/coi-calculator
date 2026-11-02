@@ -2,7 +2,8 @@ import { expect, it } from "vitest";
 
 import { calculateNet } from "../helpers/calculate/calculate";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
-import { type Recipe, recipes } from "./recipes";
+import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
+import { type Recipe } from './recipes'
 import { type ResourceId } from "./resources";
 
 const getRecipe = (recipeId: string) => {
