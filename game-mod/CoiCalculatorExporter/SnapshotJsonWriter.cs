@@ -8,7 +8,10 @@ internal static partial class SnapshotJsonWriter
     {
         StringBuilder json = new StringBuilder(3600);
         json.Append('{');
-        json.Append("\"schemaVersion\":41,");
+        json.Append("\"schemaVersion\":42,");
+        appendString(json, "gameVersion", Mafi.GameVersion.Version.ToString(), true);
+        appendString(json, "gameId", snapshot.GameId, true);
+        appendString(json, "sessionId", snapshot.SessionId, true);
         appendSettlementState(json, snapshot.Settlement);
         appendWeatherConfig(json, snapshot.Weather);
         appendString(json, "saveId", snapshot.SaveId, true);

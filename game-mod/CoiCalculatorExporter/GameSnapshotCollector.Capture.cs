@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 using Mafi.Core;
 using Mafi.Core.Population;
@@ -34,6 +35,8 @@ internal sealed partial class GameSnapshotCollector
 
         return new SnapshotDocument(
             m_gameNameConfig.GameName,
+            m_gameIdProvider.GameId.ToString(CultureInfo.InvariantCulture),
+            m_gameIdProvider.SessionId.ToString(CultureInfo.InvariantCulture),
             exportedAtUtc,
             spaceStation == null ? 0 : spaceStation.CurrentTier,
             m_orbitManager.HighestStationTierAchieved,

@@ -19,10 +19,12 @@ using Mafi.Core.Terrain;
 using Mafi.Core.Terrain.Trees;
 using Mafi.Core.Vehicles;
 using Mafi.Core.World.Contracts;
+using Mafi.Logging;
 
 internal sealed partial class GameSnapshotCollector
 {
     private readonly IVehiclesManager m_vehiclesManager;
+    private readonly IGameIdProvider m_gameIdProvider;
     private readonly ILogisticsZonesManager m_logisticsZonesManager;
     private readonly GameNameConfig m_gameNameConfig;
     private readonly IEntitiesManager m_entitiesManager;
@@ -50,6 +52,7 @@ internal sealed partial class GameSnapshotCollector
     private GameSnapshotCollector(DependencyResolver resolver)
     {
         m_vehiclesManager = resolver.Resolve<IVehiclesManager>();
+        m_gameIdProvider = resolver.Resolve<IGameIdProvider>();
         m_logisticsZonesManager = resolver.Resolve<ILogisticsZonesManager>();
         m_gameNameConfig = resolver.Resolve<GameNameConfig>();
         m_entitiesManager = resolver.Resolve<IEntitiesManager>();

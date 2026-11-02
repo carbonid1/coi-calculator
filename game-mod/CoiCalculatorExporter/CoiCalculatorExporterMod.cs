@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 
 using Mafi;
 using Mafi.Collections;
@@ -9,19 +8,19 @@ using Mafi.Core.GameLoop;
 using Mafi.Core.Mods;
 using Mafi.Core.Prototypes;
 using Mafi.Core.Simulation;
+using Mafi.Core.WebApi;
 
 public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 {
-    private static readonly TimeSpan ExportInterval = TimeSpan.FromSeconds(5);
+    internal const string SnapshotRoute = "/api/mods/CoiCalculatorExporter/snapshot";
 
-    private readonly SnapshotFileWriter m_snapshotFileWriter;
     private GameSnapshotCollector m_snapshotCollector;
     private ICalendar m_calendar;
-    private ISimLoopEvents m_simLoopEvents;
-    private DateTime m_nextExportUtc = DateTime.MinValue;
+    private WebApiServer m_server;
+    private bool m_routeRegistered;
 
-    public string Name { get { return "CoI Calculator Exporter"; } }
-    public int Version { get { return 40; } }
+    public string Name { get { return "CoI Calculator Bridge"; } }
+    public int Version { get { return 42; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -31,113 +30,87 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     {
         Manifest = manifest;
         JsonConfig = new ModJsonConfig(this);
-        m_snapshotFileWriter = new SnapshotFileWriter(
-            Path.Combine(manifest.RootDirectoryPath, "coi-calculator-state.json"));
     }
 
-    public void RegisterPrototypes(ProtoRegistrator registrator)
-    {
-    }
-
+    public void RegisterPrototypes(ProtoRegistrator registrator) { }
     public void RegisterDependencies(
         DependencyResolverBuilder dependencyResolverBuilder,
         ProtosDb protosDb,
-        bool gameWasLoaded)
-    {
-    }
-
-    public void EarlyInit(DependencyResolver resolver)
-    {
-    }
+        bool gameWasLoaded) { }
+    public void EarlyInit(DependencyResolver resolver) { }
 
     public void Initialize(DependencyResolver resolver, bool gameWasLoaded)
     {
         m_snapshotCollector = GameSnapshotCollector.Create(resolver);
         m_calendar = resolver.Resolve<ICalendar>();
-        m_simLoopEvents = resolver.Resolve<ISimLoopEvents>();
-
+        m_server = resolver.Resolve<WebApiServer>();
         m_snapshotCollector.RefreshHistory();
         m_calendar.NewMonthEnd.AddNonSaveable(this, onNewMonthEnd);
-        m_simLoopEvents.Update.AddNonSaveable(this, onSimUpdate);
-        m_simLoopEvents.UpdateAfterCmdProc.AddNonSaveable(this, onSimUpdate);
 
-        writeSnapshot();
-        Log.Info("CoI Calculator Exporter: game snapshot enabled at "
-            + m_snapshotFileWriter.SnapshotPath);
+        // The server invokes this handler on the simulation thread, including
+        // while paused. Capture only on demand; no file or export timer remains.
+        m_routeRegistered = m_server.RegisterRoute(
+            SnapshotRoute,
+            WebRouteStage.Sim,
+            new Func<WebRouteResponse>(getSnapshot),
+            "GET",
+            "Factory configuration and operating history for CoI Calculator.");
+
+        if (!m_routeRegistered)
+        {
+            throw new InvalidOperationException("Could not register calculator snapshot route.");
+        }
+
+        // Route discovery sees resolved dependencies only. Wait until the game
+        // has instantiated its own API handlers before starting the server.
+        resolver.Resolve<IGameLoopEvents>().InvokeInSyncNotSaved(startServer);
     }
 
-    public void MigrateJsonConfig(VersionSlim savedVersion, Dict<string, object> savedValues)
+    private void startServer()
     {
+        if (m_server == null) return;
+
+        string error;
+        if (!m_server.IsRunning && !m_server.TryStart(WebApiServer.DEFAULT_PORT, out error))
+        {
+            Log.Error("CoI Calculator Bridge: could not start game web server: " + error);
+            return;
+        }
+
+        Log.Info("CoI Calculator Bridge: http://127.0.0.1:"
+            + m_server.Port + SnapshotRoute);
     }
+
+    public void MigrateJsonConfig(VersionSlim savedVersion, Dict<string, object> savedValues) { }
 
     public void Dispose()
     {
         if (m_calendar != null)
         {
-            try
-            {
-                m_calendar.NewMonthEnd.RemoveNonSaveable(this, onNewMonthEnd);
-            }
-            catch
-            {
-            }
-
+            m_calendar.NewMonthEnd.RemoveNonSaveable(this, onNewMonthEnd);
             m_calendar = null;
         }
-
-        if (m_simLoopEvents != null)
+        if (m_server != null && m_routeRegistered)
         {
-            try
-            {
-                m_simLoopEvents.Update.RemoveNonSaveable(this, onSimUpdate);
-                m_simLoopEvents.UpdateAfterCmdProc.RemoveNonSaveable(this, onSimUpdate);
-            }
-            catch
-            {
-            }
-
-            m_simLoopEvents = null;
+            m_server.UnregisterRoute(SnapshotRoute);
         }
-
+        m_routeRegistered = false;
+        m_server = null;
         m_snapshotCollector = null;
-        m_snapshotFileWriter.Dispose();
     }
 
     private void onNewMonthEnd()
     {
-        if (m_snapshotCollector != null)
-        {
-            m_snapshotCollector.RefreshHistory();
-        }
+        if (m_snapshotCollector != null) m_snapshotCollector.RefreshHistory();
     }
 
-    private void onSimUpdate()
-    {
-        DateTime now = DateTime.UtcNow;
-        if (now < m_nextExportUtc)
-        {
-            return;
-        }
-
-        m_nextExportUtc = now.Add(ExportInterval);
-        writeSnapshot();
-    }
-
-    private void writeSnapshot()
+    private WebRouteResponse getSnapshot()
     {
         if (m_snapshotCollector == null)
         {
-            return;
+            return WebRouteResponse.Error(503, "Calculator data is not ready.");
         }
-
-        try
-        {
-            SnapshotDocument snapshot = m_snapshotCollector.Capture();
-            m_snapshotFileWriter.Queue(SnapshotJsonWriter.Serialize(snapshot));
-        }
-        catch (Exception ex)
-        {
-            Log.Info("CoI Calculator Exporter: unable to write game snapshot: " + ex);
-        }
+        return WebRouteResponse.Json(SnapshotJsonWriter.Serialize(m_snapshotCollector.Capture()))
+            .WithHeader("Cache-Control", "no-store");
     }
 }

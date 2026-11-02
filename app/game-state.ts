@@ -288,10 +288,13 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 41 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 42 as const
 
 export interface GameStateSnapshot {
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
+  gameVersion: string
+  gameId: string
+  sessionId: string
   saveId: string
   settlement: SyncedSettlementState
   weather: WeatherConfig
@@ -1051,6 +1054,9 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const schemaVersion = snapshot.schemaVersion
 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
+  if (typeof snapshot.gameVersion !== 'string' || !/^0\.8\.8[a-z]?$/.test(snapshot.gameVersion)) return null
+  if (typeof snapshot.gameId !== 'string' || !/^-?\d+$/.test(snapshot.gameId)) return null
+  if (typeof snapshot.sessionId !== 'string' || !/^-?\d+$/.test(snapshot.sessionId)) return null
   if (!isSyncedSettlementState(snapshot.settlement) || !isWeatherConfig(snapshot.weather)) return null
 
   const saveId =
@@ -1162,6 +1168,9 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   return {
     schemaVersion,
+    gameVersion: snapshot.gameVersion,
+    gameId: snapshot.gameId,
+    sessionId: snapshot.sessionId,
     saveId,
     settlement: snapshot.settlement,
     weather: snapshot.weather,

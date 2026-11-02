@@ -4,6 +4,8 @@ using System.Collections.Generic;
 internal sealed class SnapshotDocument
 {
     public readonly string SaveId;
+    public readonly string GameId;
+    public readonly string SessionId;
     public readonly DateTime ExportedAtUtc;
     public readonly int SpaceStationCurrentLevel;
     public readonly int SpaceStationHighestLevelAchieved;
@@ -27,6 +29,8 @@ internal sealed class SnapshotDocument
 
     public SnapshotDocument(
         string saveId,
+        string gameId,
+        string sessionId,
         DateTime exportedAtUtc,
         int spaceStationCurrentLevel,
         int spaceStationHighestLevelAchieved,
@@ -49,6 +53,8 @@ internal sealed class SnapshotDocument
         WeatherConfigSnapshot weather)
     {
         SaveId = saveId;
+        GameId = gameId;
+        SessionId = sessionId;
         ExportedAtUtc = exportedAtUtc;
         SpaceStationCurrentLevel = spaceStationCurrentLevel;
         SpaceStationHighestLevelAchieved = spaceStationHighestLevelAchieved;

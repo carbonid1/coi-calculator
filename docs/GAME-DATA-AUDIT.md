@@ -472,15 +472,40 @@ completed and not manually paused. These running counts drive current workers
 and Golden Statue Fuel Gas consumption. Infrastructure power is excluded because
 the exporter does not measure runtime utilization.
 
-The exporter is read-only, opens no network service, and writes only
-`coi-calculator-state.json` inside its local mod directory. Its manifest allows
-it to be added to and removed from an existing save.
+The Update 4.3 bridge registers the read-only
+`/api/mods/CoiCalculatorExporter/snapshot` route on the game's WebApiServer.
+It starts that server on its default port 3073 if it is not already running.
+Collection and serialization execute in the Sim stage on demand, including
+when paused. Completed-month history is refreshed when each month ends.
+Server startup is queued with `IGameLoopEvents.InvokeInSyncNotSaved` after
+dependency instantiation: starting it inside mod initialization scans too early
+and omits the game's built-in routes.
+There is no recurring export timer or file writer. The application reads only
+HTTP, using `COI_WEB_API_URL` when a different server port is configured.
 
-The calculator normalizes exporter schemas v6 through v32. Older snapshots keep
-their available synced values and normalize fields introduced by later schemas.
-The browser persists the last valid normalized snapshot. Sync-owned values
-therefore resolve in this order: compatible live snapshot, last valid snapshot,
-then zero; baked gameplay counts are never substituted.
+The calculator requires schema 42, game version 0.8.8 (including hotfix suffixes),
+and the game's playthrough and session identities. Older schemas and browser
+cache entries are rejected. The browser can retain the last compatible snapshot
+as cached data when disconnected; it is not marked live. Existing save-name keys
+for user plans are preserved. Collection remains necessary for per-building and
+storage connectivity data that the built-in product statistics routes do not expose.
+
+Verified on 2026-11-02 against installed 0.8.8 build 627 with the paused
+Last-Stop Waters save (`Save 2026-09-09, 13-52-21`):
+
+- All 13 routes available, including the bridge and built-in product APIs.
+- Bridge and application both return HTTP 200: 16 vehicle areas, 2,093 production
+  entities, 1,533 area entities, and 1,721 storages.
+- Native catalog returns 216 products; native product stats work alongside the bridge.
+- Factory data is identical across a full restart after excluding capture time and
+  session identity. The game identity is stable and the session identity changes.
+- Conditional app polls return 304 with an updated capture timestamp while paused.
+- Quitting produces 503 from the app API and the browser shows Last sync; the
+  reloaded game reconnects. Simulation tick remains 176457742 (8 January 24509).
+- No export file is created. Factory Total renders the existing modules and plans.
+
+This verifies the HTTP migration. The solver's previous recycling assumptions
+still require the separate Update 4.3 material-flow correction.
 
 Verified against installed v0.8.7 `EntityWithWorkersExtensions.WorkersAssigned`,
 `IVehiclesManager.AllVehicles`, `IEntitiesManager`, `IEntity.Prototype.Id`, and

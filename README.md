@@ -10,7 +10,9 @@ Pick a module, plug in building counts, see net resource flows and where to plac
 - **Tailwind CSS v4** via `@carbonid1/design-system/themes/dashboard`
 - **Configs** from [`@carbonid1/packages`](https://github.com/carbonid1/packages): `tsconfig`, `eslint-config`, `prettier-config`
 
-Factory configuration lives in the version-controlled domain files under `app/db` — no backend or login.
+Factory data comes from the game's local web server through
+[CoI Calculator Bridge](./game-mod/CoiCalculatorExporter/README.md).
+Calculation rules and planning defaults live under `app/db`.
 
 ## Develop
 
@@ -22,6 +24,11 @@ pnpm dev
 ```
 
 Open [localhost:3000](http://localhost:3000).
+
+To connect a factory, install the bridge with `pnpm game-mod:install`, restart
+Captain of Industry, and enable **CoI Calculator Bridge** when loading a game.
+The bridge starts the game server on port 3073 and works while paused.
+The calculator requires the Update 4.3 bridge; previous export files are no longer read.
 
 ## Scripts
 

@@ -21,6 +21,9 @@ const currentSnapshot = {
   world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
   storages: [],
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
+  gameVersion: '0.8.8',
+  gameId: '123',
+  sessionId: '456',
   settlement: emptySettlement,
   weather: testWeather,
   saveId: 'Test Island',
@@ -69,7 +72,18 @@ describe('game-state snapshot validation', () => {
 
   it('rejects every non-current exporter schema', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 39 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 42 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 43 })).toBe(false)
+  })
+
+  it.each(['0.8.7', '0.8.9', '', null])('rejects an incompatible game version: %s', gameVersion => {
+    expect(isGameStateSnapshot({ ...currentSnapshot, gameVersion })).toBe(false)
+  })
+
+  it('requires game and session identities and accepts current-game hotfixes', () => {
+    expect(isGameStateSnapshot({ ...currentSnapshot, gameVersion: '0.8.8a' })).toBe(true)
+    expect(isGameStateSnapshot({ ...currentSnapshot, gameId: '' })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, sessionId: null })).toBe(false)
   })
 
   it.each([
