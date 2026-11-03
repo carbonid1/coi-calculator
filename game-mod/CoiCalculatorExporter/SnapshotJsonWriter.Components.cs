@@ -1,324 +1,171 @@
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 
 internal static partial class SnapshotJsonWriter
 {
-    private static void appendNumber(
-        StringBuilder json,
-        string name,
-        int value,
-        bool trailingComma)
+    // Keep schema 44's six-decimal precision for calculated values.
+    // Recycling source ratios use SnapshotJsonStream's full double precision instead.
+    private static double snapshotDecimal(double value)
     {
-        json.Append('\"');
-        json.Append(name);
-        json.Append("\":");
-        json.Append(value.ToString(CultureInfo.InvariantCulture));
-        if (trailingComma)
-        {
-            json.Append(',');
-        }
+        return double.Parse(
+            value.ToString("0.######", CultureInfo.InvariantCulture),
+            CultureInfo.InvariantCulture);
     }
 
-    private static void appendDecimal(
-        StringBuilder json,
-        string name,
-        double value,
-        bool trailingComma)
+    private static void appendDecimal(SnapshotJsonStream json, string name, double value)
     {
-        json.Append('\"');
-        json.Append(name);
-        json.Append("\":");
-        json.Append(value.ToString("0.######", CultureInfo.InvariantCulture));
-        if (trailingComma)
-        {
-            json.Append(',');
-        }
+        json.Field(name, snapshotDecimal(value));
     }
 
-    private static void appendNullableDecimal(
-        StringBuilder json,
-        string name,
-        double? value,
-        bool trailingComma)
+    private static void appendNullableDecimal(SnapshotJsonStream json, string name, double? value)
     {
-        json.Append('"');
-        json.Append(name);
-        json.Append("\":");
+        json.Name(name);
         if (value.HasValue)
         {
-            json.Append(value.Value.ToString("0.######", CultureInfo.InvariantCulture));
+            json.Value(snapshotDecimal(value.Value));
         }
         else
         {
-            json.Append("null");
-        }
-
-        if (trailingComma)
-        {
-            json.Append(',');
+            json.Value((string)null);
         }
     }
 
-    private static void appendNullableNumber(
-        StringBuilder json,
-        string name,
-        int? value,
-        bool trailingComma)
+    private static void appendNullableNumber(SnapshotJsonStream json, string name, int? value)
     {
-        json.Append('\"');
-        json.Append(name);
-        json.Append("\":");
+        json.Name(name);
         if (value.HasValue)
         {
-            json.Append(value.Value.ToString(CultureInfo.InvariantCulture));
+            json.Value(value.Value);
         }
         else
         {
-            json.Append("null");
-        }
-
-        if (trailingComma)
-        {
-            json.Append(',');
+            json.Value((string)null);
         }
     }
 
     private static void appendAreaRecipeProducts(
-        StringBuilder json,
+        SnapshotJsonStream json,
         string key,
-        List<AreaRecipeProductSnapshot> products,
-        bool appendComma)
+        List<AreaRecipeProductSnapshot> products)
     {
-        json.Append('"');
-        json.Append(key);
-        json.Append("\":[");
+        json.Name(key).BeginArray();
         for (int i = 0; i < products.Count; i++)
         {
             AreaRecipeProductSnapshot product = products[i];
-            json.Append('{');
-            appendString(json, "productId", product.ProductId, true);
-            appendString(json, "name", product.Name, true);
-            appendNumber(json, "quantity", product.Quantity, false);
-            json.Append('}');
-            if (i < products.Count - 1)
-            {
-                json.Append(',');
-            }
+            json.BeginObject();
+            json.Field("productId", product.ProductId);
+            json.Field("name", product.Name);
+            json.Field("quantity", product.Quantity);
+            json.EndObject();
         }
-        json.Append(']');
-        if (appendComma)
-        {
-            json.Append(',');
-        }
+        json.EndArray();
     }
 
     private static void appendTrainStationConfiguration(
-        StringBuilder json,
+        SnapshotJsonStream json,
         TrainStationConfigurationSnapshot station)
     {
         if (station == null)
         {
-            json.Append("null");
+            json.Value((string)null);
             return;
         }
 
-        json.Append('{');
-        json.Append("\"isForLoading\":");
-        json.Append(station.IsForLoading ? "true" : "false");
-        json.Append(",\"selectedProduct\":");
+        json.BeginObject();
+        json.Field("isForLoading", station.IsForLoading);
+        json.Name("selectedProduct");
         if (station.SelectedProduct == null)
         {
-            json.Append("null");
+            json.Value((string)null);
         }
         else
         {
-            json.Append('{');
-            appendString(json, "productId", station.SelectedProduct.ProductId, true);
-            appendString(json, "name", station.SelectedProduct.Name, false);
-            json.Append('}');
+            json.BeginObject();
+            json.Field("productId", station.SelectedProduct.ProductId);
+            json.Field("name", station.SelectedProduct.Name);
+            json.EndObject();
         }
-        json.Append('}');
+        json.EndObject();
     }
 
     private static void appendForestryConfiguration(
-        StringBuilder json,
+        SnapshotJsonStream json,
         ForestryConfigurationSnapshot forestry)
     {
         if (forestry == null)
         {
-            json.Append("null");
+            json.Value((string)null);
             return;
         }
 
-        json.Append('{');
-        appendNumber(json, "treeCount", forestry.TreeCount, true);
-        json.Append("\"cuttingEnabled\":");
-        json.Append(forestry.CuttingEnabled ? "true" : "false");
-        json.Append(',');
-        appendNumber(json, "targetHarvestPercent", forestry.TargetHarvestPercent, true);
-        appendDecimal(json, "harvestsPerCycle", forestry.HarvestsPerCycle, true);
-        json.Append("\"harvestDurationMonths\":");
-        if (forestry.HarvestDurationMonths.HasValue)
-        {
-            json.Append(forestry.HarvestDurationMonths.Value.ToString(
-                "0.######",
-                CultureInfo.InvariantCulture));
-        }
-        else
-        {
-            json.Append("null");
-        }
-        json.Append(",\"outputs\":[");
+        json.BeginObject();
+        json.Field("treeCount", forestry.TreeCount);
+        json.Field("cuttingEnabled", forestry.CuttingEnabled);
+        json.Field("targetHarvestPercent", forestry.TargetHarvestPercent);
+        appendDecimal(json, "harvestsPerCycle", forestry.HarvestsPerCycle);
+        appendNullableDecimal(json, "harvestDurationMonths", forestry.HarvestDurationMonths);
+        json.Name("outputs").BeginArray();
         for (int i = 0; i < forestry.Outputs.Count; i++)
         {
             ForestryProductSnapshot product = forestry.Outputs[i];
-            json.Append('{');
-            appendString(json, "productId", product.ProductId, true);
-            appendString(json, "name", product.Name, true);
-            appendDecimal(json, "quantityPerCycle", product.QuantityPerCycle, false);
-            json.Append('}');
-            if (i < forestry.Outputs.Count - 1)
-            {
-                json.Append(',');
-            }
+            json.BeginObject();
+            json.Field("productId", product.ProductId);
+            json.Field("name", product.Name);
+            appendDecimal(json, "quantityPerCycle", product.QuantityPerCycle);
+            json.EndObject();
         }
-        json.Append("]}");
+        json.EndArray().EndObject();
     }
 
     private static void appendOfficeConfiguration(
-        StringBuilder json,
+        SnapshotJsonStream json,
         OfficeConfigurationSnapshot office)
     {
         if (office == null)
         {
-            json.Append("null");
+            json.Value((string)null);
             return;
         }
 
-        json.Append('{');
-        appendNumber(json, "computingBoostStep", office.ComputingBoostStep, false);
-        json.Append('}');
+        json.BeginObject();
+        json.Field("computingBoostStep", office.ComputingBoostStep);
+        json.EndObject();
     }
 
     private static void appendOreSorterConfiguration(
-        StringBuilder json,
+        SnapshotJsonStream json,
         OreSorterConfigurationSnapshot sorter)
     {
         if (sorter == null)
         {
-            json.Append("null");
+            json.Value((string)null);
             return;
         }
 
-        json.Append('{');
-        appendDecimal(json, "throughputPerCycle", sorter.ThroughputPerCycle, true);
-        appendNumber(json, "conversionLossPercent", sorter.ConversionLossPercent, true);
-        json.Append("\"products\":[");
+        json.BeginObject();
+        appendDecimal(json, "throughputPerCycle", sorter.ThroughputPerCycle);
+        json.Field("conversionLossPercent", sorter.ConversionLossPercent);
+        json.Name("products").BeginArray();
         for (int i = 0; i < sorter.Products.Count; i++)
         {
             OreSorterProductSnapshot product = sorter.Products[i];
-            json.Append('{');
-            appendString(json, "productId", product.ProductId, true);
-            appendString(json, "name", product.Name, true);
-            json.Append("\"canBeWasted\":");
-            json.Append(product.CanBeWasted ? "true" : "false");
-            json.Append('}');
-            if (i < sorter.Products.Count - 1)
-            {
-                json.Append(',');
-            }
+            json.BeginObject();
+            json.Field("productId", product.ProductId);
+            json.Field("name", product.Name);
+            json.Field("canBeWasted", product.CanBeWasted);
+            json.EndObject();
         }
-        json.Append("]}");
+        json.EndArray().EndObject();
     }
 
     private static void appendHistoryAverage(
-        StringBuilder json,
+        SnapshotJsonStream json,
         string name,
-        HistoryAverage average,
-        bool trailingComma)
+        HistoryAverage average)
     {
-        json.Append('\"');
-        json.Append(name);
-        json.Append("\":{");
-        appendDecimal(json, "averagePerCycle", average.Value, true);
-        appendNumber(json, "sampleMonths", average.SampleMonths, false);
-        json.Append('}');
-        if (trailingComma)
-        {
-            json.Append(',');
-        }
-    }
-
-    private static void appendString(
-        StringBuilder json,
-        string name,
-        string value,
-        bool trailingComma)
-    {
-        json.Append('\"');
-        json.Append(name);
-        json.Append("\":\"");
-        appendEscapedString(json, value);
-        json.Append('\"');
-        if (trailingComma)
-        {
-            json.Append(',');
-        }
-    }
-
-    private static void appendNullableString(
-        StringBuilder json,
-        string name,
-        string value,
-        bool trailingComma)
-    {
-        json.Append('\"');
-        json.Append(name);
-        json.Append("\":");
-        if (value == null)
-        {
-            json.Append("null");
-        }
-        else
-        {
-            json.Append('\"');
-            appendEscapedString(json, value);
-            json.Append('\"');
-        }
-
-        if (trailingComma)
-        {
-            json.Append(',');
-        }
-    }
-
-    private static void appendEscapedString(StringBuilder json, string value)
-    {
-        for (int i = 0; i < value.Length; i++)
-        {
-            char character = value[i];
-            switch (character)
-            {
-                case '\"': json.Append("\\\""); break;
-                case '\\': json.Append("\\\\"); break;
-                case '\b': json.Append("\\b"); break;
-                case '\f': json.Append("\\f"); break;
-                case '\n': json.Append("\\n"); break;
-                case '\r': json.Append("\\r"); break;
-                case '\t': json.Append("\\t"); break;
-                default:
-                    if (character < ' ')
-                    {
-                        json.Append("\\u");
-                        json.Append(((int)character).ToString("x4", CultureInfo.InvariantCulture));
-                    }
-                    else
-                    {
-                        json.Append(character);
-                    }
-                    break;
-            }
-        }
+        json.Name(name).BeginObject();
+        appendDecimal(json, "averagePerCycle", average.Value);
+        json.Field("sampleMonths", average.SampleMonths);
+        json.EndObject();
     }
 }

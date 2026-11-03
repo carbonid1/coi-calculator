@@ -1,157 +1,131 @@
-using System.Text;
 
 internal static partial class SnapshotJsonWriter
 {
-    private static void appendWorldMineSnapshot(StringBuilder json, WorldMineSnapshot value)
+    private static void appendWorldMineSnapshot(SnapshotJsonStream json, WorldMineSnapshot value)
     {
-        if (value == null) { json.Append("null"); return; }
-        json.Append('{');
-        appendNumber(json, "entityId", value.EntityId, true);
-        appendString(json, "prototypeId", value.PrototypeId, true);
-        appendString(json, "name", value.Name, true);
-        appendContractProduct(json, "product", value.Product, true);
-        json.Append("\"repaired\":");
-        json.Append(value.Repaired ? "true" : "false");
-        json.Append(',');
-        json.Append("\"running\":");
-        json.Append(value.Running ? "true" : "false");
-        json.Append(',');
-        appendString(json, "state", value.State, true);
-        appendNumber(json, "level", value.Level, true);
-        appendNumber(json, "maxLevel", value.MaxLevel, true);
-        appendNumber(json, "productionStep", value.ProductionStep, true);
-        appendDecimal(json, "outputPerCycle", value.OutputPerCycle, true);
-        appendDecimal(json, "capacityPerCycle", value.CapacityPerCycle, true);
-        appendNumber(json, "workers", value.Workers, true);
-        appendNumber(json, "workersNeeded", value.WorkersNeeded, true);
-        appendDecimal(json, "unityPerCycle", value.UnityPerCycle, true);
-        appendDecimal(json, "maximumUnityPerCycle", value.MaximumUnityPerCycle, true);
-        appendNumber(json, "bufferQuantity", value.BufferQuantity, true);
-        appendNumber(json, "bufferCapacity", value.BufferCapacity, true);
-        appendNullableNumber(json, "depositQuantity", value.DepositQuantity, false);
-        json.Append('}');
+        if (value == null) { json.Value((string)null); return; }
+        json.BeginObject();
+        json.Field("entityId", value.EntityId);
+        json.Field("prototypeId", value.PrototypeId);
+        json.Field("name", value.Name);
+        appendContractProduct(json, "product", value.Product);
+        json.Field("repaired", value.Repaired);
+        json.Field("running", value.Running);
+        json.Field("state", value.State);
+        json.Field("level", value.Level);
+        json.Field("maxLevel", value.MaxLevel);
+        json.Field("productionStep", value.ProductionStep);
+        appendDecimal(json, "outputPerCycle", value.OutputPerCycle);
+        appendDecimal(json, "capacityPerCycle", value.CapacityPerCycle);
+        json.Field("workers", value.Workers);
+        json.Field("workersNeeded", value.WorkersNeeded);
+        appendDecimal(json, "unityPerCycle", value.UnityPerCycle);
+        appendDecimal(json, "maximumUnityPerCycle", value.MaximumUnityPerCycle);
+        json.Field("bufferQuantity", value.BufferQuantity);
+        json.Field("bufferCapacity", value.BufferCapacity);
+        appendNullableNumber(json, "depositQuantity", value.DepositQuantity);
+        json.EndObject();
     }
 
-    private static void appendStorageSnapshot(StringBuilder json, StorageSnapshot value)
+    private static void appendStorageSnapshot(SnapshotJsonStream json, StorageSnapshot value)
     {
-        if (value == null) { json.Append("null"); return; }
-        json.Append('{');
-        appendNumber(json, "entityId", value.EntityId, true);
-        appendContractProduct(json, "product", value.Product, true);
-        appendNumber(json, "quantity", value.Quantity, true);
-        appendNumber(json, "capacity", value.Capacity, true);
-        json.Append("\"trainLinked\":");
-        json.Append(value.TrainLinked ? "true" : "false");
-        json.Append(',');
-        json.Append("\"hasAssignedInputs\":");
-        json.Append(value.HasAssignedInputs ? "true" : "false");
-        json.Append('}');
+        if (value == null) { json.Value((string)null); return; }
+        json.BeginObject();
+        json.Field("entityId", value.EntityId);
+        appendContractProduct(json, "product", value.Product);
+        json.Field("quantity", value.Quantity);
+        json.Field("capacity", value.Capacity);
+        json.Field("trainLinked", value.TrainLinked);
+        json.Field("hasAssignedInputs", value.HasAssignedInputs);
+        json.EndObject();
     }
 
-    private static void appendCargoModuleOperationSnapshot(StringBuilder json, CargoModuleOperationSnapshot value)
+    private static void appendCargoModuleOperationSnapshot(SnapshotJsonStream json, CargoModuleOperationSnapshot value)
     {
-        if (value == null) { json.Append("null"); return; }
-        json.Append('{');
-        appendNumber(json, "entityId", value.EntityId, true);
-        appendString(json, "state", value.State, true);
-        json.Append("\"operational\":");
-        json.Append(value.Operational ? "true" : "false");
-        json.Append(',');
-        appendNumber(json, "workersNeeded", value.WorkersNeeded, true);
-        appendNumber(json, "shoreQuantity", value.ShoreQuantity, true);
-        appendNumber(json, "shoreCapacity", value.ShoreCapacity, true);
-        appendNumber(json, "shoreFreeCapacity", value.ShoreFreeCapacity, true);
-        appendNumber(json, "onboardQuantity", value.OnboardQuantity, true);
-        appendNumber(json, "onboardFreeCapacity", value.OnboardFreeCapacity, true);
-        appendDecimal(json, "transferPerCycle", value.TransferPerCycle, true);
-        appendDecimal(json, "electricityKw", value.ElectricityKw, false);
-        json.Append('}');
+        if (value == null) { json.Value((string)null); return; }
+        json.BeginObject();
+        json.Field("entityId", value.EntityId);
+        json.Field("state", value.State);
+        json.Field("operational", value.Operational);
+        json.Field("workersNeeded", value.WorkersNeeded);
+        json.Field("shoreQuantity", value.ShoreQuantity);
+        json.Field("shoreCapacity", value.ShoreCapacity);
+        json.Field("shoreFreeCapacity", value.ShoreFreeCapacity);
+        json.Field("onboardQuantity", value.OnboardQuantity);
+        json.Field("onboardFreeCapacity", value.OnboardFreeCapacity);
+        appendDecimal(json, "transferPerCycle", value.TransferPerCycle);
+        appendDecimal(json, "electricityKw", value.ElectricityKw);
+        json.EndObject();
     }
 
-    private static void appendAvailableCargoSnapshot(StringBuilder json, AvailableCargoSnapshot value)
+    private static void appendAvailableCargoSnapshot(SnapshotJsonStream json, AvailableCargoSnapshot value)
     {
-        if (value == null) { json.Append("null"); return; }
-        json.Append('{');
-        appendContractProduct(json, "product", value.Product, true);
-        appendNumber(json, "quantity", value.Quantity, true);
-        appendNumber(json, "capacity", value.Capacity, false);
-        json.Append('}');
+        if (value == null) { json.Value((string)null); return; }
+        json.BeginObject();
+        appendContractProduct(json, "product", value.Product);
+        json.Field("quantity", value.Quantity);
+        json.Field("capacity", value.Capacity);
+        json.EndObject();
     }
 
-    private static void appendCargoShipOperationSnapshot(StringBuilder json, CargoShipOperationSnapshot value)
+    private static void appendCargoShipOperationSnapshot(SnapshotJsonStream json, CargoShipOperationSnapshot value)
     {
-        if (value == null) { json.Append("null"); return; }
-        json.Append('{');
-        appendString(json, "state", value.State, true);
-        json.Append("\"docked\":");
-        json.Append(value.Docked ? "true" : "false");
-        json.Append(',');
-        json.Append("\"inTransit\":");
-        json.Append(value.InTransit ? "true" : "false");
-        json.Append(',');
-        appendNumber(json, "workersNeeded", value.WorkersNeeded, true);
-        appendNumber(json, "fuelQuantity", value.FuelQuantity, true);
-        json.Append("\"canUseUnityForFuel\":");
-        json.Append(value.CanUseUnityForFuel ? "true" : "false");
-        json.Append(',');
-        appendNullableDecimal(json, "unityPerTrip", value.UnityPerTrip, true);
-        json.Append("\"departureRequested\":");
-        json.Append(value.DepartureRequested ? "true" : "false");
-        json.Append(',');
-        json.Append("\"availableCargo\":");
-        json.Append('[');
+        if (value == null) { json.Value((string)null); return; }
+        json.BeginObject();
+        json.Field("state", value.State);
+        json.Field("docked", value.Docked);
+        json.Field("inTransit", value.InTransit);
+        json.Field("workersNeeded", value.WorkersNeeded);
+        json.Field("fuelQuantity", value.FuelQuantity);
+        json.Field("canUseUnityForFuel", value.CanUseUnityForFuel);
+        appendNullableDecimal(json, "unityPerTrip", value.UnityPerTrip);
+        json.Field("departureRequested", value.DepartureRequested);
+        json.Name("availableCargo").BeginArray();
         for (int i = 0; i < value.AvailableCargo.Count; i++)
         {
-            if (i > 0) json.Append(',');
             appendAvailableCargoSnapshot(json, value.AvailableCargo[i]);
         }
-        json.Append(']');
-        json.Append('}');
+        json.EndArray().EndObject();
     }
 
-    private static void appendCargoOperationSnapshot(StringBuilder json, CargoOperationSnapshot value)
+    private static void appendCargoOperationSnapshot(SnapshotJsonStream json, CargoOperationSnapshot value)
     {
-        if (value == null) { json.Append("null"); return; }
-        json.Append('{');
-        json.Append("\"dockBlocked\":");
-        json.Append(value.DockBlocked ? "true" : "false");
-        json.Append(',');
-        json.Append("\"modules\":");
-        json.Append('[');
+        if (value == null) { json.Value((string)null); return; }
+        json.BeginObject();
+        json.Field("dockBlocked", value.DockBlocked);
+        json.Name("modules").BeginArray();
         for (int i = 0; i < value.Modules.Count; i++)
         {
-            if (i > 0) json.Append(',');
             appendCargoModuleOperationSnapshot(json, value.Modules[i]);
         }
-        json.Append(']');
-        json.Append(',');
-        json.Append("\"ship\":");
+        json.EndArray();
+        json.Name("ship");
         appendCargoShipOperationSnapshot(json, value.Ship);
-        json.Append('}');
+        json.EndObject();
     }
 
-    private static void appendWorldState(StringBuilder json, WorldStateSnapshot world)
+    private static void appendWorldState(SnapshotJsonStream json, WorldStateSnapshot world)
     {
-        json.Append("\"world\":{\"mines\":[");
+        json.Name("world").BeginObject();
+        json.Name("mines").BeginArray();
         for (int i = 0; i < world.Mines.Count; i++)
         {
-            if (i > 0) json.Append(',');
             appendWorldMineSnapshot(json, world.Mines[i]);
         }
-        json.Append("],\"routes\":[");
+        json.EndArray();
+        json.Name("routes").BeginArray();
         for (int i = 0; i < world.Routes.Count; i++)
         {
-            if (i > 0) json.Append(',');
             appendCargoRoute(json, world.Routes[i]);
         }
-        json.Append("],\"unassignedShipIds\":[");
+        json.EndArray();
+        json.Name("unassignedShipIds").BeginArray();
         for (int i = 0; i < world.UnassignedShipIds.Count; i++)
         {
-            if (i > 0) json.Append(',');
-            json.Append(world.UnassignedShipIds[i]);
+            json.Value(world.UnassignedShipIds[i]);
         }
-        json.Append("],");
-        appendNumber(json, "unassignedWorkers", world.UnassignedWorkers, false);
-        json.Append('}');
+        json.EndArray();
+        json.Field("unassignedWorkers", world.UnassignedWorkers);
+        json.EndObject();
     }
 }

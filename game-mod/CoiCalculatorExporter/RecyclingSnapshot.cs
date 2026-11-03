@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Text;
 
 using Mafi.Core.Products;
 
@@ -59,38 +57,36 @@ internal sealed partial class GameSnapshotCollector
 
 internal static partial class SnapshotJsonWriter
 {
-    private static void appendRecycling(StringBuilder json, RecyclingSnapshot recycling)
+    private static void appendRecycling(SnapshotJsonStream json, RecyclingSnapshot recycling)
     {
-        json.Append("\"recycling\":{");
-        json.Append("\"efficiencyPercent\":").Append(recycling.EfficiencyPercent.ToString("R", CultureInfo.InvariantCulture)).Append(',');
-        appendNumber(json, "scrapPerRecyclable", RecyclablesAccumulator.SCRAP_PER_RECYCLABLE, true);
-        json.Append("\"products\":[");
+        json.Name("recycling").BeginObject();
+        json.Field("efficiencyPercent", recycling.EfficiencyPercent);
+        json.Field("scrapPerRecyclable", RecyclablesAccumulator.SCRAP_PER_RECYCLABLE);
+        json.Name("products").BeginArray();
         for (int i = 0; i < recycling.Products.Count; i++)
         {
             RecyclingProductSnapshot product = recycling.Products[i];
-            json.Append('{');
-            appendString(json, "productId", product.ProductId, true);
-            appendString(json, "name", product.Name, true);
+            json.BeginObject();
+            json.Field("productId", product.ProductId);
+            json.Field("name", product.Name);
             appendRecyclingSources(json, "sources", product.Sources);
-            json.Append('}');
-            if (i + 1 < recycling.Products.Count) json.Append(',');
+            json.EndObject();
         }
-        json.Append("]},");
+        json.EndArray().EndObject();
     }
 
-    private static void appendRecyclingSources(StringBuilder json, string name, List<RecyclingSourceSnapshot> sources)
+    private static void appendRecyclingSources(SnapshotJsonStream json, string name, List<RecyclingSourceSnapshot> sources)
     {
-        json.Append('"').Append(name).Append("\":[");
+        json.Name(name).BeginArray();
         for (int i = 0; i < sources.Count; i++)
         {
             RecyclingSourceSnapshot source = sources[i];
-            json.Append('{');
-            appendString(json, "productId", source.ProductId, true);
-            appendString(json, "name", source.Name, true);
-            json.Append("\"quantity\":").Append(source.Quantity.ToString("R", CultureInfo.InvariantCulture));
-            json.Append('}');
-            if (i + 1 < sources.Count) json.Append(',');
+            json.BeginObject();
+            json.Field("productId", source.ProductId);
+            json.Field("name", source.Name);
+            json.Field("quantity", source.Quantity);
+            json.EndObject();
         }
-        json.Append(']');
+        json.EndArray();
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 using Mafi;
 using Mafi.Core.Buildings.Cargo.Modules;
@@ -87,22 +86,21 @@ internal sealed partial class GameSnapshotCollector
 
 internal static partial class SnapshotJsonWriter
 {
-    private static void appendBuildingDefinitions(StringBuilder json, List<BuildingDefinitionSnapshot> definitions)
+    private static void appendBuildingDefinitions(SnapshotJsonStream json, List<BuildingDefinitionSnapshot> definitions)
     {
-        json.Append("\"buildingDefinitions\":[");
+        json.Name("buildingDefinitions").BeginArray();
         for (int index = 0; index < definitions.Count; index++)
         {
-            if (index > 0) json.Append(',');
             BuildingDefinitionSnapshot definition = definitions[index];
-            json.Append('{');
-            appendString(json, "id", definition.Id, true);
-            appendString(json, "name", definition.Name, true);
-            appendNumber(json, "workers", definition.Workers, true);
-            appendNumber(json, "electricityKw", definition.ElectricityKw, true);
-            appendDecimal(json, "computingTflops", definition.ComputingTflops, true);
-            appendDecimal(json, "unityPerCycle", definition.UnityPerCycle, false);
-            json.Append('}');
+            json.BeginObject();
+            json.Field("id", definition.Id);
+            json.Field("name", definition.Name);
+            json.Field("workers", definition.Workers);
+            json.Field("electricityKw", definition.ElectricityKw);
+            appendDecimal(json, "computingTflops", definition.ComputingTflops);
+            appendDecimal(json, "unityPerCycle", definition.UnityPerCycle);
+            json.EndObject();
         }
-        json.Append("],");
+        json.EndArray();
     }
 }
