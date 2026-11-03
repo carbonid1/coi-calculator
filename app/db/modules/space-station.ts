@@ -3,7 +3,8 @@ import {
   type SyncedProductionEntity,
 } from "../../game-state";
 import { type RocketIiDefinition } from '../../rocket-state';
-import { recipes, type Recipe } from "../recipes";
+import { type SpaceStationLevelDefinition } from '../../space-station-state';
+import { type Recipe } from "../recipes";
 import {
   emptyRocketInfrastructureConfig,
   normalizeRocketInfrastructureConfig,
@@ -15,6 +16,7 @@ import {
   createRocketIiRecipes,
   getMinimumSpaceStationLevelForResearchPoints,
   type SpaceStationConfig,
+  type SpaceStationLevelData,
 } from "../space-station";
 import { type Module, type PlanMismatch } from "./modules";
 
@@ -101,39 +103,35 @@ const getSpaceStationLabel = (level: number) => {
   return roman ? `Space Station ${roman}` : "Space Station";
 };
 
-const getRecipe = (id: string) => {
-  const recipe = recipes.find(candidate => candidate.id === id);
-
-  if (!recipe) throw new Error(`Missing Space Station recipe: ${id}`);
-
-  return recipe;
-};
-
-const createSpaceStationRecipes = (config: SpaceStationConfig): Recipe[] => {
-  const station = calculateSpaceStationLevel(
-    config.currentLevel,
-    config.highestLevelAchieved,
-  );
+export const createSpaceStationRecipes = (station: SpaceStationLevelData): Recipe[] => {
   const label = getSpaceStationLabel(station.level);
-  const operations = getRecipe("space-station-operations");
-  const orbitalResearch = getRecipe("space-station-orbital-research");
 
   return [
     {
-      ...operations,
+      id: 'space-station-operations',
+      group: 'production',
       name: `${label} Operations`,
       building: label,
+      buildingData: { workers: station.crew, electricityKw: 0 },
       displayGroup: { id: "space-station", label },
       inputs: [
-        { resourceId: "stationParts", quantity: station.maintenancePartsPerCycle },
-        { resourceId: "crewSupplies", quantity: station.crewSuppliesPerCycle },
+        { resourceId: station.stationPartsResourceId, quantity: station.maintenancePartsPerCycle },
+        { resourceId: station.crewSuppliesResourceId, quantity: station.crewSuppliesPerCycle },
       ],
+      outputs: [],
     },
     {
-      ...orbitalResearch,
+      id: 'space-station-orbital-research',
+      group: 'production',
+      displayName: 'Orbital Research',
+      building: 'Space Station Orbital Research',
+      buildingData: { workers: 0, electricityKw: 0, suppressPauseAttention: true },
+      tracksPhysicalCapacity: false,
+      balanceBy: 'output',
+      balanceOutputIds: ['spaceResearchPoints'],
       name: `${label} Orbital Research`,
       displayGroup: { id: "space-station", label },
-      inputs: [{ resourceId: "electronicsIv", quantity: station.researchSuppliesPerCycle }],
+      inputs: [{ resourceId: station.researchSuppliesResourceId, quantity: station.researchSuppliesPerCycle }],
       outputs: [{
         resourceId: "spaceResearchPoints",
         quantity: station.spaceResearchPointsPerCycle,
@@ -144,6 +142,7 @@ const createSpaceStationRecipes = (config: SpaceStationConfig): Recipe[] => {
 
 export const createSpaceStationModule = (
   config: SpaceStationConfig,
+  stationLevels: readonly SpaceStationLevelDefinition[],
   rocketDefinition: RocketIiDefinition,
   rocketBuiltConfig: RocketInfrastructureConfig = emptyRocketInfrastructureConfig,
   currentState: SpaceStationCurrentState = {},
@@ -152,17 +151,17 @@ export const createSpaceStationModule = (
 ): Module => {
   const currentStation = calculateSpaceStationLevel(
     config.currentLevel,
-    config.highestLevelAchieved,
+    stationLevels,
   );
   const targetLevel = researchPlan?.requiredPoints
     ? Math.max(
         currentStation.level,
-        getMinimumSpaceStationLevelForResearchPoints(researchPlan.requiredPoints),
+        getMinimumSpaceStationLevelForResearchPoints(researchPlan.requiredPoints, stationLevels),
       )
     : currentStation.level;
   const station = calculateSpaceStationLevel(
     targetLevel,
-    Math.max(config.highestLevelAchieved, targetLevel),
+    stationLevels,
   );
   const stationPlanPending = targetLevel > currentStation.level;
   const hasStation = station.level > 0;
@@ -243,10 +242,7 @@ export const createSpaceStationModule = (
     capabilities: ["space-station"],
     includedInFactoryTotals: true,
     builtBuildings,
-    recipes: [...createRocketIiRecipes(station, rocketDefinition), ...createSpaceStationRecipes({
-      currentLevel: targetLevel,
-      highestLevelAchieved: Math.max(config.highestLevelAchieved, targetLevel),
-    })],
+    recipes: [...createSpaceStationRecipes(station), ...createRocketIiRecipes(station, rocketDefinition)],
     presets: [
       {
         id: "current",

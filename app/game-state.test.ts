@@ -10,7 +10,7 @@ import {
 } from './game-state'
 import { testBuildingDefinitions } from './test-fixtures/building-requirements'
 import { testProducts } from './test-fixtures/products'
-import { testChickenFarmDefinition, testRocketIiDefinition } from './test-fixtures/recorded-game-data'
+import { testChickenFarmDefinition, testRocketIiDefinition, testSpaceStationLevels } from './test-fixtures/recorded-game-data'
 import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
@@ -26,6 +26,7 @@ const currentSnapshot = {
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
   chickenFarmDefinition: testChickenFarmDefinition,
   rocketIiDefinition: testRocketIiDefinition,
+  spaceStationLevels: testSpaceStationLevels,
   buildingDefinitions: testBuildingDefinitions,
   recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
   gameVersion: '0.8.8',
@@ -72,6 +73,22 @@ const currentSnapshot = {
 }
 
 describe('game-state snapshot validation', () => {
+  it('requires ordered native station tiers and rejects incomplete or unsupported values', () => {
+    const first = testSpaceStationLevels[0]
+
+    if (!first) throw new Error('Recorded station tiers are missing')
+    for (const levels of [undefined, null, [], [first, first],
+      [{ ...first, crew: -1 }], [{ ...first, level: 2 }],
+      [{ ...first, unityPerCycle: Number.NaN }],
+      [{ ...first, maintenance: { ...first.maintenance, quantity: -1 } }],
+      [{ ...first, researchSupplies: { productId: 'unknown', name: 'unknown', quantity: 1 } }],
+    ]) {
+      expect(normalizeGameStateSnapshot({ ...currentSnapshot, spaceStationLevels: levels })).toBeNull()
+    }
+    expect(normalizeGameStateSnapshot({ ...currentSnapshot,
+      spaceStation: { currentLevel: testSpaceStationLevels.length + 1, highestLevelAchieved: testSpaceStationLevels.length + 1 },
+    })).toBeNull()
+  })
   it('requires complete, supported Rocket II data from the compatible Bridge', () => {
     for (const definition of [undefined, null, {},
       { ...testRocketIiDefinition, cargoCapacity: 0 },
@@ -129,7 +146,7 @@ describe('game-state snapshot validation', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 42 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 43 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 45 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 46 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION + 1 })).toBe(false)
   })
 

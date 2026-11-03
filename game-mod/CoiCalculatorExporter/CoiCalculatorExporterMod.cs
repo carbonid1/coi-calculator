@@ -20,7 +20,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private bool m_routeRegistered;
 
     public string Name { get { return "CoI Calculator Bridge"; } }
-    public int Version { get { return 46; } }
+    public int Version { get { return 47; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }

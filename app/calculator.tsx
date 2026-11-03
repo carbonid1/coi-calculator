@@ -530,6 +530,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     mode: baseConfig.researchMode,
     runningResearchLabs: runningResearchLabCount,
     station: currentSpaceStationLevel,
+    stationLevels: snapshot.spaceStationLevels,
     stationModule: configuredSpaceStationModules[0],
   })
   const factoryBuildingDiagnostics = spaceResearchAttention

@@ -13,8 +13,10 @@ import { calculateNet } from '../app/helpers/calculate/calculate'
 import { deriveCalculatorModel } from '../app/helpers/calculator-model/derive-calculator-model'
 import { calculateContractWorkers } from '../app/helpers/contracts/calculate-contracts'
 import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/factory-calculation'
+import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
 import { type RocketIiDefinition } from '../app/rocket-state'
+import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 
 // Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
@@ -130,7 +132,7 @@ it('replays station plans and Rocket II supply through native capacities, recipe
   // This capture plans level four from a destroyed station. Both its supply
   // rows and its overview must use the new definition, without a default ratio.
   expect(current.snapshot.spaceStation.currentLevel).toBe(0)
-  const station = calculateSpaceStationLevel(4, 4)
+  const station = calculateSpaceStationLevel(4, current.snapshot.spaceStationLevels)
   const cargo = station.maintenancePartsPerCycle + station.crewSuppliesPerCycle + station.researchSuppliesPerCycle
   const launches = cargo / definition.cargoCapacity + Math.ceil(station.crew / definition.crewCapacity) / definition.crewRotationCycles
 
@@ -154,11 +156,11 @@ it('replays station plans and Rocket II supply through native capacities, recipe
 
   // Multiple pads share one launch stream; an absent station needs none.
   for (const level of [0, 1, 2, 3, 4]) {
-    const stationModule = createSpaceStationModule({ currentLevel: level, highestLevelAchieved: 4 }, changed,
+    const stationModule = createSpaceStationModule({ currentLevel: level, highestLevelAchieved: 4 }, current.snapshot.spaceStationLevels, changed,
       { rocketAssemblyDepot: 2, rocketLaunchPad: 2 })
     const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: current.snapshot.buildingDefinitions }).lines
     const result = calculateNet(lines)
-    const logistics = calculateSpaceStationLevel(level, 4)
+    const logistics = calculateSpaceStationLevel(level, current.snapshot.spaceStationLevels)
     const expected = (logistics.maintenancePartsPerCycle + logistics.crewSuppliesPerCycle + logistics.researchSuppliesPerCycle) / changed.cargoCapacity
       + Math.ceil(logistics.crew / changed.crewCapacity) / changed.crewRotationCycles
     const launch = result.regularResults.find(line => line.recipe.id === 'rocket-ii-launch-amortized')
@@ -169,6 +171,105 @@ it('replays station plans and Rocket II supply through native capacities, recipe
 
     expect(stats.workers).toBe(2 * (nativeWorkers('RocketAssemblyDepot') + nativeWorkers('RocketLaunchPad')) + logistics.crew)
   }
+}, 60_000)
+
+it('replays native station tiers through operations, crew requirements, research plans and attention', () => {
+  const source = normalizeGameStateSnapshot(capture)
+
+  if (!source) throw new Error('Recorded station data is incompatible')
+  const replay = (level: number, levels = source.spaceStationLevels, requiredPoints?: number) => {
+    const snapshot = normalizeGameStateSnapshot({ ...source, spaceStationLevels: levels,
+      spaceStation: { currentLevel: level, highestLevelAchieved: 4 } })
+
+    if (!snapshot) throw new Error('Station replay is incompatible')
+    const stationModule = createSpaceStationModule(snapshot.spaceStation, levels, snapshot.rocketIiDefinition,
+      { rocketAssemblyDepot: 1, rocketLaunchPad: 1 }, {}, undefined,
+      requiredPoints === undefined ? undefined : { requiredPoints })
+    const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: snapshot.buildingDefinitions }).lines
+    const result = calculateNet(lines)
+    const stats = calculateBuildingStats(lines, result)
+    const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'native-station-replay' })
+
+    return { stationModule, lines, result, stats, model }
+  }
+  const amount = (products: readonly { resourceId: string; quantity: number }[], resourceId: string) => (
+    products.find(product => product.resourceId === resourceId)?.quantity ?? 0
+  )
+  const stationCrew = (result: ReturnType<typeof replay>) => result.lines.find(line => (
+    line.recipe.id === 'space-station-operations'
+  ))?.recipe.buildingData?.workers
+  const attention = (run: ReturnType<typeof replay>, labs: number, fallback = false) => createSpaceResearchAttention({
+    mode: 'with-space', runningResearchLabs: labs, station: run.model.currentSpaceStationLevel,
+    stationLevels: source.spaceStationLevels,
+    stationModule: fallback ? undefined : run.stationModule,
+    fallbackTarget: fallback ? { module: run.stationModule, navigationKey: 'general:research-lab-iv' } : undefined,
+  })
+
+  for (const definition of source.spaceStationLevels) {
+    const run = replay(definition.level)
+    const operations = run.result.regularResults.find(line => line.recipe.id === 'space-station-operations')
+    const research = run.result.regularResults.find(line => line.recipe.id === 'space-station-orbital-research')
+
+    if (!operations || !research) throw new Error('Station operations are missing')
+    for (const product of [definition.maintenance, definition.crewSupplies]) {
+      const id = resolveSyncedResourceId(product)
+
+      if (!id) throw new Error('Station product is unsupported')
+      expect(amount(operations.actualInputs, id)).toBe(product.quantity)
+    }
+    expect(amount(research.actualInputs, 'electronicsIv')).toBe(definition.researchSupplies.quantity)
+    expect(amount(research.actualOutputs, 'spaceResearchPoints')).toBe(definition.spaceResearchPointsPerCycle)
+    expect(stationCrew(run)).toBe(definition.crew)
+    expect(run.model.currentSpaceStationLevel).toMatchObject({ constructionParts: definition.construction.quantity,
+      crew: definition.crew, unityPerCycle: definition.unityPerCycle,
+      researchEfficiencyBonusPercent: definition.researchEfficiencyBonusPercent })
+    const grouped = run.lines.filter(line => line.recipe.displayGroup?.id === 'space-station')
+
+    expect(grouped).toHaveLength(2)
+    expect(grouped.every(line => line.recipe.sharedCapacity === undefined)).toBe(true)
+    if (definition.level < 4) expect(attention(run, 2))
+      .toMatchObject({ attention: 'upgrade', level: { current: definition.level, target: 4 } })
+    else expect(attention(run, 2)).toBeNull()
+  }
+  const absent = replay(0)
+
+  expect(absent.model.currentSpaceStationLevel).toMatchObject({ crew: 0, unityPerCycle: 0, researchEfficiencyBonusPercent: 0 })
+  expect(attention(absent, 0)).toBeNull()
+  expect(attention(absent, 1)).toMatchObject({ attention: 'build', level: { current: 0, target: 3 } })
+  expect(attention(absent, 1, true)).toMatchObject({ navigationKey: 'general:research-lab-iv', attention: 'build' })
+  expect(attention(replay(0, source.spaceStationLevels, 96), 2)).toBeNull()
+  expect(attention(replay(4), 2)).toBeNull()
+
+  const changed: SpaceStationLevelDefinition[] = source.spaceStationLevels.map(level => ({ ...level,
+    crew: level.crew + 8, construction: { ...level.construction, quantity: level.construction.quantity * 2 },
+    maintenance: { ...level.maintenance, quantity: level.maintenance.quantity * 3 },
+    crewSupplies: { ...level.crewSupplies, quantity: level.crewSupplies.quantity * 4 },
+    researchSupplies: { ...level.researchSupplies, quantity: level.researchSupplies.quantity * 5 },
+    spaceResearchPointsPerCycle: level.spaceResearchPointsPerCycle * 3,
+    researchEfficiencyBonusPercent: level.researchEfficiencyBonusPercent + 11, unityPerCycle: level.unityPerCycle + 2 }))
+  const updated = replay(3, changed)
+
+  expect(stationCrew(updated)).toBe(changed[2].crew)
+  expect(updated.stats.workers - replay(3).stats.workers).toBe(8)
+  expect(updated.model.researchEfficiency.stationBonusPercent).toBe(changed[2].researchEfficiencyBonusPercent)
+  expect(updated.model.currentSpaceStationLevel.unityPerCycle).toBe(changed[2].unityPerCycle)
+  expect(updated.model.currentSpaceStationLevel.constructionParts).toBe(changed[2].construction.quantity)
+  const changedOperations = updated.result.regularResults.find(line => line.recipe.id === 'space-station-operations')
+  const changedResearch = updated.result.regularResults.find(line => line.recipe.id === 'space-station-orbital-research')
+
+  expect(amount(changedOperations?.actualInputs ?? [], 'stationParts')).toBe(changed[2].maintenance.quantity)
+  expect(amount(changedOperations?.actualInputs ?? [], 'crewSupplies')).toBe(changed[2].crewSupplies.quantity)
+  expect(amount(changedResearch?.actualInputs ?? [], 'electronicsIv')).toBe(changed[2].researchSupplies.quantity)
+  expect(amount(changedResearch?.actualOutputs ?? [], 'spaceResearchPoints')).toBe(changed[2].spaceResearchPointsPerCycle)
+  expect(updated.model.configuredModules.flatMap(mod => mod.presets.flatMap(preset => preset.planMismatches ?? []))
+    .some(mismatch => mismatch.recipeId === 'space-station-operations')).toBe(false)
+  const earlyLevels = source.spaceStationLevels.map(level => level.level > 2 ? level : ({ ...level,
+    maintenance: { ...level.maintenance, productId: 'Product_SpaceStationParts', name: 'Station parts (basic)' } }))
+  const early = replay(1, earlyLevels)
+  const earlyOperations = early.result.regularResults.find(line => line.recipe.id === 'space-station-operations')
+
+  expect(amount(earlyOperations?.actualInputs ?? [], 'stationPartsBasic')).toBe(earlyLevels[0].maintenance.quantity)
+  expect(amount(earlyOperations?.actualInputs ?? [], 'stationParts')).toBe(0)
 }, 60_000)
 
 it('replays chicken inventory, construction and plans using the supplied farm definition', () => {

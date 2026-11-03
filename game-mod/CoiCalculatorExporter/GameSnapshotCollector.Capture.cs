@@ -61,6 +61,7 @@ internal sealed partial class GameSnapshotCollector
             getRecyclingSnapshot(),
             getBuildingDefinitions(),
             getChickenFarmDefinition(),
-            getRocketIiDefinition());
+            getRocketIiDefinition(),
+            getSpaceStationLevels());
     }
 }

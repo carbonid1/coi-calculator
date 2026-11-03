@@ -4,6 +4,7 @@ import {
   getMinimumSpaceStationLevelForResearchPoints,
   type SpaceStationLevelData,
 } from '../../db/space-station'
+import { type SpaceStationLevelDefinition } from '../../space-station-state'
 import { type BuildingDiagnostic } from '../building-diagnostics/building-diagnostics'
 
 const SPACE_RESEARCH_POINTS_PER_LAB = 48
@@ -14,6 +15,7 @@ export const createSpaceResearchAttention = ({
   runningResearchLabs,
   station,
   stationModule,
+  stationLevels,
 }: {
   fallbackTarget?: {
     module: Module
@@ -23,6 +25,7 @@ export const createSpaceResearchAttention = ({
   runningResearchLabs: number
   station: SpaceStationLevelData
   stationModule: Module | undefined
+  stationLevels: readonly SpaceStationLevelDefinition[]
 }): BuildingDiagnostic | null => {
   const targetModule = stationModule ?? fallbackTarget?.module
 
@@ -37,7 +40,7 @@ export const createSpaceResearchAttention = ({
 
   if (station.spaceResearchPointsPerCycle >= requiredPoints) return null
 
-  const targetLevel = getMinimumSpaceStationLevelForResearchPoints(requiredPoints)
+  const targetLevel = getMinimumSpaceStationLevelForResearchPoints(requiredPoints, stationLevels)
 
   if (station.level >= targetLevel) return null
 

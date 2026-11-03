@@ -9,7 +9,7 @@ import {
   getPlannedBuildSummaries,
 } from "../helpers/planned-builds/planned-builds";
 import { withTestBuildingRequirements } from '../test-fixtures/building-requirements'
-import { testRocketIiDefinition } from '../test-fixtures/recorded-game-data'
+import { testRocketIiDefinition, testSpaceStationLevels } from '../test-fixtures/recorded-game-data'
 import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 import { baseConfig } from "./config";
 import {
@@ -22,9 +22,6 @@ import {
 import {
   calculateSpaceStationLevel,
   calculateRocketIiRecurringLogistics,
-  defaultSpaceStationLevel,
-  getMinimumSpaceStationLevelForResearchPoints,
-  getStationPartsKind,
 } from "./space-station";
 
 const testSpaceStationConfig = {
@@ -32,10 +29,11 @@ const testSpaceStationConfig = {
   highestLevelAchieved: 4,
 };
 const defaultRocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
-  defaultSpaceStationLevel, testRocketIiDefinition, 1,
+  calculateSpaceStationLevel(4, testSpaceStationLevels), testRocketIiDefinition, 1,
 );
 const createTestSpaceStationModule = () => createSpaceStationModule(
   testSpaceStationConfig,
+  testSpaceStationLevels,
   testRocketIiDefinition,
   emptyRocketInfrastructureConfig,
   {
@@ -63,33 +61,6 @@ describe("Space Station", () => {
       },
     ])).toEqual(zones[0]);
     expect(selectSpaceStationZone(zones, [])).toBeUndefined();
-  });
-
-  it("retains standard Station Parts after this save reached orbital research", () => {
-    expect(getStationPartsKind(1, 2)).toBe("basic");
-    expect(getStationPartsKind(1, 4)).toBe("standard");
-  });
-
-  it("calculates the level-four operating point from the v0.8.7 formulas", () => {
-    expect(calculateSpaceStationLevel(4, 4)).toEqual({
-      constructionParts: 120,
-      crew: 6,
-      crewSuppliesPerCycle: 1.2,
-      level: 4,
-      maintenancePartsPerCycle: 1,
-      researchEfficiencyBonusPercent: 25,
-      researchSuppliesPerCycle: 4,
-      spaceResearchPointsPerCycle: 96,
-      stationPartsKind: "standard",
-      unityPerCycle: 0.3,
-    });
-  });
-
-  it("selects the minimum station level that covers planned orbital research", () => {
-    expect(getMinimumSpaceStationLevelForResearchPoints(0)).toBe(0);
-    expect(getMinimumSpaceStationLevelForResearchPoints(48)).toBe(3);
-    expect(getMinimumSpaceStationLevelForResearchPoints(96)).toBe(4);
-    expect(getMinimumSpaceStationLevelForResearchPoints(144)).toBe(4);
   });
 
   it("renders station operations as one physical asset without sharing their calculations", () => {
@@ -159,6 +130,7 @@ describe("Space Station", () => {
   it("returns all five calculation lines to synced once their targets are reached", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
+      testSpaceStationLevels,
       testRocketIiDefinition,
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
@@ -181,6 +153,7 @@ describe("Space Station", () => {
   it("plans Orbital Research at the station level required by the labs", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 0, highestLevelAchieved: 4 },
+      testSpaceStationLevels,
       testRocketIiDefinition,
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
@@ -247,6 +220,7 @@ describe("Space Station", () => {
   it("keeps multiple synced rocket buildings without multiplying recurring launches", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
+      testSpaceStationLevels,
       testRocketIiDefinition,
       { rocketAssemblyDepot: 2, rocketLaunchPad: 2 },
       {
@@ -343,6 +317,7 @@ describe("Space Station", () => {
 
     const liveStation = createSpaceStationModule(
       testSpaceStationConfig,
+      testSpaceStationLevels,
       testRocketIiDefinition,
       { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
       {
@@ -364,10 +339,10 @@ describe("Space Station", () => {
     });
     expect(liveStation.recipes?.map(recipe => recipe.id)).toEqual([
       stationPartsRecipeId,
-      "rocket-ii-assembly",
-      "rocket-ii-launch-amortized",
       "space-station-operations",
       "space-station-orbital-research",
+      "rocket-ii-assembly",
+      "rocket-ii-launch-amortized",
     ]);
     expect(liveStation.builtBuildings).not.toHaveProperty("assembly-v-station-parts");
     expect(preset).toMatchObject({
@@ -407,6 +382,7 @@ describe("Space Station", () => {
   it("keeps rocket infrastructure synced without repeating unpause advice", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
+      testSpaceStationLevels,
       testRocketIiDefinition,
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
@@ -467,7 +443,7 @@ describe("Space Station", () => {
     expect(flow("compositeCore")?.net).toBe(-2);
     expect(flow("solarCellMono")?.net).toBe(-1);
     expect(flow("chemicalFuel")?.net).toBe(-0.5);
-    expect(flow("crewSupplies")?.net).toBe(-1.2);
+    expect(flow("crewSupplies")?.net).toBe(-calculateSpaceStationLevel(4, testSpaceStationLevels).crewSuppliesPerCycle);
     expect(flow("electronicsIv")?.net).toBe(-4);
     expect(flow("spaceResearchPoints")?.net).toBe(96);
     expect(regularResults.find(

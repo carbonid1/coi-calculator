@@ -4,7 +4,6 @@ import { activeHousingType, housingTypes } from "../db/housing";
 import { type Module } from '../db/modules/modules'
 import { recipes, type Recipe } from '../db/recipes'
 import { settlementConfig } from "../db/settlement";
-import { calculateSpaceStationLevel, defaultSpaceStationLevel } from "../db/space-station";
 
 export interface BuildingData {
   workers: number;
@@ -75,15 +74,6 @@ export const testBuildingDataByName: Record<string, BuildingData> = {
   "Captain's office I": { workers: 8, electricityKw: 100 },
   "Captain's office II": { workers: 24, electricityKw: 250 },
   "Research Lab IV": { workers: 80, electricityKw: 1000, computingTflops: 12, unityPerCycle: 0.5 },
-  "Space Station I": { workers: calculateSpaceStationLevel(1).crew, electricityKw: 0 },
-  "Space Station II": { workers: calculateSpaceStationLevel(2).crew, electricityKw: 0 },
-  "Space Station III": { workers: calculateSpaceStationLevel(3).crew, electricityKw: 0 },
-  "Space Station IV": { workers: defaultSpaceStationLevel.crew, electricityKw: 0 },
-  "Space Station Orbital Research": {
-    workers: 0,
-    electricityKw: 0,
-    suppressPauseAttention: true,
-  },
   "Rocket Assembly Depot": {
     workers: 160,
     electricityKw: 2000,

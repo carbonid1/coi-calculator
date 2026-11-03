@@ -14,6 +14,7 @@ import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balan
 import { isNativeProducts, type NativeProducts } from './product-state'
 import { isRocketIiDefinition, type RocketIiDefinition } from './rocket-state'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
+import { isSpaceStationLevels, type SpaceStationLevelDefinition } from './space-station-state'
 import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCargoOperation, type SyncedWorldCargoRoute, type SyncedWorldState, type SyncedStorage } from './world-state'
 
 interface SyncedSpaceStationState {
@@ -296,11 +297,12 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 46 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 47 as const
 
 export interface GameStateSnapshot {
   chickenFarmDefinition: ChickenFarmDefinition
   rocketIiDefinition: RocketIiDefinition
+  spaceStationLevels: SpaceStationLevelDefinition[]
   buildingDefinitions: BuildingDefinition[]
   products?: NativeProducts
   recycling: RecyclingData
@@ -1074,6 +1076,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   if (!isBuildingDefinitions(snapshot.buildingDefinitions)) return null
   if (!isChickenFarmDefinition(snapshot.chickenFarmDefinition)) return null
   if (!isRocketIiDefinition(snapshot.rocketIiDefinition)) return null
+  if (!isSpaceStationLevels(snapshot.spaceStationLevels)) return null
   if (snapshot.products !== undefined && (!isNativeProducts(snapshot.products)
     || snapshot.products.gameId !== snapshot.gameId || snapshot.products.sessionId !== snapshot.sessionId)) return null
   if (!isRecyclingData(snapshot.recycling)) return null
@@ -1087,6 +1090,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
       ? snapshot.saveId
       : null
   const spaceStation = isSpaceStationState(snapshot.spaceStation) ? snapshot.spaceStation : null
+
+  if (spaceStation && Math.max(spaceStation.currentLevel, spaceStation.highestLevelAchieved) > snapshot.spaceStationLevels.length) return null
   const logisticsZones = normalizeLogisticsZones(snapshot.logisticsZones)
   const chickenFarms = normalizeChickenFarms(snapshot.chickenFarms)
   const cropFarms = normalizeCropFarms(snapshot.cropFarms)
@@ -1193,6 +1198,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     schemaVersion,
     chickenFarmDefinition: snapshot.chickenFarmDefinition,
     rocketIiDefinition: snapshot.rocketIiDefinition,
+    spaceStationLevels: snapshot.spaceStationLevels,
     buildingDefinitions: snapshot.buildingDefinitions,
     ...(snapshot.products === undefined ? {} : { products: snapshot.products }),
     recycling: snapshot.recycling,

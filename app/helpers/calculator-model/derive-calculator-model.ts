@@ -258,7 +258,7 @@ export const deriveCalculatorModel = ({
   }
   const currentSpaceStationLevel = calculateSpaceStationLevel(
     spaceStationConfig.currentLevel,
-    spaceStationConfig.highestLevelAchieved,
+    snapshot.spaceStationLevels,
   )
   const researchLabEntities = productionEntities.filter(entity => (
     entity.prototypeId === 'ResearchLab4' || entity.prototypeId === 'ResearchLab5'
@@ -280,14 +280,11 @@ export const deriveCalculatorModel = ({
   const plannedSpaceResearchPoints = plannedResearchLabCount * spaceResearchPointsPerLab
   const projectedSpaceStationTargetLevel = Math.max(
     currentSpaceStationLevel.level,
-    getMinimumSpaceStationLevelForResearchPoints(plannedSpaceResearchPoints),
+    getMinimumSpaceStationLevelForResearchPoints(plannedSpaceResearchPoints, snapshot.spaceStationLevels),
   )
   const projectedSpaceStationLevel = calculateSpaceStationLevel(
     projectedSpaceStationTargetLevel,
-    Math.max(
-      spaceStationConfig.highestLevelAchieved,
-      projectedSpaceStationTargetLevel,
-    ),
+    snapshot.spaceStationLevels,
   )
   const planningBaselines = resolvePlanningBaselines(snapshot, true)
   const syncedHistory = snapshot.history
@@ -338,6 +335,7 @@ export const deriveCalculatorModel = ({
   const createConfiguredSpaceStationModule = (generatedArea: Module) => {
     return createSpaceStationModule(
       spaceStationConfig,
+      snapshot.spaceStationLevels,
       snapshot.rocketIiDefinition,
       rocketInfrastructureBuiltConfig,
       {

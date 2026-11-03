@@ -1,9 +1,8 @@
 import { resolveSyncedResourceId } from '../helpers/synced-resources/synced-resources';
 import { type RocketIiDefinition, type RocketProduct } from '../rocket-state';
+import { type SpaceStationLevelDefinition } from '../space-station-state';
 import { type Recipe } from './recipes';
 import { type ResourceId } from './resources';
-
-export type StationPartsKind = "basic" | "standard";
 
 export interface SpaceStationConfig {
   /** Station level currently present in orbit. Zero means it is being rebuilt. */
@@ -14,6 +13,9 @@ export interface SpaceStationConfig {
 
 export interface SpaceStationLevelData {
   constructionParts: number;
+  stationPartsResourceId: ResourceId;
+  crewSuppliesResourceId: ResourceId;
+  researchSuppliesResourceId: ResourceId;
   crew: number;
   crewSuppliesPerCycle: number;
   level: number;
@@ -21,7 +23,6 @@ export interface SpaceStationLevelData {
   researchEfficiencyBonusPercent: number;
   researchSuppliesPerCycle: number;
   spaceResearchPointsPerCycle: number;
-  stationPartsKind: StationPartsKind;
   unityPerCycle: number;
 }
 
@@ -46,62 +47,50 @@ export interface RocketIiRecurringLogistics {
   waterPerCycle: number;
 }
 
-/** Maximum Space Station level in Captain of Industry v0.8.7. */
-const maximumSpaceStationLevel = 4;
-
 const normalizeLevel = (level: number) => Math.max(0, Math.trunc(level));
-const roundRate = (value: number) => parseFloat(value.toFixed(6));
-
-/** Captain of Industry v0.8.7 retains the advanced-parts path once level 3 was reached. */
-export const getStationPartsKind = (
-  level: number,
-  highestLevelAchieved: number,
-): StationPartsKind => (
-  normalizeLevel(level) < 3 && normalizeLevel(highestLevelAchieved) < 3
-    ? "basic"
-    : "standard"
-);
 
 export const calculateSpaceStationLevel = (
   level: number,
-  highestLevelAchieved = level,
+  definitions: readonly SpaceStationLevelDefinition[],
 ): SpaceStationLevelData => {
   const normalizedLevel = normalizeLevel(level);
-  const researchLevels = Math.max(0, normalizedLevel - 2);
-  const crew = Math.max(0, (normalizedLevel - 1) * 2);
-  const constructionParts = normalizedLevel > 1 ? 120 : normalizedLevel * 80;
+  const definition = definitions.find(candidate => candidate.level === (normalizedLevel || 1));
+
+  if (!definition) throw new Error(`Space Station tier ${normalizedLevel} is unavailable`);
+  const resource = (product: { productId: string; name: string }) => {
+    const id = resolveSyncedResourceId(product);
+
+    if (!id) throw new Error(`Unsupported Space Station product ${product.productId}`);
+    return id;
+  };
+  // Level zero represents an absent station. Native tier data starts at one.
+  const current = (quantity: number) => normalizedLevel > 0 ? quantity : 0;
 
   return {
-    constructionParts,
-    crew,
-    crewSuppliesPerCycle: roundRate(crew * 0.2),
+    constructionParts: current(definition.construction.quantity),
+    stationPartsResourceId: resource(definition.maintenance),
+    crewSuppliesResourceId: resource(definition.crewSupplies),
+    researchSuppliesResourceId: resource(definition.researchSupplies),
+    crew: current(definition.crew),
+    crewSuppliesPerCycle: current(definition.crewSupplies.quantity),
     level: normalizedLevel,
-    maintenancePartsPerCycle: normalizedLevel * 0.25,
-    researchEfficiencyBonusPercent: normalizedLevel === 0
-      ? 0
-      : 10 + (normalizedLevel - 1) * 5,
-    researchSuppliesPerCycle: researchLevels * 2,
-    spaceResearchPointsPerCycle: researchLevels * 48,
-    stationPartsKind: getStationPartsKind(normalizedLevel, highestLevelAchieved),
-    unityPerCycle: normalizedLevel === 0
-      ? 0
-      : roundRate(0.15 + (normalizedLevel - 1) * 0.05),
+    maintenancePartsPerCycle: current(definition.maintenance.quantity),
+    researchEfficiencyBonusPercent: current(definition.researchEfficiencyBonusPercent),
+    researchSuppliesPerCycle: current(definition.researchSupplies.quantity),
+    spaceResearchPointsPerCycle: current(definition.spaceResearchPointsPerCycle),
+    unityPerCycle: current(definition.unityPerCycle),
   };
 };
 
 export const getMinimumSpaceStationLevelForResearchPoints = (
   requiredPoints: number,
+  definitions: readonly SpaceStationLevelDefinition[],
 ) => {
   if (requiredPoints <= 0) return 0;
+  const maximumLevel = definitions.at(-1)?.level;
 
-  const maximumOutput = calculateSpaceStationLevel(
-    maximumSpaceStationLevel,
-  ).spaceResearchPointsPerCycle;
-  const coveredTarget = Math.min(Math.max(0, requiredPoints), maximumOutput);
-
-  return Array.from({ length: maximumSpaceStationLevel }, (_, index) => index + 1)
-    .find(level => calculateSpaceStationLevel(level).spaceResearchPointsPerCycle >= coveredTarget)
-    ?? maximumSpaceStationLevel;
+  if (maximumLevel === undefined) throw new Error('Space Station tiers are unavailable');
+  return definitions.find(level => level.spaceResearchPointsPerCycle >= requiredPoints)?.level ?? maximumLevel;
 };
 
 /**
@@ -165,11 +154,6 @@ export const calculateRocketIiRecurringLogistics = (
     waterPerCycle: perRocket('water') * launchesPerCycle,
   };
 };
-
-export const defaultSpaceStationLevel = calculateSpaceStationLevel(
-  maximumSpaceStationLevel,
-  maximumSpaceStationLevel,
-);
 
 const rocketIngredients = (products: readonly RocketProduct[]) => products.map(product => {
   const resourceId = resolveSyncedResourceId(product);

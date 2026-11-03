@@ -15,9 +15,6 @@ import { reserveResourceCatalog } from './reserve-resources'
 import { type ResourceId } from './resources'
 import { calculateSettlementPopulationFlows, settlementRecipeIds } from './settlement'
 import { solarPanels } from './solar'
-import {
-  defaultSpaceStationLevel,
-} from './space-station'
 
 export interface Ingredient {
   resourceId: ResourceId
@@ -853,47 +850,6 @@ export const recipes: Recipe[] = [
       { resourceId: 'chemicalFuel', quantity: 4 },
     ],
     outputs: [{ resourceId: 'stationParts', quantity: 8 }],
-  },
-  {
-    id: 'space-station-operations',
-    name: 'Space Station IV Operations',
-    building: 'Space Station IV',
-    displayGroup: { id: 'space-station', label: 'Space Station IV' },
-    group: 'production',
-    inputs: [
-      {
-        resourceId: 'stationParts',
-        quantity: defaultSpaceStationLevel.maintenancePartsPerCycle,
-      },
-      {
-        resourceId: 'crewSupplies',
-        quantity: defaultSpaceStationLevel.crewSuppliesPerCycle,
-      },
-    ],
-    outputs: [],
-  },
-  {
-    id: 'space-station-orbital-research',
-    displayName: 'Orbital Research',
-    name: 'Space Station IV Orbital Research',
-    building: 'Space Station Orbital Research',
-    displayGroup: { id: 'space-station', label: 'Space Station IV' },
-    group: 'production',
-    tracksPhysicalCapacity: false,
-    balanceBy: 'output',
-    balanceOutputIds: ['spaceResearchPoints'],
-    inputs: [
-      {
-        resourceId: 'electronicsIv',
-        quantity: defaultSpaceStationLevel.researchSuppliesPerCycle,
-      },
-    ],
-    outputs: [
-      {
-        resourceId: 'spaceResearchPoints',
-        quantity: defaultSpaceStationLevel.spaceResearchPointsPerCycle,
-      },
-    ],
   },
   // Static infrastructure. Runtime utilization is not available, so these
   // no-flow rows account for workers while avoiding modeled production flows.

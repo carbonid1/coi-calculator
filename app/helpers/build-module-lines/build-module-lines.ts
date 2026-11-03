@@ -28,9 +28,9 @@ export const buildModuleLines = (
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
   const lines: ProductionLine[] = visibleRecipes.map((unmodifiedRecipe) => {
-    const buildingData = outputModifiers.buildingDefinitions
+    const buildingData = (outputModifiers.buildingDefinitions
       ? getBuildingData(unmodifiedRecipe.building, outputModifiers.buildingDefinitions, unmodifiedRecipe.gameBuildingId)
-      : unmodifiedRecipe.buildingData;
+      : undefined) ?? unmodifiedRecipe.buildingData;
 
     if (outputModifiers.buildingDefinitions && !buildingData) {
       throw new Error(`Building requirements unavailable for ${unmodifiedRecipe.gameBuildingId ?? unmodifiedRecipe.building}`);

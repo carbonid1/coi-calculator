@@ -1,12 +1,14 @@
 import { type Module } from '../db/modules/modules'
+import { createSpaceStationRecipes } from '../db/modules/space-station'
 import { recipes, type Recipe } from '../db/recipes'
-import { createRocketIiRecipes, defaultSpaceStationLevel } from '../db/space-station'
+import { calculateSpaceStationLevel, createRocketIiRecipes } from '../db/space-station'
 import { withTestBuildingData } from './building-requirements'
-import { testRocketIiDefinition } from './recorded-game-data'
+import { testRocketIiDefinition, testSpaceStationLevels } from './recorded-game-data'
 
 /** Fixed numerical inputs for solver regressions; never used as live game data. */
 const solverRecipeFixtures: Recipe[] = [
-  ...createRocketIiRecipes(defaultSpaceStationLevel, testRocketIiDefinition),
+  ...createSpaceStationRecipes(calculateSpaceStationLevel(4, testSpaceStationLevels)),
+  ...createRocketIiRecipes(calculateSpaceStationLevel(4, testSpaceStationLevels), testRocketIiDefinition),
   {
     id: 'mill-wheat',
     name: 'Mill (Wheat)',
