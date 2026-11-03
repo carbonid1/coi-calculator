@@ -133,6 +133,8 @@ internal sealed class GroundwaterAquiferSnapshot
     public readonly int Quantity;
     public readonly int Capacity;
     public readonly int ConfiguredCapacity;
+    public readonly int Radius;
+    public readonly double EmergencyQuantity;
 
     public GroundwaterAquiferSnapshot(
         string id,
@@ -140,7 +142,9 @@ internal sealed class GroundwaterAquiferSnapshot
         int positionY,
         int quantity,
         int capacity,
-        int configuredCapacity)
+        int configuredCapacity,
+        int radius,
+        double emergencyQuantity)
     {
         Id = id;
         PositionX = positionX;
@@ -148,6 +152,8 @@ internal sealed class GroundwaterAquiferSnapshot
         Quantity = quantity;
         Capacity = capacity;
         ConfiguredCapacity = configuredCapacity;
+        Radius = radius;
+        EmergencyQuantity = emergencyQuantity;
     }
 }
 

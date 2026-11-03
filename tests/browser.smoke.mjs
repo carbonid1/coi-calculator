@@ -52,7 +52,9 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       date: history.date, isPaused: true, speed: 1, tick: 0 })
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
-      schemaVersion: state.mode === 'old-bridge' ? 47 : fixture.schemaVersion,
+      schemaVersion: state.mode === 'old-bridge' ? 48 : fixture.schemaVersion,
+      weather: state.mode === 'missing-weather' ? undefined : fixture.weather,
+      groundwater: state.mode === 'missing-aquifers' ? { ...fixture.groundwater, aquifers: undefined } : fixture.groundwater,
       cropFarming: state.mode === 'missing-crop-definitions' ? undefined : fixture.cropFarming,
       spaceStationLevels: state.mode === 'missing-station-levels' ? undefined : fixture.spaceStationLevels,
       rocketIiDefinition: state.mode === 'missing-rocket-definition' ? undefined : fixture.rocketIiDefinition,
@@ -163,9 +165,9 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(desktopTabs.left >= 3 && desktopTabs.top >= 3 && desktopTabs.bottom >= 3,
       `Desktop selection/focus ring is clipped: ${JSON.stringify(desktopTabs)}`)
     await screenshot('factory-overview')
-    await browser('focus', '[aria-label="294.5 MW demand / 314.6 MW generation capacity."]')
+    await browser('focus', '[aria-label="297 MW demand / 317.1 MW generation capacity."]')
     await browser('wait', '[role="tooltip"]')
-    assert.match(await text(), /294\.5 MW demand \/ 314\.6 MW generation capacity/)
+    assert.match(await text(), /297 MW demand \/ 317\.1 MW generation capacity/)
     await browser('press', 'Escape')
 
     await browser('fill', '[aria-label="Factory area"]', 'no-such-area-qzx')
@@ -222,8 +224,66 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Capacity\s+5,460[\s\S]*Allocated\s+5,450[\s\S]*Available\s+10/)
     await click('General Info')
     assert.match(await text(), /MAINTENANCE DEMAND[\s\S]*120 cycles · 10 in-game years/)
+    await screenshot('maintenance-overview')
     await click('Research')
     assert.match(await text(), /Housing Capacity/i)
+    await click('Mines')
+    assert.match(await text(), /Aquifers · 13 · 10 unused/)
+    assert.match(await text(), /Harvester \/ cycle · 1Y[\s\S]*5\.63 Water/)
+    assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Aquifer inventory\\"] tbody tr").length'), 13)
+    const unusedPumps = await evaluate(`Array.from(document.querySelectorAll('[aria-label="Aquifer inventory"] tbody tr'))
+      .find(row => row.innerText.includes('1041, 3242')).cells[1].innerText`)
+
+    assert.equal(unusedPumps, '0/3')
+    const plotted = await evaluate(`Object.fromEntries(Array.from(document.querySelectorAll('[data-aquifer-id]')).map(group => {
+      const point = group.querySelector('circle').getBoundingClientRect()
+      return [group.dataset.aquiferId, { x: point.x + point.width / 2, y: point.y + point.height / 2 }]
+    }))`)
+    const aquifers = fixture.groundwater.aquifers
+    const north = aquifers.reduce((a, b) => a.position.y > b.position.y ? a : b)
+    const south = aquifers.reduce((a, b) => a.position.y < b.position.y ? a : b)
+    const east = aquifers.reduce((a, b) => a.position.x > b.position.x ? a : b)
+    const west = aquifers.reduce((a, b) => a.position.x < b.position.x ? a : b)
+
+    assert.ok(plotted[north.id].y < plotted[south.id].y, 'Positive game Y must point north/up')
+    assert.ok(plotted[east.id].x > plotted[west.id].x, 'Positive game X must point east/right')
+    assert.equal(await evaluate('document.querySelector("[aria-label=\\"North\\"]").innerText'), 'N')
+    assert.doesNotMatch(await text(), /North up|source radius to scale/)
+    assert.ok(await evaluate('Array.from(document.querySelectorAll("[aria-label=\\"Weather over the next 12 cycles\\"] .h-8 span")).every(bar => bar.getBoundingClientRect().width > 30)'))
+    await click('Inspect aquifer 1041, 3242')
+    assert.equal(await evaluate('document.querySelector("[aria-label=\\"Inspect aquifer 1041, 3242\\"]").getAttribute("aria-pressed")'), 'true')
+    assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Aquifer details\\"]").length'), 0)
+    assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Water planning\\"] input").length'), 0)
+    assert.ok(await evaluate(`(() => {
+      const region = document.querySelector('[aria-label="Aquifer inventory"]')
+      return region.querySelector('thead').getBoundingClientRect().top >= region.getBoundingClientRect().top
+    })()`), 'Aquifer column headings must remain visible after scrolling to a source')
+    await screenshot('water-unused-source')
+    await click('Inspect aquifer 3247, 647')
+    assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Aquifer 1[\s\S]*First shortfall · estimate[\s\S]*cycles · [\d,.]+ in-game years[\s\S]*Min reserve · 100Y[\s\S]*Shortfall · 1Y/)
+    await browser('focus', '[aria-label="First shortfall estimate"]')
+    await browser('press', 'Shift+Tab')
+    await browser('press', 'Tab')
+    await browser('wait', '[role="tooltip"]')
+    assert.match(await text(), /Steady draw 210 \/ cycle · pump capacity 240 · sustainable output 210 Water \/ cycle\. Pipe delivery and tank buffers excluded/)
+    await browser('press', 'Escape')
+    assert.doesNotMatch(await text(), /Use factory plan|Source scenario/)
+    await screenshot('water-desktop')
+    await browser('set', 'viewport', '375', '900')
+    await browser('focus', '[aria-label="First shortfall estimate"]')
+    await browser('press', 'Shift+Tab')
+    await browser('press', 'Tab')
+    await browser('wait', '[role="tooltip"]')
+    assert.ok(await evaluate(`(() => {
+      const tooltip = document.querySelector('[role="tooltip"]').getBoundingClientRect()
+      return tooltip.left >= 8 && tooltip.right <= window.innerWidth - 8
+    })()`), 'Forecast tooltip must fit the mobile viewport')
+    await browser('press', 'Escape')
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
+    await screenshot('water-mobile-details')
+    await browser('scroll', 'up', '2000')
+    await screenshot('water-mobile')
+    await browser('set', 'viewport', '1440', '1000')
     await click('Reserves')
     assert.match(await text(), /Reserve runway[\s\S]*cycles · [\d,.]+ in-game years/i)
     await click('Contracts')
@@ -268,7 +328,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
   })
 
   await t.test('rejects missing native data, incompatible Bridges and mixed sessions, then recovers', async () => {
-    for (const [mode, status] of [['old-bridge', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-crop-definitions', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
+    for (const [mode, status] of [['old-bridge', 422], ['missing-weather', 422], ['missing-aquifers', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-crop-definitions', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
       state.mode = mode
       const response = await fetch(`${appUrl}/api/game-state`)
 
@@ -279,6 +339,9 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('wait', '--fn', 'document.body.innerText.includes("Game sync: Last sync")', '--timeout', '45000')
     assert.doesNotMatch(await text(), /Game sync: Live/)
     assert.equal(await evaluate('document.querySelectorAll("[data-source=synced]").length'), 0)
+    await click('Mines')
+    assert.match(await text(), /Current water data unavailable/)
+    assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Aquifer details\\"]").length'), 0)
     await click('Resource supply')
     assert.match(await text(), /Island inventory unavailable/)
     state.mode = 'live'

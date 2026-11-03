@@ -80,7 +80,7 @@
   "totals": {
     "lines": 586,
     "workers": 7356,
-    "electricityMw": 294.517,
+    "electricityMw": 296.9724,
     "computingTflops": 1357.2913,
     "populationCapacity": 7488,
     "focus": 5460,
@@ -89,7 +89,7 @@
   "modifiers": {
     "foodConsumption": 1.4,
     "maintenanceOutput": 1.18,
-    "solarPower": 1.3866,
+    "solarPower": 1.4119,
     "cropYield": 1.51,
     "cropWater": 1.235,
     "rainwaterYield": 1.5,
@@ -150,8 +150,8 @@
     },
     {
       "resource": "water",
-      "produced": 2033.3698,
-      "consumed": 2033.3698,
+      "produced": 2014.1198,
+      "consumed": 2014.1198,
       "net": 0
     },
     {
@@ -234,9 +234,9 @@
     },
     {
       "resource": "electricity",
-      "produced": 293.6352,
+      "produced": 296.0906,
       "consumed": 15,
-      "net": 278.6352
+      "net": 281.0906
     },
     {
       "resource": "foodPack",

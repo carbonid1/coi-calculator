@@ -20,9 +20,7 @@ export const ProductInventorySummary = ({ resourceId }: { resourceId: ResourceId
     <section aria-label="Island inventory" className={getDataSourceSurfaceClassName('synced', {
       className: 'rounded-lg border p-3',
     })}>
-      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-        <span>Island inventory</span><span>Synced</span>
-      </div>
+      <p className="mb-2 text-xs text-muted-foreground">Island inventory</p>
       <dl className="grid gap-3 sm:grid-cols-3">
         {values.map(([name, quantity]) => (
           <div key={name}>

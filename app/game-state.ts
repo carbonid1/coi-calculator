@@ -78,6 +78,11 @@ export interface SyncedGroundwaterState {
   replenishWhenLowPercent: number
 }
 
+export interface SyncedGroundwaterSource extends SyncedGroundwaterAquifer {
+  radius: number
+  emergencyQuantity: number
+}
+
 interface SyncedNuclearReactorConfiguration {
   enrichmentStep: number
   targetPowerPercent: number
@@ -298,7 +303,7 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 48 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 49 as const
 
 export interface GameStateSnapshot {
   chickenFarmDefinition: ChickenFarmDefinition
@@ -321,7 +326,7 @@ export interface GameStateSnapshot {
   chickenFarms: SyncedChickenFarmEntity[]
   cropFarms: SyncedCropFarmEntity[]
   machines: SyncedMachineInventoryItem[]
-  groundwater: SyncedGroundwaterState
+  groundwater: SyncedGroundwaterState & { aquifers: SyncedGroundwaterSource[] }
   contracts: SyncedContractState
   productionEntities: SyncedProductionEntity[]
   areaEntities: SyncedAreaEntity[]
@@ -631,12 +636,18 @@ const isGroundwaterAquifer = (value: unknown): value is SyncedGroundwaterAquifer
   isNonNegativeInteger(value.configuredCapacity) &&
   value.configuredCapacity > 0
 
-const isGroundwaterState = (value: unknown): value is SyncedGroundwaterState =>
+const isGroundwaterState = (value: unknown): value is GameStateSnapshot['groundwater'] =>
   isUnknownRecord(value) &&
   isNonNegativeInteger(value.depletedPumpSpeedPercent) &&
   value.depletedPumpSpeedPercent <= 100 &&
   isNonNegativeInteger(value.replenishWhenLowPercent) &&
-  value.replenishWhenLowPercent <= 100
+  value.replenishWhenLowPercent <= 100 &&
+  Array.isArray(value.aquifers) && value.aquifers.every((aquifer: unknown) =>
+    isGroundwaterAquifer(aquifer) && isUnknownRecord(aquifer) &&
+    isNonNegativeInteger(aquifer.radius) && aquifer.radius > 0 &&
+    typeof aquifer.emergencyQuantity === 'number' && Number.isFinite(aquifer.emergencyQuantity) &&
+    aquifer.emergencyQuantity >= 0) &&
+  new Set(value.aquifers.map(aquifer => aquifer.id)).size === value.aquifers.length
 
 const normalizeMachineInventory = (value: unknown): SyncedMachineInventoryItem[] | null => {
   if (!Array.isArray(value)) return null
@@ -1100,6 +1111,18 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const cropFarms = normalizeCropFarms(snapshot.cropFarms)
   const machines = normalizeMachineInventory(snapshot.machines)
   const groundwater = isGroundwaterState(snapshot.groundwater) ? snapshot.groundwater : null
+
+  if (machines && groundwater) {
+    const sources = new Map(groundwater.aquifers.map(source => [source.id, source]))
+
+    if (machines.some(machine => {
+      const aquifer = machine.aquifer
+      const source = aquifer ? sources.get(aquifer.id) : null
+
+      return !source || !aquifer || source.quantity !== aquifer.quantity || source.capacity !== aquifer.capacity
+        || source.configuredCapacity !== aquifer.configuredCapacity
+    })) return null
+  }
   const contracts = normalizeContractState(snapshot.contracts)
   const productionEntities = normalizeProductionEntities(snapshot.productionEntities)
   const areaEntities = normalizeAreaEntities(snapshot.areaEntities)

@@ -58,12 +58,13 @@ internal sealed partial class GameSnapshotCollector
             m_hydrogenFuel,
             m_generationByType,
             getSettlementState(),
-            m_weatherConfig,
+            getWeatherSnapshot(),
             getRecyclingSnapshot(),
             getBuildingDefinitions(),
             getChickenFarmDefinition(),
             getRocketIiDefinition(),
             getSpaceStationLevels(),
-            getCropFarmingSnapshot(fertilizers));
+            getCropFarmingSnapshot(fertilizers),
+            getGroundwaterAquifers());
     }
 }

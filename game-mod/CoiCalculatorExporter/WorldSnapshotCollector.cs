@@ -14,6 +14,8 @@ using Mafi.Core.Factory.WellPumps;
 using Mafi.Core.Map;
 using Mafi.Core.Population;
 using Mafi.Core.Prototypes;
+using Mafi.Core.Products;
+using Mafi.Core.Terrain;
 using Mafi.Core.Terrain.Generation;
 using Mafi.Core.Vehicles;
 
@@ -30,7 +32,12 @@ internal sealed partial class GameSnapshotCollector
             return null;
         }
 
-        Tile3i position = simpleResource.Position;
+        return getGroundwaterAquifer(simpleResource);
+    }
+
+    private static GroundwaterAquiferSnapshot getGroundwaterAquifer(SimpleVirtualResource resource)
+    {
+        Tile3i position = resource.Position;
         return new GroundwaterAquiferSnapshot(
             position.X.ToString(CultureInfo.InvariantCulture)
                 + ":"
@@ -39,7 +46,27 @@ internal sealed partial class GameSnapshotCollector
             position.Y,
             resource.Quantity.Value,
             resource.Capacity.Value,
-            resource.ConfiguredCapacity.Value);
+            resource.ConfiguredCapacity.Value,
+            resource.MaxRadius.Value,
+            resource.EmergencyQuantity.Value.ToDouble());
+    }
+
+    private List<GroundwaterAquiferSnapshot> getGroundwaterAquifers()
+    {
+        var result = new List<GroundwaterAquiferSnapshot>();
+        var manager = (VirtualResourceManager)m_virtualResourceManager;
+        // Enumerate the complete map collection, including sources which have
+        // never had a pump. No map regeneration or mining occurs.
+        var product = m_protosDb.GetOrThrow<VirtualResourceProductProto>(IdsCore.Products.Groundwater);
+        foreach (var resource in manager.GetAllResourcesFor(product))
+        {
+            var simple = resource as SimpleVirtualResource;
+            if (simple != null) result.Add(getGroundwaterAquifer(simple));
+        }
+        result.Sort(delegate(GroundwaterAquiferSnapshot left, GroundwaterAquiferSnapshot right) {
+            return String.CompareOrdinal(left.Id, right.Id);
+        });
+        return result;
     }
 
     private static List<string> getAssignedRecipeIds(IEntity entity)

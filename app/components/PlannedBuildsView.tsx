@@ -133,9 +133,6 @@ export const PlannedBuildsView: React.FC<Props> = ({
       <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">
         Plan checklist
       </h4>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Complete these changes to make the projected Factory Total achievable.
-      </p>
       {hasMachineOwnershipActions && machineInventory.length > 0 && (
         <div className="mt-3">
           <h5 className="text-xs font-medium text-muted-foreground">

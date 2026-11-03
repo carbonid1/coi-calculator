@@ -1,15 +1,7 @@
-import { type WeatherConfig } from "../db/weather";
-import { type SyncedSettlementState } from "../settlement-state";
+import { type SyncedSettlementState } from '../settlement-state';
+import { testNativeWeather } from './recorded-game-data';
 
-export const testWeather: WeatherConfig = {
-  gameSeed: "ywaruuxpx8oo",
-  difficulty: "Standard",
-  weatherRngInitialState: {
-    state0: "0x7277e8ad6570007d",
-    state1: "0xeb4586d79675008d",
-    warmupSteps: 100,
-  },
-};
+export const testWeather = testNativeWeather;
 
 export const emptySettlement: SyncedSettlementState = {
   population: 0,

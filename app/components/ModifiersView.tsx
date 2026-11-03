@@ -1,4 +1,4 @@
-import { Card, cn } from "@carbonid1/design-system";
+import { Card, cn, Tooltip } from "@carbonid1/design-system";
 import { Sparkles } from "lucide-react";
 
 import { type ValueSource } from "../data-source";
@@ -145,16 +145,14 @@ export const MaintenanceDemandOverview = ({
 }) => (
   <section className="space-y-3">
     <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-      Maintenance demand
+      <Tooltip label="Actual consumption across completed game cycles.">
+        <span tabIndex={0}>Maintenance demand</span>
+      </Tooltip>
     </h3>
     <Card.Root
       className={getDataSourceSurfaceClassName("synced")}
     >
-      <Card.Content className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-success">Synced</span>
-          {" · Actual consumption across completed game cycles"}
-        </p>
+      <Card.Content>
         <div className="grid gap-3 sm:grid-cols-3">
           {maintenanceTiers
             .filter(([id]) => history[id].sampleMonths > 0)

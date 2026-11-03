@@ -16,17 +16,129 @@ import { calculateNet } from '../app/helpers/calculate/calculate'
 import { deriveCalculatorModel } from '../app/helpers/calculator-model/derive-calculator-model'
 import { calculateContractWorkers } from '../app/helpers/contracts/calculate-contracts'
 import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/factory-calculation'
+import { calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput, calculateGroundwaterClaimLimits, getAquiferRainRechargePerDay, getDryEmergencyRechargePerDay } from '../app/helpers/groundwater/calculate-groundwater-production'
 import { createLiveAreaModules } from '../app/helpers/live-area-modules/live-area-modules'
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
+import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../app/helpers/water-planning/water-planning'
 import { calculateFarmIrrigationRates } from '../app/helpers/weather/calculate-farm-irrigation'
+import { getAverageSunIntensityPercent } from '../app/helpers/weather/planning-weather'
 import { type RocketIiDefinition } from '../app/rocket-state'
 import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 
 // Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
+
+it('replays native climate, all aquifers, shared withdrawal and dry-period upgrade scenarios', () => {
+  const snapshot = normalizeGameStateSnapshot(capture)
+
+  if (!snapshot) throw new Error('Recorded water data is incompatible')
+  const weather = snapshot.weather
+  const summary = summarizeWeather(weather)
+
+  expect(weather.startDate).toEqual({ year: 24575, month: 7, day: 24 })
+  expect(weather.periods[0]).toEqual({ days: 7, sunIntensityPercent: 50, rainIntensityPercent: 50 })
+  expect(weather.periods).toHaveLength(2401)
+  expect(weather.periods.reduce((days, period) => days + period.days, 0)).toBe(36_000)
+  expect(summary).toMatchObject({ averageRainIntensityPercent: 12.5, nextRainCycles: 0, longestDryCycles: 12 })
+  expect(summary.averageSunIntensityPercent).toBe(getAverageSunIntensityPercent(weather))
+  expect(summary.cycles[0]?.rainIntensityPercent).toBeCloseTo(50 * 7 / 30, 10)
+  expect(getRainwaterHarvesterPotential(summary, 1.5)).toEqual({ nextYearPerCycle: 5.625, averagePerCycle: 5.625 })
+
+  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'water-replay' })
+  const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
+  const sourceResults = [...factoryResult.calculation.sourceResults,
+    ...[...linkedModulesResult.moduleResults.values()].flatMap(result => result.sourceResults)]
+  const inventory = buildWaterSourceInventory(snapshot, sourceResults)
+
+  expect(inventory).toHaveLength(13)
+  expect(inventory.filter(row => row.builtPumps === 0)).toHaveLength(10)
+  expect(new Set(inventory.map(row => row.source.id)).size).toBe(13)
+  const unused = inventory.find(row => row.source.id === '1041:3242')
+
+  expect(unused).toMatchObject({ source: { position: { x: 1041, y: 3242 }, radius: 60, quantity: 20_000 },
+    builtPumps: 0, projectedPumps: 0, pumpsForCeiling: 3, sustainableOutputPerCycle: 0, projectedWithdrawalPerCycle: 0 })
+  expect(unused?.sustainableCeilingPerCycle).toBeGreaterThan(0)
+  for (const row of inventory) {
+    const output = calculateAquiferSustainableOutput(row.source, row.pumpsForCeiling, snapshot.groundwater, weather)
+    const fewer = calculateAquiferSustainableOutput(row.source, row.pumpsForCeiling - 1, snapshot.groundwater, weather)
+
+    expect(output).toBeGreaterThanOrEqual(row.sustainableCeilingPerCycle - 0.005)
+    expect(fewer).toBeLessThan(row.sustainableCeilingPerCycle - 0.005)
+  }
+  const actualWithdrawal = sourceResults.filter(result => result.recipe.sourceKind === 'groundwater')
+    .reduce((total, result) => total + (result.actualOutputs.find(output => output.resourceId === 'water')?.quantity ?? 0), 0)
+
+  expect(inventory.reduce((sum, row) => sum + row.projectedWithdrawalPerCycle, 0)).toBeCloseTo(actualWithdrawal, 8)
+  const source = inventory[0]?.source
+  const pump = snapshot.machines[0]
+
+  if (!source || !pump) throw new Error('Aquifer scenario requires an installed pump')
+  const normal = { depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 }
+
+  // Oracle values evaluated with installed 0.8.8 GetDailyReplenishQuantity,
+  // Percent.Apply and IntExtensions.ScaledByToFix32. Percent multiplication
+  // truncates before Quantity rounds: a half-rain day at 20k gives 18, not 19.
+  for (const [capacity, halfRain, fullRain, emergency] of [[10_000, 9, 19, 1.330078125],
+    [20_000, 18, 37, 2.58984375], [25_000, 23, 46, 3.2197265625], [30_000, 28, 56, 3.919921875]]) {
+    const aquifer = { ...source, capacity, configuredCapacity: capacity }
+
+    expect(getAquiferRainRechargePerDay(aquifer, 50)).toBe(halfRain)
+    expect(getAquiferRainRechargePerDay(aquifer, 100)).toBe(fullRain)
+    expect(getDryEmergencyRechargePerDay(aquifer, normal)).toBe(emergency)
+  }
+  const ceiling = calculateAquiferSustainableCeiling(source, normal, weather)
+  const assistedPumpsForCeiling = calculateAquiferPumpsForCeiling(source, normal, weather)
+
+  expect(assistedPumpsForCeiling).toBeGreaterThan(Math.ceil(ceiling / 48))
+  expect(calculateAquiferSustainableOutput(source, assistedPumpsForCeiling, normal, weather)).toBeGreaterThanOrEqual(ceiling - 0.005)
+  const fivePumps = calculateAquiferSustainableOutput(source, 5, normal, weather)
+  const claims = calculateGroundwaterClaimLimits([
+    { claimId: 'farm', projectedPumpCount: 4, machines: [1, 2, 3, 4].map(id => ({ ...pump, entityId: id, aquifer: source })) },
+    { claimId: 'default', projectedPumpCount: 1, machines: [{ ...pump, entityId: 5, aquifer: source }] },
+  ], normal, weather)
+
+  expect(fivePumps).toBeGreaterThan(0)
+  expect(fivePumps).toBeLessThanOrEqual(ceiling)
+  expect(fivePumps).toBeLessThan(5 * 48)
+  expect(claims.farm?.sustainableOutputPerCycle).toBeCloseTo(fivePumps * 0.8, 9)
+  expect(claims.default?.sustainableOutputPerCycle).toBeCloseTo(fivePumps * 0.2, 9)
+  expect(calculateAquiferSustainableOutput({ ...source, quantity: 0 }, 1, normal, weather)).toBeCloseTo(48, 9)
+  const paused = calculateGroundwaterClaimLimits([{ claimId: 'paused', projectedPumpCount: 0,
+    machines: [{ ...pump, aquifer: source }] }], normal, weather).paused
+
+  expect(paused).toMatchObject({ aquiferCount: 1, currentReserve: source.quantity, pumpCapacityPerCycle: 0, sustainableOutputPerCycle: 0 })
+  const dry = { ...weather, currentRainIntensityPercent: 0,
+    periods: weather.periods.map(period => ({ ...period, rainIntensityPercent: 0, sunIntensityPercent: 100 })) }
+  const wet = { ...weather, currentRainIntensityPercent: 100,
+    periods: weather.periods.map(period => ({ ...period, rainIntensityPercent: 100, sunIntensityPercent: 20 })) }
+  const noAssistance = { depletedPumpSpeedPercent: 0, replenishWhenLowPercent: 0 }
+  const smallReserve = { ...source, quantity: 60, emergencyQuantity: 0 }
+  const drought = simulateWaterSource(smallReserve, noAssistance, dry, 1, 30)
+
+  expect(drought).toMatchObject({ firstShortfallCycle: 61 / 30, minimumReserve: 0, firstYearShortfallQuantity: 300 })
+  expect(simulateWaterSource({ ...source, quantity: source.capacity }, noAssistance, dry, 1, 60)?.firstShortfallCycle).toBe(1 / 30)
+  expect(simulateWaterSource(smallReserve, noAssistance, wet, 1, 30)?.firstShortfallCycle).toBeNull()
+  expect(simulateWaterSource({ ...source, quantity: 0, emergencyQuantity: 0 }, normal, dry, 1, 10)?.firstShortfallCycle).toBeNull()
+  expect(simulateWaterSource({ ...source, quantity: 0, emergencyQuantity: 0 }, noAssistance, dry, 1, 10)?.firstShortfallCycle).toBe(1 / 30)
+  expect(simulateWaterSource(source, normal, { ...weather, hasOverride: true }, 1, 30)).toBeNull()
+  const hiddenReserve = { ...source, quantity: 0, emergencyQuantity: 5 }
+
+  expect(simulateWaterSource(hiddenReserve, { ...normal, replenishWhenLowPercent: 0 }, dry, 1, 10)?.firstShortfallCycle).toBeGreaterThan(1 / 30)
+  const group: CropFarmGroup = { id: 'water-crop', name: 'Wheat', farmCount: 1, tierId: 'greenhouseII', schedule: ['wheat'], fertilizer: null }
+  const dryFarm = calculateFarmIrrigationRates(group, snapshot.cropFarming, 1, 1.5, dry)
+  const wetFarm = calculateFarmIrrigationRates(group, snapshot.cropFarming, 1, 1.5, wet)
+
+  expect(dryFarm.importedWaterPerMonth).toBeGreaterThan(wetFarm.importedWaterPerMonth)
+  expect(wetFarm.importedWaterPerMonth).toBe(0)
+  expect(getAverageSunIntensityPercent(dry)).toBe(100)
+  expect(getAverageSunIntensityPercent(wet)).toBe(20)
+  expect(calculateAquiferSustainableOutput(source, 5, noAssistance, dry)).toBe(0)
+  expect(calculateAquiferPumpsForCeiling(source, noAssistance, dry)).toBe(0)
+  expect(calculateAquiferSustainableOutput(source, 5, normal, dry)).toBeGreaterThan(0)
+}, 60_000)
 
 it('replays the recorded factory through validation, planning, dispatch, contracts and resource balances', () => {
   const snapshot = normalizeGameStateSnapshot(capture)

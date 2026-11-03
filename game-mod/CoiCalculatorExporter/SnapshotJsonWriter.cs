@@ -2,11 +2,27 @@ using System.Globalization;
 
 internal static partial class SnapshotJsonWriter
 {
+    private static void appendAquifer(SnapshotJsonStream json, GroundwaterAquiferSnapshot aquifer)
+    {
+        json.BeginObject();
+        json.Field("id", aquifer.Id);
+        json.Name("position").BeginObject();
+        json.Field("x", aquifer.PositionX);
+        json.Field("y", aquifer.PositionY);
+        json.EndObject();
+        json.Field("quantity", aquifer.Quantity);
+        json.Field("capacity", aquifer.Capacity);
+        json.Field("configuredCapacity", aquifer.ConfiguredCapacity);
+        json.Field("radius", aquifer.Radius);
+        json.Field("emergencyQuantity", aquifer.EmergencyQuantity);
+        json.EndObject();
+    }
+
     public static string Serialize(SnapshotDocument snapshot)
     {
         SnapshotJsonStream json = new SnapshotJsonStream(3600);
         json.BeginObject();
-        json.Field("schemaVersion", 48);
+        json.Field("schemaVersion", 49);
         appendChickenFarmDefinition(json, snapshot.ChickenFarmDefinition);
         appendRocketIiDefinition(json, snapshot.RocketIiDefinition);
         appendSpaceStationLevels(json, snapshot.SpaceStationLevels);
@@ -116,16 +132,7 @@ internal static partial class SnapshotJsonWriter
             }
             else
             {
-                json.BeginObject();
-                json.Field("id", machine.Aquifer.Id);
-                json.Name("position").BeginObject();
-                json.Field("x", machine.Aquifer.PositionX);
-                json.Field("y", machine.Aquifer.PositionY);
-                json.EndObject();
-                json.Field("quantity", machine.Aquifer.Quantity);
-                json.Field("capacity", machine.Aquifer.Capacity);
-                json.Field("configuredCapacity", machine.Aquifer.ConfiguredCapacity);
-                json.EndObject();
+                appendAquifer(json, machine.Aquifer);
             }
             json.EndObject();
         }
@@ -133,6 +140,9 @@ internal static partial class SnapshotJsonWriter
         json.Name("groundwater").BeginObject();
         json.Field("depletedPumpSpeedPercent", snapshot.GroundwaterDepletedPumpSpeedPercent);
         json.Field("replenishWhenLowPercent", snapshot.GroundwaterReplenishWhenLowPercent);
+        json.Name("aquifers").BeginArray();
+        foreach (var aquifer in snapshot.GroundwaterAquifers) appendAquifer(json, aquifer);
+        json.EndArray();
         json.EndObject();
         appendContractState(json, snapshot.Contracts);
         json.Name("productionEntities").BeginArray();

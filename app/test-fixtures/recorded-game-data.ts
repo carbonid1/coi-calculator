@@ -3,6 +3,7 @@ import { gunzipSync } from 'node:zlib'
 
 import { isChickenFarmDefinition } from '../chicken-farm-state'
 import { isCropFarmingDefinitions } from '../crop-farming-state'
+import { isWeatherConfig } from '../db/weather'
 import { isRocketIiDefinition } from '../rocket-state'
 import { isSpaceStationLevels } from '../space-station-state'
 
@@ -30,3 +31,9 @@ const cropFarming: unknown = capture.cropFarming
 if (!isCropFarmingDefinitions(cropFarming)) throw new Error('Recorded crop and fertilizer definitions are invalid')
 
 export const testCropFarming = cropFarming
+
+const weather: unknown = capture.weather
+
+if (!isWeatherConfig(weather)) throw new Error('Recorded native weather is invalid')
+
+export const testNativeWeather = weather

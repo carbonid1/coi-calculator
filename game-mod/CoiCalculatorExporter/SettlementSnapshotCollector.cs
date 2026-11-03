@@ -15,7 +15,6 @@ internal sealed partial class GameSnapshotCollector
 {
     private readonly SettlementsManager m_settlementsManager;
     private readonly UpointsManager m_upointsManager;
-    private readonly WeatherConfigSnapshot m_weatherConfig;
 
     // Read only the settlement managers' already-maintained collections and totals.
     private SettlementStateSnapshot getSettlementState()
@@ -112,18 +111,4 @@ internal sealed partial class GameSnapshotCollector
             unityEntries.Count > 0 || population == 0 ? unityEntries : null);
     }
 
-    private static WeatherConfigSnapshot getWeatherConfig(DependencyResolver resolver)
-    {
-        string seed = resolver.Resolve<RandomSeedConfig>().MasterRandomSeed;
-        string difficulty = resolver.Resolve<GameDifficultyConfig>().WeatherDifficulty.ToString();
-        // Reproduce the initial seed without touching the simulation's RNG.
-        byte[] hash;
-        using (MD5 md5 = MD5.Create())
-        {
-            hash = md5.ComputeHash(Encoding.UTF8.GetBytes(seed + "WeatherDefaultWeatherProvider"));
-        }
-        return new WeatherConfigSnapshot(seed, difficulty,
-            "0x" + BitConverter.ToUInt64(hash, 0).ToString("x16", CultureInfo.InvariantCulture),
-            "0x" + BitConverter.ToUInt64(hash, 8).ToString("x16", CultureInfo.InvariantCulture));
-    }
 }

@@ -23,6 +23,7 @@ import { ResourceSupplyView } from './components/ResourceSupplyView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
 import { StationCardGroup } from './components/StationCardGroup'
+import { WaterPlanningView } from './components/WaterPlanningView'
 import { WorldMinesView } from './components/WorldMinesView'
 import { getBuildingData } from './db/buildings'
 import { baseConfig } from './db/config'
@@ -813,6 +814,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         <>
           {activeModule.id === MINES_MODULE_ID && (
             <>
+              <WaterPlanningView snapshot={snapshot}
+                sourceResults={[...factoryResult.calculation.sourceResults, ...linkedSourceResults]}
+                waterFlow={factoryResult.flows.find(flow => flow.resourceId === 'water')}
+                rainwaterYieldMultiplier={outputModifiers.rainwaterYield} />
               <WorldMinesView world={snapshot.world} result={worldMines} />
               <MinesView
                 focusedTargetKey={focusedModuleTargetKey}

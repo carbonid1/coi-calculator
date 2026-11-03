@@ -81,7 +81,7 @@ export interface CurrentCropFarmEntity {
 }
 
 /**
- * Captain of Industry v0.8.6 farm prototypes and runtime constants.
+ * Installed 0.8.8 FarmsData.RegisterData and Farm runtime constants.
  * The game advances crop growth daily; one calculator month is 30 game days.
  */
 export const cropFarmSimulation = {

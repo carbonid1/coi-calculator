@@ -183,7 +183,7 @@ export const ResourceSupplyView = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 ref={headingRef} tabIndex={-1} className="font-semibold text-foreground outline-hidden">{getScopeName(target)}</h3>
-          <p className="text-xs text-muted-foreground">Calculated per production cycle</p>
+          <p className="text-xs text-muted-foreground">Calculated / cycle</p>
         </div>
         <ResourcePicker
           value={resourceId}

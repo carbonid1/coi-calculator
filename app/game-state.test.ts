@@ -42,7 +42,7 @@ const currentSnapshot = {
   chickenFarms: [],
   cropFarms: [],
   machines: [],
-  groundwater: { depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 },
+  groundwater: { aquifers: [], depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 },
   contracts: { established: [], routes: [] },
   productionEntities: [],
   areaEntities: [],
@@ -74,6 +74,26 @@ const currentSnapshot = {
 }
 
 describe('game-state snapshot validation', () => {
+  it('requires a complete calendar-aligned native weather forecast', () => {
+    expect(normalizeGameStateSnapshot(currentSnapshot)).not.toBeNull()
+    for (const weather of [undefined, {}, { ...testWeather, periods: [] },
+      { ...testWeather, periods: testWeather.periods.slice(1) },
+      { ...testWeather, startDate: { ...testWeather.startDate, day: 31 } },
+      { ...testWeather, periods: [{ ...testWeather.periods[0], days: 15 }, ...testWeather.periods.slice(1)] },
+      { ...testWeather, periods: testWeather.periods.map(period => ({ ...period, rainIntensityPercent: Number.NaN })) },
+    ]) expect(normalizeGameStateSnapshot({ ...currentSnapshot, weather })).toBeNull()
+  })
+  it('requires a unique complete aquifer inventory and rejects inconsistent pump references', () => {
+    const source = { id: '10:20', position: { x: 10, y: 20 }, quantity: 100, capacity: 1000,
+      configuredCapacity: 1000, radius: 60, emergencyQuantity: 0 }
+
+    for (const aquifers of [undefined, [source, source], [{ ...source, radius: 0 }],
+      [{ ...source, emergencyQuantity: -1 }], [{ ...source, quantity: 1001 }],
+    ]) expect(normalizeGameStateSnapshot({ ...currentSnapshot, groundwater: { ...currentSnapshot.groundwater, aquifers } })).toBeNull()
+    expect(normalizeGameStateSnapshot({ ...currentSnapshot,
+      groundwater: { ...currentSnapshot.groundwater, aquifers: [source] },
+    })?.groundwater.aquifers).toEqual([source])
+  })
   it('requires complete native crop and fertilizer definitions', () => {
     const first = testCropFarming.crops[0]
 
@@ -275,7 +295,10 @@ describe('game-state snapshot validation', () => {
       aquifer,
     }
 
-    expect(isGameStateSnapshot({ ...currentSnapshot, machines: [machine] })).toBe(true)
+    const groundwater = { ...currentSnapshot.groundwater, aquifers: [{ ...aquifer, radius: 60, emergencyQuantity: 0 }] }
+
+    expect(isGameStateSnapshot({ ...currentSnapshot, groundwater, machines: [machine] })).toBe(true)
+    expect(isGameStateSnapshot({ ...currentSnapshot, machines: [machine] })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, machines: [machine, machine] })).toBe(false)
     expect(isGameStateSnapshot({
       ...currentSnapshot,

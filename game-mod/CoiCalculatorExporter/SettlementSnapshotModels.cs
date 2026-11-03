@@ -47,16 +47,3 @@ internal sealed class SettlementStateSnapshot
         Unity = unity;
     }
 }
-
-internal sealed class WeatherConfigSnapshot
-{
-    public readonly string Seed;
-    public readonly string Difficulty;
-    public readonly string State0;
-    public readonly string State1;
-
-    public WeatherConfigSnapshot(string seed, string difficulty, string state0, string state1)
-    {
-        Seed = seed; Difficulty = difficulty; State0 = state0; State1 = state1;
-    }
-}

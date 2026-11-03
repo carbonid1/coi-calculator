@@ -75,7 +75,7 @@ internal sealed partial class GameSnapshotCollector
         m_worldMapCargoManager = resolver.Resolve<Mafi.Core.World.WorldMapCargoManager>();
         m_settlementsManager = resolver.Resolve<Mafi.Core.Buildings.Settlements.SettlementsManager>();
         m_upointsManager = resolver.Resolve<UpointsManager>();
-        m_weatherConfig = getWeatherConfig(resolver);
+        initializeWeather(resolver);
     }
 
     public static GameSnapshotCollector Create(DependencyResolver resolver)

@@ -28,7 +28,7 @@ export const createCacheTestModel = () => {
     exportedAtUtc: '2026-09-04T00:00:00.000Z',
     spaceStation: { currentLevel: 0, highestLevelAchieved: 0 },
     logisticsZones: [], chickenFarms: [], cropFarms: [], machines: [],
-    groundwater: { depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 },
+    groundwater: { aquifers: [], depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 },
     contracts: { established: [], routes: [] },
     productionEntities: [], areaEntities: [], mineTowers: [],
     vehicles: { workersAssigned: 0 },

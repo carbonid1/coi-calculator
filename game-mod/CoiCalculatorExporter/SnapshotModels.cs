@@ -32,6 +32,7 @@ internal sealed class SnapshotDocument
     public readonly RocketDefinitionSnapshot RocketIiDefinition;
     public readonly List<SpaceStationLevelSnapshot> SpaceStationLevels;
     public readonly CropFarmingSnapshot CropFarming;
+    public readonly List<GroundwaterAquiferSnapshot> GroundwaterAquifers;
 
     public SnapshotDocument(
         string saveId,
@@ -62,7 +63,8 @@ internal sealed class SnapshotDocument
         ChickenFarmDefinitionSnapshot chickenFarmDefinition,
         RocketDefinitionSnapshot rocketIiDefinition,
         List<SpaceStationLevelSnapshot> spaceStationLevels,
-        CropFarmingSnapshot cropFarming)
+        CropFarmingSnapshot cropFarming,
+        List<GroundwaterAquiferSnapshot> groundwaterAquifers)
     {
         SaveId = saveId;
         GameId = gameId;
@@ -93,5 +95,6 @@ internal sealed class SnapshotDocument
         RocketIiDefinition = rocketIiDefinition;
         SpaceStationLevels = spaceStationLevels;
         CropFarming = cropFarming;
+        GroundwaterAquifers = groundwaterAquifers;
     }
 }

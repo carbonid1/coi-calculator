@@ -130,7 +130,7 @@ import {
   getSyncedChickenFarmEntities,
   getSyncedCropFarmEntities,
 } from '../synced-production-config/synced-production-config'
-import { getAverageSunIntensityPercent } from '../weather/generate-planning-weather'
+import { getAverageSunIntensityPercent } from '../weather/planning-weather'
 import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
 export interface DeriveCalculatorModelOptions {

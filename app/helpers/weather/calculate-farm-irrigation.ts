@@ -4,8 +4,7 @@ import {
   cropFarmTiers,
   type CropFarmGroup,
 } from "../../db/crop-farming";
-import { planningWeather, weatherTypes, type WeatherConfig } from "../../db/weather";
-import { getPlanningWeather } from "./generate-planning-weather";
+import { planningWeather, type WeatherConfig } from "../../db/weather";
 
 export interface FarmIrrigationRates {
   /** Crop demand before any rainwater is captured. */
@@ -14,7 +13,7 @@ export interface FarmIrrigationRates {
   importedWaterPerMonth: number;
 }
 
-const irrigationCache = new WeakMap<CropFarmingDefinitions, Map<string, FarmIrrigationRates>>();
+const irrigationCache = new WeakMap<CropFarmingDefinitions, WeakMap<WeatherConfig, Map<string, FarmIrrigationRates>>>();
 const FIX32_SCALE = 1_024;
 const PERCENT_SCALE = 100_000;
 
@@ -77,8 +76,8 @@ const getCropForScheduleIndex = (group: CropFarmGroup, definitions: CropFarmingD
 };
 
 /**
- * Replays Captain of Industry v0.8.6's daily farm water-buffer algorithm for
- * the configured 100-year weather sequence. Rain fills the 50-unit soil
+ * Replays installed 0.8.8 Farm.onNewDay with the native weather forecast.
+ * Rain fills the 50-unit soil
  * buffer before irrigation; irrigation runs only on dry days and follows the
  * game's 10% start / 65% stop hysteresis. This is why average rainfall cannot
  * simply be subtracted from gross crop demand.
@@ -94,15 +93,17 @@ export const calculateFarmIrrigationRates = (
 
   // Without island weather, retain gross demand instead of inventing rain savings.
   if (!weatherConfig) return { grossWaterPerMonth, importedWaterPerMonth: grossWaterPerMonth };
-  const cacheKey = `${JSON.stringify(weatherConfig)}:${JSON.stringify(group)}:${cropWaterMultiplier}:${rainwaterYieldMultiplier}`;
-  const cache = irrigationCache.get(definitions) ?? new Map<string, FarmIrrigationRates>();
+  const cacheKey = `${JSON.stringify(group)}:${cropWaterMultiplier}:${rainwaterYieldMultiplier}`;
+  const weatherCache = irrigationCache.get(definitions) ?? new WeakMap<WeatherConfig, Map<string, FarmIrrigationRates>>();
+  const cache = weatherCache.get(weatherConfig) ?? new Map<string, FarmIrrigationRates>();
 
-  irrigationCache.set(definitions, cache);
+  irrigationCache.set(definitions, weatherCache);
+  weatherCache.set(weatherConfig, cache);
   const cached = cache.get(cacheKey);
 
   if (cached) return cached;
 
-  const weatherPeriods = getPlanningWeather(weatherConfig);
+  const weatherPeriods = weatherConfig.periods;
   const tier = cropFarmTiers[group.tierId];
   const horizonDays = planningWeather.horizonYears * 12 * cropFarmSimulation.daysPerMonth;
   const state = {
@@ -110,19 +111,21 @@ export const calculateFarmIrrigationRates = (
     importedWater: 0, scheduleIndex: 0, day: 0,
     daysRemaining: getCropForScheduleIndex(group, definitions, 0).growthMonths * cropFarmSimulation.daysPerMonth,
     cropStarted: false, wasIrrigating: false, isIrrigating: false,
+    weatherIndex: 0, weatherDaysRemaining: weatherPeriods[0]?.days ?? 0,
+    evaporatedWater: 0,
   };
 
   for (; state.day < horizonDays; state.day += 1) {
     const day = state.day;
     const weatherPeriod = weatherPeriods[
-      Math.trunc(day / planningWeather.weatherPeriodDays)
+      state.weatherIndex
     ];
 
     if (!weatherPeriod) throw new Error(`Missing weather period for day ${day + 1}`);
 
-    const rainIntensity = weatherTypes[weatherPeriod].rainIntensityPercent / 100;
+    const rainIntensity = weatherPeriod.rainIntensityPercent / 100;
 
-    // RainHarvestingHelper runs before Farm.onNewDay in v0.8.6. It carries
+    // RainHarvestingHelper runs before Farm.onNewDay. It carries
     // fractional collection forward and stores only whole material units.
     if (rainIntensity > 0) {
       state.rainPartial += tier.rainwaterAtFullRainPerDay
@@ -139,6 +142,13 @@ export const calculateFarmIrrigationRates = (
       state.soilWater += storedRain;
     }
 
+    const emptyCrop = group.schedule[state.scheduleIndex] === 'none';
+
+    if (emptyCrop && state.soilWater > 0) {
+      state.evaporatedWater += toFix32Raw(tier.waterEvaporationPerDay) / FIX32_SCALE
+        * (state.soilWater > cropFarmSimulation.soilWaterCapacity / 2 ? 2 : 1);
+      if (state.evaporatedWater >= 1) { state.soilWater -= 1; state.evaporatedWater -= 1; }
+    }
     const waterRawPerDay = getCropWaterRawPerDay(
       group,
       definitions,
@@ -153,7 +163,7 @@ export const calculateFarmIrrigationRates = (
       : Math.max(normalStartThreshold, waterPerDay * 10);
     const continueIrrigating = state.wasIrrigating
       && state.soilWater / cropFarmSimulation.soilWaterCapacity
-        < cropFarmSimulation.irrigationStopPercent / 100;
+        < (emptyCrop ? cropFarmSimulation.emptyCropIrrigationStopPercent : cropFarmSimulation.irrigationStopPercent) / 100;
     const shouldIrrigate = continueIrrigating || state.soilWater < irrigationStartThreshold;
 
     state.isIrrigating = false;
@@ -200,6 +210,11 @@ export const calculateFarmIrrigationRates = (
     }
 
     state.wasIrrigating = state.isIrrigating;
+    state.weatherDaysRemaining -= 1;
+    if (state.weatherDaysRemaining === 0) {
+      state.weatherIndex += 1;
+      state.weatherDaysRemaining = weatherPeriods[state.weatherIndex]?.days ?? 0;
+    }
   }
 
   const horizonMonths = horizonDays / cropFarmSimulation.daysPerMonth;

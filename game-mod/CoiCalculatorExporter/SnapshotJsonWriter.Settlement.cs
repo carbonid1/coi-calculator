@@ -58,15 +58,4 @@ internal static partial class SnapshotJsonWriter
         json.EndObject();
     }
 
-    private static void appendWeatherConfig(SnapshotJsonStream json, WeatherConfigSnapshot weather)
-    {
-        json.Name("weather").BeginObject();
-        json.Field("gameSeed", weather.Seed);
-        json.Field("difficulty", weather.Difficulty);
-        json.Name("weatherRngInitialState").BeginObject();
-        json.Field("state0", weather.State0);
-        json.Field("state1", weather.State1);
-        json.Field("warmupSteps", 100);
-        json.EndObject().EndObject();
-    }
 }
