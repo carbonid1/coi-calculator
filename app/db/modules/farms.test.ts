@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { testChickenFarmDefinition } from '../../test-fixtures/recorded-game-data';
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import {
   plannedChickenFarmSettings,
@@ -12,8 +13,7 @@ import { type Module } from "./modules";
 describe("Chicken Farms", () => {
   it("uses synced current settings instead of inventing a baseline", () => {
     const current = { totalChickenCount: 1_950, slaughtering: true };
-    const farmModule = createChickenFarmsModule(
-      current,
+    const farmModule = createChickenFarmsModule(testChickenFarmDefinition, current,
       [500, 500, 500, 450].map((chickens, index) => ({
         entityId: index + 1,
         running: true,
@@ -31,8 +31,7 @@ describe("Chicken Farms", () => {
   });
 
   it("layers the plan over synced farms without duplicating their capacity", () => {
-    const farmModule = createChickenFarmsModule(
-      plannedChickenFarmSettings,
+    const farmModule = createChickenFarmsModule(testChickenFarmDefinition, plannedChickenFarmSettings,
       [500, 500, 500, 450].map((chickens, index) => ({
         entityId: index + 1,
         running: true,
@@ -89,8 +88,7 @@ describe("Chicken Farms", () => {
       chickens,
       zones: [{ id: 77, name: "A label the calculator never matches" }],
     }));
-    const farmArea = createChickenFarmsModule(
-      plannedChickenFarmSettings,
+    const farmArea = createChickenFarmsModule(testChickenFarmDefinition, plannedChickenFarmSettings,
       currentEntities,
       undefined,
       syncedArea,
@@ -110,8 +108,7 @@ describe("Chicken Farms", () => {
   });
 
   it("keeps extra synced operating modes after the minimum plan is reached", () => {
-    const farmModule = createChickenFarmsModule(
-      plannedChickenFarmSettings,
+    const farmModule = createChickenFarmsModule(testChickenFarmDefinition, plannedChickenFarmSettings,
       [
         ...[500, 500, 500, 500, 350].map((chickens, index) => ({
           entityId: index + 1,

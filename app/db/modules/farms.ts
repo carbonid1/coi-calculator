@@ -1,18 +1,47 @@
+import { type ChickenFarmDefinition } from '../../chicken-farm-state';
 import { type ValueSource } from "../../data-source";
 import { type SyncedAreaEntity } from "../../game-state";
 import { resolveChickenFarmEntityPlan } from "../../helpers/chicken-farm-plan/chicken-farm-plan";
 import { type PlanDirection } from "../../helpers/resolve-directional-plan";
 import {
   type CurrentChickenFarmEntity,
-  chickenFarm,
+  getChickenFarmRates,
   type ChickenFarmSettings,
 } from "../chicken-farm";
+import { type Recipe } from '../recipes';
 import { type Module } from "./modules";
 
 export const CHICKEN_FARMS_MODULE_ID = "chicken-farms";
 
 const slaughteringRecipeId = "chicken-farm-slaughtering";
 const eggsOnlyRecipeId = "chicken-farm-eggs-only";
+
+const createChickenFarmRecipes = (chickenFarm: ChickenFarmDefinition): Recipe[] => (
+  [true, false].map(slaughtering => {
+    const rates = getChickenFarmRates({ totalChickenCount: chickenFarm.capacity, slaughtering }, chickenFarm);
+
+    return {
+      id: slaughtering ? slaughteringRecipeId : eggsOnlyRecipeId,
+      configurationLabel: slaughtering ? 'Slaughtering enabled' : 'Slaughtering disabled',
+      displayName: slaughtering ? 'Slaughtering enabled' : 'Eggs only',
+      name: slaughtering ? 'Chicken Farm (Slaughtering on)' : 'Chicken Farm (Slaughtering off)',
+      building: 'Chicken Farm',
+      gameBuildingId: 'ChickenFarm',
+      group: 'production',
+      inputs: [
+        { resourceId: 'animalFeed', quantity: rates.animalFeed },
+        { resourceId: 'water', quantity: rates.water },
+      ],
+      outputs: [
+        { resourceId: 'eggs', quantity: rates.eggs },
+        ...(slaughtering ? [{ resourceId: 'chickenCarcass' as const, quantity: rates.chickenCarcass }] : []),
+      ],
+      animalPopulationCapacity: chickenFarm.capacity,
+      animalPopulationStep: chickenFarm.countStep,
+      animalPopulationLabel: 'chickens',
+    };
+  })
+);
 
 const attachToSyncedArea = (farmModule: Module, syncedArea?: Module): Module => {
   if (!syncedArea) return farmModule;
@@ -26,6 +55,7 @@ const attachToSyncedArea = (farmModule: Module, syncedArea?: Module): Module => 
 
   return {
     ...syncedArea,
+    recipes: [...(syncedArea.recipes ?? []), ...(farmModule.recipes ?? [])],
     includedInFactoryTotals: true,
     builtBuildings: {
       ...syncedArea.builtBuildings,
@@ -73,21 +103,20 @@ const attachToSyncedArea = (farmModule: Module, syncedArea?: Module): Module => 
 const plannedChickenFarmDirection: PlanDirection = "at-least";
 
 export const createChickenFarmsModule = (
+  chickenFarm: ChickenFarmDefinition,
   settings: ChickenFarmSettings | null,
   currentEntities: readonly CurrentChickenFarmEntity[],
   planDirection: PlanDirection = plannedChickenFarmDirection,
   syncedArea?: Module,
   constructionGhostCount = 0,
 ): Module => {
-  const resolved = resolveChickenFarmEntityPlan(settings, currentEntities, planDirection);
+  const resolved = resolveChickenFarmEntityPlan(settings, currentEntities, planDirection, chickenFarm);
 
   if (constructionGhostCount > 0) {
-    let mode = resolved.modes.find(candidate => candidate.slaughtering);
+    const mode = resolved.modes.find(candidate => candidate.slaughtering)
+      ?? { slaughtering: true, built: 0, active: 0, chickens: 0, source: "planned" as const };
 
-    if (!mode) {
-      mode = { slaughtering: true, built: 0, active: 0, chickens: 0, source: "planned" };
-      resolved.modes.push(mode);
-    }
+    if (!resolved.modes.includes(mode)) resolved.modes.push(mode);
     mode.active += constructionGhostCount;
     mode.chickens += constructionGhostCount * chickenFarm.capacity;
     mode.source = "planned";
@@ -122,6 +151,7 @@ export const createChickenFarmsModule = (
 
   return attachToSyncedArea({
     id: CHICKEN_FARMS_MODULE_ID,
+    recipes: createChickenFarmRecipes(chickenFarm),
     name: "Chicken Farms",
     description: "",
     capabilities: ["chicken-farming"],
@@ -161,6 +191,7 @@ export const createChickenFarmAreaModule = (
   module: Module,
   currentEntities: readonly CurrentChickenFarmEntity[],
   areaEntities: readonly SyncedAreaEntity[],
+  chickenFarm: ChickenFarmDefinition,
 ): Module => {
   if (!module.liveArea) return module;
   const zoneId = module.liveArea.zoneId;
@@ -174,5 +205,5 @@ export const createChickenFarmAreaModule = (
 
   if (farms.length === 0 && ghosts.length === 0) return module;
 
-  return createChickenFarmsModule(null, farms, undefined, module, ghosts.length);
+  return createChickenFarmsModule(chickenFarm, null, farms, undefined, module, ghosts.length);
 };

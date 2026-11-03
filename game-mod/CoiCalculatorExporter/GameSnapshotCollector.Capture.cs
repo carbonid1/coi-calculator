@@ -59,6 +59,7 @@ internal sealed partial class GameSnapshotCollector
             getSettlementState(),
             m_weatherConfig,
             getRecyclingSnapshot(),
-            getBuildingDefinitions());
+            getBuildingDefinitions(),
+            getChickenFarmDefinition());
     }
 }

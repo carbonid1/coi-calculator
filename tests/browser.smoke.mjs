@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import { gunzipSync } from 'node:zlib'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const fixture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory-schema44.json.gz', import.meta.url))))
+const fixture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))))
 const run = promisify(execFile)
 const nextCli = fileURLToPath(new URL('../node_modules/next/dist/bin/next', import.meta.url))
 const browserCli = fileURLToPath(new URL('../node_modules/agent-browser/bin/agent-browser.js', import.meta.url))
@@ -52,7 +52,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       date: history.date, isPaused: true, speed: 1, tick: 0 })
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
-      schemaVersion: state.mode === 'old-bridge' ? 43 : fixture.schemaVersion,
+      schemaVersion: state.mode === 'old-bridge' ? 44 : fixture.schemaVersion,
+      chickenFarmDefinition: state.mode === 'missing-farm-definition' ? undefined : fixture.chickenFarmDefinition,
       sessionId: state.mode === 'different-session' ? '999' : fixture.sessionId,
     })
     if (url.pathname === '/api/v1/products') return state.mode === 'missing-products'
@@ -264,7 +265,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
   })
 
   await t.test('rejects missing native data, incompatible Bridges and mixed sessions, then recovers', async () => {
-    for (const [mode, status] of [['old-bridge', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
+    for (const [mode, status] of [['old-bridge', 422], ['missing-farm-definition', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
       state.mode = mode
       const response = await fetch(`${appUrl}/api/game-state`)
 

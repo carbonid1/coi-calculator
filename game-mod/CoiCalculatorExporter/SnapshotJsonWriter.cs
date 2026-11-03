@@ -6,7 +6,8 @@ internal static partial class SnapshotJsonWriter
     {
         SnapshotJsonStream json = new SnapshotJsonStream(3600);
         json.BeginObject();
-        json.Field("schemaVersion", 44);
+        json.Field("schemaVersion", 45);
+        appendChickenFarmDefinition(json, snapshot.ChickenFarmDefinition);
         appendRecycling(json, snapshot.Recycling);
         appendBuildingDefinitions(json, snapshot.BuildingDefinitions);
         json.Field("gameVersion", Mafi.GameVersion.Version.ToString());

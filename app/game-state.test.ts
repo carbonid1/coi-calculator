@@ -10,6 +10,7 @@ import {
 } from './game-state'
 import { testBuildingDefinitions } from './test-fixtures/building-requirements'
 import { testProducts } from './test-fixtures/products'
+import { testChickenFarmDefinition } from './test-fixtures/recorded-game-data'
 import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
@@ -23,6 +24,7 @@ const currentSnapshot = {
   world: { mines: [], routes: [], unassignedShipIds: [], unassignedWorkers: 0 },
   storages: [],
   schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION,
+  chickenFarmDefinition: testChickenFarmDefinition,
   buildingDefinitions: testBuildingDefinitions,
   recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
   gameVersion: '0.8.8',
@@ -69,6 +71,16 @@ const currentSnapshot = {
 }
 
 describe('game-state snapshot validation', () => {
+  it('requires valid chicken farm data from the compatible Bridge', () => {
+    for (const definition of [undefined, null, {},
+      { ...testChickenFarmDefinition, capacity: 0 },
+      { ...testChickenFarmDefinition, countStep: -1 },
+      { ...testChickenFarmDefinition, feedPerChicken: Number.NaN },
+      { ...testChickenFarmDefinition, eggsPerChicken: -1 },
+    ]) {
+      expect(normalizeGameStateSnapshot({ ...currentSnapshot, chickenFarmDefinition: definition })).toBeNull()
+    }
+  })
   it('preserves native products from the same game session', () => {
     const snapshot = { ...currentSnapshot, products: testProducts }
 
@@ -101,7 +113,8 @@ describe('game-state snapshot validation', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 42 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 43 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 45 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 44 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION + 1 })).toBe(false)
   })
 
   it.each(['0.8.7', '0.8.9', '', null])('rejects an incompatible game version: %s', gameVersion => {

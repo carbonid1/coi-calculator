@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { createChickenFarmsModule } from '../../db/modules/farms';
 import { type Module } from "../../db/modules/modules";
 import { createCropFarmRecipe } from '../../db/recipes'
 import { type ResourceId, resources } from "../../db/resources";
+import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements';
+import { testChickenFarmDefinition } from '../../test-fixtures/recorded-game-data';
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import {
   type PassiveResult,
@@ -11,7 +14,8 @@ import {
 } from "../calculate/calculate";
 import { calculateBuildingDiagnostics } from "./building-diagnostics";
 
-const chickenRecipe = recipes.find((recipe) => recipe.id === "chicken-farm-slaughtering");
+const chickenRecipe = withTestBuildingRequirements(createChickenFarmsModule(testChickenFarmDefinition, null, []))
+  .recipes?.find((recipe) => recipe.id === "chicken-farm-slaughtering");
 
 if (!chickenRecipe) throw new Error("Chicken Farm recipe is missing");
 

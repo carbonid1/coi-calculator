@@ -1,7 +1,6 @@
 import { type GroundwaterSourceConstraint } from '../helpers/groundwater/calculate-groundwater-production'
 import { type RecyclingSources } from '../helpers/recycling/recycling'
 import { type BuildingData } from './buildings'
-import { chickenFarm } from './chicken-farm'
 import { computingRecipeIds, dataCenter } from './computing'
 import {
   calculateCropFarmGroupRates,
@@ -757,67 +756,6 @@ export const recipes: Recipe[] = [
     outputs: [{ resourceId: 'salt', quantity: 12 }],
   },
 
-  // Fixed crop rotations and livestock
-  {
-    id: 'chicken-farm-slaughtering',
-    configurationLabel: 'Slaughtering enabled',
-    displayName: 'Slaughtering enabled',
-    name: 'Chicken Farm (Slaughtering on)',
-    building: 'Chicken Farm',
-    group: 'production',
-    inputs: [
-      {
-        resourceId: 'animalFeed',
-        quantity: chickenFarm.capacity * chickenFarm.feedPerChicken,
-      },
-      {
-        resourceId: 'water',
-        quantity: chickenFarm.capacity * chickenFarm.waterPerChicken,
-      },
-    ],
-    outputs: [
-      {
-        resourceId: 'eggs',
-        quantity: chickenFarm.capacity * chickenFarm.eggsPerChicken,
-      },
-      {
-        resourceId: 'chickenCarcass',
-        quantity:
-          ((chickenFarm.capacity * chickenFarm.birthsPer100Chickens) / 100) *
-          chickenFarm.carcassPerSlaughteredChicken,
-      },
-    ],
-    animalPopulationCapacity: chickenFarm.capacity,
-    animalPopulationStep: chickenFarm.countStep,
-    animalPopulationLabel: 'chickens',
-  },
-  {
-    id: 'chicken-farm-eggs-only',
-    configurationLabel: 'Slaughtering disabled',
-    displayName: 'Eggs only',
-    name: 'Chicken Farm (Slaughtering off)',
-    building: 'Chicken Farm',
-    group: 'production',
-    inputs: [
-      {
-        resourceId: 'animalFeed',
-        quantity: chickenFarm.capacity * chickenFarm.feedPerChicken,
-      },
-      {
-        resourceId: 'water',
-        quantity: chickenFarm.capacity * chickenFarm.waterPerChicken,
-      },
-    ],
-    outputs: [
-      {
-        resourceId: 'eggs',
-        quantity: chickenFarm.capacity * chickenFarm.eggsPerChicken,
-      },
-    ],
-    animalPopulationCapacity: chickenFarm.capacity,
-    animalPopulationStep: chickenFarm.countStep,
-    animalPopulationLabel: 'chickens',
-  },
   {
     id: 'nuclear-reprocessing',
     name: 'Nuclear Reprocessing (Core Fuel Spent)',

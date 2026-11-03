@@ -14,6 +14,7 @@ import { createReservesModule } from "../../db/modules/reserves";
 import { type Recipe } from '../../db/recipes'
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { activeContracts } from "../../test-fixtures/active-contracts";
+import { testChickenFarmDefinition } from '../../test-fixtures/recorded-game-data';
 import { testRecycling } from "../../test-fixtures/recycling";
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
@@ -174,7 +175,7 @@ const currentFactoryFixture: Module = {
   defaultPresetId: "fixture",
 };
 const modulesWithNuclear = [
-  createChickenFarmsModule(plannedChickenFarmSettings, []),
+  createChickenFarmsModule(testChickenFarmDefinition, plannedChickenFarmSettings, []),
   mines,
   createReservesModule(null),
   currentFactoryFixture,

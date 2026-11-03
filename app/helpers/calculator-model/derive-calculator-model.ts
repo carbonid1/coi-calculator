@@ -399,10 +399,10 @@ export const deriveCalculatorModel = ({
   const configuredLiveAreaModules = unconfiguredLiveAreaModules.map(module => {
     if (!module.liveArea) return module
 
-    let configuredModule = module
+    const configured = { module }
 
     if (module.id === DEFAULT_MODULE_ID) {
-      configuredModule = createDefaultCropFarmModule(
+      configured.module = createDefaultCropFarmModule(
         applyDefaultAreaPlan(module),
         currentCropFarmEntities,
         defaultGroundwaterConstraint,
@@ -410,7 +410,7 @@ export const deriveCalculatorModel = ({
     } else if (nuclearReactorZoneIds.has(module.liveArea.zoneId)) {
       const appliesPlan = module.liveArea.zoneId === plannedNuclearZoneId
 
-      configuredModule = createNuclearModule(
+      configured.module = createNuclearModule(
         appliesPlan ? planningBaselines : emptyPlanningBaselines,
         appliesPlan ? plannedNuclearOperation : undefined,
         productionEntities,
@@ -420,12 +420,12 @@ export const deriveCalculatorModel = ({
       hasModuleCapability(module, 'space-station')
       && module.liveArea.zoneId === spaceStationZone?.id
     ) {
-      configuredModule = createConfiguredSpaceStationModule(module)
+      configured.module = createConfiguredSpaceStationModule(module)
     } else if (hasModuleCapability(module, 'population')) {
       const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
 
       if (syncedInventory) {
-        configuredModule = applySettlementState(createPopulationModule(
+        configured.module = applySettlementState(createPopulationModule(
           syncedInventory,
           module,
           housingCapacityLevel,
@@ -438,7 +438,7 @@ export const deriveCalculatorModel = ({
         module.liveArea.zoneId,
       )
 
-      configuredModule = createComputingModule(
+      configured.module = createComputingModule(
         areaComputingConfigs.built,
         areaComputingConfigs.running,
         module,
@@ -449,15 +449,16 @@ export const deriveCalculatorModel = ({
       )
     }
 
-    configuredModule = createChickenFarmAreaModule(
-      configuredModule,
+    configured.module = createChickenFarmAreaModule(
+      configured.module,
       currentChickenFarmEntities,
       areaEntities,
+      snapshot.chickenFarmDefinition,
     )
 
     if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId) || liveAreaPlans[module.liveArea.zoneId]?.cropFarms) {
-      configuredModule = createCropFarmAreaModule(
-        configuredModule,
+      configured.module = createCropFarmAreaModule(
+        configured.module,
         currentCropFarmEntities,
         groundwaterClaimLimits[getCropFarmGroundwaterClaimId(module.liveArea.zoneId)],
         liveAreaPlans[module.liveArea.zoneId]?.cropFarms,
@@ -466,12 +467,12 @@ export const deriveCalculatorModel = ({
 
     return officeAreaZoneIds.has(module.liveArea.zoneId) || liveAreaPlans[module.liveArea.zoneId]?.offices
       ? createOfficeAreaModule(
-          configuredModule,
+          configured.module,
           areaEntities,
           officeInventoryPlan,
           liveAreaPlans[module.liveArea.zoneId]?.offices,
         )
-      : configuredModule
+      : configured.module
   })
   const hasGeneratedOfficeModule = configuredLiveAreaModules.some(hasAttachedOfficeRecipes)
   const hasOfficeFallbackInventory = (

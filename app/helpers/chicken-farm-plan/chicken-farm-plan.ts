@@ -1,3 +1,4 @@
+import { type ChickenFarmDefinition } from '../../chicken-farm-state';
 import { type ValueSource } from "../../data-source";
 import {
   getChickenFarmLayout,
@@ -112,6 +113,7 @@ export const resolveChickenFarmEntityPlan = (
   settings: ChickenFarmSettings | null,
   currentEntities: readonly CurrentChickenFarmEntity[],
   direction: PlanDirection,
+  chickenFarm: ChickenFarmDefinition,
 ): ResolvedChickenFarmEntityPlan => {
   if (!settings) {
     return {
@@ -124,7 +126,7 @@ export const resolveChickenFarmEntityPlan = (
     };
   }
 
-  const targetLayout = getChickenFarmLayout(settings.totalChickenCount);
+  const targetLayout = getChickenFarmLayout(settings.totalChickenCount, chickenFarm);
   const entities = [...currentEntities].toSorted((left, right) => left.entityId - right.entityId);
   const matchingRunning = entities.filter(entity => (
     entity.running && entity.slaughtering === settings.slaughtering
@@ -216,15 +218,14 @@ export const resolveChickenFarmEntityPlan = (
     entities.filter(entity => !entity.running && entity.slaughtering !== settings.slaughtering),
   ];
   const candidates = candidateGroups.flat().slice(0, missingFarmCount);
-  let unpauseCount = 0;
-  let configureCount = 0;
+  const changes = { unpauseCount: 0, configureCount: 0 };
 
   for (const candidate of candidates) {
     const effectiveCandidate = effective.find(entity => entity.entityId === candidate.entityId);
 
     if (!effectiveCandidate) continue;
-    if (!candidate.running) unpauseCount++;
-    if (candidate.slaughtering !== settings.slaughtering) configureCount++;
+    if (!candidate.running) changes.unpauseCount++;
+    if (candidate.slaughtering !== settings.slaughtering) changes.configureCount++;
 
     effectiveCandidate.running = true;
     effectiveCandidate.slaughtering = settings.slaughtering;
@@ -238,16 +239,16 @@ export const resolveChickenFarmEntityPlan = (
   const plannedChickenCount = Math.max(availableChickens, targetLayout.totalChickenCount);
   const addChickenCount = Math.max(0, targetLayout.totalChickenCount - availableChickens);
   const actions: PlanMismatchAction[] = [
-    ...(unpauseCount > 0
+    ...(changes.unpauseCount > 0
       ? [{
           type: "unpause" as const,
-          label: `Unpause ${unpauseCount} Chicken ${pluralize("Farm", unpauseCount)}`,
+          label: `Unpause ${changes.unpauseCount} Chicken ${pluralize("Farm", changes.unpauseCount)}`,
         }]
       : []),
-    ...(configureCount > 0
+    ...(changes.configureCount > 0
       ? [{
           type: "configure" as const,
-          label: `Set slaughtering ${settings.slaughtering ? "on" : "off"} for ${configureCount} Chicken ${pluralize("Farm", configureCount)}`,
+          label: `Set slaughtering ${settings.slaughtering ? "on" : "off"} for ${changes.configureCount} Chicken ${pluralize("Farm", changes.configureCount)}`,
         }]
       : []),
     ...(buildCount > 0
