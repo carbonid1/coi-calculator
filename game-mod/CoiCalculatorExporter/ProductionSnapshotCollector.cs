@@ -32,7 +32,7 @@ using Mafi.Core.Vehicles;
 
 internal sealed partial class GameSnapshotCollector
 {
-    private ProductionSnapshot getProductionSnapshot()
+    private ProductionSnapshot getProductionSnapshot(List<ProductionEntitySource> entities)
     {
         List<ChickenFarmEntitySnapshot> chickenFarmEntities =
             new List<ChickenFarmEntitySnapshot>();
@@ -43,14 +43,11 @@ internal sealed partial class GameSnapshotCollector
         List<AreaEntitySnapshot> areaEntities = new List<AreaEntitySnapshot>();
         List<MineTowerSnapshot> mineTowers = new List<MineTowerSnapshot>();
 
-        foreach (IEntity entity in m_entitiesManager.Entities)
+        foreach (ProductionEntitySource source in entities)
         {
+            IEntity entity = source.Entity;
             IStaticEntity staticEntity = entity as IStaticEntity;
-            if (entity.IsDestroyed)
-            {
-                continue;
-            }
-
+            string prototypeId = source.PrototypeId;
             List<LogisticsZoneSnapshot> entityZones = getLogisticsZones(staticEntity);
             MineTower mineTower = entity as MineTower;
             if (mineTower != null && staticEntity != null && staticEntity.IsConstructed)
@@ -68,7 +65,7 @@ internal sealed partial class GameSnapshotCollector
                     entity.Id.Value,
                     assignedOreSorterEntityIds));
             }
-            if (staticEntity != null && isAreaBuilding(entity))
+            if (source.IsAreaBuilding)
             {
                 string prototypeName = staticEntity.Prototype.Strings.Name.TranslatedString;
                 int availableRecipeCount;
@@ -78,9 +75,9 @@ internal sealed partial class GameSnapshotCollector
                     out availableRecipeCount);
                 areaEntities.Add(new AreaEntitySnapshot(
                     entity.Id.Value,
-                    entity.Prototype.Id.ToString(),
+                    prototypeId,
                     String.IsNullOrWhiteSpace(prototypeName)
-                        ? entity.Prototype.Id.ToString()
+                        ? prototypeId
                         : prototypeName,
                     staticEntity.ConstructionState.ToString(),
                     staticEntity.IsConstructed,
@@ -102,15 +99,8 @@ internal sealed partial class GameSnapshotCollector
             }
 
             bool isRunning = !entity.IsPaused;
-            string prototypeId = entity.Prototype.Id.ToString();
-            bool isOceanWaterPump = String.Equals(
-                entity.GetType().FullName,
-                SnapshotTracking.OceanWaterPumpRuntimeTypeName,
-                StringComparison.Ordinal);
             DataCenter dataCenterEntity = entity as DataCenter;
-            if (SnapshotTracking.TrackedProductionPrototypeIds.Contains(prototypeId)
-                || isOceanWaterPump
-                || isAreaBuilding(entity))
+            if (source.IsTrackedProduction)
             {
                 NuclearReactor reactor = entity as NuclearReactor;
                 productionEntities.Add(new ProductionEntitySnapshot(

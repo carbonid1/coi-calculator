@@ -9,13 +9,14 @@ internal sealed partial class GameSnapshotCollector
 {
     public SnapshotDocument Capture()
     {
+        SnapshotEntities entities = getSnapshotEntities();
         int workersAssigned = 0;
         int[] researchLevels = getResearchLevels();
         EdictState[] edictStates = getEdictStates();
-        var storages = getStorageInventory();
-        WorldStateSnapshot world = getWorldStateSnapshot();
-        ProductionSnapshot production = getProductionSnapshot();
-        ContractStateSnapshot contracts = getContractStateSnapshot();
+        var storages = getStorageInventory(entities);
+        WorldStateSnapshot world = getWorldStateSnapshot(entities);
+        ProductionSnapshot production = getProductionSnapshot(entities.Production);
+        ContractStateSnapshot contracts = getContractStateSnapshot(entities.CargoDepots);
 
         foreach (var vehicle in m_vehiclesManager.AllVehicles)
         {

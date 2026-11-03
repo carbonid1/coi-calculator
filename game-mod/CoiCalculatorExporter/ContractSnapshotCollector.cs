@@ -12,7 +12,7 @@ using Mafi.Core.World.Contracts;
 
 internal sealed partial class GameSnapshotCollector
 {
-    private ContractStateSnapshot getContractStateSnapshot()
+    private ContractStateSnapshot getContractStateSnapshot(List<CargoDepot> depots)
     {
         Dictionary<string, EstablishedContractSnapshot> establishedById =
             new Dictionary<string, EstablishedContractSnapshot>(StringComparer.Ordinal);
@@ -24,14 +24,8 @@ internal sealed partial class GameSnapshotCollector
         }
 
         List<ContractRouteSnapshot> routes = new List<ContractRouteSnapshot>();
-        foreach (IEntity entity in m_entitiesManager.Entities)
+        foreach (CargoDepot depot in depots)
         {
-            CargoDepot depot = entity as CargoDepot;
-            if (depot == null || depot.IsDestroyed || !depot.IsConstructed)
-            {
-                continue;
-            }
-
             ContractProto contract = depot.ContractAssigned.ValueOrNull;
             if (contract == null)
             {

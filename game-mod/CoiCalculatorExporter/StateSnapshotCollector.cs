@@ -5,14 +5,12 @@ using Mafi;
 using Mafi.Collections;
 using Mafi.Core;
 using Mafi.Core.Buildings.Storages;
-using Mafi.Core.Entities;
 using Mafi.Core.Factory.ElectricPower;
 using Mafi.Core.Maintenance;
 using Mafi.Core.Population.Edicts;
 using Mafi.Core.Prototypes;
 using Mafi.Core.Research;
 using Mafi.Core.Stats;
-using Mafi.Core.Trains;
 
 internal sealed partial class GameSnapshotCollector
 {
@@ -75,42 +73,17 @@ internal sealed partial class GameSnapshotCollector
         return states;
     }
 
-    private List<StorageSnapshot> getStorageInventory()
+    private static List<StorageSnapshot> getStorageInventory(SnapshotEntities entities)
     {
-        HashSet<EntityId> stationLinkedStorageIds = new HashSet<EntityId>();
-
-        foreach (IEntity entity in m_entitiesManager.Entities)
-        {
-            ITrainStationModule stationModule = entity as ITrainStationModule;
-            if (stationModule == null)
-            {
-                continue;
-            }
-
-            foreach (StorageBase connectedStorage in stationModule.GetConnectedStorages())
-            {
-                stationLinkedStorageIds.Add(connectedStorage.Id);
-            }
-        }
-
         List<StorageSnapshot> storages = new List<StorageSnapshot>();
-        foreach (IEntity entity in m_entitiesManager.Entities)
+        foreach (Storage storage in entities.Storages)
         {
-            Storage storage = entity as Storage;
-            if (storage == null
-                || storage.IsDestroyed
-                || !storage.IsConstructed
-                || !storage.StoredProduct.HasValue)
-            {
-                continue;
-            }
-
             storages.Add(new StorageSnapshot {
                 EntityId = storage.Id.Value,
                 Product = getProductSnapshot(storage.StoredProduct.Value),
                 Quantity = storage.CurrentQuantity.Value,
                 Capacity = storage.Capacity.Value,
-                TrainLinked = stationLinkedStorageIds.Contains(storage.Id),
+                TrainLinked = entities.TrainLinkedStorageIds.Contains(storage.Id),
                 HasAssignedInputs = storage.AssignedInputs.Count > 0,
             });
         }

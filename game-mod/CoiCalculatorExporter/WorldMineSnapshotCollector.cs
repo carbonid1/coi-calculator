@@ -5,7 +5,6 @@ using Mafi.Collections;
 using Mafi.Core.Buildings.Cargo;
 using Mafi.Core.Buildings.Cargo.Modules;
 using Mafi.Core.Buildings.Cargo.Ships;
-using Mafi.Core.Entities;
 using Mafi.Core.Factory.ElectricPower;
 using Mafi.Core.Population;
 using Mafi.Core.World;
@@ -13,7 +12,7 @@ using Mafi.Core.World.Entities;
 
 internal sealed partial class GameSnapshotCollector
 {
-    private WorldStateSnapshot getWorldStateSnapshot()
+    private WorldStateSnapshot getWorldStateSnapshot(SnapshotEntities entities)
     {
         WorldStateSnapshot result = new WorldStateSnapshot();
         foreach (WorldMapMine mine in m_worldMapManager.Mines)
@@ -49,17 +48,15 @@ internal sealed partial class GameSnapshotCollector
                 DepositQuantity = mine.QuantityAvailable.HasValue ? (int?)mine.QuantityAvailable.Value.Value : null,
             });
         }
-        foreach (IEntity entity in m_entitiesManager.Entities)
+        foreach (CargoDepot depot in entities.CargoDepots)
         {
-            CargoDepot depot = entity as CargoDepot;
-            if (depot != null && !depot.IsDestroyed && depot.IsConstructed && !depot.ContractAssigned.HasValue)
+            if (!depot.ContractAssigned.HasValue)
                 result.Routes.Add(getCargoRouteSnapshot(depot));
-            CargoShipV2 ship = entity as CargoShipV2;
-            if (ship != null && !ship.IsDestroyed && !ship.AssignedDepot.HasValue)
-            {
-                result.UnassignedWorkers += EntityWithWorkersExtensions.WorkersAssigned(ship);
-                if (ship.IsEnabled) result.UnassignedShipIds.Add(ship.Id.Value);
-            }
+        }
+        foreach (CargoShipV2 ship in entities.UnassignedCargoShips)
+        {
+            result.UnassignedWorkers += EntityWithWorkersExtensions.WorkersAssigned(ship);
+            if (ship.IsEnabled) result.UnassignedShipIds.Add(ship.Id.Value);
         }
         result.Mines.Sort(delegate(WorldMineSnapshot a, WorldMineSnapshot b) { return a.EntityId.CompareTo(b.EntityId); });
         result.Routes.Sort(delegate(ContractRouteSnapshot a, ContractRouteSnapshot b) { return a.DepotEntityId.CompareTo(b.DepotEntityId); });
