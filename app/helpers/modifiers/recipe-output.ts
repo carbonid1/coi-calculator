@@ -95,7 +95,8 @@ export const getRecipeInputQuantity = (
 
   if (farmGroup) {
     return calculateFarmIrrigationRates(
-      farmGroup,
+      farmGroup.group,
+      farmGroup.definitions,
       multiplier,
       modifiers.rainwaterYield ?? 1,
       modifiers.weather,
@@ -116,7 +117,7 @@ export const getRecipeGrossInputQuantity = (
   const farmGroup = getWeatherAdjustedFarm(input);
 
   if (farmGroup) {
-    return calculateFarmIrrigationRates(farmGroup, multiplier).grossWaterPerMonth;
+    return calculateFarmIrrigationRates(farmGroup.group, farmGroup.definitions, multiplier).grossWaterPerMonth;
   }
 
   if (!input.inputModifierId) return input.quantity;

@@ -358,6 +358,7 @@ export const deriveCalculatorModel = ({
         defaultGroundwaterConstraint,
       ),
       currentCropFarmEntities,
+      snapshot.cropFarming,
     ),
     mines,
     createReservesModule(snapshot.reserves),
@@ -404,6 +405,7 @@ export const deriveCalculatorModel = ({
       configured.module = createDefaultCropFarmModule(
         applyDefaultAreaPlan(module),
         currentCropFarmEntities,
+        snapshot.cropFarming,
         defaultGroundwaterConstraint,
       )
     } else if (nuclearReactorZoneIds.has(module.liveArea.zoneId)) {
@@ -459,6 +461,7 @@ export const deriveCalculatorModel = ({
       configured.module = createCropFarmAreaModule(
         configured.module,
         currentCropFarmEntities,
+        snapshot.cropFarming,
         groundwaterClaimLimits[getCropFarmGroundwaterClaimId(module.liveArea.zoneId)],
         liveAreaPlans[module.liveArea.zoneId]?.cropFarms,
       )

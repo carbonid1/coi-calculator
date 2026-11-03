@@ -1,5 +1,6 @@
 import { isBuildingDefinitions, type BuildingDefinition } from './building-state'
 import { isChickenFarmDefinition, type ChickenFarmDefinition } from './chicken-farm-state'
+import { isCropFarmingDefinitions, type CropFarmingDefinitions } from './crop-farming-state'
 import { edictCatalog, type EdictId, type EdictLevel, mapEdictValues } from './db/edicts'
 import {
   emptyInfiniteResearchLevels,
@@ -297,12 +298,13 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 47 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 48 as const
 
 export interface GameStateSnapshot {
   chickenFarmDefinition: ChickenFarmDefinition
   rocketIiDefinition: RocketIiDefinition
   spaceStationLevels: SpaceStationLevelDefinition[]
+  cropFarming: CropFarmingDefinitions
   buildingDefinitions: BuildingDefinition[]
   products?: NativeProducts
   recycling: RecyclingData
@@ -1077,6 +1079,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   if (!isChickenFarmDefinition(snapshot.chickenFarmDefinition)) return null
   if (!isRocketIiDefinition(snapshot.rocketIiDefinition)) return null
   if (!isSpaceStationLevels(snapshot.spaceStationLevels)) return null
+  if (!isCropFarmingDefinitions(snapshot.cropFarming)) return null
   if (snapshot.products !== undefined && (!isNativeProducts(snapshot.products)
     || snapshot.products.gameId !== snapshot.gameId || snapshot.products.sessionId !== snapshot.sessionId)) return null
   if (!isRecyclingData(snapshot.recycling)) return null
@@ -1199,6 +1202,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     chickenFarmDefinition: snapshot.chickenFarmDefinition,
     rocketIiDefinition: snapshot.rocketIiDefinition,
     spaceStationLevels: snapshot.spaceStationLevels,
+    cropFarming: snapshot.cropFarming,
     buildingDefinitions: snapshot.buildingDefinitions,
     ...(snapshot.products === undefined ? {} : { products: snapshot.products }),
     recycling: snapshot.recycling,

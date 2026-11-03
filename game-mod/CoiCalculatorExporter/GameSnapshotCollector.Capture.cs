@@ -15,7 +15,8 @@ internal sealed partial class GameSnapshotCollector
         EdictState[] edictStates = getEdictStates();
         var storages = getStorageInventory(entities);
         WorldStateSnapshot world = getWorldStateSnapshot(entities);
-        ProductionSnapshot production = getProductionSnapshot(entities.Production);
+        var fertilizers = getFertilizerSources();
+        ProductionSnapshot production = getProductionSnapshot(entities.Production, fertilizers);
         ContractStateSnapshot contracts = getContractStateSnapshot(entities.CargoDepots);
 
         foreach (var vehicle in m_vehiclesManager.AllVehicles)
@@ -62,6 +63,7 @@ internal sealed partial class GameSnapshotCollector
             getBuildingDefinitions(),
             getChickenFarmDefinition(),
             getRocketIiDefinition(),
-            getSpaceStationLevels());
+            getSpaceStationLevels(),
+            getCropFarmingSnapshot(fertilizers));
     }
 }

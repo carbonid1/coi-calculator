@@ -3,18 +3,24 @@ import { gunzipSync } from 'node:zlib'
 import { expect, it } from 'vitest'
 
 import { type ChickenFarmDefinition } from '../app/chicken-farm-state'
+import { getCropFarmingData, type CropFarmingDefinitions } from '../app/crop-farming-state'
+import { type CropFarmGroup } from '../app/db/crop-farming'
+import { createCropFarmAreaModule, createDefaultCropFarmModule, getCropFarmGroundwaterRecipeId } from '../app/db/modules/crop-farm-areas'
 import { createChickenFarmsModule } from '../app/db/modules/farms'
 import { createSpaceStationModule } from '../app/db/modules/space-station'
 import { calculateSpaceStationLevel } from '../app/db/space-station'
-import { normalizeGameStateSnapshot } from '../app/game-state'
+import { normalizeGameStateSnapshot, type GameStateSnapshot } from '../app/game-state'
 import { buildModuleLines } from '../app/helpers/build-module-lines/build-module-lines'
 import { calculateBuildingStats } from '../app/helpers/building-stats/building-stats'
 import { calculateNet } from '../app/helpers/calculate/calculate'
 import { deriveCalculatorModel } from '../app/helpers/calculator-model/derive-calculator-model'
 import { calculateContractWorkers } from '../app/helpers/contracts/calculate-contracts'
 import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/factory-calculation'
+import { createLiveAreaModules } from '../app/helpers/live-area-modules/live-area-modules'
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
+import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
+import { calculateFarmIrrigationRates } from '../app/helpers/weather/calculate-farm-irrigation'
 import { type RocketIiDefinition } from '../app/rocket-state'
 import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 
@@ -270,6 +276,140 @@ it('replays native station tiers through operations, crew requirements, research
 
   expect(amount(earlyOperations?.actualInputs ?? [], 'stationPartsBasic')).toBe(earlyLevels[0].maintenance.quantity)
   expect(amount(earlyOperations?.actualInputs ?? [], 'stationParts')).toBe(0)
+}, 60_000)
+
+it('replays crop rotations, fertilizer limits, irrigation and expansion using the native definitions', () => {
+  const source = normalizeGameStateSnapshot(capture)
+
+  if (!source) throw new Error('Recorded crop data is incompatible')
+  const farm = source.cropFarms.find(entity => entity.prototypeId === 'FarmT4')
+  const building = source.areaEntities.find(entity => entity.entityId === farm?.entityId)
+
+  if (!farm || !building) throw new Error('Recorded factory must contain a Greenhouse II')
+  const zone = 1_000_010
+  const zones = [{ id: -1, name: 'Default' }, { id: zone, name: 'Crop smoke' }, { id: zone + 1, name: 'Other crop area' }]
+
+  type FarmState = Partial<GameStateSnapshot['cropFarms'][number]> & { ghost?: boolean }
+  const replay = (states: FarmState[], definitions = source.cropFarming, plan?: CropFarmGroup[]) => {
+    const raw = structuredClone(source)
+
+    raw.cropFarming = definitions
+    raw.cropFarms = []
+    raw.areaEntities = []
+    raw.logisticsZones = zones.filter(zone => zone.id > 0)
+    for (const [index, state] of states.entries()) {
+      const entity = { ...farm, entityId: 1_800_001_000 + index, running: true,
+        schedule: ['Crop_Potato', 'Crop_Fruits', 'Crop_Wheat', 'Crop_Soybeans'],
+        fertilityTargetPercent: 110, fertilizerProductId: 'Product_Fertilizer2' as const,
+        zones: [zones[1]], ...state }
+
+      entity.schedule = Array.from({ length: 4 }, (_, slot) => entity.schedule[slot] ?? null)
+
+      if (!state.ghost) raw.cropFarms.push(entity)
+      raw.areaEntities.push({ ...building, entityId: entity.entityId, zones: entity.zones ?? [],
+        running: !state.ghost && entity.running, constructed: !state.ghost,
+        constructionState: state.ghost ? 'InConstruction' : 'Constructed' })
+    }
+    const snapshot = normalizeGameStateSnapshot(raw)
+
+    if (!snapshot) throw new Error('Crop replay is invalid')
+    const entities = getSyncedCropFarmEntities(snapshot.cropFarms)
+    const areas = createLiveAreaModules(zones, snapshot.areaEntities).map(area => area.liveArea?.zoneId === -1
+      ? createDefaultCropFarmModule(area, entities, snapshot.cropFarming)
+      : createCropFarmAreaModule(area, entities, snapshot.cropFarming, undefined, area.liveArea?.zoneId === zone ? plan : undefined))
+    const report = (id = zone) => {
+      const area = areas.find(area => area.liveArea?.zoneId === id)
+
+      if (!area) throw new Error(`Crop area ${id} is missing`)
+      const preset = area.presets[0]
+      const lines = buildModuleLines(area, preset, { buildingDefinitions: source.buildingDefinitions, weather: source.weather }).lines
+      const result = calculateNet(lines, undefined, undefined, { weather: source.weather })
+
+      return { area, preset, lines, result }
+    }
+
+    return { report, snapshot }
+  }
+  const quantity = (run: ReturnType<ReturnType<typeof replay>['report']>, id: string, side: 'produced' | 'consumed' = 'produced') => (
+    run.result.allResourceFlows.find(flow => flow.resourceId === id)?.[side] ?? 0
+  )
+  const native = getCropFarmingData(source.cropFarming)
+  const wheat = native.crop('wheat')
+  const corn = native.crop('corn')
+  const empty = native.crop('none')
+
+  // Empty slots disappear; an explicit No Crop still occupies its native duration.
+  for (const [schedule, months] of [
+    [['Crop_Wheat', null, null, null], wheat.growthMonths],
+    [['Crop_Wheat', null, 'Crop_Corn', null], wheat.growthMonths + corn.growthMonths],
+    [['Crop_Wheat', 'Crop_Corn', 'Crop_NoCrop', null], wheat.growthMonths + corn.growthMonths + empty.growthMonths],
+  ] as const) {
+    const run = replay([{ schedule: [...schedule], fertilityTargetPercent: 140 }]).report()
+
+    expect(quantity(run, 'wheat')).toBeCloseTo(wheat.quantityPerHarvest * 1.5 * 1.4 / months)
+    expect(run.lines[0].dataSource).toBe('synced')
+  }
+  const mixed = replay([{}, {}, { fertilizerProductId: 'Product_Fertilizer' }, { fertilityTargetPercent: 120 }]).report()
+
+  expect(mixed.lines.map(line => line.builtBuildings).toSorted()).toEqual([1, 1, 2])
+  const overlapping = replay([{ zones: [zones[2], zones[1]] }, { zones: [] }])
+
+  expect(overlapping.report().lines).toHaveLength(1)
+  expect(overlapping.report(zone + 1).lines).toHaveLength(0)
+  expect(overlapping.report(-1).lines).toHaveLength(1)
+  for (const schedule of [[], ['Crop_Modded'], ['Crop_NoCrop']]) {
+    const run = replay([{ schedule, fertilityTargetPercent: 0, fertilizerProductId: null }]).report()
+
+    expect(run.result.allResourceFlows.every(flow => flow.produced === 0)).toBe(true)
+    if (schedule[0] === 'Crop_Modded') expect(run.area.liveArea?.issues)
+      .toContainEqual(expect.objectContaining({ id: 'crop-farms:unsupported-crop' }))
+  }
+  const limited = replay([{ fertilizerProductId: 'Product_FertilizerOrganic', fertilityTargetPercent: 140 }]).report()
+  const reachable = replay([{ fertilizerProductId: 'Product_FertilizerOrganic', fertilityTargetPercent: 100 }]).report()
+
+  expect(limited.lines[0].recipe.outputs).toEqual(reachable.lines[0].recipe.outputs)
+  expect(limited.area.liveArea?.issues).toContainEqual(expect.objectContaining({ id: 'crop-farms:fertilizer-limit' }))
+  const plan: CropFarmGroup[] = [{ id: 'corn-wheat', name: 'Corn / Wheat', farmCount: 2, tierId: 'greenhouseII',
+    schedule: ['corn', 'wheat'], fertilizer: { id: 'fertilizerII', targetFertilityPercent: 140 } }]
+  const planned = replay([{ schedule: [], running: false }, { ghost: true }], source.cropFarming, plan).report()
+
+  expect(planned.lines.find(line => line.recipe.id.includes(':crop-farm-plan:')))
+    .toMatchObject({ builtBuildings: 1, activeBuildings: 2, currentActiveBuildings: 0, constructionGhosts: 1, dataSource: 'planned' })
+  expect(planned.preset.unplacedPlannedBuildings).toEqual({})
+  const changed: CropFarmingDefinitions = structuredClone(source.cropFarming)
+  const changedWheat = changed.crops.find(crop => crop.id === 'Crop_Wheat')
+  const fertilizer = changed.fertilizers.find(fertilizer => fertilizer.productId === 'Product_Fertilizer2')
+
+  if (!changedWheat || !fertilizer) throw new Error('Crop smoke definitions are missing')
+  changedWheat.quantityPerHarvest *= 3
+  changedWheat.growthMonths *= 2
+  changedWheat.waterPerDay *= 2
+  fertilizer.fertilityPercentPerUnit *= 2
+  const original = replay([{ schedule: ['Crop_Wheat'] }]).report()
+  const updated = replay([{ schedule: ['Crop_Wheat'] }], changed).report()
+
+  expect(quantity(updated, 'wheat')).toBeCloseTo(quantity(original, 'wheat') * 1.5)
+  expect(quantity(updated, 'fertilizerII', 'consumed')).toBeCloseTo(quantity(original, 'fertilizerII', 'consumed') / 2)
+  const group = plan[0]
+  const water = calculateFarmIrrigationRates(group, source.cropFarming, 1, 1, source.weather)
+  const rain = calculateFarmIrrigationRates(group, source.cropFarming, 1, 1.5, source.weather)
+  const changedWater = calculateFarmIrrigationRates({ ...group, schedule: ['wheat'] }, changed, 1, 1, source.weather)
+  const originalWater = calculateFarmIrrigationRates({ ...group, schedule: ['wheat'] }, source.cropFarming, 1, 1, source.weather)
+
+  expect(rain.grossWaterPerMonth).toBe(water.grossWaterPerMonth)
+  expect(rain.importedWaterPerMonth).toBeLessThan(water.importedWaterPerMonth)
+  expect(changedWater.grossWaterPerMonth).toBeGreaterThan(originalWater.grossWaterPerMonth * 1.9)
+  expect(changedWater.importedWaterPerMonth).toBeGreaterThan(originalWater.importedWaterPerMonth)
+
+  const pumpId = getCropFarmGroundwaterRecipeId(zone)
+  const base = replay([{}]).report().area
+  const constrained = createCropFarmAreaModule({ ...base, recipes: [{ id: pumpId, name: 'Pump', building: 'Groundwater Pump',
+    group: 'source', inputs: [], outputs: [{ resourceId: 'water', quantity: 48 }] }],
+  }, [], source.cropFarming, { aquiferCount: 1, currentReserve: 12_000, reserveCapacity: 20_000,
+    projectedPumpCount: 3, aquiferSustainableCeilingPerCycle: 90, pumpCapacityPerCycle: 144, sustainableOutputPerCycle: 90 })
+
+  expect(constrained.recipes?.find(recipe => recipe.id === pumpId)).toMatchObject({ sourceMode: 'module-demand-capped', sourceKind: 'groundwater',
+    outputs: [{ resourceId: 'water', quantity: 30 }] })
 }, 60_000)
 
 it('replays chicken inventory, construction and plans using the supplied farm definition', () => {

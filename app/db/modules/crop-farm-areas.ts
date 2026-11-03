@@ -1,9 +1,9 @@
+import { getCropFarmingData, type CropFarmingDefinitions } from '../../crop-farming-state'
 import { allocateCropFarmPlan, type PlannedCropFarmInventory } from '../../helpers/crop-farm-plan/crop-farm-plan'
 import { type GroundwaterSourceConstraint } from '../../helpers/groundwater/calculate-groundwater-production'
 import {
   crops,
   cropFarmTiers,
-  fertilizers,
   type CropFarmGroup,
   type CropId,
   type CropSchedule,
@@ -120,6 +120,7 @@ const cropFarmStatusRecipe = (
 const attachCropFarms = (
   module: Module,
   allEntities: readonly CurrentCropFarmEntity[],
+  definitions: CropFarmingDefinitions,
   ownerZoneId: number | null,
   groundwaterConstraint?: GroundwaterSourceConstraint,
   plan?: readonly CropFarmGroup[],
@@ -187,7 +188,7 @@ const attachCropFarms = (
     if (
       entity.fertilizerId
       && entity.fertilityTargetPercent
-        > fertilizers[entity.fertilizerId].maximumFertilityPercent
+        > getCropFarmingData(definitions).fertilizer(entity.fertilizerId).maximumFertilityPercent
     ) {
       issueCounts.fertilizerLimit++
     }
@@ -228,7 +229,7 @@ const attachCropFarms = (
   const farmRecipes = [...grouped.values()].map(inventory => {
     inventory.group.farmCount = Math.max(inventory.built, inventory.running)
 
-    return createCropFarmRecipe(inventory.group)
+    return createCropFarmRecipe(inventory.group, definitions)
   })
   const statusRecipes = [...statuses.values()].map(inventory => inventory.recipe)
   const addedRecipes = [...farmRecipes, ...statusRecipes]
@@ -364,6 +365,7 @@ const attachCropFarms = (
 export const createCropFarmAreaModule = (
   generatedArea: Module,
   entities: readonly CurrentCropFarmEntity[],
+  definitions: CropFarmingDefinitions,
   groundwaterConstraint?: GroundwaterSourceConstraint,
   plan?: readonly CropFarmGroup[],
 ) => {
@@ -371,11 +373,12 @@ export const createCropFarmAreaModule = (
 
   return zoneId === undefined
     ? generatedArea
-    : attachCropFarms(generatedArea, entities, zoneId, groundwaterConstraint, plan)
+    : attachCropFarms(generatedArea, entities, definitions, zoneId, groundwaterConstraint, plan)
 }
 
 export const createDefaultCropFarmModule = (
   defaultModule: Module,
   entities: readonly CurrentCropFarmEntity[],
+  definitions: CropFarmingDefinitions,
   groundwaterConstraint?: GroundwaterSourceConstraint,
-) => attachCropFarms(defaultModule, entities, null, groundwaterConstraint)
+) => attachCropFarms(defaultModule, entities, definitions, null, groundwaterConstraint)

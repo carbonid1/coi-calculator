@@ -4,7 +4,7 @@ import { defaultInfiniteResearchLevels } from '../db/research'
 import { CURRENT_GAME_STATE_SCHEMA_VERSION, normalizeGameStateSnapshot } from '../game-state'
 import { deriveCalculatorModel } from '../helpers/calculator-model/derive-calculator-model'
 import { testBuildingDefinitions } from './building-requirements'
-import { testChickenFarmDefinition, testRocketIiDefinition, testSpaceStationLevels } from './recorded-game-data'
+import { testChickenFarmDefinition, testCropFarming, testRocketIiDefinition, testSpaceStationLevels } from './recorded-game-data'
 import { emptySettlement, testWeather } from './synced-island-settings'
 
 export const createCacheTestModel = () => {
@@ -16,6 +16,7 @@ export const createCacheTestModel = () => {
     chickenFarmDefinition: testChickenFarmDefinition,
     rocketIiDefinition: testRocketIiDefinition,
     spaceStationLevels: testSpaceStationLevels,
+    cropFarming: testCropFarming,
     buildingDefinitions: testBuildingDefinitions,
     recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
     gameVersion: '0.8.8',

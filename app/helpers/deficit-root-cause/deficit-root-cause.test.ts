@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { type CropFarmGroup } from "../../db/crop-farming";
 import { createCropFarmRecipe } from "../../db/recipes";
 import { type ResourceId, resources } from "../../db/resources";
+import { testCropFarming } from '../../test-fixtures/recorded-game-data';
 import { type RegularResult, type ResourceFlow } from "../calculate/calculate";
 import { getDeficitRootCause } from "./deficit-root-cause";
 
@@ -12,7 +13,7 @@ const farm = (overrides: Partial<CropFarmGroup> = {}, supplyRatio = 1): RegularR
     tierId: "greenhouseII", schedule: ["corn", "wheat"],
     fertilizer: { id: "fertilizerII", targetFertilityPercent: 110 },
     ...overrides,
-  }),
+  }, testCropFarming),
   moduleId: "farms", activeBuildings: 1, builtBuildings: 1,
   operatingMode: "fixed", supplyRatio, speedLevel: 1,
   actualInputs: [], actualOutputs: [], recyclableSourceValueProduced: 0,

@@ -10,7 +10,7 @@ import {
 } from './game-state'
 import { testBuildingDefinitions } from './test-fixtures/building-requirements'
 import { testProducts } from './test-fixtures/products'
-import { testChickenFarmDefinition, testRocketIiDefinition, testSpaceStationLevels } from './test-fixtures/recorded-game-data'
+import { testChickenFarmDefinition, testCropFarming, testRocketIiDefinition, testSpaceStationLevels } from './test-fixtures/recorded-game-data'
 import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
@@ -27,6 +27,7 @@ const currentSnapshot = {
   chickenFarmDefinition: testChickenFarmDefinition,
   rocketIiDefinition: testRocketIiDefinition,
   spaceStationLevels: testSpaceStationLevels,
+  cropFarming: testCropFarming,
   buildingDefinitions: testBuildingDefinitions,
   recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
   gameVersion: '0.8.8',
@@ -73,6 +74,20 @@ const currentSnapshot = {
 }
 
 describe('game-state snapshot validation', () => {
+  it('requires complete native crop and fertilizer definitions', () => {
+    const first = testCropFarming.crops[0]
+
+    if (!first) throw new Error('Recorded crops are missing')
+    for (const data of [undefined, null, {},
+      { ...testCropFarming, crops: testCropFarming.crops.slice(1) },
+      { ...testCropFarming, fertilizers: [] },
+      { ...testCropFarming, crops: [...testCropFarming.crops, first] },
+      ...[{ growthMonths: 0 }, { waterPerDay: Number.NaN }, { quantityPerHarvest: -1 },
+        { survivesWithoutWaterMonths: -1 }, { productId: 'unknown', productName: 'unknown' }]
+        .map(change => ({ ...testCropFarming, crops: [{ ...first, ...change }, ...testCropFarming.crops.slice(1)] })),
+      { ...testCropFarming, fertilizers: testCropFarming.fertilizers.map(fertilizer => ({ ...fertilizer, fertilityPercentPerUnit: 0 })) },
+    ]) expect(normalizeGameStateSnapshot({ ...currentSnapshot, cropFarming: data })).toBeNull()
+  })
   it('requires ordered native station tiers and rejects incomplete or unsupported values', () => {
     const first = testSpaceStationLevels[0]
 
@@ -146,7 +161,7 @@ describe('game-state snapshot validation', () => {
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 41 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 42 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 43 })).toBe(false)
-    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 46 })).toBe(false)
+    expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: 47 })).toBe(false)
     expect(isGameStateSnapshot({ ...currentSnapshot, schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION + 1 })).toBe(false)
   })
 

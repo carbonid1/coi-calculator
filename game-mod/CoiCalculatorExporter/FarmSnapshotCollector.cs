@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 
-using Mafi;
 using Mafi.Core.Buildings.Farms;
 using Mafi.Core.Factory.Transports;
 using Mafi.Core.Ports.Io;
@@ -8,7 +8,7 @@ using Mafi.Core.Products;
 
 internal sealed partial class GameSnapshotCollector
 {
-    private string getCropFarmFertilizerProductId(Farm farm)
+    private string getCropFarmFertilizerProductId(Farm farm, List<FertilizerSource> fertilizers)
     {
         bool pipeIsAmbiguous;
         string pipeProductId = getCropFarmPipeFertilizerProductId(
@@ -29,25 +29,17 @@ internal sealed partial class GameSnapshotCollector
             return null;
         }
 
-        Percent maximumFertility = farm.MaxFertilityProvidedByFertilizer;
-        Percent fertilityPerUnit = farm.FertilityPerFertilizer;
-        if (maximumFertility == 100.Percent()
-            && fertilityPerUnit == 1.Percent())
+        string match = null;
+        foreach (FertilizerSource fertilizer in fertilizers)
         {
-            return SnapshotTracking.OrganicFertilizerProductId;
+            if (fertilizer.Parameters.MaxFertility != farm.MaxFertilityProvidedByFertilizer
+                || fertilizer.Parameters.FertilityPerQuantity != farm.FertilityPerFertilizer) continue;
+            // Identical native parameters do not identify one product uniquely.
+            string productId = getFertilizerProductId(fertilizer.Product.SlimId);
+            if (match != null || productId == null) return null;
+            match = productId;
         }
-        if (maximumFertility == 120.Percent()
-            && fertilityPerUnit == 2.Percent())
-        {
-            return SnapshotTracking.FertilizerIProductId;
-        }
-        if (maximumFertility == 140.Percent()
-            && fertilityPerUnit == 2.5.Percent())
-        {
-            return SnapshotTracking.FertilizerIiProductId;
-        }
-
-        return null;
+        return match;
     }
 
     private string getCropFarmPipeFertilizerProductId(
@@ -114,15 +106,11 @@ internal sealed partial class GameSnapshotCollector
     private string getFertilizerProductId(ProductSlimId slimId)
     {
         ProductProto product = slimId.ToFullOrPhantom(m_productsManager.SlimIdManager);
+        if (!product.HasParam<FertilizerProductParam>()) return null;
         string productId = product.Id.ToString();
-
-        if (String.Equals(productId, SnapshotTracking.OrganicFertilizerProductId, StringComparison.Ordinal)
-            || String.Equals(productId, SnapshotTracking.FertilizerIProductId, StringComparison.Ordinal)
-            || String.Equals(productId, SnapshotTracking.FertilizerIiProductId, StringComparison.Ordinal))
-        {
-            return productId;
-        }
-
-        return null;
+        // Keep unsupported fertilizers unidentified, matching the client domain.
+        return productId == SnapshotTracking.OrganicFertilizerProductId
+            || productId == SnapshotTracking.FertilizerIProductId
+            || productId == SnapshotTracking.FertilizerIiProductId ? productId : null;
     }
 }

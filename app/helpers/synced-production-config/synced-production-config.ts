@@ -1,34 +1,13 @@
+import { gameCropIds, gameFertilizerIds } from '../../crop-farming-state';
 import { type CurrentChickenFarmEntity } from "../../db/chicken-farm";
 import {
   type CurrentCropFarmEntity,
-  type FertilizerId,
 } from "../../db/crop-farming";
 import {
   type SyncedChickenFarmEntity,
   type SyncedCropFarmEntity,
 } from "../../game-state";
 
-const gameCropIds: Record<string, string> = {
-  Crop_NoCrop: "none",
-  Crop_GreenManure: "greenManure",
-  Crop_Potato: "potato",
-  Crop_Corn: "corn",
-  Crop_Wheat: "wheat",
-  Crop_TreeSapling: "treeSapling",
-  Crop_Soybeans: "soybean",
-  Crop_SugarCane: "sugarCane",
-  Crop_Vegetables: "vegetables",
-  Crop_Fruits: "fruit",
-  Crop_Canola: "canola",
-  Crop_Poppy: "poppy",
-  Crop_Flowers: "flowers",
-};
-
-const gameFertilizerIds: Record<string, FertilizerId> = {
-  Product_FertilizerOrganic: "organic",
-  Product_Fertilizer: "fertilizerI",
-  Product_Fertilizer2: "fertilizerII",
-};
 
 const getSyncedFertilizerId = (
   fertilizerProductId: string | null | undefined,

@@ -1,3 +1,4 @@
+import { getCropFarmingData, type CropFarmingDefinitions } from '../crop-farming-state'
 import { type GroundwaterSourceConstraint } from '../helpers/groundwater/calculate-groundwater-production'
 import { type RecyclingSources } from '../helpers/recycling/recycling'
 import { type BuildingData } from './buildings'
@@ -5,7 +6,6 @@ import { computingRecipeIds, dataCenter } from './computing'
 import {
   calculateCropFarmGroupRates,
   cropFarmTiers,
-  fertilizers,
   type CropFarmGroup,
 } from './crop-farming'
 import { activeHousingType, housingTypes } from './housing'
@@ -28,7 +28,7 @@ export interface Ingredient {
   /** Applies the configured seed's finite-buffer farm rainfall simulation. */
   weatherAdjustedFarmId?: string
   /** Runtime-defined farm configuration used when no static farm ID exists. */
-  weatherAdjustedFarm?: CropFarmGroup
+  weatherAdjustedFarm?: { group: CropFarmGroup; definitions: CropFarmingDefinitions }
 }
 
 export type RecipeGroup = 'source' | 'electricity' | 'production' | 'waste' | 'sink'
@@ -221,9 +221,9 @@ const housingIiPopulationFlows = calculateSettlementPopulationFlows(
   housingTypes.housingII,
 )
 
-export const createCropFarmRecipe = (group: CropFarmGroup): Recipe => {
-  const rates = calculateCropFarmGroupRates(group)
-  const fertilizerDefinition = group.fertilizer ? fertilizers[group.fertilizer.id] : null
+export const createCropFarmRecipe = (group: CropFarmGroup, definitions: CropFarmingDefinitions): Recipe => {
+  const rates = calculateCropFarmGroupRates(group, definitions)
+  const fertilizerDefinition = group.fertilizer ? getCropFarmingData(definitions).fertilizer(group.fertilizer.id) : null
   const fertilizerInput = fertilizerDefinition
     ? [
         {
@@ -253,7 +253,7 @@ export const createCropFarmRecipe = (group: CropFarmGroup): Recipe => {
         quantity: rates.waterPerMonth,
         inputModifierId: 'cropWater',
         weatherAdjustedFarmId: group.id,
-        weatherAdjustedFarm: group,
+        weatherAdjustedFarm: { group, definitions },
       },
       ...fertilizerInput,
     ],

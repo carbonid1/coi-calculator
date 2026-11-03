@@ -1,3 +1,4 @@
+import { getCropFarmingData, type CropFarmingDefinitions } from '../crop-farming-state';
 import { type ResourceId } from "./resources";
 
 export type CropFarmTierId = "farm" | "irrigatedFarm" | "greenhouse" | "greenhouseII";
@@ -156,172 +157,73 @@ export const cropFarmTiers = {
   },
 } as const satisfies Record<CropFarmTierId, CropFarmTier>;
 
-export const fertilizers = {
-  organic: {
-    id: "organic",
-    resourceId: "fertilizerOrganic",
-    fertilityPercentPerUnit: 1,
-    maximumFertilityPercent: 100,
-  },
-  fertilizerI: {
-    id: "fertilizerI",
-    resourceId: "fertilizerI",
-    fertilityPercentPerUnit: 2,
-    maximumFertilityPercent: 120,
-  },
-  fertilizerII: {
-    id: "fertilizerII",
-    resourceId: "fertilizerII",
-    fertilityPercentPerUnit: 2.5,
-    maximumFertilityPercent: 140,
-  },
-} as const satisfies Record<FertilizerId, FertilizerDefinition>;
-
 export const crops = {
   none: {
     id: "none",
     name: "No Crop",
     productId: null,
-    quantityPerHarvest: 0,
-    waterPerDay: 0,
-    fertilityPercentPerDay: 0,
-    growthMonths: 3,
-    survivesWithoutWaterMonths: null,
-    requiresGreenhouse: false,
   },
   greenManure: {
     id: "greenManure",
     name: "Green Manure",
     productId: null,
-    quantityPerHarvest: 0,
-    waterPerDay: 0.9,
-    fertilityPercentPerDay: -0.12,
-    growthMonths: 2,
-    survivesWithoutWaterMonths: null,
-    requiresGreenhouse: false,
   },
   potato: {
     id: "potato",
     name: "Potato",
     productId: "potato",
-    quantityPerHarvest: 58,
-    waterPerDay: 1.2,
-    fertilityPercentPerDay: 0.35,
-    growthMonths: 3,
-    survivesWithoutWaterMonths: 3,
-    requiresGreenhouse: false,
   },
   corn: {
     id: "corn",
     name: "Corn",
     productId: "corn",
-    quantityPerHarvest: 66,
-    waterPerDay: 1.33,
-    fertilityPercentPerDay: 0.4,
-    growthMonths: 4,
-    survivesWithoutWaterMonths: 1,
-    requiresGreenhouse: false,
   },
   wheat: {
     id: "wheat",
     name: "Wheat",
     productId: "wheat",
-    quantityPerHarvest: 58,
-    waterPerDay: 1.06,
-    fertilityPercentPerDay: 0.35,
-    growthMonths: 6,
-    survivesWithoutWaterMonths: 2,
-    requiresGreenhouse: false,
   },
   treeSapling: {
     id: "treeSapling",
     name: "Tree Sapling",
     productId: "treeSapling",
-    quantityPerHarvest: 60,
-    waterPerDay: 0.9,
-    fertilityPercentPerDay: 0.2,
-    growthMonths: 12,
-    survivesWithoutWaterMonths: 10,
-    requiresGreenhouse: false,
   },
   soybean: {
     id: "soybean",
     name: "Soybean",
     productId: "soybean",
-    quantityPerHarvest: 22,
-    waterPerDay: 1.2,
-    fertilityPercentPerDay: 0.5,
-    growthMonths: 4,
-    survivesWithoutWaterMonths: 1,
-    requiresGreenhouse: false,
   },
   sugarCane: {
     id: "sugarCane",
     name: "Sugar Cane",
     productId: "sugarCane",
-    quantityPerHarvest: 198,
-    waterPerDay: 1.6,
-    fertilityPercentPerDay: 0.5,
-    growthMonths: 9,
-    survivesWithoutWaterMonths: 3,
-    requiresGreenhouse: true,
   },
   vegetables: {
     id: "vegetables",
     name: "Vegetables",
     productId: "vegetables",
-    quantityPerHarvest: 60,
-    waterPerDay: 1.07,
-    fertilityPercentPerDay: 0.35,
-    growthMonths: 4,
-    survivesWithoutWaterMonths: 3,
-    requiresGreenhouse: false,
   },
   fruit: {
     id: "fruit",
     name: "Fruit",
     productId: "fruit",
-    quantityPerHarvest: 80,
-    waterPerDay: 1.33,
-    fertilityPercentPerDay: 0.3,
-    growthMonths: 8,
-    survivesWithoutWaterMonths: 3,
-    requiresGreenhouse: true,
   },
   canola: {
     id: "canola",
     name: "Canola",
     productId: "canola",
-    quantityPerHarvest: 36,
-    waterPerDay: 0.93,
-    fertilityPercentPerDay: 0.3,
-    growthMonths: 3,
-    survivesWithoutWaterMonths: 1,
-    requiresGreenhouse: false,
   },
   poppy: {
     id: "poppy",
     name: "Poppy",
     productId: "poppy",
-    quantityPerHarvest: 25,
-    waterPerDay: 0.9,
-    fertilityPercentPerDay: 0.3,
-    growthMonths: 4,
-    survivesWithoutWaterMonths: 1,
-    requiresGreenhouse: true,
   },
   flowers: {
     id: "flowers",
     name: "Flowers",
     productId: "flowers",
-    quantityPerHarvest: 24,
-    waterPerDay: 1.5,
-    fertilityPercentPerDay: 0.5,
-    growthMonths: 4,
-    survivesWithoutWaterMonths: 1,
-    requiresGreenhouse: true,
   },
-} as const satisfies Record<CropId, CropDefinition>;
+} as const satisfies Record<CropId, Pick<CropDefinition, "id" | "name" | "productId">>;
 
 export const cropProductResourceIds: ReadonlySet<ResourceId> = new Set(
   Object.values(crops).flatMap((crop) => crop.productId ? [crop.productId] : []),
@@ -334,19 +236,18 @@ export interface CropFarmGroupRates {
 }
 
 /**
- * Returns long-run /60 rates for one farm in a group. With a full irrigation
- * supply, the 100-year output average reduces to the repeating schedule's
- * cycle average. Water is the conservative full-pipe requirement; verified
- * seed-specific rain savings can be introduced without changing crop output.
- *
- * The v0.8.6 fertility rules are still applied to Fertilizer II demand,
- * including the 50% repeated-crop penalty and the faster demand above 100%.
+ * Returns rotation-average rates for one fully irrigated farm. Crop and
+ * fertilizer coefficients come from the snapshot; the existing fertility
+ * simulation remains separate. The daily irrigation replay applies rain
+ * savings to the gross water demand calculated here.
  */
 export const calculateCropFarmGroupRates = (
   group: CropFarmGroup,
+  definitions: CropFarmingDefinitions,
 ): CropFarmGroupRates => {
+  const data = getCropFarmingData(definitions);
   const tier = cropFarmTiers[group.tierId];
-  const fertilizer = group.fertilizer ? fertilizers[group.fertilizer.id] : null;
+  const fertilizer = group.fertilizer ? data.fertilizer(group.fertilizer.id) : null;
   const targetFertilityPercent = fertilizer && group.fertilizer
     ? Math.min(
         group.fertilizer.targetFertilityPercent,
@@ -355,15 +256,14 @@ export const calculateCropFarmGroupRates = (
     : cropFarmSimulation.naturalFertilityEquilibriumPercent;
   const targetFertilityMultiplier = targetFertilityPercent / 100;
   const cycleDays = group.schedule.reduce(
-    (total, cropId) => total + crops[cropId].growthMonths * cropFarmSimulation.daysPerMonth,
+    (total, cropId) => total + data.crop(cropId).growthMonths * cropFarmSimulation.daysPerMonth,
     0,
   );
   const outputsPerCycle = new Map<ResourceId, number>();
-  let waterPerCycle = 0;
-  let fertilityDemandPerCycle = 0;
+  const totals = { waterPerCycle: 0, fertilityDemandPerCycle: 0 };
 
   group.schedule.forEach((cropId, index) => {
-    const crop = crops[cropId];
+    const crop = data.crop(cropId);
     const cropDays = crop.growthMonths * cropFarmSimulation.daysPerMonth;
     const previousCropId = group.schedule[
       (index + group.schedule.length - 1) % group.schedule.length
@@ -383,12 +283,8 @@ export const calculateCropFarmGroupRates = (
       );
     }
 
-    // In v0.8.6, farm evaporation applies while nothing is growing. These
-    // fixed rotations keep a crop active, so their displayed water value is
-    // gross crop demand only. Idle-period evaporation belongs in the future
-    // daily soil-buffer simulation, where its buffer-dependent multiplier can
-    // be represented correctly.
-    waterPerCycle += crop.waterPerDay * tier.demandMultiplier * cropDays;
+    // Gross crop demand; the irrigation replay accounts for rain and soil water.
+    totals.waterPerCycle += crop.waterPerDay * tier.demandMultiplier * cropDays;
 
     if (fertilizer) {
       const aboveNaturalFertility = Math.max(
@@ -408,7 +304,7 @@ export const calculateCropFarmGroupRates = (
         * cropFarmSimulation.naturalFertilityReplenishRate
         * cropFarmSimulation.aboveNaturalFertilityReplenishMultiplier;
 
-      fertilityDemandPerCycle += (
+      totals.fertilityDemandPerCycle += (
         cropFertilityDemandPerDay + naturalFertilityLossPerDay
       ) * cropDays;
     }
@@ -423,9 +319,9 @@ export const calculateCropFarmGroupRates = (
   );
 
   return {
-    waterPerMonth: waterPerCycle * cyclesPerMonth,
+    waterPerMonth: totals.waterPerCycle * cyclesPerMonth,
     fertilizerPerMonth: fertilizer
-      ? Math.max(0, fertilityDemandPerCycle)
+      ? Math.max(0, totals.fertilityDemandPerCycle)
         / fertilizer.fertilityPercentPerUnit
         * cyclesPerMonth
       : 0,

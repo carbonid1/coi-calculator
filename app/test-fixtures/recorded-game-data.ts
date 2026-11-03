@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 
 import { isChickenFarmDefinition } from '../chicken-farm-state'
+import { isCropFarmingDefinitions } from '../crop-farming-state'
 import { isRocketIiDefinition } from '../rocket-state'
 import { isSpaceStationLevels } from '../space-station-state'
 
@@ -23,3 +24,9 @@ const stationLevels: unknown = capture.spaceStationLevels
 if (!isSpaceStationLevels(stationLevels)) throw new Error('Recorded Space Station tiers are invalid')
 
 export const testSpaceStationLevels = stationLevels
+
+const cropFarming: unknown = capture.cropFarming
+
+if (!isCropFarmingDefinitions(cropFarming)) throw new Error('Recorded crop and fertilizer definitions are invalid')
+
+export const testCropFarming = cropFarming

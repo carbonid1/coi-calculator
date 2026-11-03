@@ -19,6 +19,8 @@ const gameProductAliases = new Map<string, ResourceId>([
   ['electronics2', 'electronicsII'],
   ['electronics3', 'electronicsIII'],
   ['electronics4', 'electronicsIv'],
+  ['fertilizer', 'fertilizerI'],
+  ['fertilizer2', 'fertilizerII'],
   ['spacestationparts', 'stationPartsBasic'],
   ['spacestationparts2', 'stationParts'],
   ['labequipment', 'labEquipmentI'],

@@ -32,7 +32,7 @@ using Mafi.Core.Vehicles;
 
 internal sealed partial class GameSnapshotCollector
 {
-    private ProductionSnapshot getProductionSnapshot(List<ProductionEntitySource> entities)
+    private ProductionSnapshot getProductionSnapshot(List<ProductionEntitySource> entities, List<FertilizerSource> fertilizers)
     {
         // Share prototype definitions only within this capture. The next request
         // reads them again, including any changed game/research configuration.
@@ -168,7 +168,7 @@ internal sealed partial class GameSnapshotCollector
             }
 
             int fertilityTargetPercent = cropFarm.FertilityTargetValue.ToIntPercentRounded();
-            string fertilizerProductId = getCropFarmFertilizerProductId(cropFarm);
+            string fertilizerProductId = getCropFarmFertilizerProductId(cropFarm, fertilizers);
             cropFarmEntities.Add(new CropFarmEntitySnapshot(
                 entity.Id.Value,
                 prototypeId,

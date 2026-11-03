@@ -52,7 +52,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       date: history.date, isPaused: true, speed: 1, tick: 0 })
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
-      schemaVersion: state.mode === 'old-bridge' ? 46 : fixture.schemaVersion,
+      schemaVersion: state.mode === 'old-bridge' ? 47 : fixture.schemaVersion,
+      cropFarming: state.mode === 'missing-crop-definitions' ? undefined : fixture.cropFarming,
       spaceStationLevels: state.mode === 'missing-station-levels' ? undefined : fixture.spaceStationLevels,
       rocketIiDefinition: state.mode === 'missing-rocket-definition' ? undefined : fixture.rocketIiDefinition,
       chickenFarmDefinition: state.mode === 'missing-farm-definition' ? undefined : fixture.chickenFarmDefinition,
@@ -267,7 +268,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
   })
 
   await t.test('rejects missing native data, incompatible Bridges and mixed sessions, then recovers', async () => {
-    for (const [mode, status] of [['old-bridge', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
+    for (const [mode, status] of [['old-bridge', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-crop-definitions', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
       state.mode = mode
       const response = await fetch(`${appUrl}/api/game-state`)
 
