@@ -34,6 +34,10 @@ internal sealed partial class GameSnapshotCollector
 {
     private ProductionSnapshot getProductionSnapshot(List<ProductionEntitySource> entities)
     {
+        // Share prototype definitions only within this capture. The next request
+        // reads them again, including any changed game/research configuration.
+        Dictionary<MachineProto, MachineRecipeDefinitions> recipeDefinitions =
+            new Dictionary<MachineProto, MachineRecipeDefinitions>();
         List<ChickenFarmEntitySnapshot> chickenFarmEntities =
             new List<ChickenFarmEntitySnapshot>();
         List<CropFarmEntitySnapshot> cropFarmEntities = new List<CropFarmEntitySnapshot>();
@@ -72,6 +76,7 @@ internal sealed partial class GameSnapshotCollector
                 List<AreaRecipeSnapshot> areaRecipes = getAreaRecipes(
                     entity,
                     staticEntity,
+                    recipeDefinitions,
                     out availableRecipeCount);
                 areaEntities.Add(new AreaEntitySnapshot(
                     entity.Id.Value,

@@ -49,6 +49,7 @@ internal sealed partial class GameSnapshotCollector
     private static List<AreaRecipeSnapshot> getAreaRecipes(
         IEntity entity,
         IStaticEntity staticEntity,
+        Dictionary<MachineProto, MachineRecipeDefinitions> recipeDefinitions,
         out int availableRecipeCount)
     {
         List<AreaRecipeSnapshot> recipes = new List<AreaRecipeSnapshot>();
@@ -66,10 +67,13 @@ internal sealed partial class GameSnapshotCollector
             return recipes;
         }
 
-        foreach (RecipeProto recipe in machine.Recipes)
+        MachineRecipeDefinitions definitions;
+        if (!recipeDefinitions.TryGetValue(machine, out definitions))
         {
-            availableRecipeCount++;
+            definitions = new MachineRecipeDefinitions(machine);
+            recipeDefinitions.Add(machine, definitions);
         }
+        availableRecipeCount = definitions.Recipes.Count;
 
         IEntityWithAssignedRecipes recipeEntity = entity as IEntityWithAssignedRecipes;
         HashSet<string> assignedRecipeIds = new HashSet<string>(StringComparer.Ordinal);
@@ -81,7 +85,7 @@ internal sealed partial class GameSnapshotCollector
             }
         }
 
-        foreach (RecipeProto recipe in machine.Recipes)
+        foreach (RecipeProto recipe in definitions.Recipes)
         {
             string recipeId = recipe.Id.ToString();
             bool assigned = assignedRecipeIds.Contains(recipeId)
@@ -91,37 +95,9 @@ internal sealed partial class GameSnapshotCollector
                 continue;
             }
 
-            IRecipeForUi recipeForUi = machine.GetRecipeForUi(recipe);
-            List<AreaRecipeProductSnapshot> inputs =
-                new List<AreaRecipeProductSnapshot>();
-            List<AreaRecipeProductSnapshot> outputs =
-                new List<AreaRecipeProductSnapshot>();
-
-            foreach (RecipeInput input in recipeForUi.AllUserVisibleInputs)
-            {
-                inputs.Add(new AreaRecipeProductSnapshot(
-                    input.Product.Id.ToString(),
-                    getProtoName(input.Product),
-                    input.Quantity.Value));
-            }
-            foreach (RecipeOutput output in recipeForUi.AllUserVisibleOutputs)
-            {
-                outputs.Add(new AreaRecipeProductSnapshot(
-                    output.Product.Id.ToString(),
-                    getProtoName(output.Product),
-                    output.Quantity.Value));
-            }
-
-            string recipeName = recipe.Strings.Name.TranslatedString;
-            AreaRecipeSnapshot snapshot = new AreaRecipeSnapshot(
-                recipeId,
-                String.IsNullOrWhiteSpace(recipeName) ? recipeId : recipeName,
-                Math.Max(0.001, recipeForUi.Duration.Seconds.ToDouble()),
-                assigned,
-                inputs,
-                outputs);
-            snapshot.RecyclesInputs = recipe.RecyclablesOutput.HasValue;
-            snapshot.ElectricityMultiplier = recipe.PowerMultiplier.ToDouble();
+            MachineRecipeDefinition definition = definitions.Get(recipe);
+            IRecipeForUi recipeForUi = definition.RecipeForUi;
+            AreaRecipeSnapshot snapshot = definition.CreateSnapshot(assigned);
             Machine machineEntity = entity as Machine;
             if (machineEntity != null)
             {
