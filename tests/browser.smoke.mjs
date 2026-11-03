@@ -250,8 +250,20 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal(await evaluate('document.querySelector("[aria-label=\\"North\\"]").innerText'), 'N')
     assert.doesNotMatch(await text(), /North up|source radius to scale/)
     assert.ok(await evaluate('Array.from(document.querySelectorAll("[aria-label=\\"Weather over the next 12 cycles\\"] .h-8 span")).every(bar => bar.getBoundingClientRect().width > 30)'))
+    const mapPageY = await evaluate('window.scrollY')
+
+    await click('Select aquifer 3132, 1583 on map')
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3132:1583\\"]").getAttribute("aria-pressed")'), 'true')
+    assert.equal(await evaluate('window.scrollY'), mapPageY, 'Selecting a source must not move the page')
+    assert.ok(await evaluate(`(() => {
+      const region = document.querySelector('[aria-label="Aquifer inventory"]')
+      const row = region.querySelector('[data-aquifer-row="3132:1583"]').getBoundingClientRect()
+      const viewport = region.getBoundingClientRect()
+      return row.top >= viewport.top + region.querySelector('thead').getBoundingClientRect().height && row.bottom <= viewport.bottom
+    })()`), 'Map selection must reveal the corresponding inventory row')
     await click('Inspect aquifer 1041, 3242')
     assert.equal(await evaluate('document.querySelector("[aria-label=\\"Inspect aquifer 1041, 3242\\"]").getAttribute("aria-pressed")'), 'true')
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-id=\\"1041:3242\\"]").getAttribute("aria-pressed")'), 'true')
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Aquifer details\\"]").length'), 0)
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Water planning\\"] input").length'), 0)
     assert.ok(await evaluate(`(() => {
@@ -259,7 +271,9 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       return region.querySelector('thead').getBoundingClientRect().top >= region.getBoundingClientRect().top
     })()`), 'Aquifer column headings must remain visible after scrolling to a source')
     await screenshot('water-unused-source')
-    await click('Inspect aquifer 3247, 647')
+    await browser('focus', '[data-aquifer-id="3247:647"]')
+    await browser('press', 'Enter')
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3247:647\\"]").getAttribute("aria-pressed")'), 'true')
     assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Aquifer 1[\s\S]*First shortfall · estimate[\s\S]*cycles · [\d,.]+ in-game years[\s\S]*Min reserve · 100Y[\s\S]*Shortfall · 1Y/)
     await browser('focus', '[aria-label="First shortfall estimate"]')
     await browser('press', 'Shift+Tab')
@@ -304,7 +318,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal((await browser('errors')).errors.length, 0)
   })
 
-  await t.test('serves conditional snapshots and refreshes inventory without starting the game', async () => {
+  await t.test('refreshes live inventory without reloading or losing map selection, focus and scroll', async () => {
     const response = await fetch(`${appUrl}/api/game-state`)
 
     assert.equal(response.status, 200)
@@ -312,14 +326,38 @@ test('recorded factory: browser → Next API → replayed game API → worker �
 
     assert.ok(etag)
     assert.equal((await fetch(`${appUrl}/api/game-state`, { headers: { 'If-None-Match': etag } })).status, 304)
+    await click('Mines')
+    await browser('focus', '[data-aquifer-id="3132:1583"]')
+    await browser('press', 'Space')
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3132:1583\\"]").getAttribute("aria-pressed")'), 'true')
+    const beforeRefresh = await evaluate(`({ page: window.scrollY,
+      table: document.querySelector('[aria-label="Aquifer inventory"]').scrollTop })`)
+
     state.inventoryBonus = 123
     const changed = await fetch(`${appUrl}/api/game-state`, { headers: { 'If-None-Match': etag } })
 
     assert.equal(changed.status, 200)
     assert.notEqual(changed.headers.get('etag'), etag)
     assert.equal((await changed.json()).products.inventory.Product_Salt.quantity, fixture.products.inventory.Product_Salt.quantity + 123)
-    await browser('reload')
+    const newQuantity = fixture.products.inventory.Product_Salt.quantity + 123
+    const receivedUpdate = `JSON.parse(localStorage.getItem('coi-game-state-last-valid-v1'))?.products.inventory.Product_Salt.quantity === ${newQuantity}`
+
+    for (const attempt of [0, 1, 2, 3]) {
+      try {
+        await browser('wait', '--fn', receivedUpdate, '--timeout', '20000')
+        break
+      } catch (error) {
+        if (attempt === 3) throw error
+      }
+    }
     await ready()
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-id=\\"3132:1583\\"]").getAttribute("aria-pressed")'), 'true')
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3132:1583\\"]").getAttribute("aria-pressed")'), 'true')
+    assert.equal(await evaluate('document.activeElement.dataset.aquiferId'), '3132:1583')
+    assert.deepEqual(await evaluate(`({ page: window.scrollY,
+      table: document.querySelector('[aria-label="Aquifer inventory"]').scrollTop })`), beforeRefresh)
+    await screenshot('water-after-live-refresh')
+    await click('Factory Total')
     await browser('find', 'role', 'button', 'click', '--name', 'Inspect Salt supply', '--exact')
     const inventory = await evaluate(`document.querySelector('[aria-label="Island inventory"]').innerText`)
 

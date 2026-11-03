@@ -1,6 +1,7 @@
 import { cropFarmSimulation } from "../../db/crop-farming";
 import { planningWeather, type WeatherConfig } from "../../db/weather";
 import { type SyncedGroundwaterAquifer, type SyncedGroundwaterState, type SyncedMachineInventoryItem } from "../../game-state";
+import { createWeatherSimulationCache } from '../weather/weather-simulation-cache';
 
 // Installed 0.8.8 WellPumpsData: 8 Water every 10s = 48 / production cycle.
 export const GROUNDWATER_PUMP_OUTPUT_PER_CYCLE = 48;
@@ -32,8 +33,8 @@ interface AquiferAllocation {
   pumpsByClaim: Map<string, number>;
 }
 
-const simulationCache = new WeakMap<WeatherConfig, Map<string, number>>();
-const aquiferCeilingCache = new WeakMap<WeatherConfig, Map<string, number>>();
+const simulationCache = createWeatherSimulationCache<number>();
+const aquiferCeilingCache = createWeatherSimulationCache<number>();
 
 const applyPercentRaw = (value: number, rawPercent: number) => Math.trunc(
   (value * rawPercent + PERCENT_RAW_SCALE / 2) / PERCENT_RAW_SCALE,
@@ -98,9 +99,7 @@ export const calculateAquiferSustainableCeiling = (
     groundwater.depletedPumpSpeedPercent,
     groundwater.replenishWhenLowPercent,
   ].join(":");
-  const cache = aquiferCeilingCache.get(weatherConfig) ?? new Map<string, number>();
-
-  aquiferCeilingCache.set(weatherConfig, cache);
+  const cache = aquiferCeilingCache(weatherConfig);
   const cached = cache.get(cacheKey);
 
   if (cached != null) return cached;
@@ -144,9 +143,7 @@ export const calculateAquiferSustainableOutput = (
     groundwater.depletedPumpSpeedPercent,
     groundwater.replenishWhenLowPercent,
   ].join(":");
-  const cache = simulationCache.get(weatherConfig) ?? new Map<string, number>();
-
-  simulationCache.set(weatherConfig, cache);
+  const cache = simulationCache(weatherConfig);
   const cached = cache.get(cacheKey);
 
   if (cached != null) return cached;

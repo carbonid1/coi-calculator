@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
 import { type ChickenFarmDefinition } from '../app/chicken-farm-state'
 import { getCropFarmingData, type CropFarmingDefinitions } from '../app/crop-farming-state'
@@ -56,6 +56,15 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
   expect(inventory).toHaveLength(13)
   expect(inventory.filter(row => row.builtPumps === 0)).toHaveLength(10)
   expect(new Set(inventory.map(row => row.source.id)).size).toBe(13)
+  const refreshed = normalizeGameStateSnapshot(JSON.parse(JSON.stringify(snapshot)))
+
+  if (!refreshed?.products) throw new Error('Refreshed factory is incompatible')
+  refreshed.products.inventory.Product_Salt.quantity += 123
+  const replayedDays = vi.spyOn(refreshed.weather.periods, Symbol.iterator)
+
+  expect(buildWaterSourceInventory(refreshed, sourceResults)).toEqual(inventory)
+  expect(replayedDays).not.toHaveBeenCalled()
+  replayedDays.mockRestore()
   const unused = inventory.find(row => row.source.id === '1041:3242')
 
   expect(unused).toMatchObject({ source: { position: { x: 1041, y: 3242 }, radius: 60, quantity: 20_000 },
@@ -128,6 +137,12 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
 
   expect(simulateWaterSource(hiddenReserve, { ...normal, replenishWhenLowPercent: 0 }, dry, 1, 10)?.firstShortfallCycle).toBeGreaterThan(1 / 30)
   const group: CropFarmGroup = { id: 'water-crop', name: 'Wheat', farmCount: 1, tierId: 'greenhouseII', schedule: ['wheat'], fertilizer: null }
+  const irrigation = calculateFarmIrrigationRates(group, snapshot.cropFarming, 1, 1.5, weather)
+  const repeatedDays = vi.spyOn(refreshed.weather.periods, Symbol.iterator)
+
+  expect(calculateFarmIrrigationRates(group, refreshed.cropFarming, 1, 1.5, refreshed.weather)).toEqual(irrigation)
+  expect(repeatedDays).not.toHaveBeenCalled()
+  repeatedDays.mockRestore()
   const dryFarm = calculateFarmIrrigationRates(group, snapshot.cropFarming, 1, 1.5, dry)
   const wetFarm = calculateFarmIrrigationRates(group, snapshot.cropFarming, 1, 1.5, wet)
 

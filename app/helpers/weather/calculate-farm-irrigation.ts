@@ -5,6 +5,7 @@ import {
   type CropFarmGroup,
 } from "../../db/crop-farming";
 import { planningWeather, type WeatherConfig } from "../../db/weather";
+import { createWeatherSimulationCache } from './weather-simulation-cache';
 
 export interface FarmIrrigationRates {
   /** Crop demand before any rainwater is captured. */
@@ -13,7 +14,7 @@ export interface FarmIrrigationRates {
   importedWaterPerMonth: number;
 }
 
-const irrigationCache = new WeakMap<CropFarmingDefinitions, WeakMap<WeatherConfig, Map<string, FarmIrrigationRates>>>();
+const irrigationCache = createWeatherSimulationCache<FarmIrrigationRates>();
 const FIX32_SCALE = 1_024;
 const PERCENT_SCALE = 100_000;
 
@@ -93,12 +94,8 @@ export const calculateFarmIrrigationRates = (
 
   // Without island weather, retain gross demand instead of inventing rain savings.
   if (!weatherConfig) return { grossWaterPerMonth, importedWaterPerMonth: grossWaterPerMonth };
-  const cacheKey = `${JSON.stringify(group)}:${cropWaterMultiplier}:${rainwaterYieldMultiplier}`;
-  const weatherCache = irrigationCache.get(definitions) ?? new WeakMap<WeatherConfig, Map<string, FarmIrrigationRates>>();
-  const cache = weatherCache.get(weatherConfig) ?? new Map<string, FarmIrrigationRates>();
-
-  irrigationCache.set(definitions, weatherCache);
-  weatherCache.set(weatherConfig, cache);
+  const cacheKey = JSON.stringify([definitions, group, cropWaterMultiplier, rainwaterYieldMultiplier]);
+  const cache = irrigationCache(weatherConfig);
   const cached = cache.get(cacheKey);
 
   if (cached) return cached;

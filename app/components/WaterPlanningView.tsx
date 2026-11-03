@@ -1,6 +1,6 @@
 import { Button, Card, TableScrollRegion, Tooltip } from '@carbonid1/design-system';
 import { CloudRain, Droplets, Sun } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { type GameStateSnapshot } from '../game-state';
 import { type PassiveResult, type ResourceFlow } from '../helpers/calculate/calculate';
@@ -51,17 +51,23 @@ interface Props {
 
 export const WaterPlanningView = (props: Props) => {
   const { current } = useProductState();
+  const [selection, setSelection] = useState<{ gameId: string; id: string } | null>(null);
 
   if (!current) return <Card.Root aria-label="Water planning"><Card.Content>
     <p className="text-sm text-muted-foreground">Current water data unavailable.</p>
   </Card.Content></Card.Root>;
-  return <CurrentWaterPlanningView {...props} />;
+  return <CurrentWaterPlanningView {...props}
+    selectedId={selection?.gameId === props.snapshot.gameId ? selection.id : null}
+    onSelect={id => setSelection({ gameId: props.snapshot.gameId, id })} />;
 };
 
-const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwaterYieldMultiplier }: Props) => {
+const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwaterYieldMultiplier, selectedId, onSelect }: Props & {
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) => {
   const climate = useMemo(() => summarizeWeather(snapshot.weather), [snapshot.weather]);
   const sources = useMemo(() => buildWaterSourceInventory(snapshot, sourceResults), [snapshot, sourceResults]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const inventoryRef = useRef<HTMLDivElement>(null);
   const selected = sources.find(row => row.source.id === selectedId) ?? sources[0];
   const rainwater = getRainwaterHarvesterPotential(climate, rainwaterYieldMultiplier);
   const nextRain = (() => {
@@ -76,6 +82,24 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
     minY: Math.min(...sources.map(({ source }) => source.position.y - source.radius)) - 80,
     maxX: Math.max(...sources.map(({ source }) => source.position.x + source.radius)) + 140,
     maxY: Math.max(...sources.map(({ source }) => source.position.y + source.radius)) + 160,
+  };
+  const hitRadius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 16;
+  const selectFromMap = (id: string) => {
+    onSelect(id);
+    const region = inventoryRef.current?.querySelector<HTMLDivElement>('[aria-label="Aquifer inventory"]');
+    const button = region && [...region.querySelectorAll<HTMLButtonElement>('[data-aquifer-row]')]
+      .find(element => element.dataset.aquiferRow === id);
+
+    if (!region || !button) return;
+    const viewport = region.getBoundingClientRect();
+    const row = button.closest('tr')?.getBoundingClientRect();
+    const headerHeight = region.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+
+    if (!row) return;
+
+    // Scroll only the inventory, keeping the map and keyboard focus in place.
+    if (row.top < viewport.top + headerHeight) region.scrollTop += row.top - viewport.top - headerHeight;
+    else if (row.bottom > viewport.bottom) region.scrollTop += row.bottom - viewport.bottom;
   };
 
   return (
@@ -128,21 +152,30 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
           </Tooltip>
         </div>
         {sources.length > 0 ? <>
-          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <MapFrame label="Aquifer positions" bounds={bounds}>
+          <div ref={inventoryRef} className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <MapFrame label="Aquifer positions" bounds={bounds} interactive>
               {project => sources.map((row, index) => {
                 const point = project(row.source.position);
 
-                return <g key={row.source.id} data-aquifer-id={row.source.id} className={row.source.id === selected?.source.id ? 'text-primary' : 'text-muted-foreground'}>
+                return <Button key={row.source.id} render={<g />} nativeButton={false}
+                  data-aquifer-id={row.source.id} selected={row.source.id === selected?.source.id}
+                  aria-pressed={row.source.id === selected?.source.id}
+                  aria-label={`Select aquifer ${row.source.position.x}, ${row.source.position.y} on map`}
+                  onClick={() => selectFromMap(row.source.id)}
+                  className={`cursor-pointer ${row.source.id === selected?.source.id ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <circle cx={point.x} cy={point.y} r={hitRadius} fill="transparent" />
+                  <circle cx={point.x} cy={point.y} r={hitRadius} fill="none" stroke="currentColor" strokeWidth={2}
+                    vectorEffect="non-scaling-stroke" className="pointer-events-none opacity-0 group-focus-visible/button:opacity-100" />
                   <circle cx={point.x} cy={point.y} r={row.source.radius} fill="currentColor" fillOpacity={0.12} stroke="currentColor" strokeWidth={4} />
                   <text x={point.x} y={point.y - row.source.radius - 100} textAnchor="middle" dominantBaseline="central" fill="currentColor" fontSize={150}>{index + 1}</text>
-                </g>;
+                </Button>;
               })}
             </MapFrame>
             <TableScrollRegion label="Aquifer inventory" className="max-h-80 min-w-0 [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card" rows={sources} rowKey={row => row.source.id} columns={[
                 { accessorKey: 'source', header: 'Position', render: row => <Button variant="ghost" size="small" selected={row.source.id === selected?.source.id}
                   aria-pressed={row.source.id === selected?.source.id} aria-label={`Inspect aquifer ${row.source.position.x}, ${row.source.position.y}`}
-                  onClick={() => setSelectedId(row.source.id)} className="font-mono text-xs">
+                  data-aquifer-row={row.source.id}
+                  onClick={() => onSelect(row.source.id)} className="font-mono text-xs">
                   {sources.indexOf(row) + 1} · {row.source.position.x}, {row.source.position.y}
                 </Button> },
                 { accessorKey: 'activePumps', header: <Tooltip maxWidth={320} label="Active pumps / pumps needed to reach the aquifer's sustainable ceiling."><span tabIndex={0}>Pumps</span></Tooltip>, align: 'end', render: row => <Tooltip label={`${row.activePumps} active · ${row.builtPumps} built · ${row.pumpsForCeiling} for sustainable ceiling`}>
