@@ -223,13 +223,6 @@ export const ContractsView: React.FC<Props> = ({ contracts, issues, results }) =
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">Contracts</h2>
-        <p className="text-sm text-muted-foreground">
-          Established contracts and their assigned Cargo Depots.
-        </p>
-      </div>
-
       {issues.length > 0 && (
         <section className="space-y-2" aria-labelledby="contract-issues-heading">
           <h3 id="contract-issues-heading" className="text-sm font-semibold text-foreground">

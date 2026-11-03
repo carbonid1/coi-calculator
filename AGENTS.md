@@ -11,7 +11,11 @@ Never report in real-time hours — user can't map that to gameplay. Report in *
 - Bad: "18k stockpile lasts 100 hours"
 - Good: "18k stockpile = N production cycles = M in-game years"
 
-## UI copy
+## UI direction
+
+Keep the UI dense but clear. Prefer compact counts, learnable icons, consistent ordering and placement, and clear grouping. Assume regular use: users can learn recurring visual patterns. Use tooltips for occasional detail, with keyboard access to the same information. Keep repeated labels and explanatory text minimal; improve clarity through hierarchy, alignment, and removing duplication.
+
+### UI copy
 
 Do not narrate familiar game mechanics; show only calculated results, actionable state, and information the user explicitly requested.
 

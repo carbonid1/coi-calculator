@@ -182,8 +182,8 @@ export const ResourceSupplyView = ({
     <section className="space-y-4 rounded-lg bg-card p-4 shadow-card" aria-label="Resource supply">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 ref={headingRef} tabIndex={-1} className="font-semibold text-foreground outline-hidden">Resource supply</h2>
-          <p className="text-xs text-muted-foreground">{getScopeName(target)} · Calculated per production cycle</p>
+          <h3 ref={headingRef} tabIndex={-1} className="font-semibold text-foreground outline-hidden">{getScopeName(target)}</h3>
+          <p className="text-xs text-muted-foreground">Calculated per production cycle</p>
         </div>
         <ResourcePicker
           value={resourceId}

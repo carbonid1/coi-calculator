@@ -1,5 +1,4 @@
 import { Button, Tooltip } from "@carbonid1/design-system";
-import { ArrowLeft, ArrowRight } from "lucide-react";
 import { type ReactNode, type Ref } from "react";
 
 import { type ModuleResourceTransfer } from "../db/module-resource-links";
@@ -22,15 +21,15 @@ import {
   type SharedMachineClaim,
 } from "../helpers/machine-allocation/machine-allocation";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
-import { typedEntries } from "../helpers/typed-entries/typed-entries";
 import { BuildingAttentionView } from "./BuildingAttentionView";
 import { type KeepReadyChange } from "./KeepReadyMenu";
+import { ModuleBalance } from "./ModuleBalance";
 import { PlannedBuildsView } from "./PlannedBuildsView";
-import { useResources } from "./ResourceProducts";
 import { isReportedFactoryDeficit } from "./net-summary-flows";
 
 interface Props {
   headingRef?: Ref<HTMLHeadingElement>;
+  hasPlannedChanges?: boolean;
   flows: ResourceFlow[];
   workers?: number;
   electricityConsumptionKw?: number;
@@ -54,6 +53,7 @@ interface Props {
   requestedImports?: Partial<Record<ResourceId, number>>;
   requestedExports?: Partial<Record<ResourceId, number>>;
   moduleId?: string;
+  transfersIncludedInBalance?: boolean;
   resourceTransfers?: readonly ModuleResourceTransfer[];
   onAssignMachineZone?: (zoneId: number, claimId: string | null) => void;
   onOpenBuilding?: (diagnostic: BuildingDiagnostic) => void;
@@ -78,39 +78,23 @@ const formatPower = (megawatts: number) => {
 
 const formatCapacity = (value: number) => parseFloat(value.toFixed(2));
 
-const getComputingSummary = (demand: number, capacity?: number) => {
-  if (capacity == null) {
-    return {
-      detail: "Demand",
-      value: `${formatCapacity(demand)} TFLOPS`,
-    };
-  }
+const formatPowerMargin = (value: number) => `${value > BALANCE_THRESHOLD ? "+" : ""}${formatPower(value)}`;
 
-  if (demand > 0) {
-    return {
-      detail: "Demand / capacity",
-      value: `${formatCapacity(demand)} / ${formatCapacity(capacity)} TFLOPS`,
-    };
-  }
-
-  return {
-    detail: "Capacity",
-    value: `${formatCapacity(capacity)} TFLOPS`,
-  };
-};
-
-const SummaryMetric = ({ label, detail, children }: {
+const SummaryMetric = ({ label, detail, breakdown, children }: {
   label: string;
   detail?: string;
+  breakdown?: string;
   children: ReactNode;
 }) => (
-  <div className="min-w-0 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-    <dt className="text-sm font-medium text-foreground">
+  <div className="min-w-0 rounded-lg bg-surface-inset p-2.5 inset-shadow-surface">
+    <dt className="flex min-h-9 flex-wrap items-baseline gap-x-2 text-sm font-medium text-foreground sm:min-h-0">
       {label}
-      {detail && <span className="block text-xs font-normal text-muted-foreground">{detail}</span>}
+      {detail && <span className="text-xs font-normal text-muted-foreground">{detail}</span>}
     </dt>
-    <dd className="mt-2 font-mono text-base font-semibold tabular-nums text-foreground">
-      {children}
+    <dd className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground sm:text-base">
+      {breakdown ? <Tooltip label={breakdown} maxWidth={320}>
+        <span tabIndex={0} className="rounded outline-hidden focus-visible:ring-2 focus-visible:ring-ring">{children}</span>
+      </Tooltip> : children}
     </dd>
   </div>
 );
@@ -125,6 +109,7 @@ export const NetSummary: React.FC<Props> = ({
   populationCapacity,
   unityBudget,
   groupByBalance = false,
+  hasPlannedChanges = false,
   regularResults = [],
   passiveResults = [],
   contractFlows = [],
@@ -138,6 +123,7 @@ export const NetSummary: React.FC<Props> = ({
   requestedImports = {},
   requestedExports = {},
   moduleId,
+  transfersIncludedInBalance = false,
   resourceTransfers = [],
   onAssignMachineZone,
   onOpenBuilding,
@@ -145,60 +131,22 @@ export const NetSummary: React.FC<Props> = ({
   onInspectResource,
   headingRef,
 }) => {
-  const resources = useResources();
-  const requestedImportRows = typedEntries(requestedImports)
-    .filter(([, quantity]) => quantity > 0)
-    .toSorted(([left], [right]) => (
-      resources[left].name.localeCompare(resources[right].name)
-    ));
-  const requestedImportIds = new Set(
-    requestedImportRows.map(([resourceId]) => resourceId),
-  );
-  const requestedExportRows = typedEntries(requestedExports)
-    .filter(([, quantity]) => quantity > 0)
-    .toSorted(([left], [right]) => (
-      resources[left].name.localeCompare(resources[right].name)
-    ));
-  const requestedExportIds = new Set(
-    requestedExportRows.map(([resourceId]) => resourceId),
-  );
-  const inboundTransfers = resourceTransfers
-    .filter(transfer => transfer.targetModuleId === moduleId)
-    .toSorted((left, right) => (
-      resources[left.resourceId].name.localeCompare(resources[right.resourceId].name)
-    ));
-  const outboundTransfers = resourceTransfers
-    .filter(transfer => transfer.sourceModuleId === moduleId)
-    .toSorted((left, right) => (
-      resources[left.resourceId].name.localeCompare(resources[right.resourceId].name)
-    ));
   const electricityFlow = flows.find((flow) => flow.resourceId === "electricity");
   const computingFlow = flows.find((flow) => flow.resourceId === "computing");
   const materialFlows = flows.filter((flow) => (
     flow.resourceId !== "electricity" && flow.resourceId !== "computing"
   ));
-  const moduleInputFlows = groupByBalance
-    ? []
-    : materialFlows
-        .filter((flow) => (
-          flow.net < -BALANCE_THRESHOLD
-          && !requestedImportIds.has(flow.resourceId)
-          && !requestedExportIds.has(flow.resourceId)
-        ))
-        .toSorted((a, b) => a.name.localeCompare(b.name));
-  const regularFlows = groupByBalance
-    ? materialFlows
-    : materialFlows.filter((flow) => flow.net >= -BALANCE_THRESHOLD);
+  const regularFlows = materialFlows;
   const balanceGroups = [
     {
       label: "Deficit",
       flows: regularFlows.filter(isReportedFactoryDeficit),
-      valueClassName: "text-destructive",
+      valueClassName: "text-foreground",
     },
     {
       label: "Surplus",
       flows: regularFlows.filter((flow) => flow.net > BALANCE_THRESHOLD),
-      valueClassName: "text-success",
+      valueClassName: "text-foreground",
     },
   ].map((group) => ({
     ...group,
@@ -244,6 +192,7 @@ export const NetSummary: React.FC<Props> = ({
     || computingGenerationCapacityTflops != null
     || (computingConsumptionTflops ?? 0) > 0
     || (workers ?? 0) > 0
+    || unityBudget != null
   );
   const renderResourceName = (flow: ResourceFlow) => onInspectResource ? (
     <Button variant="link" size="small" className="h-auto justify-start p-0 text-left"
@@ -385,276 +334,100 @@ export const NetSummary: React.FC<Props> = ({
   };
 
   if (
-    regularFlows.length === 0
-    && moduleInputFlows.length === 0
-    && !electricityFlow
-    && !computingFlow
-    && !electricityConsumptionKw
-    && !computingConsumptionTflops
-    && computingGenerationCapacityTflops == null
-    && !workers
-    && requestedImportRows.length === 0
-    && requestedExportRows.length === 0
-    && inboundTransfers.length === 0
-    && outboundTransfers.length === 0
+    materialFlows.length === 0 && !electricityFlow && !computingFlow
+    && electricityGenerationCapacityMw == null && !electricityConsumptionKw
+    && !computingConsumptionTflops && computingGenerationCapacityTflops == null
+    && !workers && !unityBudget && Object.keys(requestedImports).length === 0
+    && Object.keys(requestedExports).length === 0
+    && !resourceTransfers.some(transfer => transfer.sourceModuleId === moduleId || transfer.targetModuleId === moduleId)
   ) return null;
 
-  const renderTransfer = (
-    transfer: ModuleResourceTransfer,
-    direction: "inbound" | "outbound",
-  ) => {
-    const inbound = direction === "inbound";
-    const counterparty = inbound
-      ? transfer.sourceModuleName
-      : transfer.targetModuleName;
-    const requested = transfer.requestedQuantity;
-    const hasShortfall = requested - transfer.quantity > BALANCE_THRESHOLD;
-    let policy: string;
-
-    if (transfer.mode === "surplus-only") {
-      policy = inbound
-        ? `Uses only ${transfer.sourceModuleName} surplus and does not start production there.`
-        : "Transfers only surplus remaining after this module's own consumption.";
-    } else {
-      policy = inbound
-        ? `Demand here can start production in ${transfer.sourceModuleName}.`
-        : `${transfer.targetModuleName} demand can start production here.`;
-    }
-    const quantity = hasShortfall
-      ? `${formatCapacity(transfer.quantity)} of ${formatCapacity(requested)} requested`
-      : `${formatCapacity(transfer.quantity)} per production cycle`;
-    const Icon = inbound ? ArrowLeft : ArrowRight;
-
-    return (
-      <Tooltip
-        key={transfer.id}
-        label={`Dedicated ${inbound ? "from" : "to"} ${counterparty}. ${policy} ${quantity}.`}
-        maxWidth={340}
-        className="flex w-full"
-      >
-        <div className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded px-2 py-0.5 text-sm hover:bg-accent">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="text-foreground">{resources[transfer.resourceId].name}</span>
-            <span className="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-              <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-              <span className="truncate">{counterparty}</span>
-            </span>
-          </span>
-          <span className={`shrink-0 font-mono font-semibold tabular-nums ${
-            hasShortfall ? "text-destructive" : "text-primary"
-          }`}>
-            {formatCapacity(transfer.quantity)}
-          </span>
-        </div>
-      </Tooltip>
-    );
-  };
+  const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
+  const computingDemand = computingConsumptionTflops ?? 0;
+  const generationMw = electricityFlow?.net ?? 0;
 
   return (
     <div className="space-y-3 rounded-lg bg-card p-3 shadow-card">
-      <h3 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="font-semibold text-foreground outline-hidden">
-        {groupByBalance ? "Factory Summary" : "Net Summary"}{" "}
-        <span className="text-xs font-normal text-muted-foreground">per production cycle</span>
-      </h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="font-semibold text-foreground outline-hidden">
+          {groupByBalance ? "Factory Summary" : "Summary"}
+        </h3>
+        <Tooltip label={hasPlannedChanges
+          ? "Includes planned buildings and operating changes. Resource flows are calculated per production cycle."
+          : "Calculated from the synced configuration. Resource flows are per production cycle."} maxWidth={320}>
+          <span tabIndex={0} className="rounded text-xs text-muted-foreground outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+            {hasPlannedChanges ? "Projected" : "Calculated"} · flows / cycle
+          </span>
+        </Tooltip>
+      </div>
 
-      {hasOperationalSummary && (() => {
-        const generationMw = electricityFlow?.net ?? 0;
-        const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
-        const netMw = generationMw - consumptionMw;
-        const showsCapacity = electricityGenerationCapacityMw != null;
-        const computingDemand = computingConsumptionTflops ?? 0;
-        const showsComputingCapacity = computingGenerationCapacityTflops != null;
-        const computingSummary = getComputingSummary(
-          computingDemand,
-          computingGenerationCapacityTflops,
-        );
-
-        return (
-          <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-2">
-            {showsCapacity && (
-              <SummaryMetric label="Electricity" detail="Consumption / generation cap">
-                {formatPower(consumptionMw)} / {formatPower(electricityGenerationCapacityMw)}
+      {hasOperationalSummary && (
+        <dl className="grid grid-cols-2 gap-2 lg:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
+          {electricityGenerationCapacityMw != null ? (
+            <SummaryMetric label="Electricity" detail="Capacity margin"
+              breakdown={`${formatPower(consumptionMw)} demand / ${formatPower(electricityGenerationCapacityMw)} generation capacity.`}>
+              {formatPowerMargin(electricityGenerationCapacityMw - consumptionMw)}
+            </SummaryMetric>
+          ) : <>
+            {consumptionMw > 0 && (
+              <SummaryMetric label="Electricity" detail="Demand">{formatPower(consumptionMw)}</SummaryMetric>
+            )}
+            {electricityFlow && (
+              <SummaryMetric label="Electricity" detail="Net"
+                breakdown={`${formatPower(generationMw)} generation / ${formatPower(consumptionMw)} demand.`}>
+                {formatPowerMargin(generationMw - consumptionMw)}
               </SummaryMetric>
             )}
-            {!showsCapacity && consumptionMw > 0 && (
-              <SummaryMetric label="Electricity" detail="Consumption">
-                {formatPower(consumptionMw)}
-              </SummaryMetric>
-            )}
-            {!showsCapacity && electricityFlow && (
-              <SummaryMetric label="Electricity" detail="Net">
-                {formatPower(netMw)}
-              </SummaryMetric>
-            )}
-            {(showsComputingCapacity || computingDemand > 0) && (
-              <SummaryMetric label="Computing" detail={computingSummary.detail}>
-                {computingSummary.value}
-              </SummaryMetric>
-            )}
-            {unityBudget && (
-              <SummaryMetric label="Unity" detail="Demand / generation">
-                {formatCapacity(unityBudget.consumptionPerCycle)} / {unityBudget.generationPerCycle === null ? 'Unavailable' : formatCapacity(unityBudget.generationPerCycle)}
-              </SummaryMetric>
-            )}
-            {workers != null && workers > 0 && (
-              <SummaryMetric label="Workers" detail={populationCapacity != null ? "Assigned / population cap" : "Assigned"}>
-                {populationCapacity != null
-                  ? `${workers.toLocaleString("en-US")} / ${populationCapacity.toLocaleString("en-US")}`
-                  : workers.toLocaleString("en-US")}
-              </SummaryMetric>
-            )}
-          </dl>
-        );
-      })()}
-
-      {(
-        requestedImportRows.length > 0
-        || requestedExportRows.length > 0
-        || moduleInputFlows.length > 0
-        || inboundTransfers.length > 0
-        || outboundTransfers.length > 0
-      ) && (
-        <div className="space-y-1 border-b border-border pb-3">
-          {requestedImportRows.map(([resourceId, requested]) => {
-            const resourceName = resources[resourceId].name;
-
-            return (
-              <Tooltip
-                key={resourceId}
-                label={`Planned import target: ${formatCapacity(requested)} ${resourceName} per production cycle.`}
-                maxWidth={320}
-                className="flex w-full"
-              >
-                <div
-                  className="-mx-2 flex w-[calc(100%+1rem)] items-baseline justify-between rounded bg-highlight-muted px-2 py-0.5 text-sm text-highlight-foreground hover:bg-accent"
-                >
-                  <span>{resourceName}</span>
-                  <span className="font-mono font-semibold tabular-nums">
-                    {formatCapacity(requested)}
-                  </span>
-                </div>
-              </Tooltip>
-            );
-          })}
-          {(
-            requestedImportRows.length > 0
-            && (moduleInputFlows.length > 0 || inboundTransfers.length > 0)
-          ) && (
-            <div aria-hidden="true" className="my-2 border-t border-border" />
+          </>}
+          {(computingGenerationCapacityTflops != null || computingDemand > 0) && (
+            <SummaryMetric label="Computing" detail={computingGenerationCapacityTflops != null ? "Capacity margin" : "Demand"}
+              breakdown={computingGenerationCapacityTflops != null
+                ? `${formatCapacity(computingDemand)} demand / ${formatCapacity(computingGenerationCapacityTflops)} TFLOPS capacity.` : undefined}>
+              {computingGenerationCapacityTflops != null ? formatNet(computingGenerationCapacityTflops - computingDemand) : formatCapacity(computingDemand)} TFLOPS
+            </SummaryMetric>
           )}
-          {moduleInputFlows.map((flow) => (
-            <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
-              <span className="text-muted-foreground">
-                {flow.name}
-              </span>
-              <span className="font-mono font-semibold text-destructive">
-                {parseFloat(Math.abs(flow.net).toFixed(2))}
-              </span>
-            </div>
-          ))}
-          {inboundTransfers.map(transfer => renderTransfer(transfer, "inbound"))}
-          {(
-            (requestedExportRows.length > 0 || outboundTransfers.length > 0)
-            && (
-              requestedImportRows.length > 0
-              || moduleInputFlows.length > 0
-              || inboundTransfers.length > 0
-            )
-          ) && (
-            <div aria-hidden="true" className="my-2 border-t border-border" />
+          {unityBudget && (
+            <SummaryMetric label="Unity" detail={unityBudget.generationPerCycle == null ? "Demand" : "Net"}
+              breakdown={`${formatCapacity(unityBudget.consumptionPerCycle)} demand / ${unityBudget.generationPerCycle == null ? "generation unavailable" : `${formatCapacity(unityBudget.generationPerCycle)} generation`} per production cycle.`}>
+              {unityBudget.generationPerCycle == null
+                ? formatCapacity(unityBudget.consumptionPerCycle)
+                : formatNet(unityBudget.generationPerCycle - unityBudget.consumptionPerCycle)} / cycle
+            </SummaryMetric>
           )}
-          {requestedExportRows.map(([resourceId, requested]) => {
-            const resourceName = resources[resourceId].name;
-            const deficit = Math.max(
-              0,
-              -(flows.find((flow) => flow.resourceId === resourceId)?.net ?? 0),
-            );
-            const projected = Math.max(0, requested - deficit);
-            const hasShortfall = deficit > BALANCE_THRESHOLD;
-            const tooltip = hasShortfall
-              ? `Planned export target: ${formatCapacity(requested)} ${resourceName} per production cycle. Projected delivery: ${formatCapacity(projected)}.`
-              : `Planned export target: ${formatCapacity(requested)} ${resourceName} per production cycle.`;
-
-            return (
-              <Tooltip key={resourceId} label={tooltip} maxWidth={320} className="flex w-full">
-                <div
-                  className="-mx-2 flex w-[calc(100%+1rem)] items-baseline justify-between rounded bg-highlight-muted px-2 py-0.5 text-sm text-highlight-foreground hover:bg-accent"
-                >
-                  <span>{resourceName}</span>
-                  <span className="font-mono font-semibold tabular-nums">
-                    {formatCapacity(requested)}
-                  </span>
-                </div>
-              </Tooltip>
-            );
-          })}
-          {outboundTransfers.map(transfer => renderTransfer(transfer, "outbound"))}
-        </div>
+          {workers != null && workers > 0 && (
+            <SummaryMetric label="Workers" detail={populationCapacity != null ? "Demand / population cap" : "Demand"}>
+              {populationCapacity != null
+                ? `${workers.toLocaleString("en-US")} / ${populationCapacity.toLocaleString("en-US")}`
+                : workers.toLocaleString("en-US")}
+            </SummaryMetric>
+          )}
+        </dl>
       )}
 
       {groupByBalance ? (
         <>
           {onOpenBuilding && (
             <>
-              <PlannedBuildsView
-                diagnostics={buildingDiagnostics}
-                machineAllocationIssues={machineAllocationIssues}
-                machineInventory={machineInventory}
-                machineZoneClaims={machineZoneClaims}
-                machineZones={machineZones}
-                modules={plannedModules}
-                onAssignMachineZone={onAssignMachineZone}
-                onOpenBuilding={onOpenBuilding}
-              />
-              <BuildingAttentionView
-                diagnostics={buildingDiagnostics}
-                onOpenBuilding={onOpenBuilding}
-                onKeepReadyChange={onKeepReadyChange}
-              />
+              <PlannedBuildsView diagnostics={buildingDiagnostics} machineAllocationIssues={machineAllocationIssues}
+                machineInventory={machineInventory} machineZoneClaims={machineZoneClaims} machineZones={machineZones}
+                modules={plannedModules} onAssignMachineZone={onAssignMachineZone} onOpenBuilding={onOpenBuilding} />
+              <BuildingAttentionView diagnostics={buildingDiagnostics} onOpenBuilding={onOpenBuilding} onKeepReadyChange={onKeepReadyChange} />
             </>
           )}
           <div className="grid gap-2 lg:grid-cols-2">
-            {balanceGroups.map((group) => (
-              <section key={group.label} className="rounded-lg border border-border p-3">
-                <h4 className="mb-3 text-sm font-semibold text-foreground">
-                  {group.label}
-                </h4>
+            {balanceGroups.map(group => (
+              <section key={group.label} className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+                <h4 className="mb-2 text-sm font-semibold text-foreground">{group.label} / cycle</h4>
                 {renderBalanceGroup(group)}
               </section>
             ))}
           </div>
         </>
       ) : (
-        <div className="space-y-1">
-          {regularFlows.map((flow) => {
-            const capacityLimit = unroutedSurpluses.find(
-              candidate => candidate.flow.resourceId === flow.resourceId,
-            )?.detail;
-
-            return (
-              <div
-                key={flow.resourceId}
-                className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-0.5 text-sm hover:bg-accent"
-              >
-                <span className="flex min-w-0 flex-col text-foreground">
-                  <span>{flow.name}</span>
-                  {capacityLimit && (
-                    <span className="text-xs text-muted-foreground">{capacityLimit}</span>
-                  )}
-                </span>
-                <span
-                  className={`shrink-0 font-mono font-semibold ${
-                    flow.net > 0
-                      ? "text-success"
-                      : "text-destructive"
-                  }`}
-                >
-                  {flow.net > 0 ? `+${parseFloat(flow.net.toFixed(2))}` : parseFloat(flow.net.toFixed(2))}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        <ModuleBalance flows={materialFlows} moduleId={moduleId} transfers={resourceTransfers}
+          requestedImports={requestedImports} requestedExports={requestedExports}
+          transfersIncludedInBalance={transfersIncludedInBalance}
+          notes={Object.fromEntries(unroutedSurpluses.map(({ flow, detail }) => [flow.resourceId, detail]))} />
       )}
     </div>
   );

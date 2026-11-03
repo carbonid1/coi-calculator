@@ -293,10 +293,6 @@ export const ModifiersView: React.FC<Props> = ({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">General Info</h2>
-      </div>
-
       <section className="space-y-3">
         <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Factory overview</h3>
         <Card.Root>

@@ -116,6 +116,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   } : undefined
   const [activeModuleId, setActiveModuleId] = useState(FACTORY_TOTAL_ID)
   const [supplyResourceId, setSupplyResourceId] = useState<ResourceId>('carbonDioxide')
+  const [supplyOriginId, setSupplyOriginId] = useState<string | null>(null)
   const factorySummaryRef = useRef<HTMLHeadingElement>(null)
   const focusFactorySummary = useRef(false)
   const [machineZoneAssignments, setMachineZoneAssignments] = useState<MachineZoneAssignments>({})
@@ -216,7 +217,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   useEffect(() => {
     if (!buildingTarget || buildingTarget.moduleId !== activeModuleId) return undefined
 
-    let clearTimer: number | undefined
+    const scheduled: { clearTimer?: number } = {}
     const animationFrame = window.requestAnimationFrame(() => {
       const target = document.getElementById(getBuildingTargetId(buildingTarget.key))
 
@@ -229,14 +230,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
       target.focus({ preventScroll: true })
-      clearTimer = window.setTimeout(() => {
+      scheduled.clearTimer = window.setTimeout(() => {
         setBuildingTarget(current => (current === buildingTarget ? null : current))
       }, 1_800)
     })
 
     return () => {
       window.cancelAnimationFrame(animationFrame)
-      if (clearTimer !== undefined) window.clearTimeout(clearTimer)
+      if (scheduled.clearTimer !== undefined) window.clearTimeout(scheduled.clearTimer)
     }
   }, [activeModuleId, buildingTarget])
 
@@ -248,11 +249,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     focusFactorySummary.current = false
   }, [activeModuleId])
 
-  let calculationStatus: 'loading' | 'updating' | 'error' | 'ready' = 'ready'
+  const calculationStatus = ((): 'loading' | 'updating' | 'error' | 'ready' => {
+    if (failed) return 'error'
+    if (settled?.isStale) return 'updating'
+    if (!settled && latestSnapshot) return 'loading'
 
-  if (!settled && latestSnapshot) calculationStatus = 'loading'
-  if (settled?.isStale) calculationStatus = 'updating'
-  if (failed) calculationStatus = 'error'
+    return 'ready'
+  })()
   const displayedSnapshot = settled?.model.snapshot ?? gameState.snapshot
 
   const header = (
@@ -566,6 +569,20 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     )
   const linkedModuleLines = [...linkedModulesResult.moduleResults.values()]
     .flatMap(result => result.lines)
+  const hasPlannedChanges = (lines: readonly ProductionLine[]) => lines.some(line => (
+    line.dataSource === 'planned'
+    || (line.constructionGhosts ?? 0) > 0
+    || (line.unplacedPlannedBuildings ?? 0) > 0
+    || (line.currentActiveBuildings != null && Math.abs(line.activeBuildings - line.currentActiveBuildings) > 0.001)
+  ))
+  const factoryHasPlannedChanges = hasPlannedChanges([...factoryResult.allLines, ...linkedModuleLines])
+    || configuredModules.some(module => (module.includedInFactoryTotals !== false || module.liveArea) && module.presets.some(preset => (
+      preset.id === module.defaultPresetId && (
+        (preset.planMismatches?.length ?? 0) > 0
+        || Object.values(preset.requestedImports ?? {}).some(quantity => (quantity ?? 0) > 0)
+        || Object.values(preset.requestedExports ?? {}).some(quantity => (quantity ?? 0) > 0)
+      )
+    )))
   const factoryGenerationCapacityMw = calculateGenerationCapacityMw([
     ...factoryResult.allLines,
     ...linkedModuleLines,
@@ -636,6 +653,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       setActiveModuleId(FACTORY_TOTAL_ID)
       return
     }
+    if (activeModuleId !== RESOURCE_SUPPLY_ID) setSupplyOriginId(activeModuleId)
     setSupplyResourceId(resourceId)
     setActiveModuleId(RESOURCE_SUPPLY_ID)
   }
@@ -654,9 +672,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         factoryTotalId={FACTORY_TOTAL_ID}
         resourceSupplyId={RESOURCE_SUPPLY_ID}
         focusId={FOCUS_DASHBOARD_ID}
-        onChange={setActiveModuleId}
+        onChange={id => {
+          if (id === RESOURCE_SUPPLY_ID && activeModuleId !== RESOURCE_SUPPLY_ID) setSupplyOriginId(activeModuleId)
+          setActiveModuleId(id)
+        }}
         researchId={RESEARCH_MODULE_ID}
         viewModuleIds={VIEW_MODULE_IDS}
+        backId={isResourceSupply ? supplyOriginId ?? undefined : undefined}
+        onBack={isResourceSupply && supplyOriginId ? () => setActiveModuleId(supplyOriginId) : undefined}
       />
 
       {activeModule?.description && activeModule.id !== MINES_MODULE_ID && (
@@ -725,6 +748,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           populationCapacity={populationCapacity}
           unityBudget={unityBudget}
           groupByBalance
+          hasPlannedChanges={factoryHasPlannedChanges}
           regularResults={[
             ...factoryResult.calculation.regularResults,
             ...linkedRegularResults,
@@ -799,10 +823,16 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
           {activeModule.id !== MINES_MODULE_ID && activeModule.id !== RESERVES_MODULE_ID && (
             <NetSummary
+              key={activeModule.id}
+              hasPlannedChanges={hasPlannedChanges(moduleResult.lines)
+                || (preset?.planMismatches?.length ?? 0) > 0
+                || Object.values(preset?.requestedImports ?? {}).some(quantity => (quantity ?? 0) > 0)
+                || Object.values(preset?.requestedExports ?? {}).some(quantity => (quantity ?? 0) > 0)}
               flows={displayedResourceFlows}
               regularResults={moduleResult.regularResults}
               blockedRoutes={moduleResult.blockedRoutes}
               moduleId={activeModule.id}
+              transfersIncludedInBalance={Boolean(activeLinkedModuleResult)}
               requestedImports={preset?.requestedImports}
               requestedExports={preset?.requestedExports}
               resourceTransfers={linkedModulesResult.transfers}
