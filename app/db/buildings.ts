@@ -16,6 +16,7 @@ export interface BuildingData {
 }
 
 const syntheticBuildings: Record<string, BuildingData> = {
+  'Space Station': { workers: 0, electricityKw: 0 },
   [activeHousingType.name]: { workers: 0, electricityKw: activeHousingType.populationCapacity * settlementConfig.electricityKwPerPop * activeHousingType.serviceDemandMultipliers.electricity },
   [housingTypes.housingII.name]: { workers: 0, electricityKw: housingTypes.housingII.populationCapacity * settlementConfig.electricityKwPerPop * housingTypes.housingII.serviceDemandMultipliers.electricity },
   'Space Station I': { workers: calculateSpaceStationLevel(1).crew, electricityKw: 0 },

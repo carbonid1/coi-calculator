@@ -7,6 +7,7 @@ import {
   emptyRocketInfrastructureConfig,
 } from '../../db/rocket-infrastructure'
 import { settlementRecipeIds } from '../../db/settlement'
+import { testRocketIiDefinition } from '../../test-fixtures/recorded-game-data'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateProductionCardLoad, groupProductionCardLines, hasBuildingInventory } from './production-card-groups'
 
@@ -49,6 +50,7 @@ describe('production card groups', () => {
   it('shows the two station operations as one physical card', () => {
     const station = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
+      testRocketIiDefinition,
       emptyRocketInfrastructureConfig,
       {
         rocketRunningConfig: emptyRocketInfrastructureConfig,

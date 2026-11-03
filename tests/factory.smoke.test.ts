@@ -4,6 +4,8 @@ import { expect, it } from 'vitest'
 
 import { type ChickenFarmDefinition } from '../app/chicken-farm-state'
 import { createChickenFarmsModule } from '../app/db/modules/farms'
+import { createSpaceStationModule } from '../app/db/modules/space-station'
+import { calculateSpaceStationLevel } from '../app/db/space-station'
 import { normalizeGameStateSnapshot } from '../app/game-state'
 import { buildModuleLines } from '../app/helpers/build-module-lines/build-module-lines'
 import { calculateBuildingStats } from '../app/helpers/building-stats/building-stats'
@@ -11,8 +13,10 @@ import { calculateNet } from '../app/helpers/calculate/calculate'
 import { deriveCalculatorModel } from '../app/helpers/calculator-model/derive-calculator-model'
 import { calculateContractWorkers } from '../app/helpers/contracts/calculate-contracts'
 import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/factory-calculation'
+import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
+import { type RocketIiDefinition } from '../app/rocket-state'
 
-// Update 4.3 factory, with the Bridge 45 chicken-farm definition read from the game.
+// Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
 
@@ -75,6 +79,96 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   expect(changedModel.officePlanCalculation.focusPointsCapacity).toBe(6552)
   expect(changed.flows).toEqual(factoryResult.flows)
   expect(changed.contractResults).toEqual(factoryResult.contractResults)
+}, 60_000)
+
+it('replays station plans and Rocket II supply through native capacities, recipes and building pressure', () => {
+  const replay = (definition?: RocketIiDefinition) => {
+    const raw = structuredClone(capture)
+
+    if (definition) raw.rocketIiDefinition = definition
+    const snapshot = normalizeGameStateSnapshot(raw)
+
+    if (!snapshot) throw new Error('Recorded rocket data is incompatible')
+    const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'rocket-replay' })
+    const stationModule = model.configuredModules.find(candidate => candidate.recipes?.some(recipe => recipe.id === 'space-station-operations'))
+
+    if (!stationModule) throw new Error('Recorded factory must exercise Space Station planning')
+    const lines = buildModuleLines(stationModule, stationModule.presets[0], model.outputModifiers).lines
+      .filter(line => line.recipe.id.startsWith('rocket-ii-'))
+    const result = calculateNet(lines)
+    const launch = result.regularResults.find(line => line.recipe.id === 'rocket-ii-launch-amortized')
+    const assembly = result.regularResults.find(line => line.recipe.id === 'rocket-ii-assembly')
+
+    if (!launch || !assembly) throw new Error('Rocket supply chain is missing')
+    return { snapshot, model, launch, assembly }
+  }
+  const current = replay()
+  const definition = current.snapshot.rocketIiDefinition
+  const quantity = (inputs: readonly { resourceId: string; quantity: number }[], id: string) => (
+    inputs.find(input => input.resourceId === id)?.quantity ?? 0
+  )
+  const verify = (run: ReturnType<typeof replay>, launches: number) => {
+    const data = run.snapshot.rocketIiDefinition
+
+    expect(quantity(run.launch.actualInputs, 'rocketII')).toBeCloseTo(launches, 10)
+    expect(quantity(run.assembly.actualOutputs, 'rocketII')).toBeCloseTo(launches, 10)
+    for (const [products, actual] of [[data.buildInputs, run.assembly.actualInputs], [data.launchInputs, run.launch.actualInputs]] as const) {
+      for (const product of products) {
+        const resourceId = resolveSyncedResourceId(product)
+
+        if (!resourceId) throw new Error(`Unsupported rocket product ${product.productId}`)
+        expect(quantity(actual, resourceId)).toBeCloseTo(product.quantity * launches, 10)
+      }
+    }
+    expect(run.assembly.recipe.cycleDurationSeconds).toBe(data.buildCycles * 60)
+    expect(run.model.rocketIiRecurringLogistics).toMatchObject({ cargoCapacity: data.cargoCapacity,
+      crewCapacity: data.crewCapacity, payloadCapacityBonusPercent: data.capacityBonusPercent,
+      researchLevel: run.snapshot.research.rocketsCapacity })
+    expect(run.model.rocketIiRecurringLogistics.assemblyDepotUtilization).toBeCloseTo(launches * data.buildCycles, 10)
+  }
+
+  // This capture plans level four from a destroyed station. Both its supply
+  // rows and its overview must use the new definition, without a default ratio.
+  expect(current.snapshot.spaceStation.currentLevel).toBe(0)
+  const station = calculateSpaceStationLevel(4, 4)
+  const cargo = station.maintenancePartsPerCycle + station.crewSuppliesPerCycle + station.researchSuppliesPerCycle
+  const launches = cargo / definition.cargoCapacity + Math.ceil(station.crew / definition.crewCapacity) / definition.crewRotationCycles
+
+  verify(current, launches)
+  const changed: RocketIiDefinition = { ...definition, cargoCapacity: 80, crewCapacity: 2,
+    capacityBonusPercent: 25, buildCycles: 3, crewRotationCycles: 12,
+    buildInputs: definition.buildInputs.map(input => ({ ...input, quantity: input.quantity * 2 })),
+    launchInputs: definition.launchInputs.map(input => ({ ...input, quantity: input.quantity * 3 })),
+    compositePanelInputs: definition.compositePanelInputs.map(input => ({ ...input, quantity: input.quantity * 4 })),
+    compositePanelOutput: definition.compositePanelOutput * 2 }
+  const updated = replay(changed)
+  const changedLaunches = cargo / 80 + Math.ceil(station.crew / 2) / 12
+
+  verify(updated, changedLaunches)
+  expect(updated.model.rocketIiRecurringLogistics.aluminumPerCycle / changedLaunches)
+    .toBeCloseTo(current.model.rocketIiRecurringLogistics.aluminumPerCycle / launches * 4, 10)
+  const constrained = replay({ ...changed, buildCycles: 12 })
+
+  expect(quantity(constrained.launch.actualInputs, 'rocketII')).toBeCloseTo(changedLaunches, 10)
+  expect(quantity(constrained.assembly.actualOutputs, 'rocketII')).toBeCloseTo(1 / 12, 10)
+
+  // Multiple pads share one launch stream; an absent station needs none.
+  for (const level of [0, 1, 2, 3, 4]) {
+    const stationModule = createSpaceStationModule({ currentLevel: level, highestLevelAchieved: 4 }, changed,
+      { rocketAssemblyDepot: 2, rocketLaunchPad: 2 })
+    const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: current.snapshot.buildingDefinitions }).lines
+    const result = calculateNet(lines)
+    const logistics = calculateSpaceStationLevel(level, 4)
+    const expected = (logistics.maintenancePartsPerCycle + logistics.crewSuppliesPerCycle + logistics.researchSuppliesPerCycle) / changed.cargoCapacity
+      + Math.ceil(logistics.crew / changed.crewCapacity) / changed.crewRotationCycles
+    const launch = result.regularResults.find(line => line.recipe.id === 'rocket-ii-launch-amortized')
+
+    expect(quantity(launch?.actualInputs ?? [], 'rocketII')).toBeCloseTo(expected, 10)
+    const stats = calculateBuildingStats(lines, result)
+    const nativeWorkers = (id: string) => current.snapshot.buildingDefinitions.find(item => item.id === id)?.workers ?? 0
+
+    expect(stats.workers).toBe(2 * (nativeWorkers('RocketAssemblyDepot') + nativeWorkers('RocketLaunchPad')) + logistics.crew)
+  }
 }, 60_000)
 
 it('replays chicken inventory, construction and plans using the supplied farm definition', () => {

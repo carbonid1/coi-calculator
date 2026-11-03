@@ -29,6 +29,7 @@ internal sealed class SnapshotDocument
     public readonly RecyclingSnapshot Recycling;
     public readonly List<BuildingDefinitionSnapshot> BuildingDefinitions;
     public readonly ChickenFarmDefinitionSnapshot ChickenFarmDefinition;
+    public readonly RocketDefinitionSnapshot RocketIiDefinition;
 
     public SnapshotDocument(
         string saveId,
@@ -56,7 +57,8 @@ internal sealed class SnapshotDocument
         WeatherConfigSnapshot weather,
         RecyclingSnapshot recycling,
         List<BuildingDefinitionSnapshot> buildingDefinitions,
-        ChickenFarmDefinitionSnapshot chickenFarmDefinition)
+        ChickenFarmDefinitionSnapshot chickenFarmDefinition,
+        RocketDefinitionSnapshot rocketIiDefinition)
     {
         SaveId = saveId;
         GameId = gameId;
@@ -84,5 +86,6 @@ internal sealed class SnapshotDocument
         Recycling = recycling;
         BuildingDefinitions = buildingDefinitions;
         ChickenFarmDefinition = chickenFarmDefinition;
+        RocketIiDefinition = rocketIiDefinition;
     }
 }

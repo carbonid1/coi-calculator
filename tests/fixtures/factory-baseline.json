@@ -95,8 +95,7 @@
     "rainwaterYield": 1.5,
     "settlementConsumption": 1,
     "settlementWater": 0.8,
-    "treeGrowthSpeed": 1.05,
-    "rocketLaunches": 0.9529
+    "treeGrowthSpeed": 1.05
   },
   "contracts": [
     {

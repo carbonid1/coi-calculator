@@ -12,6 +12,7 @@ import { normalizeFocusStates, type SyncedFocusStates } from './focus-state'
 import { isRecyclingData, isRecyclingSources, type RecyclingData, type RecyclingSource } from './helpers/recycling/recycling'
 import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balances'
 import { isNativeProducts, type NativeProducts } from './product-state'
+import { isRocketIiDefinition, type RocketIiDefinition } from './rocket-state'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
 import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCargoOperation, type SyncedWorldCargoRoute, type SyncedWorldState, type SyncedStorage } from './world-state'
 
@@ -295,10 +296,11 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 45 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 46 as const
 
 export interface GameStateSnapshot {
   chickenFarmDefinition: ChickenFarmDefinition
+  rocketIiDefinition: RocketIiDefinition
   buildingDefinitions: BuildingDefinition[]
   products?: NativeProducts
   recycling: RecyclingData
@@ -1071,6 +1073,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
   if (!isBuildingDefinitions(snapshot.buildingDefinitions)) return null
   if (!isChickenFarmDefinition(snapshot.chickenFarmDefinition)) return null
+  if (!isRocketIiDefinition(snapshot.rocketIiDefinition)) return null
   if (snapshot.products !== undefined && (!isNativeProducts(snapshot.products)
     || snapshot.products.gameId !== snapshot.gameId || snapshot.products.sessionId !== snapshot.sessionId)) return null
   if (!isRecyclingData(snapshot.recycling)) return null
@@ -1189,6 +1192,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   return {
     schemaVersion,
     chickenFarmDefinition: snapshot.chickenFarmDefinition,
+    rocketIiDefinition: snapshot.rocketIiDefinition,
     buildingDefinitions: snapshot.buildingDefinitions,
     ...(snapshot.products === undefined ? {} : { products: snapshot.products }),
     recycling: snapshot.recycling,

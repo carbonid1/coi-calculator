@@ -2,6 +2,7 @@ import {
   type SyncedLogisticsZoneRef,
   type SyncedProductionEntity,
 } from "../../game-state";
+import { type RocketIiDefinition } from '../../rocket-state';
 import { recipes, type Recipe } from "../recipes";
 import {
   emptyRocketInfrastructureConfig,
@@ -11,6 +12,7 @@ import {
 } from "../rocket-infrastructure";
 import {
   calculateSpaceStationLevel,
+  createRocketIiRecipes,
   getMinimumSpaceStationLevelForResearchPoints,
   type SpaceStationConfig,
 } from "../space-station";
@@ -142,6 +144,7 @@ const createSpaceStationRecipes = (config: SpaceStationConfig): Recipe[] => {
 
 export const createSpaceStationModule = (
   config: SpaceStationConfig,
+  rocketDefinition: RocketIiDefinition,
   rocketBuiltConfig: RocketInfrastructureConfig = emptyRocketInfrastructureConfig,
   currentState: SpaceStationCurrentState = {},
   generatedArea?: Module,
@@ -240,10 +243,10 @@ export const createSpaceStationModule = (
     capabilities: ["space-station"],
     includedInFactoryTotals: true,
     builtBuildings,
-    recipes: createSpaceStationRecipes({
+    recipes: [...createRocketIiRecipes(station, rocketDefinition), ...createSpaceStationRecipes({
       currentLevel: targetLevel,
       highestLevelAchieved: Math.max(config.highestLevelAchieved, targetLevel),
-    }),
+    })],
     presets: [
       {
         id: "current",

@@ -16,9 +16,7 @@ import { type ResourceId } from './resources'
 import { calculateSettlementPopulationFlows, settlementRecipeIds } from './settlement'
 import { solarPanels } from './solar'
 import {
-  defaultRocketIiRecurringLogistics,
   defaultSpaceStationLevel,
-  rocketIiGameData,
 } from './space-station'
 
 export interface Ingredient {
@@ -40,7 +38,6 @@ export type RecipeGroup = 'source' | 'electricity' | 'production' | 'waste' | 's
 export type InputModifierId =
   | 'cropWater'
   | 'foodConsumption'
-  | 'rocketLaunches'
   | 'settlementConsumption'
   | 'settlementWater'
   | 'treeGrowthSpeed'
@@ -898,67 +895,6 @@ export const recipes: Recipe[] = [
       },
     ],
   },
-  {
-    // Rocket II is destroyed after every launch. Its six-cycle build is kept as
-    // a real demand-balanced production line; only launch frequency is averaged.
-    id: 'rocket-ii-assembly',
-    name: 'Rocket Assembly Depot (Rocket II)',
-    building: 'Rocket Assembly Depot',
-    group: 'production',
-    cycleDurationSeconds: 360,
-    balanceBy: 'output',
-    balanceOutputIds: ['rocketII'],
-    inputs: [
-      {
-        resourceId: 'compositePanel',
-        quantity: rocketIiGameData.buildCosts.compositePanel / rocketIiGameData.buildCycles,
-      },
-      {
-        resourceId: 'titaniumAlloy',
-        quantity: rocketIiGameData.buildCosts.titaniumAlloy / rocketIiGameData.buildCycles,
-      },
-      {
-        resourceId: 'steel',
-        quantity: rocketIiGameData.buildCosts.steel / rocketIiGameData.buildCycles,
-      },
-      {
-        resourceId: 'electronicsIII',
-        quantity: rocketIiGameData.buildCosts.electronicsIii / rocketIiGameData.buildCycles,
-      },
-    ],
-    outputs: [{ resourceId: 'rocketII', quantity: 1 / rocketIiGameData.buildCycles }],
-  },
-  {
-    id: 'rocket-ii-launch-amortized',
-    name: 'Rocket Launch Pad (Rocket II average)',
-    building: 'Rocket Launch Pad',
-    group: 'production',
-    fixedTotalOperation: true,
-    inputs: [
-      {
-        resourceId: 'rocketII',
-        quantity: defaultRocketIiRecurringLogistics.launchesPerCycle,
-        inputModifierId: 'rocketLaunches',
-      },
-      {
-        resourceId: 'water',
-        quantity: defaultRocketIiRecurringLogistics.waterPerCycle,
-        inputModifierId: 'rocketLaunches',
-      },
-      {
-        resourceId: 'hydrogen',
-        quantity: defaultRocketIiRecurringLogistics.hydrogenPerCycle,
-        inputModifierId: 'rocketLaunches',
-      },
-      {
-        resourceId: 'oxygen',
-        quantity: defaultRocketIiRecurringLogistics.oxygenPerCycle,
-        inputModifierId: 'rocketLaunches',
-      },
-    ],
-    outputs: [],
-  },
-
   // Static infrastructure. Runtime utilization is not available, so these
   // no-flow rows account for workers while avoiding modeled production flows.
   {

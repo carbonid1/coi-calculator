@@ -1,4 +1,7 @@
-import { defaultInfiniteResearchLevels, rocketsCapacityResearch } from "./research";
+import { resolveSyncedResourceId } from '../helpers/synced-resources/synced-resources';
+import { type RocketIiDefinition, type RocketProduct } from '../rocket-state';
+import { type Recipe } from './recipes';
+import { type ResourceId } from './resources';
 
 export type StationPartsKind = "basic" | "standard";
 
@@ -43,33 +46,6 @@ export interface RocketIiRecurringLogistics {
   waterPerCycle: number;
 }
 
-/** Installed Captain of Industry v0.8.7 Rocket II values. */
-export const rocketIiGameData = {
-  baseCargoCapacity: 120,
-  baseCrewCapacity: 12,
-  buildCycles: 6,
-  buildCosts: {
-    compositePanel: 480,
-    electronicsIii: 16,
-    steel: 80,
-    titaniumAlloy: 120,
-  },
-  compositePanelRecipe: {
-    aluminum: 8,
-    output: 8,
-    plastic: 2,
-    steel: 1,
-  },
-  launchInputs: {
-    hydrogen: 320,
-    oxygen: 90,
-    water: 160,
-  },
-} as const;
-
-/** The station replaces its entire crew every two in-game years. */
-const SPACE_STATION_CREW_ROTATION_CYCLES = 24;
-
 /** Maximum Space Station level in Captain of Industry v0.8.7. */
 const maximumSpaceStationLevel = 4;
 
@@ -93,10 +69,7 @@ export const calculateSpaceStationLevel = (
   const normalizedLevel = normalizeLevel(level);
   const researchLevels = Math.max(0, normalizedLevel - 2);
   const crew = Math.max(0, (normalizedLevel - 1) * 2);
-  let constructionParts = 0;
-
-  if (normalizedLevel === 1) constructionParts = 80;
-  if (normalizedLevel > 1) constructionParts = 120;
+  const constructionParts = normalizedLevel > 1 ? 120 : normalizedLevel * 80;
 
   return {
     constructionParts,
@@ -126,13 +99,9 @@ export const getMinimumSpaceStationLevelForResearchPoints = (
   ).spaceResearchPointsPerCycle;
   const coveredTarget = Math.min(Math.max(0, requiredPoints), maximumOutput);
 
-  for (let level = 1; level <= maximumSpaceStationLevel; level += 1) {
-    if (calculateSpaceStationLevel(level).spaceResearchPointsPerCycle >= coveredTarget) {
-      return level;
-    }
-  }
-
-  return maximumSpaceStationLevel;
+  return Array.from({ length: maximumSpaceStationLevel }, (_, index) => index + 1)
+    .find(level => calculateSpaceStationLevel(level).spaceResearchPointsPerCycle >= coveredTarget)
+    ?? maximumSpaceStationLevel;
 };
 
 /**
@@ -146,14 +115,11 @@ export const getMinimumSpaceStationLevelForResearchPoints = (
  */
 export const calculateRocketIiRecurringLogistics = (
   station: SpaceStationLevelData,
+  definition: RocketIiDefinition,
   researchLevel: number,
 ): RocketIiRecurringLogistics => {
   const normalizedResearchLevel = Math.max(0, Math.trunc(researchLevel));
-  const payloadCapacityBonusPercent = normalizedResearchLevel
-    * (rocketsCapacityResearch.percentPerLevel ?? 0);
-  const capacityMultiplier = 1 + payloadCapacityBonusPercent / 100;
-  const cargoCapacity = Math.round(rocketIiGameData.baseCargoCapacity * capacityMultiplier);
-  const crewCapacity = Math.round(rocketIiGameData.baseCrewCapacity * capacityMultiplier);
+  const { cargoCapacity, crewCapacity } = definition;
   const recurringCargoPerCycle = station.maintenancePartsPerCycle
     + station.crewSuppliesPerCycle
     + station.researchSuppliesPerCycle;
@@ -161,42 +127,42 @@ export const calculateRocketIiRecurringLogistics = (
     ? recurringCargoPerCycle / cargoCapacity
     : 0;
   const crewLaunchesPerCycle = station.crew > 0 && crewCapacity > 0
-    ? Math.ceil(station.crew / crewCapacity) / SPACE_STATION_CREW_ROTATION_CYCLES
+    ? Math.ceil(station.crew / crewCapacity) / definition.crewRotationCycles
     : 0;
   const launchesPerCycle = cargoLaunchesPerCycle + crewLaunchesPerCycle;
-  const panelBatchesPerRocket = rocketIiGameData.buildCosts.compositePanel
-    / rocketIiGameData.compositePanelRecipe.output;
-  const perRocket = {
-    aluminum: panelBatchesPerRocket * rocketIiGameData.compositePanelRecipe.aluminum,
-    electronicsIii: rocketIiGameData.buildCosts.electronicsIii,
-    hydrogen: rocketIiGameData.launchInputs.hydrogen,
-    oxygen: rocketIiGameData.launchInputs.oxygen,
-    plastic: panelBatchesPerRocket * rocketIiGameData.compositePanelRecipe.plastic,
-    steel: rocketIiGameData.buildCosts.steel
-      + panelBatchesPerRocket * rocketIiGameData.compositePanelRecipe.steel,
-    titaniumAlloy: rocketIiGameData.buildCosts.titaniumAlloy,
-    water: rocketIiGameData.launchInputs.water,
-  };
+  const buildInputs = rocketIngredients(definition.buildInputs);
+  const panelsPerRocket = buildInputs.find(input => input.resourceId === 'compositePanel')?.quantity ?? 0;
+  const panelBatchesPerRocket = panelsPerRocket / definition.compositePanelOutput;
+  const expandedInputs = [
+    ...buildInputs.filter(input => input.resourceId !== 'compositePanel'),
+    ...rocketIngredients(definition.launchInputs),
+    ...rocketIngredients(definition.compositePanelInputs).map(input => ({
+      ...input, quantity: input.quantity * panelBatchesPerRocket,
+    })),
+  ];
+  const perRocket = (id: ResourceId) => expandedInputs.reduce((sum, input) => (
+    sum + (input.resourceId === id ? input.quantity : 0)
+  ), 0);
 
   return {
-    aluminumPerCycle: perRocket.aluminum * launchesPerCycle,
-    assemblyDepotUtilization: launchesPerCycle * rocketIiGameData.buildCycles,
+    aluminumPerCycle: perRocket('aluminum') * launchesPerCycle,
+    assemblyDepotUtilization: launchesPerCycle * definition.buildCycles,
     cargoCapacity,
     cargoLaunchesPerCycle,
-    compositePanelPerCycle: rocketIiGameData.buildCosts.compositePanel * launchesPerCycle,
+    compositePanelPerCycle: panelsPerRocket * launchesPerCycle,
     crewCapacity,
     crewLaunchesPerCycle,
     cyclesPerLaunch: launchesPerCycle > 0 ? 1 / launchesPerCycle : 0,
-    electronicsIiiPerCycle: perRocket.electronicsIii * launchesPerCycle,
-    hydrogenPerCycle: perRocket.hydrogen * launchesPerCycle,
+    electronicsIiiPerCycle: perRocket('electronicsIII') * launchesPerCycle,
+    hydrogenPerCycle: perRocket('hydrogen') * launchesPerCycle,
     launchesPerCycle,
-    oxygenPerCycle: perRocket.oxygen * launchesPerCycle,
-    payloadCapacityBonusPercent,
-    plasticPerCycle: perRocket.plastic * launchesPerCycle,
+    oxygenPerCycle: perRocket('oxygen') * launchesPerCycle,
+    payloadCapacityBonusPercent: definition.capacityBonusPercent,
+    plasticPerCycle: perRocket('plastic') * launchesPerCycle,
     researchLevel: normalizedResearchLevel,
-    steelPerCycle: perRocket.steel * launchesPerCycle,
-    titaniumAlloyPerCycle: perRocket.titaniumAlloy * launchesPerCycle,
-    waterPerCycle: perRocket.water * launchesPerCycle,
+    steelPerCycle: perRocket('steel') * launchesPerCycle,
+    titaniumAlloyPerCycle: perRocket('titaniumAlloy') * launchesPerCycle,
+    waterPerCycle: perRocket('water') * launchesPerCycle,
   };
 };
 
@@ -205,7 +171,45 @@ export const defaultSpaceStationLevel = calculateSpaceStationLevel(
   maximumSpaceStationLevel,
 );
 
-export const defaultRocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
-  defaultSpaceStationLevel,
-  defaultInfiniteResearchLevels.rocketsCapacity,
-);
+const rocketIngredients = (products: readonly RocketProduct[]) => products.map(product => {
+  const resourceId = resolveSyncedResourceId(product);
+
+  if (!resourceId) throw new Error(`Unsupported Rocket II product: ${product.productId}`);
+  return { resourceId, quantity: product.quantity };
+});
+
+export const createRocketIiRecipes = (
+  station: SpaceStationLevelData,
+  definition: RocketIiDefinition,
+): Recipe[] => {
+  const logistics = calculateRocketIiRecurringLogistics(station, definition, 0);
+
+  return [{
+    id: 'rocket-ii-assembly',
+    name: 'Rocket Assembly Depot (Rocket II)',
+    building: 'Rocket Assembly Depot',
+    gameBuildingId: 'RocketAssemblyDepot',
+    group: 'production',
+    cycleDurationSeconds: definition.buildCycles * 60,
+    balanceBy: 'output',
+    balanceOutputIds: ['rocketII'],
+    inputs: rocketIngredients(definition.buildInputs).map(input => ({
+      ...input, quantity: input.quantity / definition.buildCycles,
+    })),
+    outputs: [{ resourceId: 'rocketII', quantity: 1 / definition.buildCycles }],
+  }, {
+    id: 'rocket-ii-launch-amortized',
+    name: 'Rocket Launch Pad (Rocket II average)',
+    building: 'Rocket Launch Pad',
+    gameBuildingId: 'RocketLaunchPad',
+    group: 'production',
+    fixedTotalOperation: true,
+    inputs: [
+      { resourceId: 'rocketII', quantity: logistics.launchesPerCycle },
+      ...rocketIngredients(definition.launchInputs).map(input => ({
+        ...input, quantity: input.quantity * logistics.launchesPerCycle,
+      })),
+    ],
+    outputs: [],
+  }];
+};

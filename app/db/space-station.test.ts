@@ -9,6 +9,7 @@ import {
   getPlannedBuildSummaries,
 } from "../helpers/planned-builds/planned-builds";
 import { withTestBuildingRequirements } from '../test-fixtures/building-requirements'
+import { testRocketIiDefinition } from '../test-fixtures/recorded-game-data'
 import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 import { baseConfig } from "./config";
 import {
@@ -21,7 +22,7 @@ import {
 import {
   calculateSpaceStationLevel,
   calculateRocketIiRecurringLogistics,
-  defaultRocketIiRecurringLogistics,
+  defaultSpaceStationLevel,
   getMinimumSpaceStationLevelForResearchPoints,
   getStationPartsKind,
 } from "./space-station";
@@ -30,15 +31,18 @@ const testSpaceStationConfig = {
   currentLevel: 4,
   highestLevelAchieved: 4,
 };
+const defaultRocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
+  defaultSpaceStationLevel, testRocketIiDefinition, 1,
+);
 const createTestSpaceStationModule = () => createSpaceStationModule(
   testSpaceStationConfig,
+  testRocketIiDefinition,
   emptyRocketInfrastructureConfig,
   {
     rocketRunningConfig: emptyRocketInfrastructureConfig,
     stationPartsAssembly: { built: 1, running: 1 },
   },
 );
-const spaceStation = createTestSpaceStationModule();
 
 describe("Space Station", () => {
   it("selects one Space Station area and prefers the one containing station infrastructure", () => {
@@ -86,60 +90,6 @@ describe("Space Station", () => {
     expect(getMinimumSpaceStationLevelForResearchPoints(48)).toBe(3);
     expect(getMinimumSpaceStationLevelForResearchPoints(96)).toBe(4);
     expect(getMinimumSpaceStationLevelForResearchPoints(144)).toBe(4);
-  });
-
-  it("amortizes Rocket II supply and crew launches at capacity research level one", () => {
-    expect(defaultRocketIiRecurringLogistics).toMatchObject({
-      cargoCapacity: 126,
-      crewCapacity: 13,
-      payloadCapacityBonusPercent: 5,
-      researchLevel: 1,
-    });
-    expect(defaultRocketIiRecurringLogistics.cargoLaunchesPerCycle)
-      .toBeCloseTo(6.2 / 126, 9);
-    expect(defaultRocketIiRecurringLogistics.crewLaunchesPerCycle)
-      .toBeCloseTo(1 / 24, 9);
-    expect(defaultRocketIiRecurringLogistics.launchesPerCycle)
-      .toBeCloseTo(0.090873016, 9);
-    expect(defaultRocketIiRecurringLogistics.compositePanelPerCycle)
-      .toBeCloseTo(43.619048, 6);
-    expect(defaultRocketIiRecurringLogistics.aluminumPerCycle)
-      .toBeCloseTo(43.619048, 6);
-    expect(defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle)
-      .toBeCloseTo(10.904762, 6);
-    expect(defaultRocketIiRecurringLogistics.waterPerCycle)
-      .toBeCloseTo(14.539683, 6);
-    expect(defaultRocketIiRecurringLogistics.hydrogenPerCycle)
-      .toBeCloseTo(29.079365, 6);
-  });
-
-  it("models Composite Panels and Rocket II as real production lines", () => {
-    expect(recipes.find((recipe) => recipe.id === "assembly-v-composite-panel"))
-      .toMatchObject({
-        building: "Assembly V",
-        cycleDurationSeconds: 15,
-        inputs: [
-          { resourceId: "aluminum", quantity: 32 },
-          { resourceId: "steel", quantity: 4 },
-          { resourceId: "plastic", quantity: 8 },
-        ],
-        outputs: [{ resourceId: "compositePanel", quantity: 32 }],
-      });
-    expect(recipes.find((recipe) => recipe.id === "rocket-ii-assembly"))
-      .toMatchObject({
-        building: "Rocket Assembly Depot",
-        cycleDurationSeconds: 360,
-        outputs: [{ resourceId: "rocketII", quantity: 1 / 6 }],
-      });
-    expect(recipes.find((recipe) => recipe.id === "rocket-ii-launch-amortized"))
-      .toMatchObject({
-        inputs: [
-          { resourceId: "rocketII", quantity: 0.09087301587301587 },
-          { resourceId: "water", quantity: 14.53968253968254 },
-          { resourceId: "hydrogen", quantity: 29.07936507936508 },
-          { resourceId: "oxygen", quantity: 8.178571428571429 },
-        ],
-      });
   });
 
   it("renders station operations as one physical asset without sharing their calculations", () => {
@@ -209,6 +159,7 @@ describe("Space Station", () => {
   it("returns all five calculation lines to synced once their targets are reached", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
+      testRocketIiDefinition,
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
@@ -230,6 +181,7 @@ describe("Space Station", () => {
   it("plans Orbital Research at the station level required by the labs", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 0, highestLevelAchieved: 4 },
+      testRocketIiDefinition,
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 0 },
@@ -295,6 +247,7 @@ describe("Space Station", () => {
   it("keeps multiple synced rocket buildings without multiplying recurring launches", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
+      testRocketIiDefinition,
       { rocketAssemblyDepot: 2, rocketLaunchPad: 2 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 2, rocketLaunchPad: 2 },
@@ -390,6 +343,7 @@ describe("Space Station", () => {
 
     const liveStation = createSpaceStationModule(
       testSpaceStationConfig,
+      testRocketIiDefinition,
       { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 0 },
@@ -410,6 +364,8 @@ describe("Space Station", () => {
     });
     expect(liveStation.recipes?.map(recipe => recipe.id)).toEqual([
       stationPartsRecipeId,
+      "rocket-ii-assembly",
+      "rocket-ii-launch-amortized",
       "space-station-operations",
       "space-station-orbital-research",
     ]);
@@ -451,6 +407,7 @@ describe("Space Station", () => {
   it("keeps rocket infrastructure synced without repeating unpause advice", () => {
     const stationModule = createSpaceStationModule(
       { currentLevel: 4, highestLevelAchieved: 4 },
+      testRocketIiDefinition,
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 },
       {
         rocketRunningConfig: { rocketAssemblyDepot: 0, rocketLaunchPad: 1 },
@@ -516,11 +473,11 @@ describe("Space Station", () => {
     expect(regularResults.find(
       ({ recipe }) => recipe.id === "space-station-orbital-research",
     )?.supplyRatio).toBe(1);
-    expect(flow("compositePanel")?.net).toBeCloseTo(-43.619048, 6);
+    expect(flow("compositePanel")?.net).toBeCloseTo(-defaultRocketIiRecurringLogistics.compositePanelPerCycle, 6);
     expect(flow("aluminum")).toBeUndefined();
     expect(flow("plastic")).toBeUndefined();
-    expect(flow("steel")?.net).toBeCloseTo(-7.269841, 6);
-    expect(flow("titaniumAlloy")?.net).toBeCloseTo(-10.904762, 6);
+    expect(flow("steel")?.net).toBeCloseTo(-80 * defaultRocketIiRecurringLogistics.launchesPerCycle, 6);
+    expect(flow("titaniumAlloy")?.net).toBeCloseTo(-defaultRocketIiRecurringLogistics.titaniumAlloyPerCycle, 6);
   });
 
   it("does not expose orbital research mode as a physical planned build", () => {
@@ -549,34 +506,6 @@ describe("Space Station", () => {
       "Space Station Orbital Research",
     );
     expect(plannedBuilds).toEqual([]);
-  });
-
-  it("applies synced rocket-capacity research to recurring launch demand", () => {
-    const levelTen = calculateRocketIiRecurringLogistics(
-      calculateSpaceStationLevel(4, 4),
-      10,
-    );
-    const result = calculateFactoryTotal(
-      ([spaceStation]).map(withTestBuildingRequirements),
-      {
-        recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
-        outputModifiers: {
-          rocketLaunches: levelTen.launchesPerCycle
-            / defaultRocketIiRecurringLogistics.launchesPerCycle,
-        },
-      },
-    );
-    const launch = result.calculation.regularResults.find(
-      (line) => line.recipe.id === "rocket-ii-launch-amortized",
-    );
-    const input = (resourceId: string) => launch?.actualInputs.find(
-      (candidate) => candidate.resourceId === resourceId,
-    )?.quantity;
-
-    expect(input("rocketII")).toBeCloseTo(levelTen.launchesPerCycle, 9);
-    expect(input("water")).toBeCloseTo(levelTen.waterPerCycle, 9);
-    expect(input("hydrogen")).toBeCloseTo(levelTen.hydrogenPerCycle, 9);
-    expect(input("oxygen")).toBeCloseTo(levelTen.oxygenPerCycle, 9);
   });
 
 });

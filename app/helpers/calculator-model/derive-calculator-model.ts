@@ -84,7 +84,6 @@ import { plannedSolarPanelTargets } from '../../db/solar'
 import {
   calculateRocketIiRecurringLogistics,
   calculateSpaceStationLevel,
-  defaultRocketIiRecurringLogistics,
   getMinimumSpaceStationLevelForResearchPoints,
 } from '../../db/space-station'
 import {
@@ -304,6 +303,7 @@ export const deriveCalculatorModel = ({
   const researchLevels = snapshot.research
   const rocketIiRecurringLogistics = calculateRocketIiRecurringLogistics(
     projectedSpaceStationLevel,
+    snapshot.rocketIiDefinition,
     researchLevels.rocketsCapacity,
   )
   const hasSyncedOfficeAreaInventory = officeAreaZoneIds.size > 0
@@ -338,6 +338,7 @@ export const deriveCalculatorModel = ({
   const createConfiguredSpaceStationModule = (generatedArea: Module) => {
     return createSpaceStationModule(
       spaceStationConfig,
+      snapshot.rocketIiDefinition,
       rocketInfrastructureBuiltConfig,
       {
         rocketRunningConfig: rocketInfrastructureRunningConfig,
@@ -701,11 +702,6 @@ export const deriveCalculatorModel = ({
     settlementWater:
       settlementWaterUse.multiplier * waterSaverMultiplier * settlementConsumptionMultiplier,
     treeGrowthSpeed: treeGrowthSpeed.multiplier,
-    rocketLaunches:
-      defaultRocketIiRecurringLogistics.launchesPerCycle > 0
-        ? rocketIiRecurringLogistics.launchesPerCycle /
-          defaultRocketIiRecurringLogistics.launchesPerCycle
-        : 1,
   }
   const resolvedModuleResourceLinks = resolveModuleResourceLinks(
     configuredModules,
