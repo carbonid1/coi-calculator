@@ -1,0 +1,14 @@
+v0.2.0 | 2026-11-04
+- Manage rules in the shared Mod Settings panel.
+- Select separate containers for pause and resume thresholds.
+- Find buildings by their unique names, without IDs or repeated type labels.
+- Keep mining paused while the pause container remains above its limit.
+
+v0.1.1 | 2026-11-03
+- Keep threshold labels and action buttons on separate rows.
+
+v0.1.0 | 2026-11-03
+- Pause a Mine control tower when its storage group reaches the upper threshold.
+- Resume mining when the group reaches the lower threshold.
+- Select individual storages or add connected storages together.
+- Save rules and waiting state with the factory.
