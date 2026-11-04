@@ -33,6 +33,13 @@ const mapCropSchedule = (schedule: readonly (string | null)[]) => schedule.flatM
 export const getSyncedCropFarmEntities = (
   entities: readonly SyncedCropFarmEntity[],
 ): CurrentCropFarmEntity[] => entities.map(entity => ({
+  runtime: entity.runtime ? {
+    ...entity.runtime,
+    cropId: entity.runtime.cropId === null ? null : gameCropIds[entity.runtime.cropId] ?? entity.runtime.cropId,
+    scheduleIndex: (entity.schedule.slice(0, entity.runtime.scheduleIndex).filter(id => id !== null).length
+      - Number(entity.runtime.cropId !== null && entity.schedule[entity.runtime.scheduleIndex] === null)
+      + mapCropSchedule(entity.schedule).length) % Math.max(1, mapCropSchedule(entity.schedule).length),
+  } : undefined,
   entityId: entity.entityId,
   tierId: entity.prototypeId === "FarmT4" ? "greenhouseII" : "greenhouse",
   schedule: mapCropSchedule(entity.schedule),

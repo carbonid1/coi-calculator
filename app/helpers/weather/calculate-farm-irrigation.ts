@@ -1,6 +1,7 @@
+import { type CropFarmRuntime } from '../../crop-farm-runtime';
 import { getCropFarmTier, getCropFarmingData, type CropFarmingDefinitions } from '../../crop-farming-state';
 import {
-  type CropFarmGroup,
+  crops, type CropId, type CropFarmGroup,
 } from "../../db/crop-farming";
 import { planningWeather, type WeatherConfig } from "../../db/weather";
 import { createWeatherSimulationCache } from './weather-simulation-cache';
@@ -13,6 +14,7 @@ export interface FarmIrrigationRates {
 }
 
 const irrigationCache = createWeatherSimulationCache<FarmIrrigationRates>();
+const forecastCache = createWeatherSimulationCache<readonly number[]>();
 const FIX32_SCALE = 1_024;
 const PERCENT_SCALE = 100_000;
 
@@ -29,9 +31,10 @@ const getCropWaterRawPerDay = (
   definitions: CropFarmingDefinitions,
   scheduleIndex: number,
   cropWaterMultiplier: number,
+  currentCropId?: CropId,
 ) => {
   const tier = getCropFarmTier(definitions, group.tierId);
-  const crop = getCropForScheduleIndex(group, definitions, scheduleIndex);
+  const crop = currentCropId ? getCropFarmingData(definitions).crop(currentCropId) : getCropForScheduleIndex(group, definitions, scheduleIndex);
   const baseWaterRaw = toFix32Raw(crop.waterPerDay);
   const tierAdjustedRaw = applyMultiplierToFix32(baseWaterRaw, tier.demandMultiplier);
 
@@ -89,27 +92,61 @@ export const calculateFarmIrrigationRates = (
 
   // Without island weather, retain gross demand instead of inventing rain savings.
   if (!weatherConfig) return { grossWaterPerMonth, importedWaterPerMonth: grossWaterPerMonth };
-  const cacheKey = JSON.stringify([definitions, group, cropWaterMultiplier, rainwaterYieldMultiplier]);
+  const cacheKey = JSON.stringify([definitions, { ...group, currentFarms: undefined }, cropWaterMultiplier, rainwaterYieldMultiplier]);
   const cache = irrigationCache(weatherConfig);
   const cached = cache.get(cacheKey);
 
   if (cached) return cached;
 
+  const horizonDays = planningWeather.horizonYears * 12 * planningWeather.daysPerCycle;
+  const replay = replayFarmIrrigation(group, definitions, cropWaterMultiplier, rainwaterYieldMultiplier, weatherConfig, horizonDays);
+  const horizonMonths = horizonDays / planningWeather.daysPerCycle;
+  const rates = {
+    grossWaterPerMonth,
+    importedWaterPerMonth: replay.importedWater / horizonMonths,
+  };
+
+  cache.set(cacheKey, rates);
+
+  return rates;
+};
+
+const replayFarmIrrigation = (group: CropFarmGroup, definitions: CropFarmingDefinitions,
+  cropWaterMultiplier: number, rainwaterYieldMultiplier: number, weatherConfig: WeatherConfig,
+  horizonDays: number, initial?: CropFarmRuntime) => {
   const weatherPeriods = weatherConfig.periods;
   const tier = getCropFarmTier(definitions, group.tierId);
   const simulation = definitions.simulation;
-  const horizonDays = planningWeather.horizonYears * 12 * planningWeather.daysPerCycle;
+  const dailyImportedWater = initial ? Array.from({ length: horizonDays }, () => 0) : [];
+  const startIndex = (initial?.scheduleIndex ?? 0) % group.schedule.length;
+  const firstCropId = initial?.cropId ?? group.schedule[startIndex];
+
+  if (!firstCropId || !(firstCropId in crops)) throw new Error("Unsupported current crop");
+  const currentCropId = group.schedule.find(id => id === firstCropId) ?? Object.values(crops).find(crop => crop.id === firstCropId)?.id;
+
+  if (!currentCropId) throw new Error("Unsupported current crop");
   const state = {
-    soilWater: simulation.soilWaterCapacity, waterCredit: 0, rainPartial: 0,
-    importedWater: 0, scheduleIndex: 0, day: 0,
-    daysRemaining: getCropForScheduleIndex(group, definitions, 0).growthMonths * planningWeather.daysPerCycle,
-    cropStarted: false, wasIrrigating: false, isIrrigating: false,
+    soilWater: initial?.soilWater ?? simulation.soilWaterCapacity, waterCredit: toFix32Raw(initial?.waterCredit ?? 0), rainPartial: initial?.rainPartial ?? 0,
+    importedWater: 0, scheduleIndex: startIndex, cropId: currentCropId, day: 0,
+    daysRemaining: initial?.cropId ? Math.max(1, initial.daysRemaining) : getCropFarmingData(definitions).crop(currentCropId).growthMonths * planningWeather.daysPerCycle,
+    cropStarted: initial?.cropStarted ?? false, wasIrrigating: initial?.irrigating ?? false, isIrrigating: false,
     weatherIndex: 0, weatherDaysRemaining: weatherPeriods[0]?.days ?? 0,
-    evaporatedWater: 0,
+    evaporatedWater: initial?.evaporatedWater ?? 0,
+  };
+
+  const advanceWeather = () => {
+    state.weatherDaysRemaining -= 1;
+    if (state.weatherDaysRemaining === 0) {
+      state.weatherIndex += 1;
+      state.weatherDaysRemaining = weatherPeriods[state.weatherIndex]?.days ?? 0;
+    }
   };
 
   for (; state.day < horizonDays; state.day += 1) {
     const day = state.day;
+
+    if (initial && day === 0) { advanceWeather(); continue; }
+    const importedBefore = state.importedWater;
     const weatherPeriod = weatherPeriods[
       state.weatherIndex
     ];
@@ -135,7 +172,7 @@ export const calculateFarmIrrigationRates = (
       state.soilWater += storedRain;
     }
 
-    const emptyCrop = group.schedule[state.scheduleIndex] === 'none';
+    const emptyCrop = state.cropId === 'none';
 
     if (emptyCrop && state.soilWater > 0) {
       state.evaporatedWater += toFix32Raw(tier.waterEvaporationPerDay) / FIX32_SCALE
@@ -147,6 +184,7 @@ export const calculateFarmIrrigationRates = (
       definitions,
       state.scheduleIndex,
       cropWaterMultiplier,
+      state.cropId,
     );
     const waterPerDay = waterRawPerDay / FIX32_SCALE;
     const normalStartThreshold = simulation.soilWaterCapacity
@@ -196,6 +234,7 @@ export const calculateFarmIrrigationRates = (
 
       if (state.daysRemaining === 0) {
         state.scheduleIndex = (state.scheduleIndex + 1) % group.schedule.length;
+        state.cropId = group.schedule[state.scheduleIndex] ?? state.cropId;
         state.daysRemaining = getCropForScheduleIndex(group, definitions, state.scheduleIndex).growthMonths
           * planningWeather.daysPerCycle;
         state.cropStarted = false;
@@ -203,20 +242,24 @@ export const calculateFarmIrrigationRates = (
     }
 
     state.wasIrrigating = state.isIrrigating;
-    state.weatherDaysRemaining -= 1;
-    if (state.weatherDaysRemaining === 0) {
-      state.weatherIndex += 1;
-      state.weatherDaysRemaining = weatherPeriods[state.weatherIndex]?.days ?? 0;
-    }
+    if (initial) dailyImportedWater[day] = state.importedWater - importedBefore;
+    advanceWeather();
   }
+  return { importedWater: state.importedWater, dailyImportedWater };
+};
 
-  const horizonMonths = horizonDays / planningWeather.daysPerCycle;
-  const rates = {
-    grossWaterPerMonth,
-    importedWaterPerMonth: state.importedWater / horizonMonths,
-  };
+/** The captured day has already run. Index 1 is the next native farm day. */
+export const calculateFarmIrrigationForecast = (group: CropFarmGroup, definitions: CropFarmingDefinitions,
+  cropWaterMultiplier: number, rainwaterYieldMultiplier: number, weather: WeatherConfig,
+  farm: NonNullable<CropFarmGroup['currentFarms']>[number]) => {
+  const cache = forecastCache(weather);
+  const key = JSON.stringify([definitions, group.tierId, cropWaterMultiplier, rainwaterYieldMultiplier, farm]);
+  const cached = cache.get(key);
 
-  cache.set(cacheKey, rates);
+  if (cached) return cached;
+  const forecast = replayFarmIrrigation({ ...group, schedule: farm.schedule }, definitions, cropWaterMultiplier,
+    rainwaterYieldMultiplier, weather, planningWeather.daysPerCycle * 12 + 1, farm.runtime).dailyImportedWater;
 
-  return rates;
+  cache.set(key, forecast);
+  return forecast;
 };

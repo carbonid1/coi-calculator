@@ -176,7 +176,7 @@ internal sealed partial class GameSnapshotCollector
                 schedule,
                 fertilityTargetPercent,
                 fertilizerProductId,
-                entityZones));
+                entityZones) { Runtime = getFarmRuntime(cropFarm) });
         }
 
         cropFarmEntities.Sort(delegate(CropFarmEntitySnapshot left, CropFarmEntitySnapshot right)

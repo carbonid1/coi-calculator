@@ -3,7 +3,9 @@ import { CloudRain, Droplets, Sun } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 import { type GameStateSnapshot } from '../game-state';
-import { type PassiveResult, type ResourceFlow } from '../helpers/calculate/calculate';
+import { type PassiveResult, type RegularResult, type ResourceFlow } from '../helpers/calculate/calculate';
+import { type RecipeModifierMultipliers } from '../helpers/modifiers/recipe-output';
+import { calculateFarmWaterDemand } from '../helpers/water-planning/farm-water-demand';
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../helpers/water-planning/water-planning';
 import { useFactoryLayout } from '../hooks/use-factory-layout';
 import { useIslandMap } from '../hooks/use-island-map';
@@ -17,9 +19,9 @@ type WaterSource = ReturnType<typeof buildWaterSourceInventory>[number];
 
 const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; number: number; snapshot: GameStateSnapshot }) => {
   const forecast = useMemo(() => source.projectedWithdrawalPerCycle > 0
-    ? simulateWaterSource(source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle)
+    ? simulateWaterSource(source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal)
     : null,
-    [source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle]);
+    [source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal]);
 
   if (source.projectedWithdrawalPerCycle <= 0 && source.areas.length === 0) return null;
 
@@ -30,7 +32,7 @@ const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; numb
       </h3>
       {forecast && (
         <dl className="grid gap-3 text-sm sm:grid-cols-3" aria-live="polite">
-          <div><dt className="text-xs text-muted-foreground"><Tooltip maxWidth={320} label={`Steady draw ${format(source.projectedWithdrawalPerCycle)} / cycle · pump capacity ${format(source.projectedPumps * snapshot.groundwater.pumpCapacityPerCycle)} · sustainable output ${format(source.sustainableOutputPerCycle)} Water / cycle. Pipe delivery and tank buffers excluded.`}>
+          <div><dt className="text-xs text-muted-foreground"><Tooltip maxWidth={320} label={`Steady draw ${format(source.projectedWithdrawalPerCycle)} / cycle · pump capacity ${format(source.projectedPumps * snapshot.groundwater.pumpCapacityPerCycle)} · sustainable output ${format(source.sustainableOutputPerCycle)} Water / cycle. ${source.dailyWithdrawal ? 'Current farm rotations for 1Y; steady draw afterward. ' : ''}Pipe delivery and tank buffers excluded.`}>
             <span tabIndex={0} aria-label="First shortfall estimate">First shortfall · estimate</span>
           </Tooltip></dt>
             <dd className="font-mono">{forecast.firstShortfallCycle === null ? 'None · 100Y'
@@ -51,6 +53,8 @@ interface Props {
   sourceResults: readonly PassiveResult[];
   waterFlow?: ResourceFlow;
   rainwaterYieldMultiplier: number;
+  farmResults?: readonly RegularResult[];
+  outputModifiers?: RecipeModifierMultipliers;
 }
 
 export const WaterPlanningView = (props: Props) => {
@@ -65,14 +69,15 @@ export const WaterPlanningView = (props: Props) => {
     onSelect={id => setSelection({ gameId: props.snapshot.gameId, id })} />;
 };
 
-const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwaterYieldMultiplier, selectedId, onSelect }: Props & {
+const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwaterYieldMultiplier, farmResults, outputModifiers, selectedId, onSelect }: Props & {
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) => {
   const climate = useMemo(() => summarizeWeather(snapshot.weather), [snapshot.weather]);
   const { map: terrain, loading: mapLoading } = useIslandMap(snapshot.gameId, snapshot.sessionId);
   const { data: layout, loading: layoutLoading } = useFactoryLayout(snapshot.gameId, snapshot.sessionId);
-  const sources = useMemo(() => buildWaterSourceInventory(snapshot, sourceResults), [snapshot, sourceResults]);
+  const farmDemand = useMemo(() => calculateFarmWaterDemand(farmResults ?? [], outputModifiers ?? {}), [farmResults, outputModifiers]);
+  const sources = useMemo(() => buildWaterSourceInventory(snapshot, sourceResults, farmDemand), [snapshot, sourceResults, farmDemand]);
   const inventoryRef = useRef<HTMLDivElement>(null);
   const selected = sources.find(row => row.source.id === selectedId)
     ?? sources.find(row => row.projectedWithdrawalPerCycle > 0)

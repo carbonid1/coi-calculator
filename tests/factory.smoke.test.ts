@@ -11,6 +11,7 @@ import { getEdictCatalog, mapEdictValues } from '../app/db/edicts'
 import { getHousingTypes } from '../app/db/housing'
 import { createCropFarmAreaModule, createDefaultCropFarmModule, getCropFarmGroundwaterRecipeId } from '../app/db/modules/crop-farm-areas'
 import { createChickenFarmsModule } from '../app/db/modules/farms'
+import { type Module } from '../app/db/modules/modules'
 import { createSpaceStationModule } from '../app/db/modules/space-station'
 import { officeCatalog } from '../app/db/office-catalog'
 import { factoryRecipeBindings } from '../app/db/recipe-bindings'
@@ -35,6 +36,7 @@ import { withPlanningDefinition } from '../app/helpers/planning-recipes/planning
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
+import { calculateFarmWaterDemand } from '../app/helpers/water-planning/farm-water-demand'
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../app/helpers/water-planning/water-planning'
 import { calculateFarmIrrigationRates } from '../app/helpers/weather/calculate-farm-irrigation'
 import { getAverageSunIntensityPercent } from '../app/helpers/weather/planning-weather'
@@ -46,6 +48,81 @@ import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 // Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
+
+it('replays live crop phase and soil reserves into the existing water forecast while retaining steady production plans', () => {
+  const snapshot = normalizeGameStateSnapshot(capture)
+
+  if (!snapshot) throw new Error('Recorded farm definitions are incompatible')
+  const weather = { ...snapshot.weather, periods: snapshot.weather.periods.map(period => ({ ...period, rainIntensityPercent: 0 })) }
+  const aquifer = snapshot.groundwater.aquifers[0]
+  const groundwater = { ...snapshot.groundwater, depletedPumpSpeedPercent: 0, replenishWhenLowPercent: 0 }
+  const sourceId = getCropFarmGroundwaterRecipeId(10)
+  const pump = recipes.find(recipe => recipe.id === 'groundwater-pump')
+
+  if (!pump) throw new Error('Pump recipe missing')
+  const replay = (soilWater: number, daysRemaining = 1) => {
+    const native = { ...snapshot.cropFarms[0], prototypeId: 'FarmT4' as const, running: true,
+      schedule: ['Crop_Corn', null, 'Crop_NoCrop', null], zones: [{ id: 10, name: 'Farms' }],
+      runtime: { scheduleIndex: 0, cropId: 'Crop_Corn', daysRemaining, cropStarted: true,
+        irrigating: false, soilWater, waterCredit: 0, rainPartial: 0, evaporatedWater: 0 } }
+
+    expect(normalizeGameStateSnapshot({ ...snapshot, cropFarms: [native] })).not.toBeNull()
+    const entities = getSyncedCropFarmEntities([native])
+    const farmModule: Module = { id: 'live-area-10', name: 'Farms', description: '',
+      builtBuildings: { [sourceId]: 1 }, recipes: [{ ...pump, id: sourceId }], defaultPresetId: 'live',
+      presets: [{ id: 'live', name: 'Live', description: '', activeBuildings: { [sourceId]: 1 }, fixed: [] }],
+      liveArea: { zoneId: 10, trackedBuildings: 1, constructedBuildings: 1, activeBuildings: 1,
+        pausedBuildings: 0, constructionGhosts: 0, issues: [] } }
+    const area = createCropFarmAreaModule(farmModule, entities, snapshot.cropFarming, {
+      aquiferCount: 1, currentReserve: 0, reserveCapacity: aquifer.capacity, projectedPumpCount: 1,
+      aquiferSustainableCeilingPerCycle: 48, pumpCapacityPerCycle: 48, sustainableOutputPerCycle: 48,
+      aquiferAllocations: [{ aquiferId: aquifer.id, pumpCount: 1, sustainableOutputPerCycle: 48 }],
+    })
+    const modifiers = { weather, cropWater: 1, rainwaterYield: 1, planningDefinitions: snapshot.planningDefinitions }
+    const lines = buildModuleLines(area, area.presets[0], modifiers).lines
+    const calculation = calculateNet(lines, { fertilizerII: 10000 }, 0, modifiers)
+    const demand = calculateFarmWaterDemand(calculation.regularResults, modifiers)
+    const source = buildWaterSourceInventory(snapshot, calculation.sourceResults, demand).find(row => row.source.id === aquifer.id)
+
+    if (!source?.dailyWithdrawal) throw new Error('Live farm demand did not reach the water source')
+    return { calculation, source, native, demand }
+  }
+  const empty = replay(0)
+  const full = replay(snapshot.cropFarming.simulation.soilWaterCapacity)
+  const growing = replay(0, 90)
+
+  expect(empty.source.dailyWithdrawal?.[1]).toBeGreaterThan(full.source.dailyWithdrawal?.[1] ?? Infinity)
+  expect(empty.source.dailyWithdrawal).not.toEqual(growing.source.dailyWithdrawal)
+  expect(empty.calculation.resourceFlows).toEqual(full.calculation.resourceFlows)
+  expect(empty.source.dailyWithdrawal).toHaveLength(361)
+  expect(empty.source.dailyWithdrawal?.every(value => Number.isFinite(value) && value >= 0)).toBe(true)
+  const dry = { ...aquifer, quantity: 0, emergencyQuantity: 0 }
+  const forecast = simulateWaterSource(dry, groundwater, weather, 1, empty.source.projectedWithdrawalPerCycle, empty.source.dailyWithdrawal)
+  const buffered = simulateWaterSource(dry, groundwater, weather, 1, full.source.projectedWithdrawalPerCycle, full.source.dailyWithdrawal)
+
+  expect(forecast?.firstYearShortfallQuantity).toBeGreaterThan(buffered?.firstYearShortfallQuantity ?? Infinity)
+  const skippedSlot = getSyncedCropFarmEntities([{ ...empty.native, runtime: { ...empty.native.runtime, scheduleIndex: 1 } }])[0]
+
+  expect(skippedSlot?.runtime?.scheduleIndex).toBe(0)
+  const legacy = { ...empty.native, runtime: undefined }
+
+  expect(normalizeGameStateSnapshot({ ...snapshot, cropFarms: [legacy] })).not.toBeNull()
+  for (const [schedule, expected] of [
+    [[null, 'Crop_Wheat', null, 'Crop_Corn'], ['wheat', 'corn']],
+    [['Crop_Wheat', 'Crop_NoCrop', null, null], ['wheat', 'none']],
+    [[null, null, null, null], []],
+  ] as const) {
+    const mapped = getSyncedCropFarmEntities([{ ...legacy, running: false, fertilityTargetPercent: 110,
+      fertilizerProductId: 'Product_Fertilizer2', schedule: [...schedule] }])[0]
+
+    expect(mapped).toMatchObject({ entityId: legacy.entityId, tierId: 'greenhouseII', running: false,
+      fertilizerId: 'fertilizerII', fertilityTargetPercent: 110, schedule: [...expected], zones: legacy.zones })
+  }
+  for (const runtime of [{ ...empty.native.runtime, soilWater: -1 }, { ...empty.native.runtime, daysRemaining: NaN },
+    { ...empty.native.runtime, scheduleIndex: 4 }, { ...empty.native.runtime, cropId: null }]) {
+    expect(normalizeGameStateSnapshot({ ...snapshot, cropFarms: [{ ...empty.native, runtime }] })).toBeNull()
+  }
+})
 
 it('replays the complete native recipe catalog, contract definitions, farm tiers and water rules without legacy rate tables', () => {
   const snapshot = normalizeGameStateSnapshot(capture)

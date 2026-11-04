@@ -83,6 +83,7 @@ internal static partial class SnapshotJsonWriter
             json.Field("prototypeId", farm.PrototypeId);
             json.Field("running", farm.Running);
             json.Field("fertilityTargetPercent", farm.FertilityTargetPercent);
+            appendFarmRuntime(json, farm.Runtime);
             json.Field("fertilizerProductId", farm.FertilizerProductId);
             json.Name("schedule").BeginArray();
             for (int scheduleIndex = 0; scheduleIndex < farm.Schedule.Length; scheduleIndex++)

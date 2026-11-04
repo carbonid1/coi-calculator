@@ -818,6 +818,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           {activeModule.id === MINES_MODULE_ID && (
             <>
               <WaterPlanningView snapshot={snapshot}
+                farmResults={factoryResult.calculation.regularResults}
+                outputModifiers={outputModifiers}
                 sourceResults={[...factoryResult.calculation.sourceResults, ...linkedSourceResults]}
                 waterFlow={factoryResult.flows.find(flow => flow.resourceId === 'water')}
                 rainwaterYieldMultiplier={outputModifiers.rainwaterYield} />

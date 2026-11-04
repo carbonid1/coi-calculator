@@ -1,6 +1,7 @@
 import { isBuildingDefinitions, type BuildingDefinition } from './building-state'
 import { isChickenFarmDefinition, type ChickenFarmDefinition } from './chicken-farm-state'
 import { isCropFarmingDefinitions, type CropFarmingDefinitions } from './crop-farming-state'
+import { isCropFarmRuntime, type CropFarmRuntime } from './crop-farm-runtime'
 import { getEdictCatalog, type EdictId, type EdictLevel, mapEdictValues } from './db/edicts'
 import {
   emptyInfiniteResearchLevels,
@@ -40,6 +41,7 @@ type SyncedCropFarmFertilizerProductId =
   | 'Product_Fertilizer2'
 
 export interface SyncedCropFarmEntity {
+  runtime?: CropFarmRuntime
   entityId: number
   prototypeId: 'FarmT3' | 'FarmT4'
   running: boolean
@@ -568,6 +570,7 @@ const hasValidCropFarmFertilizerProduct = (value: unknown) =>
 
 const isCropFarmEntity = (value: unknown): value is SyncedCropFarmEntity =>
   isUnknownRecord(value) &&
+  (value.runtime === undefined || isCropFarmRuntime(value.runtime)) &&
   isNonNegativeInteger(value.entityId) &&
   (value.prototypeId === 'FarmT3' || value.prototypeId === 'FarmT4') &&
   typeof value.running === 'boolean' &&

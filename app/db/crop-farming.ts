@@ -1,3 +1,4 @@
+import { type CropFarmRuntime } from '../crop-farm-runtime';
 import { getCropFarmTier, getCropFarmingData, type CropFarmingDefinitions } from '../crop-farming-state';
 import { type ResourceId } from "./resources";
 import { planningWeather } from "./weather";
@@ -49,6 +50,7 @@ export interface CropDefinition {
 
 /** A group represents farms that share the same in-game configuration. */
 export interface CropFarmGroup {
+  currentFarms?: { schedule: CropSchedule; runtime: CropFarmRuntime }[];
   id: string;
   name: string;
   farmCount: number;
@@ -61,6 +63,7 @@ export interface CropFarmGroup {
 }
 
 export interface CurrentCropFarmEntity {
+  runtime?: CropFarmRuntime;
   entityId: number;
   tierId: Extract<CropFarmTierId, "greenhouse" | "greenhouseII">;
   schedule: readonly string[];
@@ -148,6 +151,9 @@ export const crops = {
 export const cropProductResourceIds: ReadonlySet<ResourceId> = new Set(
   Object.values(crops).flatMap((crop) => crop.productId ? [crop.productId] : []),
 );
+
+export const isCropSchedule = (schedule: readonly string[]): schedule is CropSchedule =>
+  schedule.length >= 1 && schedule.length <= 4 && schedule.every(id => id in crops);
 
 export interface CropFarmGroupRates {
   waterPerMonth: number;

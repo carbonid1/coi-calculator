@@ -4,8 +4,8 @@ import { type GroundwaterSourceConstraint } from '../../helpers/groundwater/calc
 import {
   crops,
   cropFarmTiers,
+  isCropSchedule,
   type CropFarmGroup,
-  type CropId,
   type CropSchedule,
   type CurrentCropFarmEntity,
 } from '../crop-farming'
@@ -48,14 +48,6 @@ export const getCropFarmOwnerZones = (
 
   return owner ? [[owner.id, owner] as const] : []
 })).values()]
-
-const isCropId = (value: unknown): value is CropId => (
-  typeof value === 'string' && value in crops
-)
-
-const isCropSchedule = (schedule: readonly string[]): schedule is CropSchedule => (
-  schedule.length >= 1 && schedule.length <= 4 && schedule.every(isCropId)
-)
 
 const cropFarmGroupId = (
   moduleId: string,
@@ -199,6 +191,7 @@ const attachCropFarms = (
     if (existing) {
       existing.built++
       existing.running += Number(entity.running)
+      if (entity.running && entity.runtime) existing.group.currentFarms?.push({ schedule, runtime: entity.runtime })
       continue
     }
 
@@ -218,6 +211,7 @@ const attachCropFarms = (
         tierId: entity.tierId,
         schedule,
         fertilizer,
+        currentFarms: entity.running && entity.runtime ? [{ schedule, runtime: entity.runtime }] : [],
       },
       built: 1,
       running: Number(entity.running),

@@ -2,6 +2,7 @@ import { planningWeather, type WeatherConfig } from '../../db/weather';
 import { type GameStateSnapshot, type SyncedGroundwaterSource, type SyncedGroundwaterState } from '../../game-state';
 import { type PassiveResult } from '../calculate/calculate';
 import { advanceAquiferDay, calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput } from '../groundwater/calculate-groundwater-production';
+import { type FarmWaterDemand } from './farm-water-demand';
 
 export const summarizeWeather = (weather: WeatherConfig) => {
   const state = { elapsedDays: 0, rainDays: 0, sunDays: 0, dryDays: 0, longestDryDays: 0,
@@ -49,6 +50,7 @@ export const simulateWaterSource = (
   weather: WeatherConfig,
   pumpCount: number,
   withdrawalPerCycle: number,
+  dailyWithdrawal?: readonly number[],
 ) => {
   const state = { reserve: source.quantity, emergencyReserve: source.emergencyQuantity };
   const totals = { day: 0, minimumReserve: source.quantity, shortfallQuantity: 0,
@@ -63,8 +65,9 @@ export const simulateWaterSource = (
       // The captured reserve already includes today's native daily recharge.
       // Start on the next day; continuous pumping within a day is an estimate.
       if (totals.skipCapturedDay) { totals.skipCapturedDay = false; continue; }
-      const supplied = advanceAquiferDay(state, source, groundwater, period.rainIntensityPercent, pumpCapacityPerDay, requestedPerDay);
-      const missing = Math.max(0, requestedPerDay - supplied);
+      const requested = dailyWithdrawal?.[totals.day + 1] ?? requestedPerDay;
+      const supplied = advanceAquiferDay(state, source, groundwater, period.rainIntensityPercent, pumpCapacityPerDay, requested);
+      const missing = Math.max(0, requested - supplied);
 
       totals.day += 1;
       totals.minimumReserve = Math.min(totals.minimumReserve, state.reserve);
@@ -87,14 +90,18 @@ export const simulateWaterSource = (
   };
 };
 
-export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceResults: readonly PassiveResult[]) => {
+export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceResults: readonly PassiveResult[], farmDemand: ReadonlyMap<string, FarmWaterDemand> = new Map()) => {
   const allocation = new Map<string, { pumps: number; withdrawal: number }>();
+  const moduleWithdrawals = new Map<string, number>();
+  const sourceModules = new Map<string, Map<string, number>>();
 
   for (const result of sourceResults) {
     const constraint = result.recipe.groundwaterConstraint;
 
     if (!constraint?.aquiferAllocations) continue;
     const draw = result.actualOutputs.find(output => output.resourceId === 'water')?.quantity ?? 0;
+
+    moduleWithdrawals.set(result.moduleId, (moduleWithdrawals.get(result.moduleId) ?? 0) + draw);
 
     for (const aquifer of constraint.aquiferAllocations) {
       const current = allocation.get(aquifer.aquiferId) ?? { pumps: 0, withdrawal: 0 };
@@ -104,6 +111,10 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
       current.pumps += aquifer.pumpCount;
       current.withdrawal += draw * share;
       allocation.set(aquifer.aquiferId, current);
+      const modules = sourceModules.get(aquifer.aquiferId) ?? new Map<string, number>();
+
+      modules.set(result.moduleId, (modules.get(result.moduleId) ?? 0) + draw * share);
+      sourceModules.set(aquifer.aquiferId, modules);
     }
   }
   // Keep map numbers and table rows independent of demand and pump activity.
@@ -112,10 +123,20 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
     const projected = allocation.get(source.id);
     const projectedPumps = projected?.pumps ?? pumps.filter(pump => pump.running).length;
     const projectedWithdrawalPerCycle = projected?.withdrawal ?? 0;
+    const demandChanges = [...(sourceModules.get(source.id) ?? [])].flatMap(([id, draw]) => {
+      const demand = farmDemand.get(id);
+
+      return demand && demand.dailyDifference.some(value => value !== 0)
+        ? [{ demand, share: draw / Math.max(demand.steadyPerCycle, moduleWithdrawals.get(id) ?? 0, 0.000001) }] : [];
+    });
+    const dailyWithdrawal = demandChanges.length ? Array.from({ length: planningWeather.daysPerCycle * 12 + 1 }, (_, day) =>
+      Math.max(0, projectedWithdrawalPerCycle / planningWeather.daysPerCycle
+        + demandChanges.reduce((total, { demand, share }) => total + (demand.dailyDifference[day] ?? 0) * share, 0))) : undefined;
 
     return {
       source, builtPumps: pumps.length, activePumps: pumps.filter(pump => pump.running).length,
       projectedPumps, projectedWithdrawalPerCycle,
+      ...(dailyWithdrawal ? { dailyWithdrawal } : {}),
       pumpsForCeiling: calculateAquiferPumpsForCeiling(source, snapshot.groundwater, snapshot.weather),
       sustainableCeilingPerCycle: calculateAquiferSustainableCeiling(source, snapshot.groundwater, snapshot.weather),
       sustainableOutputPerCycle: calculateAquiferSustainableOutput(source, projectedPumps, snapshot.groundwater, snapshot.weather),

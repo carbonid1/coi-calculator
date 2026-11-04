@@ -1,5 +1,5 @@
 import { type ValueSource } from '../../data-source'
-import { crops, cropFarmTiers, type CropFarmGroup, type CropFarmTierId, type CurrentCropFarmEntity } from '../../db/crop-farming'
+import { crops, cropFarmTiers, isCropSchedule, type CropFarmGroup, type CropFarmTierId, type CurrentCropFarmEntity } from '../../db/crop-farming'
 import { type PlanMismatch } from '../../db/modules/modules'
 
 const rotationKey = (schedule: readonly string[]) => {
@@ -85,7 +85,9 @@ export const allocateCropFarmPlan = (
     ]
 
     return {
-      group: { ...group, id: recipeId },
+      group: { ...group, id: recipeId, currentFarms: assigned.flatMap(farm =>
+        farm.runtime && matches(farm, group) && isCropSchedule(farm.schedule)
+          ? [{ schedule: farm.schedule, runtime: farm.runtime }] : []) },
       built: assigned.length,
       running: group.farmCount,
       currentActive: assigned.filter(farm => farm.running).length,

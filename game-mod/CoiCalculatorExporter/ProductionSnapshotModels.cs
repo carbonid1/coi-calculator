@@ -25,6 +25,7 @@ internal sealed class ChickenFarmEntitySnapshot
 
 internal sealed class CropFarmEntitySnapshot
 {
+    public FarmRuntimeSnapshot Runtime;
     public readonly int EntityId;
     public readonly string PrototypeId;
     public readonly bool Running;
