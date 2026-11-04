@@ -19,9 +19,9 @@ type WaterSource = ReturnType<typeof buildWaterSourceInventory>[number];
 
 const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; number: number; snapshot: GameStateSnapshot }) => {
   const forecast = useMemo(() => source.projectedWithdrawalPerCycle > 0
-    ? simulateWaterSource(source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal)
+    ? simulateWaterSource(source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal, source.buffer)
     : null,
-    [source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal]);
+    [source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal, source.buffer]);
 
   if (source.projectedWithdrawalPerCycle <= 0 && source.areas.length === 0) return null;
 
@@ -32,7 +32,7 @@ const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; numb
       </h3>
       {forecast && (
         <dl className="grid gap-3 text-sm sm:grid-cols-3" aria-live="polite">
-          <div><dt className="text-xs text-muted-foreground"><Tooltip maxWidth={320} label={`Steady draw ${format(source.projectedWithdrawalPerCycle)} / cycle · pump capacity ${format(source.projectedPumps * snapshot.groundwater.pumpCapacityPerCycle)} · sustainable output ${format(source.sustainableOutputPerCycle)} Water / cycle. ${source.dailyWithdrawal ? 'Current farm rotations for 1Y; steady draw afterward. ' : ''}Pipe delivery and tank buffers excluded.`}>
+          <div><dt className="text-xs text-muted-foreground"><Tooltip maxWidth={320} label={`Steady draw ${format(source.projectedWithdrawalPerCycle)} / cycle · pump capacity ${format(source.projectedPumps * snapshot.groundwater.pumpCapacityPerCycle)} · sustainable output ${format(source.sustainableOutputPerCycle)} Water / cycle. ${source.dailyWithdrawal ? 'Current farm rotations for 1Y; steady draw afterward. ' : ''}${source.buffer ? `${format(source.buffer.quantity)} Water in connected tanks and pipes. Pipe throughput excluded.` : 'Pipe delivery and tank buffers excluded.'}`}>
             <span tabIndex={0} aria-label="First shortfall estimate">First shortfall · estimate</span>
           </Tooltip></dt>
             <dd className="font-mono">{forecast.firstShortfallCycle === null ? 'None · 100Y'

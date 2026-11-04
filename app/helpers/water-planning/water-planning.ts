@@ -2,6 +2,7 @@ import { planningWeather, type WeatherConfig } from '../../db/weather';
 import { type GameStateSnapshot, type SyncedGroundwaterSource, type SyncedGroundwaterState } from '../../game-state';
 import { type PassiveResult } from '../calculate/calculate';
 import { advanceAquiferDay, calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput } from '../groundwater/calculate-groundwater-production';
+import { getConnectedWaterBuffer } from './connected-water-buffer';
 import { type FarmWaterDemand } from './farm-water-demand';
 
 export const summarizeWeather = (weather: WeatherConfig) => {
@@ -51,8 +52,10 @@ export const simulateWaterSource = (
   pumpCount: number,
   withdrawalPerCycle: number,
   dailyWithdrawal?: readonly number[],
+  buffer?: { quantity: number; capacity: number },
 ) => {
   const state = { reserve: source.quantity, emergencyReserve: source.emergencyQuantity };
+  const stored = { quantity: buffer?.quantity ?? 0, capacity: buffer?.capacity ?? 0 };
   const totals = { day: 0, minimumReserve: source.quantity, shortfallQuantity: 0,
     firstYearShortfallQuantity: 0, daysBelowDemand: 0, skipCapturedDay: true, periodDay: 0 };
   const firstShortfall: { cycle: number | null } = { cycle: null };
@@ -66,7 +69,11 @@ export const simulateWaterSource = (
       // Start on the next day; continuous pumping within a day is an estimate.
       if (totals.skipCapturedDay) { totals.skipCapturedDay = false; continue; }
       const requested = dailyWithdrawal?.[totals.day + 1] ?? requestedPerDay;
-      const supplied = advanceAquiferDay(state, source, groundwater, period.rainIntensityPercent, pumpCapacityPerDay, requested);
+      const pumped = advanceAquiferDay(state, source, groundwater, period.rainIntensityPercent, pumpCapacityPerDay,
+        requested + Math.max(0, stored.capacity - stored.quantity));
+      const supplied = Math.min(requested, pumped + stored.quantity);
+
+      stored.quantity = Math.min(stored.capacity, Math.max(0, pumped + stored.quantity - supplied));
       const missing = Math.max(0, requested - supplied);
 
       totals.day += 1;
@@ -137,6 +144,7 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
       source, builtPumps: pumps.length, activePumps: pumps.filter(pump => pump.running).length,
       projectedPumps, projectedWithdrawalPerCycle,
       ...(dailyWithdrawal ? { dailyWithdrawal } : {}),
+      buffer: getConnectedWaterBuffer(snapshot, source.id, projectedPumps),
       pumpsForCeiling: calculateAquiferPumpsForCeiling(source, snapshot.groundwater, snapshot.weather),
       sustainableCeilingPerCycle: calculateAquiferSustainableCeiling(source, snapshot.groundwater, snapshot.weather),
       sustainableOutputPerCycle: calculateAquiferSustainableOutput(source, projectedPumps, snapshot.groundwater, snapshot.weather),

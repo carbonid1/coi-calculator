@@ -1,6 +1,6 @@
 {
   "id": "CoiCalculatorExporter",
-  "version": "0.60.0",
+  "version": "0.61.0",
   "display_name": "CoI Calculator Bridge",
   "description_short": "Connects CoI Calculator to your factory through the game's web server.",
   "description_long": "Connects CoI Calculator to factory areas, buildings and construction ghosts, recipes, farms, world mines, cargo, contracts, reserves, research, edicts, and operating history through the game's local web server.",

@@ -30,7 +30,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private bool m_layoutRouteRegistered;
 
     public string Name { get { return "CoI Calculator Bridge"; } }
-    public int Version { get { return 60; } }
+    public int Version { get { return 61; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }

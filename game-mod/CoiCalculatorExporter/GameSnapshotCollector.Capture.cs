@@ -17,6 +17,7 @@ internal sealed partial class GameSnapshotCollector
         WorldStateSnapshot world = getWorldStateSnapshot(entities);
         var fertilizers = getFertilizerSources();
         ProductionSnapshot production = getProductionSnapshot(entities.Production, fertilizers);
+        production.WaterNetworks = getWaterNetworks(entities, production);
         ContractStateSnapshot contracts = getContractStateSnapshot(entities.CargoDepots);
 
         foreach (var vehicle in m_vehiclesManager.AllVehicles)

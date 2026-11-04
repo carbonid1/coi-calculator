@@ -39,6 +39,13 @@ const factoryLayout = {
 }
 const addedBuilding = { id: 2_000_000_001, prototypeId: 'Greenhouse', x: 3100, y: 700, shape: 0, constructed: false, areas: [10] }
 const centreOnlyBuilding = factoryLayout.buildings.find(building => building.areas.includes(14))
+const waterPumps = fixture.machines.filter(machine => machine.aquifer?.id === '3247:647')
+// Synthetic plumbing verifies connected reserves without assuming recorded pipe topology.
+const waterNetwork = {
+  pumpIds: waterPumps.map(pump => pump.entityId), activePumpIds: waterPumps.filter(pump => pump.running).map(pump => pump.entityId),
+  aquiferIds: ['3247:647'], consumerIds: [fixture.cropFarms.find(farm => farm.zones.some(zone => zone.id === 10)).entityId],
+  hasOtherSources: false, buffers: [{ entityId: 2_000_000_002, kind: 'tank', quantity: 60, capacity: 60 }],
+}
 const run = promisify(execFile)
 const nextCli = fileURLToPath(new URL('../node_modules/next/dist/bin/next', import.meta.url))
 const browserCli = fileURLToPath(new URL('../node_modules/agent-browser/bin/agent-browser.js', import.meta.url))
@@ -113,7 +120,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       },
       weather: state.mode === 'missing-weather' ? undefined : fixture.weather,
       groundwater: state.mode === 'missing-aquifers' ? { ...fixture.groundwater, aquifers: undefined }
-        : { ...fixture.groundwater, aquifers: state.pausedPumps ? [...fixture.groundwater.aquifers].reverse() : fixture.groundwater.aquifers },
+        : { ...fixture.groundwater, aquifers: state.pausedPumps ? [...fixture.groundwater.aquifers].reverse() : fixture.groundwater.aquifers,
+          networks: [{ ...waterNetwork, activePumpIds: state.pausedPumps ? [] : waterNetwork.activePumpIds }] },
       machines: state.pausedPumps ? [...fixture.machines].reverse().map(machine => machine.aquifer ? { ...machine, running: false } : machine) : fixture.machines,
       cropFarming: state.mode === 'missing-crop-definitions' ? undefined : { ...fixture.cropFarming, tiers: state.mode === 'missing-farm-tiers' ? undefined : fixture.cropFarming.tiers },
       spaceStationLevels: state.mode === 'missing-station-levels' ? undefined : fixture.spaceStationLevels,
@@ -363,12 +371,12 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('focus', '[data-aquifer-id="3247:647"]')
     await browser('press', 'Enter')
     assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3247:647\\"]").getAttribute("aria-pressed")'), 'true')
-    assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Aquifer 13[\s\S]*First shortfall · estimate[\s\S]*cycles · [\d,.]+ in-game years[\s\S]*Min reserve · 100Y[\s\S]*Shortfall · 1Y/)
+    assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Aquifer 13[\s\S]*First shortfall · estimate[\s\S]*None · 100Y[\s\S]*Min reserve · 100Y[\s\S]*Shortfall · 1Y[\s\S]*0 Water/)
     await browser('focus', '[aria-label="First shortfall estimate"]')
     await browser('press', 'Shift+Tab')
     await browser('press', 'Tab')
     await browser('wait', '[role="tooltip"]')
-    assert.match(await text(), /Steady draw 210 \/ cycle · pump capacity 240 · sustainable output 210 Water \/ cycle\. Pipe delivery and tank buffers excluded/)
+    assert.match(await text(), /Steady draw 210 \/ cycle · pump capacity 240 · sustainable output 210 Water \/ cycle\. 60 Water in connected tanks and pipes\. Pipe throughput excluded/)
     await browser('press', 'Escape')
     assert.doesNotMatch(await text(), /Use factory plan|Source scenario/)
     await screenshot('water-desktop')

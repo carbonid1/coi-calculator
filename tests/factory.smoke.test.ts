@@ -36,6 +36,7 @@ import { withPlanningDefinition } from '../app/helpers/planning-recipes/planning
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
+import { getConnectedWaterBuffer } from '../app/helpers/water-planning/connected-water-buffer'
 import { calculateFarmWaterDemand } from '../app/helpers/water-planning/farm-water-demand'
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../app/helpers/water-planning/water-planning'
 import { calculateFarmIrrigationRates } from '../app/helpers/weather/calculate-farm-irrigation'
@@ -48,6 +49,52 @@ import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 // Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
+
+it('replays connected tank and pipe reserves, refill and shared-source exclusions through the existing shortfall forecast', () => {
+  const original = normalizeGameStateSnapshot(capture)
+
+  if (!original) throw new Error('Recorded water snapshot is incompatible')
+  const snapshot = structuredClone(original)
+  const pump = snapshot.machines.find(pump => pump.running && pump.aquifer)
+
+  if (!pump?.aquifer) throw new Error('Native pump required')
+  snapshot.machines = [pump]
+  const aquifer = snapshot.groundwater.aquifers.find(source => source.id === pump.aquifer?.id)
+
+  if (!aquifer) throw new Error('Native aquifer required')
+  const network = { pumpIds: [pump.entityId], activePumpIds: [pump.entityId], aquiferIds: [aquifer.id],
+    consumerIds: [snapshot.cropFarms[0].entityId], hasOtherSources: false,
+    buffers: [{ entityId: 1_999_000_001, kind: 'tank' as const, quantity: 57, capacity: 120 },
+      { entityId: 1_999_000_002, kind: 'pipe' as const, quantity: 3, capacity: 3 }] }
+
+  snapshot.groundwater.networks = [network]
+  expect(normalizeGameStateSnapshot(snapshot)).not.toBeNull()
+  const buffer = getConnectedWaterBuffer(snapshot, aquifer.id, 1)
+
+  expect(buffer).toEqual({ quantity: 60, capacity: 123 })
+  const dry = { ...snapshot.weather, periods: snapshot.weather.periods.map(period => ({ ...period, rainIntensityPercent: 0 })) }
+  const groundwater = { ...snapshot.groundwater, depletedPumpSpeedPercent: 0, replenishWhenLowPercent: 0 }
+  const empty = { ...aquifer, quantity: 0, emergencyQuantity: 0 }
+  const bare = simulateWaterSource(empty, groundwater, dry, 1, 30)
+  const stored = simulateWaterSource(empty, groundwater, dry, 1, 30, undefined, buffer)
+
+  expect(bare?.firstShortfallCycle).toBe(1 / 30)
+  expect(stored).toMatchObject({ firstShortfallCycle: 61 / 30, firstYearShortfallQuantity: 300 })
+  const refill = simulateWaterSource({ ...empty, quantity: 100 }, groundwater, dry, 1, 30, undefined, buffer)
+
+  expect(refill?.firstShortfallCycle).toBe(161 / 30)
+  expect(getConnectedWaterBuffer(snapshot, aquifer.id, 2)).toBeUndefined()
+  for (const changed of [{ ...network, hasOtherSources: true },
+    { ...network, aquiferIds: [aquifer.id, 'other-aquifer'] }, { ...network, consumerIds: [] }]) {
+    expect(getConnectedWaterBuffer({ ...snapshot, groundwater: { ...snapshot.groundwater, networks: [changed] } }, aquifer.id, 1)).toBeUndefined()
+  }
+  for (const networks of [null, [{ ...network, activePumpIds: [] }], [{ ...network, pumpIds: [999_999_999] }],
+    [{ ...network, aquiferIds: ['wrong-aquifer'] }], [{ ...network, consumerIds: [999_999_999] }],
+    [{ ...network, buffers: [...network.buffers, network.buffers[0]] }],
+    [{ ...network, buffers: network.buffers.map(buffer => ({ ...buffer, quantity: buffer.capacity + 1 })) }],
+    [network, network]]) expect(normalizeGameStateSnapshot({ ...snapshot, groundwater: { ...snapshot.groundwater, networks } })).toBeNull()
+  expect(normalizeGameStateSnapshot({ ...snapshot, groundwater: { ...snapshot.groundwater, networks: undefined } })).not.toBeNull()
+})
 
 it('replays live crop phase and soil reserves into the existing water forecast while retaining steady production plans', () => {
   const snapshot = normalizeGameStateSnapshot(capture)

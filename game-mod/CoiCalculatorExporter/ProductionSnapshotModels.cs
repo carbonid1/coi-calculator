@@ -55,6 +55,7 @@ internal sealed class CropFarmEntitySnapshot
 
 internal sealed class ProductionSnapshot
 {
+    public List<WaterNetworkSnapshot> WaterNetworks;
     public readonly List<LogisticsZoneSnapshot> LogisticsZones;
     public readonly List<ChickenFarmEntitySnapshot> ChickenFarmEntities;
     public readonly List<CropFarmEntitySnapshot> CropFarmEntities;

@@ -1,7 +1,7 @@
 import { isBuildingDefinitions, type BuildingDefinition } from './building-state'
 import { isChickenFarmDefinition, type ChickenFarmDefinition } from './chicken-farm-state'
-import { isCropFarmingDefinitions, type CropFarmingDefinitions } from './crop-farming-state'
 import { isCropFarmRuntime, type CropFarmRuntime } from './crop-farm-runtime'
+import { isCropFarmingDefinitions, type CropFarmingDefinitions } from './crop-farming-state'
 import { getEdictCatalog, type EdictId, type EdictLevel, mapEdictValues } from './db/edicts'
 import {
   emptyInfiniteResearchLevels,
@@ -19,6 +19,7 @@ import { isNativeProducts, type NativeProducts } from './product-state'
 import { isRocketIiDefinition, type RocketIiDefinition } from './rocket-state'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
 import { isSpaceStationLevels, type SpaceStationLevelDefinition } from './space-station-state'
+import { isWaterNetworks, type WaterNetwork } from './water-network-state'
 import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCargoOperation, type SyncedWorldCargoRoute, type SyncedWorldState, type SyncedStorage } from './world-state'
 
 interface SyncedSpaceStationState {
@@ -78,6 +79,7 @@ export interface SyncedGroundwaterAquifer {
 }
 
 export interface SyncedGroundwaterState {
+  networks?: WaterNetwork[]
   pumpCapacityPerCycle: number
   capacityReplenishRawPercent: number
   maximumEmergencyWaterCapacity: number
@@ -648,6 +650,7 @@ const isGroundwaterAquifer = (value: unknown): value is SyncedGroundwaterAquifer
 
 const isGroundwaterState = (value: unknown): value is GameStateSnapshot['groundwater'] =>
   isUnknownRecord(value) &&
+  (value.networks === undefined || isWaterNetworks(value.networks)) &&
   typeof value.pumpCapacityPerCycle === "number" && Number.isFinite(value.pumpCapacityPerCycle) && value.pumpCapacityPerCycle > 0 &&
   typeof value.capacityReplenishRawPercent === "number" && Number.isFinite(value.capacityReplenishRawPercent) && value.capacityReplenishRawPercent >= 0 &&
   isNonNegativeInteger(value.maximumEmergencyWaterCapacity) &&
@@ -1129,6 +1132,16 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   if (machines && groundwater) {
     const sources = new Map(groundwater.aquifers.map(source => [source.id, source]))
+    const pumps = new Map(machines.map(machine => [machine.entityId, machine]))
+
+    for (const network of groundwater.networks ?? []) {
+      if (network.aquiferIds.some(id => !sources.has(id)) || network.pumpIds.some(id => {
+        const pump = pumps.get(id)
+
+        return !pump?.aquifer || !network.aquiferIds.includes(pump.aquifer.id)
+          || pump.running !== network.activePumpIds.includes(id)
+      })) return null
+    }
 
     if (machines.some(machine => {
       const aquifer = machine.aquifer
@@ -1149,6 +1162,12 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const focus = normalizeFocusStates(snapshot.focus, snapshot.officeFocusDefinitions)
   const world = normalizeWorld(snapshot.world)
   const storages = normalizeStorages(snapshot.storages)
+
+  if (groundwater && areaEntities && cropFarms) {
+    const consumers = new Set([...areaEntities, ...cropFarms].map(entity => entity.entityId))
+
+    if (groundwater.networks?.some(network => network.consumerIds.some(id => !consumers.has(id)))) return null
+  }
   const reserves = storages ? resolveReserveBalances(storages) : null
 
   if (contracts && world) {
