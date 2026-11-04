@@ -125,7 +125,7 @@ export const staticInfrastructureItems = [
     id: 'maintenanceStatue',
     recipeId: maintenanceStatue.id,
     name: maintenanceStatue.name,
-    detail: `${maintenanceStatue.fuelGasPerCycle} Fuel Gas per cycle each · ${maintenanceStatue.baseReductionPercent}% for the first, half effect for each additional`,
+    detail: '',
     building: maintenanceStatue.name,
     workers: 0,
   },

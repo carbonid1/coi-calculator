@@ -1,96 +1,10 @@
-import { type BuildingDefinition } from '../building-state'
-import { getBuildingData } from './buildings'
-import { focusPointsResearch } from "./research";
+import { type BuildingDefinition } from '../building-state';
+import { getFocusDefinitions, getOfficeDefinition, type OfficeFocusDefinitions } from '../office-focus-state';
+import { getBuildingData } from './buildings';
+import { officeCatalog, type OfficeTierId, type OfficeBoostStep, type FocusEffectId } from './office-catalog';
 
-export type OfficeTierId = "officeI" | "officeII" | "officeIII";
-export type OfficeBoostStep = 0 | 1 | 2;
-
-export interface OfficeTierDefinition {
-  id: OfficeTierId;
-  name: string;
-  officeSuppliesPerCycle: number;
-  gameVersion: string;
-}
-
-export const officeCatalog = [
-  {
-    id: "officeI",
-    name: "Office I",
-    officeSuppliesPerCycle: 2,
-    gameVersion: "0.8.7",
-  },
-  {
-    id: "officeII",
-    name: "Office II",
-    officeSuppliesPerCycle: 4,
-    gameVersion: "0.8.7",
-  },
-  {
-    id: "officeIII",
-    name: "Office III",
-    officeSuppliesPerCycle: 8,
-    gameVersion: "0.8.7",
-  },
-] as const satisfies readonly OfficeTierDefinition[];
-
-type FocusId =
-  | "trucksCapacity"
-  | "trainsCapacity"
-  | "researchEfficiency"
-  | "maintenanceProduction"
-  | "cropYield"
-  | "recyclingEfficiency"
-  | "foodConsumption"
-  | "settlementConsumption"
-  | "unityProduction"
-  | "contractsProfitability"
-  | "contractsUnityCost"
-  | "worldMinesEfficiency";
-
-export type FocusEffectId = FocusId;
-
-export const mapFocusValues = <Value>(map: (id: FocusId) => Value): Record<FocusId, Value> => ({
-  trucksCapacity: map('trucksCapacity'),
-  trainsCapacity: map('trainsCapacity'),
-  researchEfficiency: map('researchEfficiency'),
-  maintenanceProduction: map('maintenanceProduction'),
-  cropYield: map('cropYield'),
-  recyclingEfficiency: map('recyclingEfficiency'),
-  foodConsumption: map('foodConsumption'),
-  settlementConsumption: map('settlementConsumption'),
-  unityProduction: map('unityProduction'),
-  contractsProfitability: map('contractsProfitability'),
-  contractsUnityCost: map('contractsUnityCost'),
-  worldMinesEfficiency: map('worldMinesEfficiency'),
-});
-
-export interface FocusDefinition {
-  id: FocusId;
-  name: string;
-  effectPerStep: string;
-  percentPerStep: number;
-  maxStep: number;
-  basePointsCost: number;
-  pointsCostIncrement: number;
-  /** Whether this calculator currently has a consumer for the focus effect. */
-  modeledInCalculator: boolean;
-  gameVersion: string;
-}
-
-export const focusCatalog = [
-  { id: "trucksCapacity", name: "Trucks Capacity", effectPerStep: "+2.5% capacity per step", percentPerStep: 2.5, maxStep: 40, basePointsCost: 40, pointsCostIncrement: 30, modeledInCalculator: false, gameVersion: "0.8.7" },
-  { id: "trainsCapacity", name: "Trains Capacity", effectPerStep: "+2.5% capacity per step", percentPerStep: 2.5, maxStep: 40, basePointsCost: 40, pointsCostIncrement: 30, modeledInCalculator: false, gameVersion: "0.8.7" },
-  { id: "researchEfficiency", name: "Research Efficiency", effectPerStep: "+2% efficiency per step", percentPerStep: 2, maxStep: 150, basePointsCost: 25, pointsCostIncrement: 10, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "maintenanceProduction", name: "Maintenance Production", effectPerStep: "+1% production per step", percentPerStep: 1, maxStep: 100, basePointsCost: 25, pointsCostIncrement: 10, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "cropYield", name: "Crop Yield", effectPerStep: "+2% yield per step", percentPerStep: 2, maxStep: 150, basePointsCost: 50, pointsCostIncrement: 10, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "recyclingEfficiency", name: "Recycling Efficiency", effectPerStep: "+1% efficiency per step", percentPerStep: 1, maxStep: 15, basePointsCost: 150, pointsCostIncrement: 50, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "foodConsumption", name: "Food Consumption", effectPerStep: "-2% consumption per step", percentPerStep: -2, maxStep: 15, basePointsCost: 75, pointsCostIncrement: 100, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "settlementConsumption", name: "Goods & Services Consumption", effectPerStep: "-2% consumption per step", percentPerStep: -2, maxStep: 25, basePointsCost: 125, pointsCostIncrement: 125, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "unityProduction", name: "Settlement Unity", effectPerStep: "+2.5% Unity per step", percentPerStep: 2.5, maxStep: 14, basePointsCost: 250, pointsCostIncrement: 250, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "contractsProfitability", name: "Contracts Profitability", effectPerStep: "+2% profitability per step", percentPerStep: 2, maxStep: 15, basePointsCost: 40, pointsCostIncrement: 40, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "contractsUnityCost", name: "Contracts Unity Cost", effectPerStep: "-2.5% Unity cost per step", percentPerStep: -2.5, maxStep: 20, basePointsCost: 40, pointsCostIncrement: 20, modeledInCalculator: true, gameVersion: "0.8.7" },
-  { id: "worldMinesEfficiency", name: "World Mines & Rigs", effectPerStep: "+2% efficiency per step", percentPerStep: 2, maxStep: 25, basePointsCost: 50, pointsCostIncrement: 40, modeledInCalculator: false, gameVersion: "0.8.7" },
-] as const satisfies readonly FocusDefinition[];
+export { officeCatalog, focusCatalog, mapFocusValues, type OfficeTierId, type OfficeBoostStep, type FocusEffectId } from './office-catalog';
+type FocusId = FocusEffectId;
 
 interface OfficeTierPlan {
   count: number;
@@ -143,43 +57,17 @@ export const plannedOfficePlan: OfficePlan = {
   },
 };
 
-const clampBoostStep = (step: number): OfficeBoostStep => {
-  const normalizedStep = Math.min(2, Math.max(0, Math.trunc(step)));
-
-  if (normalizedStep === 0) return 0;
-  if (normalizedStep === 1) return 1;
-
-  return 2;
-};
-
 const normalizeCount = (count: number) => Math.max(0, Math.trunc(count));
 
-export const getOfficeRecipeId = (
-  tierId: OfficeTierId,
-  computingBoostStep: OfficeBoostStep,
-) => `${tierId}-boost-${computingBoostStep}`;
+export const getOfficeRecipeId = (tierId: OfficeTierId, computingBoostStep: OfficeBoostStep) =>
+  `${tierId}-boost-${computingBoostStep}`;
 
-export const calculateFocusPointsCost = (
-  focus: FocusDefinition,
-  targetStep: number,
-) => {
-  const step = Math.min(focus.maxStep, Math.max(0, Math.trunc(targetStep)));
+export const calculateFocusPointsCost = (focus: { pointCosts: readonly number[] }, targetStep: number) => {
+  const cost = focus.pointCosts[Math.min(focus.pointCosts.length - 1, Math.max(0, Math.trunc(targetStep)))];
 
-  return step * (
-    2 * focus.basePointsCost + (step - 1) * focus.pointsCostIncrement
-  ) / 2;
+  if (cost === undefined) throw new Error('Focus cost table is incomplete');
+  return cost;
 };
-
-export const calculateOfficeBoostBonusPercent = (step: number) => {
-  const normalizedStep = clampBoostStep(step);
-
-  return normalizedStep * 20 + Math.max(0, normalizedStep - 1) * 10;
-};
-
-export const calculateOfficeComputingTflops = (
-  computingTflopsAtStepOne: number,
-  step: number,
-) => computingTflopsAtStepOne * clampBoostStep(step) ** 2;
 
 export interface OfficePlanCalculation {
   bonuses: Record<FocusEffectId, number>;
@@ -196,78 +84,48 @@ export interface OfficePlanCalculation {
 
 export const calculateOfficePlan = (
   plan: OfficePlan,
-  focusResearchLevel: number,
+  definitions: OfficeFocusDefinitions,
   syncedConfigurations?: readonly OfficeConfigurationCount[],
   buildingDefinitions: readonly BuildingDefinition[] = [],
 ): OfficePlanCalculation => {
-  const normalizedResearchLevel = Math.min(
-    focusPointsResearch.maxLevel,
-    Math.max(0, Math.trunc(focusResearchLevel)),
-  );
-  const focusResearchBonusPercent = normalizedResearchLevel
-    * focusPointsResearch.percentPerLevel;
-  let focusPointsCapacity = 0;
-  let officeSuppliesPerCycle = 0;
-  let computingTflops = 0;
-  let electricityKw = 0;
-  let workers = 0;
-
+  const totals = { focusPointsCapacity: 0, officeSuppliesPerCycle: 0, computingTflops: 0, electricityKw: 0, workers: 0 };
   const configurations = syncedConfigurations ?? officeCatalog.map(office => ({
-    tierId: office.id,
-    computingBoostStep: plan.offices[office.id].computingBoostStep,
-    count: plan.offices[office.id].count,
+    tierId: office.id, computingBoostStep: plan.offices[office.id].computingBoostStep, count: plan.offices[office.id].count,
   }));
 
   for (const configuration of configurations) {
     const office = officeCatalog.find(candidate => candidate.id === configuration.tierId);
-
-    if (!office) continue;
-
     const count = normalizeCount(configuration.count);
 
-    if (count === 0) continue;
-    const building = getBuildingData(office.name, buildingDefinitions);
+    if (!office || count === 0) continue;
+    const building = getBuildingData(office.name, buildingDefinitions, office.prototypeId);
+    const definition = getOfficeDefinition(definitions, office.prototypeId);
+    const boost = definition.boosts[configuration.computingBoostStep];
 
-    if (!building) throw new Error(`Building requirements unavailable for ${office.name}`);
-    const boostStep = clampBoostStep(configuration.computingBoostStep);
-    const baseFocusPerOffice = Math.round(
-      building.workers * (1 + focusResearchBonusPercent / 100),
-    );
-    const boostFocusPerOffice = Math.round(
-      building.workers * calculateOfficeBoostBonusPercent(boostStep) / 100,
-    );
+    if (!building || !boost) throw new Error(`Office requirements unavailable for ${office.name}`);
+    // Installed OfficeBuilding rounds the property multiplier and boost separately.
+    const baseFocus = Math.round(building.workers * definitions.pointsMultiplierPercent / 100);
+    const boostFocus = Math.round(building.workers * boost.focusBonusPercent / 100);
 
-    focusPointsCapacity += count * (baseFocusPerOffice + boostFocusPerOffice);
-    officeSuppliesPerCycle += count * office.officeSuppliesPerCycle;
-    computingTflops += count * calculateOfficeComputingTflops(building.computingTflops ?? 0, boostStep);
-    electricityKw += count * building.electricityKw;
-    workers += count * building.workers;
+    totals.focusPointsCapacity += count * (baseFocus + boostFocus);
+    totals.officeSuppliesPerCycle += count * definition.suppliesPerCycle;
+    totals.computingTflops += count * boost.computingTflops;
+    totals.electricityKw += count * building.electricityKw;
+    totals.workers += count * building.workers;
   }
-
+  const focuses = getFocusDefinitions(definitions);
   const bonuses: Record<FocusEffectId, number> = { ...emptyFocusSteps };
 
-  for (const focus of focusCatalog) {
-    const step = Math.min(
-      focus.maxStep,
-      Math.max(0, Math.trunc(plan.focusSteps[focus.id])),
-    );
+  for (const focus of focuses) {
+    const step = Math.min(focus.maxStep, Math.max(0, Math.trunc(plan.focusSteps[focus.id])));
 
     bonuses[focus.id] = step * focus.percentPerStep;
   }
-  const focusPointsRequired = focusCatalog.reduce((total, focus) => (
-    total + calculateFocusPointsCost(focus, plan.focusSteps[focus.id])
-  ), 0);
+  const focusPointsRequired = focuses.reduce((total, focus) => total + calculateFocusPointsCost(focus, plan.focusSteps[focus.id]), 0);
 
   return {
-    bonuses,
-    focusPointsAvailable: Math.max(0, focusPointsCapacity - focusPointsRequired),
-    focusPointsCapacity,
-    focusPointsRequired,
-    focusResearchBonusPercent,
-    isAffordable: focusPointsRequired <= focusPointsCapacity,
-    officeSuppliesPerCycle,
-    computingTflops,
-    electricityKw,
-    workers,
+    ...totals, bonuses, focusPointsAvailable: Math.max(0, totals.focusPointsCapacity - focusPointsRequired),
+    focusPointsRequired, focusResearchBonusPercent: definitions.pointsMultiplierPercent - 100,
+    isAffordable: focusPointsRequired <= totals.focusPointsCapacity,
   };
 };

@@ -1,10 +1,10 @@
 import { isBuildingDefinitions, type BuildingDefinition } from './building-state'
 import { isChickenFarmDefinition, type ChickenFarmDefinition } from './chicken-farm-state'
 import { isCropFarmingDefinitions, type CropFarmingDefinitions } from './crop-farming-state'
-import { edictCatalog, type EdictId, type EdictLevel, mapEdictValues } from './db/edicts'
+import { getEdictCatalog, type EdictId, type EdictLevel, mapEdictValues } from './db/edicts'
 import {
   emptyInfiniteResearchLevels,
-  infiniteResearchCatalog,
+  getInfiniteResearchCatalog,
   type InfiniteResearchId,
 } from './db/research'
 import { type ReserveBalances } from './db/reserve-resources'
@@ -12,6 +12,8 @@ import { isWeatherConfig, type WeatherConfig } from './db/weather'
 import { normalizeFocusStates, type SyncedFocusStates } from './focus-state'
 import { isRecyclingData, isRecyclingSources, type RecyclingData, type RecyclingSource } from './helpers/recycling/recycling'
 import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balances'
+import { isOfficeFocusDefinitions, type OfficeFocusDefinitions } from './office-focus-state'
+import { isPlanningDefinitions, type PlanningDefinitions } from './planning-state'
 import { isNativeProducts, type NativeProducts } from './product-state'
 import { isRocketIiDefinition, type RocketIiDefinition } from './rocket-state'
 import { isSyncedSettlementState, type SyncedSettlementState } from './settlement-state'
@@ -303,13 +305,15 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 49 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 52 as const
 
 export interface GameStateSnapshot {
   chickenFarmDefinition: ChickenFarmDefinition
   rocketIiDefinition: RocketIiDefinition
   spaceStationLevels: SpaceStationLevelDefinition[]
   cropFarming: CropFarmingDefinitions
+  officeFocusDefinitions: OfficeFocusDefinitions
+  planningDefinitions: PlanningDefinitions
   buildingDefinitions: BuildingDefinition[]
   products?: NativeProducts
   recycling: RecyclingData
@@ -1009,12 +1013,12 @@ const isGenerationHistory = (
   value.sampleMonths <= windowMonths &&
   (value.sampleMonths > 0 || value.averageMw === 0)
 
-const normalizeResearchLevels = (value: unknown): SyncedResearchLevels | null => {
+const normalizeResearchLevels = (value: unknown, definitions: PlanningDefinitions): SyncedResearchLevels | null => {
   if (!isUnknownRecord(value)) return null
 
   const levels: SyncedResearchLevels = { ...emptyInfiniteResearchLevels }
 
-  for (const research of infiniteResearchCatalog) {
+  for (const research of getInfiniteResearchCatalog(definitions)) {
     const level = value[research.id]
 
     if (!isNonNegativeInteger(level) || level > research.maxLevel) return null
@@ -1031,7 +1035,7 @@ const isEdictLevel = (
 ): value is EdictLevel =>
   isNonNegativeInteger(value) && levels.some(candidate => candidate.level === value)
 
-const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
+const normalizeEdictStates = (value: unknown, definitions: PlanningDefinitions): SyncedEdictStates | null => {
   if (!isUnknownRecord(value)) return null
 
   const states: SyncedEdictStates = mapEdictValues(() => ({
@@ -1040,7 +1044,7 @@ const normalizeEdictStates = (value: unknown): SyncedEdictStates | null => {
     inactiveReason: null,
   }))
 
-  for (const edict of edictCatalog) {
+  for (const edict of getEdictCatalog(definitions)) {
     const state = value[edict.id]
 
     if (!isUnknownRecord(state)) return null
@@ -1091,6 +1095,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   if (!isRocketIiDefinition(snapshot.rocketIiDefinition)) return null
   if (!isSpaceStationLevels(snapshot.spaceStationLevels)) return null
   if (!isCropFarmingDefinitions(snapshot.cropFarming)) return null
+  if (!isOfficeFocusDefinitions(snapshot.officeFocusDefinitions)) return null
+  if (!isPlanningDefinitions(snapshot.planningDefinitions)) return null
   if (snapshot.products !== undefined && (!isNativeProducts(snapshot.products)
     || snapshot.products.gameId !== snapshot.gameId || snapshot.products.sessionId !== snapshot.sessionId)) return null
   if (!isRecyclingData(snapshot.recycling)) return null
@@ -1129,9 +1135,9 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   const mineTowers = normalizeMineTowers(snapshot.mineTowers)
   const vehicles = isUnknownRecord(snapshot.vehicles) ? snapshot.vehicles : null
   const workersAssigned = vehicles?.workersAssigned
-  const research = normalizeResearchLevels(snapshot.research)
-  const edicts = normalizeEdictStates(snapshot.edicts)
-  const focus = normalizeFocusStates(snapshot.focus)
+  const research = normalizeResearchLevels(snapshot.research, snapshot.planningDefinitions)
+  const edicts = normalizeEdictStates(snapshot.edicts, snapshot.planningDefinitions)
+  const focus = normalizeFocusStates(snapshot.focus, snapshot.officeFocusDefinitions)
   const world = normalizeWorld(snapshot.world)
   const storages = normalizeStorages(snapshot.storages)
   const reserves = storages ? resolveReserveBalances(storages) : null
@@ -1226,6 +1232,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     rocketIiDefinition: snapshot.rocketIiDefinition,
     spaceStationLevels: snapshot.spaceStationLevels,
     cropFarming: snapshot.cropFarming,
+    officeFocusDefinitions: snapshot.officeFocusDefinitions,
+    planningDefinitions: snapshot.planningDefinitions,
     buildingDefinitions: snapshot.buildingDefinitions,
     ...(snapshot.products === undefined ? {} : { products: snapshot.products }),
     recycling: snapshot.recycling,

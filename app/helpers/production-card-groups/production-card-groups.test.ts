@@ -7,7 +7,7 @@ import {
   emptyRocketInfrastructureConfig,
 } from '../../db/rocket-infrastructure'
 import { settlementRecipeIds } from '../../db/settlement'
-import { testRocketIiDefinition, testSpaceStationLevels } from '../../test-fixtures/recorded-game-data'
+import { testPlanningDefinitions , testRocketIiDefinition, testSpaceStationLevels } from '../../test-fixtures/recorded-game-data';
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateProductionCardLoad, groupProductionCardLines, hasBuildingInventory } from './production-card-groups'
 
@@ -17,11 +17,11 @@ describe('production card groups', () => {
       id: 'population', name: 'Population', description: '', builtBuildings: {},
       presets: [{ id: 'live', name: 'Live', description: '', activeBuildings: {}, fixed: [] }],
     }
-    const population = createPopulationModule({
+    const population = createPopulationModule(testPlanningDefinitions, {
       counts: { [settlementRecipeIds.residents]: { built: 20, running: 20 } },
       entities: [], housingIiCandidates: { built: 0, running: 0 }, unmappedEntities: [],
     }, area, 4, 26)
-    const { lines } = buildModuleLines(population, population.presets[0])
+    const { lines } = buildModuleLines(population, population.presets[0], { planningDefinitions: testPlanningDefinitions })
     const emptyHousing = lines.find(line => line.recipe.id === settlementRecipeIds.residentsII)
     const visible = lines.filter(hasBuildingInventory)
 

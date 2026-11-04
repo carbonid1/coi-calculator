@@ -4,6 +4,8 @@ import { gunzipSync } from 'node:zlib'
 import { isChickenFarmDefinition } from '../chicken-farm-state'
 import { isCropFarmingDefinitions } from '../crop-farming-state'
 import { isWeatherConfig } from '../db/weather'
+import { isOfficeFocusDefinitions } from '../office-focus-state'
+import { isPlanningDefinitions } from '../planning-state'
 import { isRocketIiDefinition } from '../rocket-state'
 import { isSpaceStationLevels } from '../space-station-state'
 
@@ -37,3 +39,14 @@ const weather: unknown = capture.weather
 if (!isWeatherConfig(weather)) throw new Error('Recorded native weather is invalid')
 
 export const testNativeWeather = weather
+
+const offices: unknown = capture.officeFocusDefinitions
+
+if (!isOfficeFocusDefinitions(offices)) throw new Error('Recorded Office and Focus definitions are invalid')
+
+export const testOfficeFocusDefinitions = offices
+
+const planning: unknown = capture.planningDefinitions
+
+if (!isPlanningDefinitions(planning)) throw new Error('Recorded planning definitions are invalid')
+export const testPlanningDefinitions = planning

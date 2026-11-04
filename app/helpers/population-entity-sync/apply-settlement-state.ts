@@ -1,15 +1,19 @@
-import { housingTypes } from '../../db/housing'
+import { getHousingTypes } from '../../db/housing'
 import { type Module, type Preset } from '../../db/modules/modules'
 import { recipes, type Ingredient, type Recipe } from '../../db/recipes'
 import { calculateSettlementPopulationFlows, settlementRecipeIds } from '../../db/settlement'
 import { type SyncedProductionEntity } from '../../game-state'
+import { type PlanningDefinitions } from '../../planning-state'
 import { type SyncedSettlementState } from '../../settlement-state'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
 
-const housingTiers = [
+const getHousingTiers = (definitions: PlanningDefinitions) => {
+ const housingTypes = getHousingTypes(definitions)
+
+ return [
   { recipeId: settlementRecipeIds.residents, prototypeId: 'HousingT3', housing: housingTypes.housingIII },
   { recipeId: settlementRecipeIds.residentsII, prototypeId: 'HousingT2', housing: housingTypes.housingII },
-]
+]}
 
 const hasHousingPlan = (preset: Preset, recipeId: string) => (
   preset.dataSources?.[recipeId] === 'planned'
@@ -18,13 +22,13 @@ const hasHousingPlan = (preset: Preset, recipeId: string) => (
 
 /** Replace only planned housing occupancy, using modules after applySettlementState. */
 export const resolveProjectedPopulation = (
+  definitions: PlanningDefinitions,
   modules: readonly Module[],
   state: SyncedSettlementState,
   entities: readonly SyncedProductionEntity[],
 ) => {
   const replacedHousingIds = new Set<number>()
-  let plannedPopulation = 0
-  let isPlanned = false
+  const planned = { population: 0, changed: false }
 
   for (const area of modules) {
     const preset = area.presets.find(candidate => candidate.id === area.defaultPresetId)
@@ -32,10 +36,10 @@ export const resolveProjectedPopulation = (
     if (!preset || !area.liveArea || area.includedInFactoryTotals === false) continue
     const zoneId = area.liveArea.zoneId
 
-    for (const { recipeId, prototypeId, housing } of housingTiers) {
+    for (const { recipeId, prototypeId, housing } of getHousingTiers(definitions)) {
       if (!hasHousingPlan(preset, recipeId)) continue
-      isPlanned = true
-      plannedPopulation += (preset.activeBuildings[recipeId] ?? 0)
+      planned.changed = true
+      planned.population += (preset.activeBuildings[recipeId] ?? 0)
         * (preset.speedLevels?.[recipeId] ?? 1) * housing.populationCapacity
       for (const entity of entities) {
         if (entity.prototypeId === prototypeId && entity.zones.some(zone => zone.id === zoneId)) {
@@ -51,13 +55,14 @@ export const resolveProjectedPopulation = (
   ), 0)
 
   return {
-    population: Math.max(0, Math.round(state.population - replacedPopulation + plannedPopulation)),
-    isPlanned,
+    population: Math.max(0, Math.round(state.population - replacedPopulation + planned.population)),
+    isPlanned: planned.changed,
   }
 }
 
 /** Keep physical building counts, but derive resident demand from occupied housing. */
 export const applySettlementState = (
+  definitions: PlanningDefinitions,
   module: Module,
   state: SyncedSettlementState,
   entities: readonly SyncedProductionEntity[],
@@ -75,9 +80,9 @@ export const applySettlementState = (
   )).map(entity => entity.entityId))
   const speedLevels = { ...preset.speedLevels }
   const replacements: Recipe[] = []
-  let projectedPopulation = 0
+  const projected = { population: 0 }
 
-  for (const { recipeId, prototypeId, housing } of housingTiers) {
+  for (const { recipeId, prototypeId, housing } of getHousingTiers(definitions)) {
     const base = recipes.find(recipe => recipe.id === recipeId)
     const active = preset.activeBuildings[recipeId] ?? 0
 
@@ -97,7 +102,7 @@ export const applySettlementState = (
       ? active * housing.populationCapacity * (preset.speedLevels?.[recipeId] ?? 1)
       : occupants
 
-    projectedPopulation += population
+    projected.population += population
     const factor = population / housing.populationCapacity
 
     speedLevels[recipeId] = factor / active
@@ -133,6 +138,7 @@ export const applySettlementState = (
         return id ? [id] : []
       }))
       const flows = calculateSettlementPopulationFlows(
+        definitions,
         totalWeight > 0 ? population * weight / totalWeight : 0,
         housing,
         {
@@ -146,9 +152,10 @@ export const applySettlementState = (
       merge(inputs, flows.inputs)
       merge(outputs, flows.outputs)
     }
-    replacements.push({ ...base, inputs: [...inputs.values()], outputs: [...outputs.values()] })
+    replacements.push({ ...base, planningConfiguration: undefined,
+      buildingData: { workers: 0, electricityKw: definitions.settlement.electricityKwPerPop * housing.serviceDemandMultipliers.electricity * housing.populationCapacity }, inputs: [...inputs.values()], outputs: [...outputs.values()] })
   }
-  speedLevels[settlementRecipeIds.internetModule] = projectedPopulation / 100
+  speedLevels[settlementRecipeIds.internetModule] = projected.population / 100
   return {
     ...module,
     recipes: [...(module.recipes ?? []).filter(recipe => !replacements.some(item => item.id === recipe.id)), ...replacements],

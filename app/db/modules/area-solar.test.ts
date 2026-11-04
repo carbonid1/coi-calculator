@@ -5,6 +5,7 @@ import { buildModuleLines } from "../../helpers/build-module-lines/build-module-
 import { calculateBuildingDiagnostics } from "../../helpers/building-diagnostics/building-diagnostics";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { getPlannedConfigurationSummaries } from "../../helpers/planned-builds/planned-builds";
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
 import {
   attachSolarPanelsToModule,
   resolveSolarPanelModuleAssignments,
@@ -136,7 +137,7 @@ it("adds live solar buildings to their owning area module", () => {
     { standard: 8, mono: 15 },
     undefined,
   );
-  const { lines } = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]);
+  const { lines } = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0], { planningDefinitions: testPlanningDefinitions });
 
   expect(lines.filter(line => line.recipe.id.startsWith("solar-panel")).map(line => ({
     id: line.recipe.id,
@@ -157,11 +158,11 @@ it("keeps a fixed target planned until enough built panels are running", () => {
     { standard: 8, mono: 23 },
     { mono: 25 },
   );
-  const mono = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]).lines.find(
+  const mono = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0], { planningDefinitions: testPlanningDefinitions }).lines.find(
     line => line.recipe.id === "solar-panel-mono",
   );
   const calculation = calculateNet(
-    buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]).lines,
+    buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0], { planningDefinitions: testPlanningDefinitions }).lines,
   );
   const diagnostics = calculateBuildingDiagnostics(
     [moduleWithSolar],
@@ -186,7 +187,7 @@ it("uses the live count after a solar target is complete", () => {
     { standard: 38, mono: 423 },
     { mono: 245 },
   );
-  const mono = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0]).lines.find(
+  const mono = buildModuleLines(moduleWithSolar, moduleWithSolar.presets[0], { planningDefinitions: testPlanningDefinitions }).lines.find(
     line => line.recipe.id === "solar-panel-mono",
   );
 

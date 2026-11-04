@@ -44,6 +44,7 @@ New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 $references = @(
     "Mafi.dll",
     "Mafi.Core.dll",
+    "Mafi.Base.dll",
     "netstandard.dll"
 ) | ForEach-Object { Join-Path $managed $_ }
 
@@ -69,6 +70,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Output "Built $outputDll"
+
+$geometrySmokeExe = Join-Path $outputDirectory "BridgeGeometrySmoke.exe"
+& $compiler "/nologo" "/target:exe" "/optimize+" "/out:$geometrySmokeExe" `
+    (Join-Path $modSource "FactoryFootprint.cs") (Join-Path $repositoryRoot "tests\bridge-geometry.smoke.cs")
+if ($LASTEXITCODE -ne 0) { throw "Bridge geometry smoke compilation failed." }
+& $geometrySmokeExe
+if ($LASTEXITCODE -ne 0) { throw "Bridge geometry smoke failed." }
 
 if ($Install) {
     $modsRoot = Join-Path $env:APPDATA "Captain of Industry\Mods"

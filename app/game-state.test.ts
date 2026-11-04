@@ -10,7 +10,7 @@ import {
 } from './game-state'
 import { testBuildingDefinitions } from './test-fixtures/building-requirements'
 import { testProducts } from './test-fixtures/products'
-import { testChickenFarmDefinition, testCropFarming, testRocketIiDefinition, testSpaceStationLevels } from './test-fixtures/recorded-game-data'
+import { testChickenFarmDefinition, testCropFarming, testOfficeFocusDefinitions, testPlanningDefinitions, testRocketIiDefinition, testSpaceStationLevels } from './test-fixtures/recorded-game-data'
 import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
@@ -28,6 +28,8 @@ const currentSnapshot = {
   rocketIiDefinition: testRocketIiDefinition,
   spaceStationLevels: testSpaceStationLevels,
   cropFarming: testCropFarming,
+  officeFocusDefinitions: testOfficeFocusDefinitions,
+    planningDefinitions: testPlanningDefinitions,
   buildingDefinitions: testBuildingDefinitions,
   recycling: { efficiencyPercent: 20, scrapPerRecyclable: 2, products: [] },
   gameVersion: '0.8.8',

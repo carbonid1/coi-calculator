@@ -1,4 +1,6 @@
 import { normalizeFocusStates } from '../../focus-state'
+import { isOfficeFocusDefinitions } from '../../office-focus-state'
+import { isPlanningDefinitions } from '../../planning-state'
 import { type CalculatorModel } from '../calculator-model/derive-calculator-model'
 import { type FactoryCalculation } from './factory-calculation'
 
@@ -27,7 +29,9 @@ export const isCompatibleFactoryCalculation = (
   return value.version === version
     && typeof value.revision === 'string'
     && isRecord(model.snapshot) && model.snapshot.saveId === saveId
-    && normalizeFocusStates(model.snapshot.focus) !== null
+    && isPlanningDefinitions(model.snapshot.planningDefinitions)
+    && isOfficeFocusDefinitions(model.snapshot.officeFocusDefinitions)
+    && normalizeFocusStates(model.snapshot.focus, model.snapshot.officeFocusDefinitions) !== null
     && model.calculationRevision === value.revision
     && Array.isArray(model.configuredModules)
     && isRecord(model.focusAllocations)
@@ -47,13 +51,12 @@ const withStore = <Value>(
   fallback: Value,
   run: (store: IDBObjectStore) => IDBRequest<Value>,
 ): Promise<Value> => new Promise(resolve => {
-  let database: IDBDatabase | undefined
-  let finished = false
+  const state: { database?: IDBDatabase; finished: boolean } = { finished: false }
   const finish = (value: Value) => {
-    if (finished) return
-    finished = true
+    if (state.finished) return
+    state.finished = true
     clearTimeout(timer)
-    database?.close()
+    state.database?.close()
     resolve(value)
   }
   // A blocked/disabled browser database must never hold up the calculation.
@@ -66,8 +69,10 @@ const withStore = <Value>(
     open.onerror = () => finish(fallback)
     open.onblocked = () => finish(fallback)
     open.onsuccess = () => {
-      database = open.result
-      if (finished) {
+      const database = open.result
+
+      state.database = database
+      if (state.finished) {
         database.close()
         return
       }

@@ -106,6 +106,7 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
       allocation.set(aquifer.aquiferId, current);
     }
   }
+  // Keep map numbers and table rows independent of demand and pump activity.
   return snapshot.groundwater.aquifers.map(source => {
     const pumps = snapshot.machines.filter(machine => machine.aquifer?.id === source.id);
     const projected = allocation.get(source.id);
@@ -119,9 +120,9 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
       sustainableCeilingPerCycle: calculateAquiferSustainableCeiling(source, snapshot.groundwater, snapshot.weather),
       sustainableOutputPerCycle: calculateAquiferSustainableOutput(source, projectedPumps, snapshot.groundwater, snapshot.weather),
       areas: [...new Set(pumps.flatMap(pump => pump.zones.map(zone => zone.name).filter((name): name is string => Boolean(name))))],
+      areaIds: [...new Set(pumps.flatMap(pump => pump.zones.filter(zone => zone.name).map(zone => zone.id)))].toSorted((a, b) => a - b),
     };
-  }).toSorted((left, right) => right.projectedWithdrawalPerCycle - left.projectedWithdrawalPerCycle
-    || right.activePumps - left.activePumps || left.source.position.x - right.source.position.x
+  }).toSorted((left, right) => left.source.position.x - right.source.position.x
     || left.source.position.y - right.source.position.y);
 };
 

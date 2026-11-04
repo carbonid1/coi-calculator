@@ -1,9 +1,15 @@
 import { type BuildingDefinition } from '../building-state'
 import { buildingPrototypeAliases } from '../db/buildings'
-import { activeHousingType, housingTypes } from "../db/housing";
+import { getHousingTypes } from "../db/housing";
 import { type Module } from '../db/modules/modules'
 import { recipes, type Recipe } from '../db/recipes'
-import { settlementConfig } from "../db/settlement";
+
+import { withOfficeDefinition } from '../helpers/office-recipes/office-recipes'
+import { withPlanningDefinition } from '../helpers/planning-recipes/planning-recipes'
+import { testOfficeFocusDefinitions, testPlanningDefinitions } from './recorded-game-data'
+
+const housingTypes = getHousingTypes(testPlanningDefinitions);
+const activeHousingType = housingTypes.housingIII;
 
 export interface BuildingData {
   workers: number;
@@ -20,19 +26,19 @@ export const testBuildingDataByName: Record<string, BuildingData> = {
   [activeHousingType.name]: {
     workers: 0,
     electricityKw: activeHousingType.populationCapacity
-      * settlementConfig.electricityKwPerPop
+      * testPlanningDefinitions.settlement.electricityKwPerPop
       * activeHousingType.serviceDemandMultipliers.electricity,
   },
   [housingTypes.housingII.name]: {
     workers: 0,
     electricityKw: housingTypes.housingII.populationCapacity
-      * settlementConfig.electricityKwPerPop
+      * testPlanningDefinitions.settlement.electricityKwPerPop
       * housingTypes.housingII.serviceDemandMultipliers.electricity,
   },
   "Internet Module": {
     workers: 12,
     electricityKw: 500,
-    computingTflops: settlementConfig.computingTflopsPerHundredPops,
+    computingTflops: 5.76,
   },
   "Food Market": { workers: 3, electricityKw: 0 },
   "Food Market II": { workers: 6, electricityKw: 0 },
@@ -278,9 +284,9 @@ export const testBuildingDefinitions: BuildingDefinition[] = Object.entries(test
   workers: data.workers, electricityKw: data.electricityKw, computingTflops: data.computingTflops ?? 0, unityPerCycle: data.unityPerCycle ?? 0,
 }))
 
-export const withTestBuildingData = (recipe: Recipe): Recipe => ({
+export const withTestBuildingData = (recipe: Recipe): Recipe => withPlanningDefinition(withOfficeDefinition({
   ...recipe, buildingData: recipe.buildingData ?? getTestBuildingData(recipe.building),
-})
+}, testOfficeFocusDefinitions), testPlanningDefinitions)
 
 export const withTestBuildingRequirements = (module: Module): Module => ({
   ...module, recipes: [...new Map([...recipes, ...(module.recipes ?? [])].map(recipe => [recipe.id, withTestBuildingData(recipe)])).values()],

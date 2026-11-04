@@ -10,6 +10,35 @@ import { gunzipSync } from 'node:zlib'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const fixture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))))
+// Synthetic topology exercises bays, separate islands and inland water in the UI.
+const islandMap = JSON.parse(readFileSync(new URL('./fixtures/island-map.json', import.meta.url), 'utf8'))
+// Positions and area membership come from the capture. Outlines and footprints
+// are synthetic replay geometry; native geometry needs the next Bridge launch.
+const factoryLayout = {
+  schemaVersion: 1, gameId: fixture.gameId, sessionId: fixture.sessionId,
+  areas: fixture.logisticsZones.map(zone => {
+    const members = fixture.areaEntities.filter(entity => entity.zones.some(area => area.id === zone.id))
+    const minX = Math.min(...members.map(entity => entity.tile.x)) - 24
+    const minY = Math.min(...members.map(entity => entity.tile.y)) - 24
+    const maxX = Math.max(...members.map(entity => entity.tile.x)) + 24
+    const maxY = Math.max(...members.map(entity => entity.tile.y)) + 24
+
+    return { id: zone.id, outline: [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]] }
+  }),
+  shapes: [
+    [[-16, -16, 16, 16]],
+    [[-12, -6, 12, 6]],
+    [[-6, -12, 6, 12]],
+    [[-12, -12, 12, -6], [-12, 6, 12, 12], [-12, -6, -6, 6], [6, -6, 12, 6]],
+  ],
+  buildings: fixture.areaEntities.map((entity, index) => ({
+    id: entity.entityId, prototypeId: entity.prototypeId, ...entity.tile,
+    shape: entity.prototypeId.includes('Greenhouse') ? 0 : 1 + index % 3,
+    constructed: entity.constructed, areas: entity.zones.map(zone => zone.id),
+  })),
+}
+const addedBuilding = { id: 2_000_000_001, prototypeId: 'Greenhouse', x: 3100, y: 700, shape: 0, constructed: false, areas: [10] }
+const centreOnlyBuilding = factoryLayout.buildings.find(building => building.areas.includes(14))
 const run = promisify(execFile)
 const nextCli = fileURLToPath(new URL('../node_modules/next/dist/bin/next', import.meta.url))
 const browserCli = fileURLToPath(new URL('../node_modules/agent-browser/bin/agent-browser.js', import.meta.url))
@@ -35,7 +64,7 @@ const listen = async server => {
 }
 
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
-  const state = { mode: 'live', inventoryBonus: 0 }
+  const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0 }
   const requests = new Set()
   const upstream = createServer((request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
@@ -50,11 +79,39 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     if (state.mode === 'offline') return json({}, 503)
     if (url.pathname === '/api/v1/game-info') return json({ gameId: fixture.gameId, sessionId: fixture.sessionId,
       date: history.date, isPaused: true, speed: 1, tick: 0 })
+    if (url.pathname === '/api/mods/CoiCalculatorExporter/island-map') {
+      if (state.mapMode === 'missing') return json({}, 404)
+      return json({ ...islandMap, gameId: fixture.gameId,
+        sessionId: state.mapMode === 'other-session' ? 'other' : fixture.sessionId,
+        landRows: state.mapMode === 'invalid' ? [[1, 0], ...islandMap.landRows.slice(1)] : islandMap.landRows })
+    }
+    if (url.pathname === '/api/mods/CoiCalculatorExporter/factory-layout') {
+      if (state.layoutMode === 'missing') return json({}, 404)
+      const buildings = state.layoutMode === 'partial'
+        ? factoryLayout.buildings.filter(building => building.id !== centreOnlyBuilding.id) : factoryLayout.buildings
+
+      return json({ ...factoryLayout,
+        sessionId: state.layoutMode === 'other-session' ? 'other' : fixture.sessionId,
+        shapes: state.layoutMode === 'invalid' ? [[[1, 1, 0, 0]]] : factoryLayout.shapes,
+        buildings: state.addedBuilding ? [...buildings, addedBuilding] : buildings })
+    }
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
-      schemaVersion: state.mode === 'old-bridge' ? 48 : fixture.schemaVersion,
+      schemaVersion: state.mode === 'old-bridge' ? fixture.schemaVersion - 1 : fixture.schemaVersion,
+      planningDefinitions: state.mode === 'missing-planning-definitions' ? undefined : {
+        ...fixture.planningDefinitions, research: fixture.planningDefinitions.research.map(research => ({
+          ...research, costs: research.costs.map((cost, level) => cost + (level > 0 ? state.planningCostBonus : 0)),
+        })),
+      },
+      officeFocusDefinitions: state.mode === 'missing-office-definitions' ? undefined : {
+        ...fixture.officeFocusDefinitions, focuses: fixture.officeFocusDefinitions.focuses.map(focus => ({
+          ...focus, pointCosts: focus.pointCosts.map((cost, step) => cost + (step > 0 ? state.officeCostBonus : 0)),
+        })),
+      },
       weather: state.mode === 'missing-weather' ? undefined : fixture.weather,
-      groundwater: state.mode === 'missing-aquifers' ? { ...fixture.groundwater, aquifers: undefined } : fixture.groundwater,
+      groundwater: state.mode === 'missing-aquifers' ? { ...fixture.groundwater, aquifers: undefined }
+        : { ...fixture.groundwater, aquifers: state.pausedPumps ? [...fixture.groundwater.aquifers].reverse() : fixture.groundwater.aquifers },
+      machines: state.pausedPumps ? [...fixture.machines].reverse().map(machine => machine.aquifer ? { ...machine, running: false } : machine) : fixture.machines,
       cropFarming: state.mode === 'missing-crop-definitions' ? undefined : fixture.cropFarming,
       spaceStationLevels: state.mode === 'missing-station-levels' ? undefined : fixture.spaceStationLevels,
       rocketIiDefinition: state.mode === 'missing-rocket-definition' ? undefined : fixture.rocketIiDefinition,
@@ -227,8 +284,20 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await screenshot('maintenance-overview')
     await click('Research')
     assert.match(await text(), /Housing Capacity/i)
+    const maintenanceCost = fixture.planningDefinitions.research.find(research => research.id === 'maintenanceOutput').costs[fixture.research.maintenanceOutput + 1]
+    await browser('hover', '[aria-label^="Maintenance Output:"]')
+    await browser('wait', '--text', maintenanceCost.toLocaleString('en-US'))
     await click('Mines')
+    await browser('wait', '[data-island-outline]')
+    await browser('wait', '--fn', '!document.querySelector("figure[aria-busy=true]")')
+    assert.deepEqual(await evaluate(`(() => {
+      const outline = document.querySelector('[data-island-outline]')
+      return [[1800, -1000], [2000, -2350], [3500, -3900], [3850, -3500]]
+        .map(([x, y]) => outline.isPointInFill(new DOMPoint(x, y)))
+    })()`), [true, false, false, true], 'Coastline must preserve land, inland water and separate islands')
     assert.match(await text(), /Aquifers · 13 · 10 unused/)
+    assert.deepEqual(await evaluate('[...document.querySelectorAll("[data-factory-area]")].map(area => Number(area.dataset.factoryArea))'), [10])
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-building]").length'), factoryLayout.buildings.filter(building => building.areas.includes(10)).length)
     assert.match(await text(), /Harvester \/ cycle · 1Y[\s\S]*5\.63 Water/)
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Aquifer inventory\\"] tbody tr").length'), 13)
     const unusedPumps = await evaluate(`Array.from(document.querySelectorAll('[aria-label="Aquifer inventory"] tbody tr'))
@@ -262,6 +331,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       return row.top >= viewport.top + region.querySelector('thead').getBoundingClientRect().height && row.bottom <= viewport.bottom
     })()`), 'Map selection must reveal the corresponding inventory row')
     await click('Inspect aquifer 1041, 3242')
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-area], [data-factory-building], [data-factory-building-point]").length'), 0,
+      'Unassigned sources must not show unrelated factory areas')
     assert.equal(await evaluate('document.querySelector("[aria-label=\\"Inspect aquifer 1041, 3242\\"]").getAttribute("aria-pressed")'), 'true')
     assert.equal(await evaluate('document.querySelector("[data-aquifer-id=\\"1041:3242\\"]").getAttribute("aria-pressed")'), 'true')
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Aquifer details\\"]").length'), 0)
@@ -271,10 +342,24 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       return region.querySelector('thead').getBoundingClientRect().top >= region.getBoundingClientRect().top
     })()`), 'Aquifer column headings must remain visible after scrolling to a source')
     await screenshot('water-unused-source')
+    await click('Select aquifer 1858, 795 on map')
+    assert.deepEqual(await evaluate('[...document.querySelectorAll("[data-factory-area]")].map(area => Number(area.dataset.factoryArea))'), [14])
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-building]").length'), factoryLayout.buildings.filter(building => building.areas.includes(14)).length)
+    assert.deepEqual(await evaluate(`(() => {
+      const shape = document.querySelector('[data-factory-shape="3"]')
+      return [[0, 0], [9, 0], [0, -9]].map(([x, y]) => shape.isPointInFill(new DOMPoint(x, y)))
+    })()`), [false, true, true], 'Building cut-outs must remain empty after north-up projection')
+    const mappedBuilding = factoryLayout.buildings.find(building => building.areas.includes(14))
+
+    assert.equal(await evaluate(`document.querySelector('[data-factory-building="${mappedBuilding.id}"]').getAttribute('transform')`),
+      `translate(${mappedBuilding.x},${-mappedBuilding.y})`)
+    assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Aquifer 7 · Population/)
+    assert.doesNotMatch(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Forecast unavailable|First shortfall/)
+    await screenshot('water-assigned-area')
     await browser('focus', '[data-aquifer-id="3247:647"]')
     await browser('press', 'Enter')
     assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3247:647\\"]").getAttribute("aria-pressed")'), 'true')
-    assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Aquifer 1[\s\S]*First shortfall · estimate[\s\S]*cycles · [\d,.]+ in-game years[\s\S]*Min reserve · 100Y[\s\S]*Shortfall · 1Y/)
+    assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Aquifer 13[\s\S]*First shortfall · estimate[\s\S]*cycles · [\d,.]+ in-game years[\s\S]*Min reserve · 100Y[\s\S]*Shortfall · 1Y/)
     await browser('focus', '[aria-label="First shortfall estimate"]')
     await browser('press', 'Shift+Tab')
     await browser('press', 'Tab')
@@ -283,6 +368,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('press', 'Escape')
     assert.doesNotMatch(await text(), /Use factory plan|Source scenario/)
     await screenshot('water-desktop')
+    assert.ok(requests.has('/api/mods/CoiCalculatorExporter/factory-layout'))
     await browser('set', 'viewport', '375', '900')
     await browser('focus', '[aria-label="First shortfall estimate"]')
     await browser('press', 'Shift+Tab')
@@ -318,7 +404,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal((await browser('errors')).errors.length, 0)
   })
 
-  await t.test('refreshes live inventory without reloading or losing map selection, focus and scroll', async () => {
+  await t.test('keeps aquifer numbers, rows, selection, focus and scroll stable through live pump changes', async () => {
     const response = await fetch(`${appUrl}/api/game-state`)
 
     assert.equal(response.status, 200)
@@ -330,10 +416,17 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('focus', '[data-aquifer-id="3132:1583"]')
     await browser('press', 'Space')
     assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3132:1583\\"]").getAttribute("aria-pressed")'), 'true')
-    const beforeRefresh = await evaluate(`({ page: window.scrollY,
-      table: document.querySelector('[aria-label="Aquifer inventory"]').scrollTop })`)
+    const viewState = () => evaluate(`({ page: window.scrollY,
+      table: document.querySelector('[aria-label="Aquifer inventory"]').scrollTop,
+      rows: [...document.querySelectorAll('[data-aquifer-row]')].map(button => [button.dataset.aquiferRow, button.innerText]),
+      markers: [...document.querySelectorAll('[data-aquifer-id]')].map(marker => [marker.dataset.aquiferId, marker.querySelector('text').textContent]) })`)
+    const beforeRefresh = await viewState()
 
     state.inventoryBonus = 123
+    state.pausedPumps = true
+    state.addedBuilding = true
+    state.officeCostBonus = 7
+    state.planningCostBonus = 7
     const changed = await fetch(`${appUrl}/api/game-state`, { headers: { 'If-None-Match': etag } })
 
     assert.equal(changed.status, 200)
@@ -354,19 +447,50 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal(await evaluate('document.querySelector("[data-aquifer-id=\\"3132:1583\\"]").getAttribute("aria-pressed")'), 'true')
     assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3132:1583\\"]").getAttribute("aria-pressed")'), 'true')
     assert.equal(await evaluate('document.activeElement.dataset.aquiferId'), '3132:1583')
-    assert.deepEqual(await evaluate(`({ page: window.scrollY,
-      table: document.querySelector('[aria-label="Aquifer inventory"]').scrollTop })`), beforeRefresh)
+    assert.deepEqual(await viewState(), beforeRefresh)
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-row=\\"3247:647\\"]").closest("tr").cells[1].innerText'), '0/5')
     await screenshot('water-after-live-refresh')
+    await click('Select aquifer 3247, 647 on map')
+    for (const attempt of [0, 1, 2, 3]) {
+      try {
+        await browser('wait', `[data-factory-building="${addedBuilding.id}"]`, '--timeout', '20000')
+        break
+      } catch (error) {
+        if (attempt === 3) throw error
+      }
+    }
+    assert.equal(await evaluate(`document.querySelector('[data-factory-building="${addedBuilding.id}"]').dataset.constructed`), 'false')
+    assert.equal(await evaluate('document.querySelector("[data-aquifer-id=\\"3247:647\\"] text").textContent'), '13')
+    await screenshot('water-construction-refresh')
     await click('Factory Total')
     await browser('find', 'role', 'button', 'click', '--name', 'Inspect Salt supply', '--exact')
     const inventory = await evaluate(`document.querySelector('[aria-label="Island inventory"]').innerText`)
 
     assert.ok(inventory.includes((fixture.products.inventory.Product_Salt.quantity + 123).toLocaleString('en-US', { maximumFractionDigits: 2 })))
+    await click('Back to Factory Total')
+    await click('Focus')
+    const updatedFocusCost = fixture.officeFocusDefinitions.focuses.reduce((total, focus) => {
+      const step = fixture.focus[focus.id].targetStep
+
+      return total + focus.pointCosts[step] + (step > 0 ? 7 : 0)
+    }, 0)
+
+    assert.match(await text(), new RegExp(`Allocated\\s+${updatedFocusCost.toLocaleString('en-US')}`),
+      'Focus costs must update from the refreshed native tables')
+    await screenshot('focus-native-cost-update')
+    await click('Research')
+    const maintenanceCost = fixture.planningDefinitions.research.find(research => research.id === 'maintenanceOutput').costs[fixture.research.maintenanceOutput + 1]
+    await browser('hover', '[aria-label^="Maintenance Output:"]')
+    await browser('wait', '--text', (maintenanceCost + 7).toLocaleString('en-US'))
+    await screenshot('native-research-cost-update')
     state.inventoryBonus = 0
+    state.pausedPumps = false
+    state.officeCostBonus = 0
+    state.planningCostBonus = 0
   })
 
   await t.test('rejects missing native data, incompatible Bridges and mixed sessions, then recovers', async () => {
-    for (const [mode, status] of [['old-bridge', 422], ['missing-weather', 422], ['missing-aquifers', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-crop-definitions', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
+    for (const [mode, status] of [['old-bridge', 422], ['missing-weather', 422], ['missing-aquifers', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-crop-definitions', 422], ['missing-office-definitions', 422], ['missing-planning-definitions', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
       state.mode = mode
       const response = await fetch(`${appUrl}/api/game-state`)
 
@@ -386,6 +510,58 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('reload')
     await ready()
     assert.match(await text(), /7,356 \/ 7,488/)
+    assert.equal((await browser('errors')).errors.length, 0)
+  })
+
+  await t.test('validates optional map layers, rejects other sessions and supports compatible Bridges without them', async () => {
+    const route = `${appUrl}/api/island-map?${new URLSearchParams({ gameId: fixture.gameId, sessionId: fixture.sessionId })}`
+    const response = await fetch(route)
+
+    assert.equal(response.status, 200)
+    assert.deepEqual((await response.json()).landRows, islandMap.landRows)
+    assert.equal((await fetch(route, { headers: { 'If-None-Match': response.headers.get('etag') } })).status, 304)
+    for (const [mode, status] of [['invalid', 502], ['other-session', 409], ['missing', 404]]) {
+      state.mapMode = mode
+      assert.equal((await fetch(route)).status, status)
+    }
+    const layoutRoute = `${appUrl}/api/factory-layout?${new URLSearchParams({ gameId: fixture.gameId, sessionId: fixture.sessionId })}`
+    const layoutResponse = await fetch(layoutRoute)
+
+    assert.equal(layoutResponse.status, 200)
+    assert.equal((await layoutResponse.json()).buildings.length, factoryLayout.buildings.length + 1)
+    assert.equal((await fetch(layoutRoute, { headers: { 'If-None-Match': layoutResponse.headers.get('etag') } })).status, 304)
+    state.addedBuilding = false
+    assert.equal((await fetch(layoutRoute, { headers: { 'If-None-Match': layoutResponse.headers.get('etag') } })).status, 200)
+    state.layoutMode = 'partial'
+    await browser('reload')
+    await ready()
+    await click('Mines')
+    await browser('wait', '--fn', '!document.querySelector("figure[aria-busy=true]")')
+    await click('Select aquifer 1858, 795 on map')
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-building-point]").length'), 1,
+      'A partial native layout must retain the real centre of an omitted static entity')
+    assert.deepEqual(await evaluate(`(() => {
+      const point = document.querySelector('[data-factory-building-point="${centreOnlyBuilding.id}"]')
+      return [Number(point.getAttribute('cx')), Number(point.getAttribute('cy'))]
+    })()`), [centreOnlyBuilding.x, -centreOnlyBuilding.y])
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-building]").length'),
+      factoryLayout.buildings.filter(building => building.areas.includes(14)).length - 1)
+    for (const [mode, status] of [['invalid', 502], ['other-session', 409], ['missing', 404]]) {
+      state.layoutMode = mode
+      assert.equal((await fetch(layoutRoute)).status, status)
+    }
+    await browser('reload')
+    await ready()
+    await click('Mines')
+    await browser('wait', '--fn', '!document.querySelector("figure[aria-busy=true]")')
+    assert.equal(await evaluate('document.querySelectorAll("[data-island-outline]").length'), 0)
+    assert.equal(await evaluate('document.querySelectorAll("[data-aquifer-id]").length'), 13)
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-area], [data-factory-building]").length'), 0)
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-building-point]").length'), factoryLayout.buildings.filter(building => building.areas.includes(10)).length)
+    await click('Select aquifer 1858, 795 on map')
+    assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Population/)
+    assert.equal(await evaluate('document.querySelectorAll("[data-factory-building-point]").length'), factoryLayout.buildings.filter(building => building.areas.includes(14)).length)
+    await screenshot('water-without-terrain')
     assert.equal((await browser('errors')).errors.length, 0)
   })
 })

@@ -1,4 +1,5 @@
-import { type EdictLevel, getEdict } from "../../db/edicts";
+import { type EdictLevel } from "../../db/edicts";
+import { getEdictEffects, type PlanningDefinitions } from '../../planning-state';
 
 export interface ResearchEfficiencyBreakdown {
   bonusPercent: number;
@@ -20,22 +21,20 @@ export const calculatePopulationResearchBonus = (population: number) => (
 );
 
 export const calculateResearchEfficiency = ({
+  definitions,
   edictLevel,
   population,
   stationBonusPercent,
   focusBonusPercent = 0,
 }: {
+  definitions: PlanningDefinitions;
   edictLevel: EdictLevel;
   population: number;
   stationBonusPercent: number;
   focusBonusPercent?: number;
 }): ResearchEfficiencyBreakdown => {
-  const edict = getEdict("researchEfficiency").levels.find(
-    (level) => level.level === edictLevel,
-  );
   const normalizedPopulation = Math.max(0, Math.trunc(population));
-  const edictBonusPercent = edict?.modeledEffects
-    ?.researchEfficiencyBonusPercent ?? 0;
+  const edictBonusPercent = getEdictEffects(definitions, 'researchEfficiency', edictLevel).effects.ResearchEfficiencyMultiplier ?? 0;
   const normalizedStationBonus = Math.max(0, stationBonusPercent);
   const normalizedFocusBonus = Math.max(0, focusBonusPercent);
   const populationBonusPercent = calculatePopulationResearchBonus(

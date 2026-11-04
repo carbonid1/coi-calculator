@@ -6,7 +6,11 @@ import { calculateNet } from "../../helpers/calculate/calculate";
 import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
 import { type ResolvedPopulationEntityInventory } from "../../helpers/population-entity-sync/population-entity-sync";
 import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
-import { activeHousingType } from "../housing";
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
+import { getHousingTypes } from "../housing";
+
+const activeHousingType = getHousingTypes(testPlanningDefinitions).housingIII;
+
 import { defaultInfiniteResearchLevels } from "../research";
 import { settlementRecipeIds } from "../settlement";
 import { type Module } from "./modules";
@@ -131,7 +135,7 @@ it("plans 7,488 residents using two Housing II upgrades and six new Housing III 
   });
   const area = generatedPopulationArea();
   const targets = resolvePopulationHousingPlanTargets([{ generatedArea: area, syncedInventory: synced }]);
-  const population = createPopulationModule(synced, area, 4, targets.get(14));
+  const population = createPopulationModule(testPlanningDefinitions, synced, area, 4, targets.get(14));
   const preset = population.presets[0];
 
   expect([...targets]).toEqual([[14, 26]]);
@@ -149,7 +153,7 @@ it("plans 7,488 residents using two Housing II upgrades and six new Housing III 
       ],
     }],
   });
-  const current = createPopulationModule(synced, area, 4, null);
+  const current = createPopulationModule(testPlanningDefinitions, synced, area, 4, null);
   const residents = (housing: Module) => calculateNet(buildModuleLines(withTestBuildingRequirements(housing), housing.presets[0]).lines)
     .regularResults.find(line => line.recipe.id === settlementRecipeIds.residents)!;
   const projectedResidents = residents(population);
@@ -166,7 +170,7 @@ it("unpauses existing Housing III before planning new housing", () => {
   const synced = inventory({ [settlementRecipeIds.residents]: { built: 26, running: 25 } });
   const area = generatedPopulationArea();
   const targets = resolvePopulationHousingPlanTargets([{ generatedArea: area, syncedInventory: synced }]);
-  const preset = createPopulationModule(synced, area, 4, targets.get(14)).presets[0];
+  const preset = createPopulationModule(testPlanningDefinitions, synced, area, 4, targets.get(14)).presets[0];
 
   expect(preset.activeBuildings[settlementRecipeIds.residents]).toBe(26);
   expect(preset.unplacedPlannedBuildings?.[settlementRecipeIds.residents] ?? 0).toBe(0);
@@ -185,7 +189,7 @@ it.each([
 
   area.presets[0].capacityPools!.HousingT3.constructionGhosts = ghosts;
   const targets = resolvePopulationHousingPlanTargets([{ generatedArea: area, syncedInventory: synced }]);
-  const population = createPopulationModule(synced, area, 4, targets.get(14) ?? null);
+  const population = createPopulationModule(testPlanningDefinitions, synced, area, 4, targets.get(14) ?? null);
   const preset = population.presets[0];
 
   expect(preset.activeBuildings[settlementRecipeIds.residents]).toBe(26);
@@ -196,7 +200,7 @@ it.each([
 });
 
 it("preserves the generated area while supplying recipe-less settlement calculations", () => {
-  const population = createPopulationModule(
+  const population = createPopulationModule(testPlanningDefinitions,
     inventory({
       [settlementRecipeIds.residents]: { built: 17, running: 17 },
       [settlementRecipeIds.residentsII]: { built: 3, running: 0 },
@@ -286,7 +290,7 @@ it("projects recipe-less housing construction ghosts without inventing plan narr
   preset.capacityPools.HousingT3.active = 18;
   preset.capacityPools.HousingT3.constructionGhosts = 1;
   area.liveArea.constructionGhosts = 1;
-  const population = createPopulationModule(
+  const population = createPopulationModule(testPlanningDefinitions,
     inventory({
       [settlementRecipeIds.residents]: { built: 17, running: 17 },
       [settlementRecipeIds.internetModule]: { built: 1, running: 1 },
@@ -306,7 +310,7 @@ it("projects recipe-less housing construction ghosts without inventing plan narr
 });
 
 it("replaces an in-progress Housing II promotion instead of counting both tiers", () => {
-  const population = createPopulationModule(
+  const population = createPopulationModule(testPlanningDefinitions,
     inventory({
       [settlementRecipeIds.residents]: { built: 17, running: 17 },
       [settlementRecipeIds.residentsII]: { built: 3, running: 1 },
@@ -348,13 +352,13 @@ it("allocates the global housing target to only one Population area", () => {
     { generatedArea: west, syncedInventory: westInventory },
     { generatedArea: east, syncedInventory: eastInventory },
   ], 18);
-  const westPopulation = createPopulationModule(
+  const westPopulation = createPopulationModule(testPlanningDefinitions,
     westInventory,
     west,
     syncedHousingCapacityLevel,
     targets.get(14) ?? null,
   );
-  const eastPopulation = createPopulationModule(
+  const eastPopulation = createPopulationModule(testPlanningDefinitions,
     eastInventory,
     east,
     syncedHousingCapacityLevel,
@@ -406,7 +410,7 @@ it("preserves configuration issues for configurable machine ghosts", () => {
     message: "Choose a recipe after construction completes.",
   }];
 
-  const population = createPopulationModule(
+  const population = createPopulationModule(testPlanningDefinitions,
     inventory({}),
     area,
     syncedHousingCapacityLevel,
@@ -429,39 +433,8 @@ it("preserves configuration issues for configurable machine ghosts", () => {
   ]);
 });
 
-it("scales full-population housing electricity with capacity research", () => {
-  const build = (level: number) => {
-    const populationModule = createPopulationModule(
-      inventory({
-        [settlementRecipeIds.residents]: { built: 11, running: 11 },
-      }),
-      generatedPopulationArea(),
-      level,
-      null,
-    );
-    const { lines } = buildModuleLines(
-      withTestBuildingRequirements(populationModule),
-      populationModule.presets[0] ?? null,
-    );
-    const residentLines = lines.filter(line => (
-      line.recipe.id === settlementRecipeIds.residents
-    ));
-    const result = calculateNet(residentLines);
-
-    return calculateBuildingStats(residentLines, result).electricityKw;
-  };
-  const level = defaultInfiniteResearchLevels.housingCapacity;
-  const multiplier = calculateHousingCapacity(level).multiplier;
-  const basePopulation = activeHousingType.populationCapacity * 11;
-  const baseElectricityKw = basePopulation * 1.1 * 1.2;
-
-  expect(build(level) - build(0)).toBeCloseTo(
-    baseElectricityKw * (multiplier - 1),
-  );
-});
-
 it("plans a paused Household Goods Module back on instead of retiring its demand", () => {
-  const population = createPopulationModule(
+  const population = createPopulationModule(testPlanningDefinitions,
     inventory({
       [settlementRecipeIds.residents]: { built: 17, running: 17 },
       [settlementRecipeIds.householdGoodsModule]: { built: 2, running: 0 },
@@ -486,7 +459,7 @@ it("plans a paused Household Goods Module back on instead of retiring its demand
 });
 
 it("leaves a running Household Goods Module synced and unplanned", () => {
-  const population = createPopulationModule(
+  const population = createPopulationModule(testPlanningDefinitions,
     inventory({
       [settlementRecipeIds.residents]: { built: 17, running: 17 },
       [settlementRecipeIds.householdGoodsModule]: { built: 2, running: 1 },

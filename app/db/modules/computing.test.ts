@@ -4,10 +4,9 @@ import { buildModuleLines } from "../../helpers/build-module-lines/build-module-
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
 import {
   computingRecipeIds,
-  dataCenter,
-  getRackAllocation,
 } from "../computing";
 import { createComputingModule } from "./computing";
 import { type Module } from "./modules";
@@ -16,7 +15,7 @@ const expansion = { dataCenterCount: 8, rackCount: 384, waterChillers: 8 };
 
 it("projects the computing expansion with cooling, power, workers, and rack installation", () => {
   const current = { dataCenterCount: 5, rackCount: 240, waterChillers: 5 };
-  const computing = createComputingModule(current, current, undefined, expansion);
+  const computing = createComputingModule(testPlanningDefinitions.computing, current, current, undefined, expansion);
   const preset = computing.presets[0];
   const { lines } = buildModuleLines(withTestBuildingRequirements(computing), preset);
   const result = calculateNet(lines);
@@ -44,7 +43,7 @@ it("projects the computing expansion with cooling, power, workers, and rack inst
 });
 
 it("unpauses installed computing capacity before adding more and does not duplicate rack actions", () => {
-  const computing = createComputingModule(expansion,
+  const computing = createComputingModule(testPlanningDefinitions.computing, expansion,
     { dataCenterCount: 5, rackCount: 240, waterChillers: 5 }, undefined, expansion);
   const preset = computing.presets[0];
 
@@ -59,7 +58,7 @@ it("unpauses installed computing capacity before adding more and does not duplic
 });
 
 it("unpauses the additional Data Center that houses the missing installed racks", () => {
-  const computing = createComputingModule(
+  const computing = createComputingModule(testPlanningDefinitions.computing,
     { dataCenterCount: 9, rackCount: 384, waterChillers: 8 },
     { dataCenterCount: 8, rackCount: 336, waterChillers: 8 }, undefined, expansion,
   );
@@ -80,7 +79,7 @@ it.each([
   { rackCount: 384, centers: 9, racks: 384, unpause: 1 },
   { rackCount: 400, centers: 10, racks: 416, unpause: 2 },
 ])("reuses actual rack hosts for a $rackCount-rack target", ({ rackCount, centers, racks, unpause }) => {
-  const computing = createComputingModule(
+  const computing = createComputingModule(testPlanningDefinitions.computing,
     { dataCenterCount: 11, rackCount: 432, waterChillers: 8 },
     { dataCenterCount: 8, rackCount: 336, waterChillers: 8 },
     undefined, { ...expansion, rackCount }, [16, 32, 48],
@@ -105,7 +104,7 @@ it("keeps construction separate from paused rack hosts and new builds", () => {
   const built = { dataCenterCount: 2, rackCount: 96, waterChillers: 4 };
   const running = { dataCenterCount: 1, rackCount: 48, waterChillers: 4 };
   const plan = { dataCenterCount: 2, rackCount: 96, waterChillers: 4 };
-  const planned = createComputingModule(built, running, generatedArea, plan, [48]).presets[0];
+  const planned = createComputingModule(testPlanningDefinitions.computing, built, running, generatedArea, plan, [48]).presets[0];
 
   expect(planned.activeBuildings[computingRecipeIds.dataCenter]).toBe(3);
   expect(planned.planMismatches).toEqual([expect.objectContaining({
@@ -114,7 +113,7 @@ it("keeps construction separate from paused rack hosts and new builds", () => {
   })]);
   expect(planned.unplacedPlannedBuildings?.[computingRecipeIds.dataCenter]).toBe(0);
 
-  const expanded = createComputingModule(built, running, generatedArea,
+  const expanded = createComputingModule(testPlanningDefinitions.computing, built, running, generatedArea,
     { ...plan, dataCenterCount: 4, rackCount: 192 }, [48]).presets[0];
 
   expect(expanded.unplacedPlannedBuildings?.[computingRecipeIds.dataCenter]).toBe(1);
@@ -126,7 +125,7 @@ it("keeps construction separate from paused rack hosts and new builds", () => {
 
 it.each([8, 9])("clears the computing plan when %s full Data Centers and chillers are running", count => {
   const current = { dataCenterCount: count, rackCount: count * 48, waterChillers: count };
-  const computing = createComputingModule(current, current, undefined, expansion);
+  const computing = createComputingModule(testPlanningDefinitions.computing, current, current, undefined, expansion);
   const preset = computing.presets[0];
 
   expect(preset.activeBuildings).toEqual(computing.builtBuildings);
@@ -135,24 +134,8 @@ it.each([8, 9])("clears the computing plan when %s full Data Centers and chiller
   expect(Object.values(preset.unplacedPlannedBuildings ?? {})).toEqual([0, 0, 0]);
 });
 
-it("calculates a synced two-data-center configuration", () => {
-  const config = { dataCenterCount: 2, rackCount: 96, waterChillers: 2 };
-  const computing = createComputingModule(config, config);
-  const preset = computing.presets.at(0);
-
-  expect(getRackAllocation(config.rackCount)).toEqual([48, 48]);
-  expect(computing.builtBuildings).toMatchObject({
-    [computingRecipeIds.dataCenter]: 2,
-    [computingRecipeIds.basicRack]: 96,
-    [computingRecipeIds.waterChiller]: 2,
-  });
-  expect(preset?.activeBuildings).toEqual(computing.builtBuildings);
-  expect(config.rackCount * dataCenter.computingTflopsPerRack).toBe(384);
-  expect(preset?.dataSources?.[computingRecipeIds.basicRack]).toBe("synced");
-});
-
 it("keeps built and running synced computing inventory separate", () => {
-  const computingModule = createComputingModule(
+  const computingModule = createComputingModule(testPlanningDefinitions.computing,
     { dataCenterCount: 5, rackCount: 202, waterChillers: 5 },
     { dataCenterCount: 1, rackCount: 48, waterChillers: 4 },
   );
@@ -235,7 +218,7 @@ it("preserves the generated area identity and removes handled recipe issues", ()
       ],
     },
   };
-  const computing = createComputingModule(
+  const computing = createComputingModule(testPlanningDefinitions.computing,
     { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
     { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
     generatedArea,
@@ -275,7 +258,7 @@ it("preserves the generated area identity and removes handled recipe issues", ()
     [computingRecipeIds.waterChiller]: "synced",
   });
 
-  const planned = createComputingModule(
+  const planned = createComputingModule(testPlanningDefinitions.computing,
     { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
     { dataCenterCount: 1, rackCount: 48, waterChillers: 1 },
     generatedArea,

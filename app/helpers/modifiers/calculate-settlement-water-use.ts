@@ -1,24 +1,15 @@
-import { settlementWaterUseResearch } from "../../db/research";
+import { getResearchBonus, type PlanningDefinitions } from '../../planning-state'
 
 export interface SettlementWaterUseResult {
-  level: number;
-  reductionPercent: number;
-  multiplier: number;
+  level: number
+  reductionPercent: number
+  multiplier: number
 }
-
 export const calculateSettlementWaterUse = (
+  definitions: PlanningDefinitions,
   level: number,
 ): SettlementWaterUseResult => {
-  const normalizedLevel = Math.min(
-    settlementWaterUseResearch.maxLevel,
-    Math.max(0, Math.trunc(level)),
-  );
-  const reductionPercent = -normalizedLevel
-    * settlementWaterUseResearch.percentPerLevel;
+  const value = getResearchBonus(definitions, 'settlementWaterUse', level)
 
-  return {
-    level: normalizedLevel,
-    reductionPercent,
-    multiplier: 1 - reductionPercent / 100,
-  };
-};
+  return { level: value.level, reductionPercent: -value.bonusPercent, multiplier: value.multiplier }
+}

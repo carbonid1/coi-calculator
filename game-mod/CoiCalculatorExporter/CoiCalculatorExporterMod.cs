@@ -5,22 +5,32 @@ using Mafi.Collections;
 using Mafi.Core;
 using Mafi.Core.Game;
 using Mafi.Core.GameLoop;
+using Mafi.Core.Entities;
 using Mafi.Core.Mods;
 using Mafi.Core.Prototypes;
 using Mafi.Core.Simulation;
+using Mafi.Core.Terrain;
+using Mafi.Core.Vehicles;
 using Mafi.Core.WebApi;
+using Mafi.Logging;
 
 public sealed class CoiCalculatorExporterMod : IMod, IDisposable
 {
     internal const string SnapshotRoute = "/api/mods/CoiCalculatorExporter/snapshot";
+    internal const string MapRoute = "/api/mods/CoiCalculatorExporter/island-map";
+    internal const string LayoutRoute = "/api/mods/CoiCalculatorExporter/factory-layout";
 
     private GameSnapshotCollector m_snapshotCollector;
     private ICalendar m_calendar;
     private WebApiServer m_server;
     private bool m_routeRegistered;
+    private bool m_mapRouteRegistered;
+    private IslandMapCollector m_mapCollector;
+    private FactoryLayoutCollector m_layoutCollector;
+    private bool m_layoutRouteRegistered;
 
     public string Name { get { return "CoI Calculator Bridge"; } }
-    public int Version { get { return 49; } }
+    public int Version { get { return 56; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -42,6 +52,9 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     public void Initialize(DependencyResolver resolver, bool gameWasLoaded)
     {
         m_snapshotCollector = GameSnapshotCollector.Create(resolver);
+        m_mapCollector = new IslandMapCollector(resolver.Resolve<TerrainManager>(), resolver.Resolve<IGameIdProvider>());
+        m_layoutCollector = new FactoryLayoutCollector(resolver.Resolve<IEntitiesManager>(),
+            resolver.Resolve<ILogisticsZonesManager>(), resolver.Resolve<IGameIdProvider>());
         m_calendar = resolver.Resolve<ICalendar>();
         m_server = resolver.Resolve<WebApiServer>();
         m_snapshotCollector.RefreshHistory();
@@ -60,6 +73,12 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             throw new InvalidOperationException("Could not register calculator snapshot route.");
         }
+        m_mapRouteRegistered = m_server.RegisterRoute(MapRoute, WebRouteStage.Sim,
+            new Func<WebRouteResponse>(getIslandMap), "GET", "Current island coastline, including terrain changes.");
+        if (!m_mapRouteRegistered) throw new InvalidOperationException("Could not register island map route.");
+        m_layoutRouteRegistered = m_server.RegisterRoute(LayoutRoute, WebRouteStage.Sim,
+            new Func<WebRouteResponse>(getFactoryLayout), "GET", "Current factory area polygons and occupied building footprints.");
+        if (!m_layoutRouteRegistered) throw new InvalidOperationException("Could not register factory layout route.");
 
         // Route discovery sees resolved dependencies only. Wait until the game
         // has instantiated its own API handlers before starting the server.
@@ -95,6 +114,13 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
             m_server.UnregisterRoute(SnapshotRoute);
         }
         m_routeRegistered = false;
+        if (m_server != null && m_mapRouteRegistered) m_server.UnregisterRoute(MapRoute);
+        m_mapRouteRegistered = false;
+        if (m_mapCollector != null) m_mapCollector.Dispose();
+        m_mapCollector = null;
+        if (m_server != null && m_layoutRouteRegistered) m_server.UnregisterRoute(LayoutRoute);
+        m_layoutRouteRegistered = false;
+        m_layoutCollector = null;
         m_server = null;
         m_snapshotCollector = null;
     }
@@ -112,5 +138,18 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         }
         return WebRouteResponse.Json(SnapshotJsonWriter.Serialize(m_snapshotCollector.Capture()))
             .WithHeader("Cache-Control", "no-store");
+    }
+
+    private WebRouteResponse getIslandMap()
+    {
+        string json = m_mapCollector == null ? null : m_mapCollector.CaptureJson();
+        return json == null ? WebRouteResponse.Error(503, "Island map is not ready.")
+            : WebRouteResponse.Json(json).WithHeader("Cache-Control", "no-store");
+    }
+
+    private WebRouteResponse getFactoryLayout()
+    {
+        return m_layoutCollector == null ? WebRouteResponse.Error(503, "Factory layout is not ready.")
+            : WebRouteResponse.Json(m_layoutCollector.CaptureJson()).WithHeader("Cache-Control", "no-store");
     }
 }

@@ -1,3 +1,4 @@
+import { type ComputingDefinitions } from '../../planning-state';
 import {
   computingRecipeIds,
   type ComputingConfig,
@@ -13,13 +14,13 @@ const computingItems = [
   { recipeId: computingRecipeIds.waterChiller, key: "waterChillers", name: "Water Chiller" },
 ] as const;
 
-const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
+const normalizeComputingConfig = (definitions: ComputingDefinitions, config: ComputingConfig): ComputingConfig => {
   const rackCount = Math.max(0, Math.trunc(config.rackCount));
 
   return {
     rackCount,
     dataCenterCount: Math.max(
-      getDataCenterCount(rackCount),
+      getDataCenterCount(definitions, rackCount),
       Math.max(0, Math.trunc(config.dataCenterCount)),
     ),
     waterChillers: Math.max(0, Math.trunc(config.waterChillers)),
@@ -27,6 +28,7 @@ const normalizeComputingConfig = (config: ComputingConfig): ComputingConfig => {
 };
 
 const applyComputingPlan = (
+  definitions: ComputingDefinitions,
   module: Module,
   config?: ComputingConfig,
   pausedDataCenterRacks?: readonly number[],
@@ -36,7 +38,7 @@ const applyComputingPlan = (
   return {
     ...module,
     presets: module.presets.map(preset => {
-      const target = normalizeComputingConfig(config);
+      const target = normalizeComputingConfig(definitions, config);
       const builtCount = (id: string) => preset.builtBuildings?.[id] ?? module.builtBuildings[id] ?? 0;
       const currentCount = (id: string) => preset.currentActiveBuildings?.[id]
         ?? Math.max(0, (preset.activeBuildings[id] ?? 0) - (preset.constructionGhosts?.[id] ?? 0));
@@ -46,23 +48,22 @@ const applyComputingPlan = (
       const neededCenters = Math.max(0, target.dataCenterCount - currentCenters - centerGhosts);
       const neededInstalledRacks = Math.max(0,
         Math.min(target.rackCount, builtCount(computingRecipeIds.basicRack)) - currentRacks);
-      let reusedCenters = 0;
-      let reusedRacks = 0;
+      const reused = { centers: 0, racks: 0 };
 
       if (pausedDataCenterRacks) {
         // Start the fullest paused centers first, including all racks housed in each one.
         for (const racks of pausedDataCenterRacks.toSorted((a, b) => b - a)) {
-          if (reusedCenters >= neededCenters && reusedRacks >= neededInstalledRacks) break;
-          reusedCenters++;
-          reusedRacks += racks;
+          if (reused.centers >= neededCenters && reused.racks >= neededInstalledRacks) break;
+          reused.centers++;
+          reused.racks += racks;
         }
       } else if (neededCenters > 0 || neededInstalledRacks > 0) {
         // Aggregate callers cannot locate installed racks; keep every paused host in the plan.
-        reusedCenters = Math.max(0, builtCount(computingRecipeIds.dataCenter) - currentCenters);
-        reusedRacks = Math.max(0, builtCount(computingRecipeIds.basicRack) - currentRacks);
+        reused.centers = Math.max(0, builtCount(computingRecipeIds.dataCenter) - currentCenters);
+        reused.racks = Math.max(0, builtCount(computingRecipeIds.basicRack) - currentRacks);
       }
-      target.dataCenterCount = Math.max(target.dataCenterCount, currentCenters + centerGhosts + reusedCenters);
-      target.rackCount = Math.max(target.rackCount, currentRacks + reusedRacks);
+      target.dataCenterCount = Math.max(target.dataCenterCount, currentCenters + centerGhosts + reused.centers);
+      target.rackCount = Math.max(target.rackCount, currentRacks + reused.racks);
 
       const planned = {
         ...preset,
@@ -111,14 +112,15 @@ const applyComputingPlan = (
 };
 
 export const createComputingModule = (
+  definitions: ComputingDefinitions,
   builtConfig: ComputingConfig,
   runningConfig: ComputingConfig = builtConfig,
   generatedArea?: Module,
   plannedConfig?: ComputingConfig,
   pausedDataCenterRacks?: readonly number[],
 ): Module => {
-  const built = normalizeComputingConfig(builtConfig);
-  const running = normalizeComputingConfig(runningConfig);
+  const built = normalizeComputingConfig(definitions, builtConfig);
+  const running = normalizeComputingConfig(definitions, runningConfig);
   const builtBuildings = {
     [computingRecipeIds.dataCenter]: built.dataCenterCount,
     [computingRecipeIds.basicRack]: built.rackCount,
@@ -150,7 +152,7 @@ export const createComputingModule = (
     defaultPresetId: "current-data-centers",
   };
 
-  if (!generatedArea) return applyComputingPlan(computingModule, plannedConfig, pausedDataCenterRacks);
+  if (!generatedArea) return applyComputingPlan(definitions, computingModule, plannedConfig, pausedDataCenterRacks);
 
   const handledPrototypeIds = new Set(["DataCenter", "WaterChiller"]);
   const handledRecipeMarkers = [...handledPrototypeIds].map(id => `:${id}:`);
@@ -239,7 +241,7 @@ export const createComputingModule = (
     : computingPreset;
   const handledIssuePrefixes = [...handledPrototypeIds].map(id => `${id}:`);
 
-  return applyComputingPlan({
+  return applyComputingPlan(definitions, {
     ...generatedArea,
     includedInFactoryTotals: true,
     builtBuildings: {

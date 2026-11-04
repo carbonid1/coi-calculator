@@ -7,6 +7,7 @@ import {
 import { calculateFactoryTotal } from '../../helpers/factory-total/factory-total'
 import { createLiveAreaModules } from '../../helpers/live-area-modules/live-area-modules'
 import { testBuildingDefinitions, withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
+import { testOfficeFocusDefinitions } from '../../test-fixtures/recorded-game-data'
 import { baseConfig } from '../config'
 import { getLiveAreaPlans } from '../live-area-plans'
 import { calculateOfficePlan, defaultOfficePlan, plannedOfficePlan } from '../offices'
@@ -81,7 +82,7 @@ describe('synced Office areas', () => {
       recipeId: 'officeIII-boost-2', current: 1, target: 3,
       actions: [{ type: 'configure', label: 'Set 2 Office III to computing boost 2' }],
     })])
-    expect(calculateOfficePlan(plannedOfficePlan, 8, getModuleOfficeConfigurations([officeModule]), testBuildingDefinitions))
+    expect(calculateOfficePlan(plannedOfficePlan, testOfficeFocusDefinitions, getModuleOfficeConfigurations([officeModule]), testBuildingDefinitions))
       .toMatchObject({ focusPointsCapacity: 5460, computingTflops: 576, workers: 3000 })
   })
 
@@ -136,7 +137,7 @@ describe('synced Office areas', () => {
     expect(result.flows.find(flow => flow.resourceId === 'householdGoods')?.net).toBeCloseTo(-8)
     expect(result.flows.find(flow => flow.resourceId === 'electronicsII')?.net).toBeCloseTo(-4)
     expect(result.computingDemandTflops).toBe(582)
-    expect(calculateOfficePlan(plannedOfficePlan, 8, configurations, testBuildingDefinitions)).toMatchObject({
+    expect(calculateOfficePlan(plannedOfficePlan, testOfficeFocusDefinitions, configurations, testBuildingDefinitions)).toMatchObject({
       focusPointsCapacity: 5460, focusPointsRequired: 0, focusPointsAvailable: 5460,
       computingTflops: 576, workers: 3000,
     })

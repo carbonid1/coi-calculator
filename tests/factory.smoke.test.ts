@@ -4,11 +4,18 @@ import { expect, it, vi } from 'vitest'
 
 import { type ChickenFarmDefinition } from '../app/chicken-farm-state'
 import { getCropFarmingData, type CropFarmingDefinitions } from '../app/crop-farming-state'
+import { getRackAllocation } from '../app/db/computing'
 import { type CropFarmGroup } from '../app/db/crop-farming'
+import { getEdictCatalog, mapEdictValues } from '../app/db/edicts'
+import { getHousingTypes } from '../app/db/housing'
 import { createCropFarmAreaModule, createDefaultCropFarmModule, getCropFarmGroundwaterRecipeId } from '../app/db/modules/crop-farm-areas'
 import { createChickenFarmsModule } from '../app/db/modules/farms'
 import { createSpaceStationModule } from '../app/db/modules/space-station'
+import { officeCatalog } from '../app/db/office-catalog'
+import { recipes } from '../app/db/recipes'
+import { calculateInfiniteResearchLevelCost, calculateInfiniteResearchRemainingCost, getInfiniteResearchCatalog } from '../app/db/research'
 import { calculateSpaceStationLevel } from '../app/db/space-station'
+import { calculateUnityBudget } from '../app/db/unity'
 import { normalizeGameStateSnapshot, type GameStateSnapshot } from '../app/game-state'
 import { buildModuleLines } from '../app/helpers/build-module-lines/build-module-lines'
 import { calculateBuildingStats } from '../app/helpers/building-stats/building-stats'
@@ -18,18 +25,133 @@ import { calculateContractWorkers } from '../app/helpers/contracts/calculate-con
 import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/factory-calculation'
 import { calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput, calculateGroundwaterClaimLimits, getAquiferRainRechargePerDay, getDryEmergencyRechargePerDay } from '../app/helpers/groundwater/calculate-groundwater-production'
 import { createLiveAreaModules } from '../app/helpers/live-area-modules/live-area-modules'
+import { withPlanningDefinition } from '../app/helpers/planning-recipes/planning-recipes'
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../app/helpers/water-planning/water-planning'
 import { calculateFarmIrrigationRates } from '../app/helpers/weather/calculate-farm-irrigation'
 import { getAverageSunIntensityPercent } from '../app/helpers/weather/planning-weather'
+import { getFocusDefinitions, type OfficeFocusDefinitions } from '../app/office-focus-state'
+import { type PlanningDefinitions } from '../app/planning-state'
 import { type RocketIiDefinition } from '../app/rocket-state'
 import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 
 // Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
+
+it('replays native Office tiers, boost curves, Focus allocations and changed cost tables through the factory model', () => {
+  const source = normalizeGameStateSnapshot(capture)
+
+  if (!source) throw new Error('Recorded Office definitions are incompatible')
+  const original = source.areaEntities.find(entity => entity.prototypeId === 'OfficeBuildingT3')
+
+  if (!original) throw new Error('Recorded factory must contain Offices')
+  const replay = (states: { tier: number; boost: 0 | 1 | 2; running?: boolean; ghost?: boolean }[],
+    definitions: OfficeFocusDefinitions = source.officeFocusDefinitions) => {
+    const snapshot = structuredClone(source)
+
+    snapshot.saveId = 'office-definition-replay'
+    snapshot.officeFocusDefinitions = definitions
+    snapshot.areaEntities = snapshot.areaEntities.filter(entity => !entity.prototypeId.startsWith('OfficeBuilding'))
+    snapshot.productionEntities = snapshot.productionEntities.filter(entity => !entity.prototypeId.startsWith('OfficeBuilding'))
+    for (const [index, state] of states.entries()) {
+      const entityId = 1_700_000_000 + index
+      const office = officeCatalog[state.tier]
+
+      if (!office) throw new Error('Unknown Office smoke tier')
+      snapshot.areaEntities.push({ ...original, entityId, prototypeId: office.prototypeId, prototypeName: office.name,
+        running: !state.ghost && (state.running ?? true), constructed: !state.ghost,
+        constructionState: state.ghost ? 'InConstruction' : 'Constructed', office: { computingBoostStep: state.boost } })
+      if (!state.ghost) snapshot.productionEntities.push({ entityId, prototypeId: office.prototypeId,
+        running: state.running ?? true, recipeIds: [], zones: original.zones,
+        nuclearReactor: null, dataCenterRacks: null, trainStation: null })
+    }
+    const validated = normalizeGameStateSnapshot(snapshot)
+
+    if (!validated) throw new Error('Office replay failed snapshot validation')
+    const model = deriveCalculatorModel({ snapshot: validated, machineZoneAssignments: {}, revision: 'office-smoke' })
+    const lines = model.configuredModules.flatMap(module => buildModuleLines(module, module.presets[0], model.outputModifiers).lines)
+      .filter(line => line.recipe.id.startsWith('officeI'))
+
+    return { model, lines }
+  }
+  const states = officeCatalog.flatMap((_office, tier) => ([0, 1, 2] as const).map(boost => ({ tier, boost })))
+  const run = replay(states)
+  const capacity = states.reduce((sum, state) => {
+    const binding = officeCatalog[state.tier]
+    const office = source.officeFocusDefinitions.offices.find(office => office.prototypeId === binding.prototypeId)
+    const building = source.buildingDefinitions.find(building => building.id === binding.prototypeId)
+
+    if (!office || !building) throw new Error('Office oracle is incomplete')
+    return sum + Math.round(building.workers * source.officeFocusDefinitions.pointsMultiplierPercent / 100)
+      + Math.round(building.workers * office.boosts[state.boost].focusBonusPercent / 100)
+  }, 0)
+
+  expect(run.lines).toHaveLength(9)
+  expect(run.model.officePlanCalculation.focusPointsCapacity).toBe(capacity)
+  expect(run.model.officePlanCalculation.officeSuppliesPerCycle).toBe(42)
+  expect(run.model.officePlanCalculation.computingTflops).toBe(420)
+  expect(run.lines.reduce((sum, line) => sum + line.recipe.inputs[0].quantity * line.activeBuildings, 0)).toBe(42)
+  expect(run.lines.reduce((sum, line) => sum + (line.recipe.buildingData?.computingTflops ?? 0) * line.activeBuildings, 0)).toBe(420)
+  expect(replay(states.map(state => ({ ...state, running: false }))).model.officePlanCalculation)
+    .toMatchObject({ focusPointsCapacity: 0, computingTflops: 0, officeSuppliesPerCycle: 0 })
+  expect(replay(states.map(state => ({ ...state, ghost: true }))).model.officePlanCalculation).toEqual(run.model.officePlanCalculation)
+
+  const changed = structuredClone(source.officeFocusDefinitions)
+
+  changed.pointsMultiplierPercent = 137.5
+  for (const office of changed.offices) {
+    office.suppliesPerCycle *= 1.5
+    for (const boost of office.boosts) { boost.computingTflops *= 2; boost.focusBonusPercent *= 1.5 }
+  }
+  for (const focus of changed.focuses) {
+    focus.pointCosts = focus.pointCosts.map((cost, step) => cost + step ** 2 * 7)
+    for (const effect of focus.effects) effect.percentPerStep *= 1.5
+  }
+  const updated = replay(states, changed)
+
+  expect(updated.model.officePlanCalculation.officeSuppliesPerCycle).toBe(63)
+  expect(updated.model.officePlanCalculation.computingTflops).toBe(840)
+  expect(updated.model.officePlanCalculation.focusPointsCapacity).toBeGreaterThan(capacity)
+  expect(updated.lines.reduce((sum, line) => sum + line.recipe.inputs[0].quantity * line.activeBuildings, 0)).toBe(63)
+  expect(updated.lines.reduce((sum, line) => sum + (line.recipe.buildingData?.computingTflops ?? 0) * line.activeBuildings, 0)).toBe(840)
+  const cost = getFocusDefinitions(changed).reduce((sum, focus) => sum + focus.pointCosts[source.focus[focus.id].targetStep], 0)
+
+  expect(updated.model.officePlanCalculation.focusPointsRequired).toBe(cost)
+  for (const focus of getFocusDefinitions(changed)) {
+    expect(updated.model.focusBonuses[focus.id]).toBe(source.focus[focus.id].targetStep * focus.percentPerStep)
+    expect(updated.model.focusAllocations[focus.id].source).toBe('synced')
+  }
+  const allocation = structuredClone(source)
+
+  allocation.focus.contractsProfitability = { targetStep: 7, activeStep: 3 }
+  allocation.focus.foodConsumption = { targetStep: 2, activeStep: 0 }
+  const selected = deriveCalculatorModel({ snapshot: allocation, machineZoneAssignments: {}, revision: 'selected-focus' })
+
+  expect(selected.focusBonuses.contractsProfitability).toBe(14)
+  expect(selected.focusBonuses.foodConsumption).toBe(-4)
+  allocation.focus.contractsProfitability = { targetStep: 15, activeStep: 15 }
+  expect(deriveCalculatorModel({ snapshot: allocation, machineZoneAssignments: {}, revision: 'completed-focus' })
+    .focusBonuses.contractsProfitability).toBe(30)
+  const extended = structuredClone(source)
+  const crop = extended.officeFocusDefinitions.focuses.find(focus => focus.id === 'cropYield')
+
+  if (!crop) throw new Error('Crop Focus definition is missing')
+  crop.pointCosts.push(crop.pointCosts.at(-1)! + 1000)
+  extended.focus.cropYield = { targetStep: 151, activeStep: 151 }
+  expect(normalizeGameStateSnapshot(extended)?.focus.cropYield.targetStep).toBe(151)
+  for (const invalid of [undefined, null,
+    { ...changed, pointsMultiplierPercent: -1 },
+    { ...changed, offices: changed.offices.slice(1) },
+    { ...changed, offices: changed.offices.map(office => ({ ...office, boosts: office.boosts.slice(1) })) },
+    { ...changed, focuses: changed.focuses.slice(1) },
+    { ...changed, focuses: changed.focuses.map(focus => ({ ...focus, pointCosts: [0, 100, 50] })) },
+    { ...changed, focuses: changed.focuses.map(focus => ({ ...focus, effects: [] })) },
+    { ...changed, focuses: changed.focuses.map(focus => ({ ...focus, effects: [{ propertyId: 'WrongProperty', percentPerStep: 1 }] })) },
+  ]) expect(normalizeGameStateSnapshot({ ...source, officeFocusDefinitions: invalid })).toBeNull()
+}, 60_000)
 
 it('replays native climate, all aquifers, shared withdrawal and dry-period upgrade scenarios', () => {
   const snapshot = normalizeGameStateSnapshot(capture)
@@ -65,11 +187,24 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
   expect(buildWaterSourceInventory(refreshed, sourceResults)).toEqual(inventory)
   expect(replayedDays).not.toHaveBeenCalled()
   replayedDays.mockRestore()
+  const pausedSnapshot = structuredClone(snapshot)
+
+  pausedSnapshot.groundwater.aquifers.reverse()
+  pausedSnapshot.machines.reverse().forEach(machine => { machine.running = false })
+  const pausedInventory = buildWaterSourceInventory(pausedSnapshot, [])
+
+  expect(pausedInventory.map(row => row.source.id)).toEqual(inventory.map(row => row.source.id))
+  expect(pausedInventory.every(row => row.activePumps === 0 && row.projectedWithdrawalPerCycle === 0)).toBe(true)
+  expect(inventory.some(row => row.activePumps > 0 && row.projectedWithdrawalPerCycle > 0)).toBe(true)
   const unused = inventory.find(row => row.source.id === '1041:3242')
 
   expect(unused).toMatchObject({ source: { position: { x: 1041, y: 3242 }, radius: 60, quantity: 20_000 },
     builtPumps: 0, projectedPumps: 0, pumpsForCeiling: 3, sustainableOutputPerCycle: 0, projectedWithdrawalPerCycle: 0 })
   expect(unused?.sustainableCeilingPerCycle).toBeGreaterThan(0)
+  expect(unused?.areaIds).toEqual([])
+  expect(inventory.find(row => row.source.id === '3247:647')).toMatchObject({ areaIds: [10], areas: ['Greenhouses'] })
+  expect(inventory.find(row => row.source.id === '1858:795')).toMatchObject({ areaIds: [14], areas: ['Population'], projectedWithdrawalPerCycle: 0 })
+  expect(pausedInventory.map(row => row.areaIds)).toEqual(inventory.map(row => row.areaIds))
   for (const row of inventory) {
     const output = calculateAquiferSustainableOutput(row.source, row.pumpsForCeiling, snapshot.groundwater, weather)
     const fewer = calculateAquiferSustainableOutput(row.source, row.pumpsForCeiling - 1, snapshot.groundwater, weather)
@@ -81,7 +216,7 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
     .reduce((total, result) => total + (result.actualOutputs.find(output => output.resourceId === 'water')?.quantity ?? 0), 0)
 
   expect(inventory.reduce((sum, row) => sum + row.projectedWithdrawalPerCycle, 0)).toBeCloseTo(actualWithdrawal, 8)
-  const source = inventory[0]?.source
+  const source = inventory.find(row => row.projectedWithdrawalPerCycle > 0)?.source
   const pump = snapshot.machines[0]
 
   if (!source || !pump) throw new Error('Aquifer scenario requires an installed pump')
@@ -204,6 +339,10 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   office.workers += 200
   office.electricityKw += 100
   office.computingTflops += 12
+  const officeBoost = updated.officeFocusDefinitions.offices.find(definition => definition.prototypeId === 'OfficeBuildingT3')?.boosts[2]
+
+  if (!officeBoost) throw new Error('Recorded Office boost definition is missing')
+  officeBoost.computingTflops += 48
   const changedModel = deriveCalculatorModel({ snapshot: updated, machineZoneAssignments: {}, revision: 'changed-catalog' })
   const changed = calculateFactoryCalculation(changedModel.factoryCalculationInput).factoryResult
   const changedStats = calculateBuildingStats(changed.allLines, changed.calculation, changedModel.outputModifiers)
@@ -652,4 +791,136 @@ it('replays chicken inventory, construction and plans using the supplied farm de
 
   expect(planLines[0]).toMatchObject({ activeBuildings: 3, unplacedPlannedBuildings: 3, speedLevel: 0.8, dataSource: 'planned' })
   expect(plan.presets[0].planMismatches?.[0].target).toBe(2350)
+}, 60_000)
+
+
+it('replays native research, edicts, housing, settlement composition, computing, solar and statue data through the factory', () => {
+  const source = normalizeGameStateSnapshot(capture)
+
+  if (!source) throw new Error('Recorded planning data is incompatible')
+  const replay = (definitions: PlanningDefinitions) => {
+    const snapshot = normalizeGameStateSnapshot({ ...source, planningDefinitions: definitions })
+
+    if (!snapshot) throw new Error('Planning replay is incompatible')
+    const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'planning-replay' })
+    const lines = model.configuredModules.flatMap(module => buildModuleLines(module, module.presets[0], model.outputModifiers).lines)
+    const housing = getHousingTypes(definitions)
+    const budget = (settlementUnity = snapshot.settlement.unity) => calculateUnityBudget({
+      definitions, housing: housing.housingIII, housingCount: model.housingCount,
+      additionalHousing: [{ housing: housing.housingII, housingCount: model.housingIiCount }],
+      unityCapacityMultiplier: model.unityCapacity.multiplier, settlementUnity,
+      edictLevels: mapEdictValues(id => model.edictLevels[id]), contracts: [],
+    })
+
+    return { model, lines, budget }
+  }
+  const recyclingSnapshot = structuredClone(source)
+  const recyclingFocus = recyclingSnapshot.officeFocusDefinitions.focuses.find(f => f.id === 'recyclingEfficiency')?.effects.find(e => e.propertyId === 'RecyclingRatioDiff')
+
+  if (!recyclingFocus) throw new Error('Native recycling Focus definition missing')
+  recyclingFocus.percentPerStep = 2
+  recyclingSnapshot.focus.recyclingEfficiency = { targetStep: 7, activeStep: 3 }
+  expect(deriveCalculatorModel({ snapshot: recyclingSnapshot, machineZoneAssignments: {}, revision: 'recycling-focus-replay' }).recyclingEfficiencyPercent)
+    .toBeCloseTo(source.recycling.efficiencyPercent + 8, 8)
+  const original = replay(source.planningDefinitions)
+  const housing = getHousingTypes(source.planningDefinitions)
+  const research = getInfiniteResearchCatalog(source.planningDefinitions)
+  const maintenance = research.find(r => r.id === 'maintenanceOutput')
+  const rockets = research.find(r => r.id === 'rocketsCapacity')
+
+  if (!maintenance || !rockets) throw new Error('Research cost oracle missing')
+  expect(calculateInfiniteResearchLevelCost(maintenance, 1)).toBe(23040)
+  expect(calculateInfiniteResearchLevelCost(rockets, 1)).toBe(27840)
+  expect(calculateInfiniteResearchRemainingCost(rockets, 0, 2)).toBe(75168)
+  expect(housing.housingIII).toMatchObject({ populationCapacity: 240, unityStorage: 18,
+    serviceDemandMultipliers: { electricity: 1.2, water: 1.1, householdGoods: 1.05 } })
+  const edicts = getEdictCatalog(source.planningDefinitions)
+
+  expect(edicts.find(e => e.id === 'cleanPanels')?.levels[3]).toMatchObject({ unityCostPerCycle: 2.5, modeledEffects: { solarPowerIncreasePercent: 30 } })
+  expect(edicts.find(e => e.id === 'researchEfficiency')?.levels[5]).toMatchObject({ unityCostPerCycle: 6, modeledEffects: { researchEfficiencyBonusPercent: 60 } })
+  expect(original.budget().storageCapacity).toBe((20 + 18 * original.model.housingCount + 12 * original.model.housingIiCount) * original.model.unityCapacity.multiplier)
+  expect(original.budget(null).netPerCycle).toBeNull()
+  const signedBudget = calculateUnityBudget({ definitions: source.planningDefinitions,
+    housing: housing.housingIII, housingCount: 1, unityCapacityMultiplier: 1.25,
+    settlementUnity: [{ id: 'food', name: 'Food', amount: 2.75 }, { id: 'quality', name: 'Quality', amount: 0.23 }, { id: 'health', name: 'Health', amount: -0.4 }],
+    edictLevels: mapEdictValues(() => 0), contracts: [{ id: 'uranium', name: 'Uranium', importedPerCycle: 54, fixedUnityPerCycle: 0.3, unityPer100Imported: 0.1 }],
+    contractsUnityCostPercent: -25, buildingGeneration: [{ id: 'station', name: 'Station', amount: 0.3 }], buildingConsumption: [{ id: 'lab', name: 'Lab', amount: 0.5 }],
+  })
+
+  expect(signedBudget).toMatchObject({ storageCapacity: 47.5 })
+  expect(signedBudget.generationPerCycle).toBeCloseTo(3.28)
+  expect(signedBudget.consumptionPerCycle).toBeCloseTo(0.4 + 0.354 * 0.75 + 0.5)
+  const changed = structuredClone(source.planningDefinitions)
+
+  expect(getRackAllocation(source.planningDefinitions.computing, 100)).toEqual([48, 48, 4])
+  changed.computing.rackCapacity = 96
+  changed.computing.computingPerRack *= 2
+  changed.computing.coolantInPerRack *= 3
+  changed.computing.coolantOutPerRack *= 2
+  for (const input of changed.computing.chillerInputs) input.quantity *= 2
+  for (const output of changed.computing.chillerOutputs) output.quantity *= 2
+  expect(getRackAllocation(changed.computing, 100)).toEqual([96, 4])
+  for (const solar of changed.solar) solar.productionKw *= 2
+  for (const house of changed.housing) { house.capacity *= 2; house.unityStorage *= 3 }
+  changed.unityBaseCapacity += 10
+  changed.settlement.waterPerPop *= 2
+  changed.settlement.electricityKwPerPop *= 2
+  changed.settlement.goodsPerPop *= 2
+  for (const food of changed.settlement.foods) food.perHundredPops *= 2
+  for (const product of changed.settlement.biomassPerProduct) product.quantity *= 2
+  changed.statue.fuelPerCycle = 7
+  for (const edict of changed.edicts) edict.unityCost *= 2
+  const crop = changed.research.find(r => r.id === 'cropYield')
+
+  if (!crop) throw new Error('Crop research oracle missing')
+  for (const effect of crop.effects) effect.percent *= 2
+  const updated = replay(changed)
+
+  const computingCapacity = (run: ReturnType<typeof replay>) => run.lines.reduce((total, line) => total
+    + (line.recipe.outputs.find(output => output.resourceId === 'computing')?.quantity ?? 0) * line.activeBuildings, 0)
+
+  expect(computingCapacity(updated)).toBe(computingCapacity(original) * 2)
+  expect(updated.model.populationCapacity).toBe(original.model.populationCapacity * 2)
+  expect(updated.model.outputModifiers.cropYield).toBeGreaterThan(original.model.outputModifiers.cropYield)
+  expect(updated.budget().consumptionPerCycle).toBeCloseTo(original.budget().consumptionPerCycle * 2)
+  expect(updated.budget().generationPerCycle).toBeCloseTo((original.budget().generationPerCycle ?? 0)
+    + (edicts.find(e => e.id === 'plentyOfFood')?.levels[original.model.edictLevels.plentyOfFood]?.unityProductionPerCycle ?? 0))
+  for (const recipeId of ['housing-residents', 'housing-ii-residents', 'solar-panel', 'solar-panel-mono', 'statue-of-maintenance-golden', 'computing-basic-rack', 'computing-water-chiller']) {
+    const template = recipes.find(r => r.id === recipeId)
+
+    if (!template) throw new Error('Planning recipe oracle missing')
+    const initial = withPlanningDefinition(template, source.planningDefinitions)
+    const altered = withPlanningDefinition(template, changed)
+
+    expect(withPlanningDefinition(altered)).toEqual(altered)
+    if (recipeId.startsWith('housing')) {
+      expect(altered.inputs.find(i => i.resourceId === 'water')?.quantity).toBeCloseTo((initial.inputs.find(i => i.resourceId === 'water')?.quantity ?? 0) * 4)
+      expect(altered.outputs.find(i => i.resourceId === 'biomass')?.quantity).toBeCloseTo((initial.outputs.find(i => i.resourceId === 'biomass')?.quantity ?? 0) * 8)
+      expect(altered.buildingData?.electricityKw).toBeCloseTo((initial.buildingData?.electricityKw ?? 0) * 4)
+    } else if (recipeId === 'computing-basic-rack') {
+      expect(altered.inputs[0].quantity).toBe(initial.inputs[0].quantity * 3)
+      expect(altered.outputs).toEqual(initial.outputs.map(output => ({ ...output, quantity: output.quantity * 2 })))
+    } else if (recipeId === 'computing-water-chiller') {
+      expect(altered.inputs).toEqual(initial.inputs.map(input => ({ ...input, quantity: input.quantity * 2 })))
+      expect(altered.outputs).toEqual(initial.outputs.map(output => ({ ...output, quantity: output.quantity * 2 })))
+    } else if (recipeId.startsWith('solar')) expect(altered.outputs[0].quantity).toBe(initial.outputs[0].quantity * 2)
+    else expect(altered.inputs).toEqual([{ resourceId: 'fuelGas', quantity: 7 }])
+  }
+  const same = structuredClone(source.planningDefinitions)
+  const extendedResearch = same.research.find(r => r.id === 'housingCapacity')
+
+  if (!extendedResearch) throw new Error('Housing research missing')
+  extendedResearch.costs.push((extendedResearch.costs.at(-1) ?? 0) + 1)
+  expect(normalizeGameStateSnapshot({ ...source, planningDefinitions: same, research: { ...source.research, housingCapacity: extendedResearch.costs.length - 1 } })?.research.housingCapacity)
+    .toBe(extendedResearch.costs.length - 1)
+  for (const invalid of [undefined, null, { ...same, unityBaseCapacity: -1 }, { ...same, settlement: undefined }, { ...same, computing: undefined }, { ...same, computing: { ...same.computing, rackCapacity: 0 } },
+    { ...same, research: same.research.slice(1) },
+    { ...same, research: same.research.map(r => ({ ...r, costs: [0, 100, 50] })) },
+    { ...same, research: same.research.map(r => ({ ...r, effects: [] })) },
+    { ...same, edicts: same.edicts.map(e => ({ ...e, effects: [] })) },
+    { ...same, research: same.research.map(r => ({ ...r, effects: r.effects.filter(e => e.id !== 'FarmWaterConsumptionMultiplier') })) },
+    { ...same, edicts: same.edicts.filter(e => e.id !== 'cleanPanels' || e.level !== 1) },
+    { ...same, solar: same.solar.slice(1) }, { ...same, housing: same.housing.slice(1) },
+    { ...same, statue: { ...same.statue, reductionsByCount: [0, 4, 3] } },
+  ]) expect(normalizeGameStateSnapshot({ ...source, planningDefinitions: invalid })).toBeNull()
 }, 60_000)

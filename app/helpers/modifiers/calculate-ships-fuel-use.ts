@@ -1,21 +1,15 @@
-import { shipsFuelUseResearch } from "../../db/research";
+import { getResearchBonus, type PlanningDefinitions } from '../../planning-state'
 
 export interface ShipsFuelUseResult {
-  level: number;
-  reductionPercent: number;
-  multiplier: number;
+  level: number
+  reductionPercent: number
+  multiplier: number
 }
+export const calculateShipsFuelUse = (
+  definitions: PlanningDefinitions,
+  level: number,
+): ShipsFuelUseResult => {
+  const value = getResearchBonus(definitions, 'shipsFuelUse', level)
 
-export const calculateShipsFuelUse = (level: number): ShipsFuelUseResult => {
-  const normalizedLevel = Math.min(
-    shipsFuelUseResearch.maxLevel,
-    Math.max(0, Math.trunc(level)),
-  );
-  const reductionPercent = -normalizedLevel * shipsFuelUseResearch.percentPerLevel;
-
-  return {
-    level: normalizedLevel,
-    reductionPercent,
-    multiplier: 1 - reductionPercent / 100,
-  };
-};
+  return { level: value.level, reductionPercent: -value.bonusPercent, multiplier: value.multiplier }
+}

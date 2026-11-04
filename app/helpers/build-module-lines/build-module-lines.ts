@@ -2,8 +2,11 @@ import { getBuildingData } from '../../db/buildings';
 import { type Module, type Preset } from "../../db/modules/modules";
 import { recipes } from "../../db/recipes";
 import { getConnectionOnlyResourceIds, getFactoryResourceRequests } from "../../db/resource-supply";
+import { settlementRecipeIds } from '../../db/settlement';
 import { type ProductionLine } from "../calculate/calculate";
 import { getRecipeOutputQuantity, withRecipeRecycling, type RecipeModifierMultipliers } from "../modifiers/recipe-output";
+import { withOfficeDefinition } from '../office-recipes/office-recipes';
+import { withPlanningDefinition } from '../planning-recipes/planning-recipes';
 import { withModuleInputLimits } from "../recipe-input-scope/recipe-input-scope";
 import { canPrioritizeProcessing } from "../resource-priorities/resource-priorities";
 
@@ -27,16 +30,18 @@ export const buildModuleLines = (
   );
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
-  const lines: ProductionLine[] = visibleRecipes.map((unmodifiedRecipe) => {
-    const buildingData = (outputModifiers.buildingDefinitions
+  const lines: ProductionLine[] = visibleRecipes.map((templateRecipe) => {
+    const unmodifiedRecipe = withPlanningDefinition(templateRecipe, outputModifiers.planningDefinitions);
+    const isResident = unmodifiedRecipe.id === settlementRecipeIds.residents || unmodifiedRecipe.id === settlementRecipeIds.residentsII;
+    const buildingData = (isResident ? unmodifiedRecipe.buildingData : undefined) ?? (outputModifiers.buildingDefinitions
       ? getBuildingData(unmodifiedRecipe.building, outputModifiers.buildingDefinitions, unmodifiedRecipe.gameBuildingId)
       : undefined) ?? unmodifiedRecipe.buildingData;
 
     if (outputModifiers.buildingDefinitions && !buildingData) {
       throw new Error(`Building requirements unavailable for ${unmodifiedRecipe.gameBuildingId ?? unmodifiedRecipe.building}`);
     }
-    const originalRecipe = withRecipeRecycling(buildingData
-      ? { ...unmodifiedRecipe, buildingData } : unmodifiedRecipe, outputModifiers);
+    const originalRecipe = withRecipeRecycling(withOfficeDefinition(buildingData
+      ? { ...unmodifiedRecipe, buildingData } : unmodifiedRecipe, outputModifiers.officeFocusDefinitions), outputModifiers);
     // Apply routing to static presets as well as recipes generated from a snapshot.
     const localInputIds = getConnectionOnlyResourceIds(originalRecipe.inputs.map(input => input.resourceId));
     const scopedRecipe = withModuleInputLimits(originalRecipe, localInputIds);

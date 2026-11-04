@@ -1,21 +1,7 @@
-import { housingCapacityResearch } from "../../db/research";
+import { getResearchBonus, type PlanningDefinitions } from '../../planning-state'
 
-export interface HousingCapacityResult {
-  level: number;
-  bonusPercent: number;
-  multiplier: number;
-}
-
-export const calculateHousingCapacity = (level: number): HousingCapacityResult => {
-  const normalizedLevel = Math.min(
-    housingCapacityResearch.maxLevel,
-    Math.max(0, Math.trunc(level)),
-  );
-  const bonusPercent = normalizedLevel * housingCapacityResearch.percentPerLevel;
-
-  return {
-    level: normalizedLevel,
-    bonusPercent,
-    multiplier: 1 + bonusPercent / 100,
-  };
-};
+export type HousingCapacityResult = ReturnType<typeof getResearchBonus>
+export const calculateHousingCapacity = (
+  definitions: PlanningDefinitions,
+  level: number,
+): HousingCapacityResult => getResearchBonus(definitions, 'housingCapacity', level)

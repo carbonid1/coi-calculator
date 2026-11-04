@@ -1,38 +1,27 @@
-import {
-  maintenanceReducerEdict,
-  type MaintenanceReducerLevel,
-} from "../../db/edicts";
-import { maintenanceStatue } from "../../db/maintenance-statue";
-
-const calculateMaintenanceStatueEffect = (count: number) => {
-  const normalizedCount = Math.max(0, Math.trunc(count));
-  const multiplier = maintenanceStatue.additionalEffectMultiplier;
-
-  // Captain of Industry v0.8.7 applies the full 4% to the first maintained
-  // golden statue and halves every additional statue's effect.
-  const reductionPercent = normalizedCount === 0
-    ? 0
-    : maintenanceStatue.baseReductionPercent
-      * ((1 - multiplier ** normalizedCount) / (1 - multiplier));
-
-  return {
-    count: normalizedCount,
-    reductionPercent,
-    fuelGasPerCycle: normalizedCount * maintenanceStatue.fuelGasPerCycle,
-  };
-};
+import { type MaintenanceReducerLevel } from '../../db/edicts'
+import { getEdictEffects, type PlanningDefinitions } from '../../planning-state'
 
 export const calculateMaintenanceDemandReduction = (
+  definitions: PlanningDefinitions,
   edictLevel: MaintenanceReducerLevel,
   statueCount: number,
 ) => {
-  const edict = maintenanceReducerEdict.levels[edictLevel];
-  const statues = calculateMaintenanceStatueEffect(statueCount);
+  const count = Math.max(0, Math.trunc(statueCount))
+  const reduction =
+    definitions.statue.reductionsByCount[
+      Math.min(count, definitions.statue.reductionsByCount.length - 1)
+    ]
+
+  if (reduction === undefined) throw new Error('Statue reduction table is incomplete')
+  const edictReductionPercent = -(
+    getEdictEffects(definitions, 'maintenanceReducer', edictLevel).effects
+      .MaintenanceConsumptionMultiplier ?? 0
+  )
 
   return {
-    edictReductionPercent: edict.maintenanceReductionPercent,
-    statueReductionPercent: statues.reductionPercent,
-    totalReductionPercent: edict.maintenanceReductionPercent + statues.reductionPercent,
-    statueFuelGasPerCycle: statues.fuelGasPerCycle,
-  };
-};
+    edictReductionPercent,
+    statueReductionPercent: reduction,
+    totalReductionPercent: edictReductionPercent + reduction,
+    statueFuelGasPerCycle: count * definitions.statue.fuelPerCycle,
+  }
+}

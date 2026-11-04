@@ -4,6 +4,7 @@ import { type Module } from "../../db/modules/modules";
 import { settlementRecipeIds } from "../../db/settlement";
 import { type SyncedProductionEntity } from "../../game-state";
 import { isSyncedSettlementState, type SyncedSettlementState } from "../../settlement-state";
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
 import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateNet } from "../calculate/calculate";
 import { applySettlementState, resolveProjectedPopulation } from "./apply-settlement-state";
@@ -29,7 +30,7 @@ const state: SyncedSettlementState = {
     foodProductIds: ["Potato"], serviceIds: [] }],
 };
 const calculate = (area = populationModule, snapshot = state) => {
-  const result = applySettlementState(area, snapshot, entities);
+  const result = applySettlementState(testPlanningDefinitions, area, snapshot, entities);
 
   return calculateNet(buildModuleLines(result, result.presets[0] ?? null).lines)
     .regularResults.find(line => line.recipe.id === residents);
@@ -62,9 +63,9 @@ it("preserves full projected occupancy for an explicit housing expansion", () =>
 });
 
 it("does not turn spare housing capacity into research population without a plan", () => {
-  const area = applySettlementState(populationModule, state, entities);
+  const area = applySettlementState(testPlanningDefinitions, populationModule, state, entities);
 
-  expect(resolveProjectedPopulation([area], state, entities))
+  expect(resolveProjectedPopulation(testPlanningDefinitions, [area], state, entities))
     .toEqual({ population: 120, isPlanned: false });
 });
 
@@ -73,7 +74,7 @@ it.each(["planned", "ghost"])("includes %s residents while preserving population
   const snapshot = { ...state, population: 230, settlements: state.settlements.map(settlement => ({
     ...settlement, population: 200, capacity: 720, housing: [...settlement.housing, otherHouse],
   })) };
-  const area = applySettlementState({ ...populationModule, presets: populationModule.presets.map(preset => ({
+  const area = applySettlementState(testPlanningDefinitions, { ...populationModule, presets: populationModule.presets.map(preset => ({
     ...preset,
     activeBuildings: { [residents]: 3 },
     speedLevels: { [residents]: 1.2 },
@@ -81,9 +82,9 @@ it.each(["planned", "ghost"])("includes %s residents while preserving population
     constructionGhosts: { [residents]: source === "ghost" ? 1 : 0 },
   })) }, snapshot, entities);
 
-  expect(resolveProjectedPopulation([area], snapshot, entities))
+  expect(resolveProjectedPopulation(testPlanningDefinitions, [area], snapshot, entities))
     .toEqual({ population: 974, isPlanned: true }); // 864 planned + 80 elsewhere + 30 unhoused.
-  expect(resolveProjectedPopulation([{ ...area, includedInFactoryTotals: false }], snapshot, entities))
+  expect(resolveProjectedPopulation(testPlanningDefinitions, [{ ...area, includedInFactoryTotals: false }], snapshot, entities))
     .toEqual({ population: 230, isPlanned: false });
 });
 
@@ -95,12 +96,12 @@ it("replaces residents in an upgraded tier instead of counting them again", () =
     housing: [...settlement.housing, { entityId: 3, population: 100, capacity: 140 }],
   })) };
   const allEntities = [...entities, housingII];
-  const area = applySettlementState({ ...populationModule, presets: populationModule.presets.map(preset => ({
+  const area = applySettlementState(testPlanningDefinitions, { ...populationModule, presets: populationModule.presets.map(preset => ({
     ...preset, activeBuildings: { [residents]: 3, [residentsII]: 0 },
     dataSources: { [residents]: "planned", [residentsII]: "planned" },
   })) }, snapshot, allEntities);
 
-  expect(resolveProjectedPopulation([area], snapshot, allEntities))
+  expect(resolveProjectedPopulation(testPlanningDefinitions, [area], snapshot, allEntities))
     .toEqual({ population: 720, isPlanned: true });
 });
 

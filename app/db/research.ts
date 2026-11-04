@@ -1,326 +1,41 @@
-export type InfiniteResearchId =
-  | "vehiclesPollution"
-  | "shipsPollution"
-  | "trainsPollution"
-  | "cropYield"
-  | "treeGrowthSpeed"
-  | "rainwaterYield"
-  | "settlementWaterUse"
-  | "unityCapacity"
-  | "housingCapacity"
-  | "focusPoints"
-  | "vehicleLimit"
-  | "vehiclesFuelUse"
-  | "shipsFuelUse"
-  | "trainsFuelUse"
-  | "rocketsCapacity"
-  | "maintenanceOutput"
-  | "worldMineOutput"
-  | "solarPower";
+import { type PlanningDefinitions, getResearchDefinition } from '../planning-state'
+import { researchCatalog, type InfiniteResearchId } from './research-catalog'
 
-type InfiniteResearchCostCurve = "easy" | "medium" | "hard" | "extreme";
+export { type InfiniteResearchId } from './research-catalog'
+export const infiniteResearchCatalog = researchCatalog
+export const getInfiniteResearchCatalog = (definitions: PlanningDefinitions) =>
+  researchCatalog.map(binding => {
+    const native = getResearchDefinition(definitions, binding.id)
 
-export interface InfiniteResearchDefinition {
-  id: InfiniteResearchId;
-  name: string;
-  effectPerLevel: string;
-  percentPerLevel?: number;
-  flatBonusPerLevel?: number;
-  waterDemandPercentPerLevel?: number;
-  maxLevel: number;
-  spaceResearchLevel: number;
-  baseResearchPoints: number;
-  costCurve: InfiniteResearchCostCurve;
-  gameVersion: string;
-}
-
-const GAME_VERSION = "0.8.7";
-// ResearchCosts stores lab-production cycles. These values are converted to the
-// Research Points shown by the game at the tier where each node is introduced.
-const STANDARD_BASE_RESEARCH_POINTS = 19_200;
-const POLLUTION_BASE_RESEARCH_POINTS = 1_152;
-
-export const vehiclesPollutionResearch = {
-  id: "vehiclesPollution",
-  name: "Vehicles Pollution",
-  effectPerLevel: "-4% pollution from vehicles per level",
-  percentPerLevel: -4,
-  maxLevel: 20,
-  spaceResearchLevel: 15,
-  baseResearchPoints: POLLUTION_BASE_RESEARCH_POINTS,
-  costCurve: "extreme",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-const shipsPollutionResearch = {
-  id: "shipsPollution",
-  name: "Ships Pollution",
-  effectPerLevel: "-4% pollution from ships per level",
-  percentPerLevel: -4,
-  maxLevel: 20,
-  spaceResearchLevel: 15,
-  baseResearchPoints: POLLUTION_BASE_RESEARCH_POINTS,
-  costCurve: "extreme",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-const trainsPollutionResearch = {
-  id: "trainsPollution",
-  name: "Trains Pollution",
-  effectPerLevel: "-4% pollution from trains per level",
-  percentPerLevel: -4,
-  maxLevel: 20,
-  spaceResearchLevel: 15,
-  baseResearchPoints: POLLUTION_BASE_RESEARCH_POINTS,
-  costCurve: "extreme",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const cropYieldResearch = {
-  id: "cropYield",
-  name: "Crop Yield",
-  effectPerLevel: "+1% crop yield and +0.25% crop water consumption per level",
-  percentPerLevel: 1,
-  waterDemandPercentPerLevel: 0.25,
-  maxLevel: 250,
-  spaceResearchLevel: 20,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "easy",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const treeGrowthSpeedResearch = {
-  id: "treeGrowthSpeed",
-  name: "Tree Growth Speed",
-  effectPerLevel: "+1% tree growth speed per level",
-  percentPerLevel: 1,
-  maxLevel: 50,
-  spaceResearchLevel: 5,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const rainwaterYieldResearch = {
-  id: "rainwaterYield",
-  name: "Rainwater Yield",
-  effectPerLevel: "+5% rainwater yield per level",
-  percentPerLevel: 5,
-  maxLevel: 40,
-  spaceResearchLevel: 10,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const settlementWaterUseResearch = {
-  id: "settlementWaterUse",
-  name: "Settlement Water Use",
-  effectPerLevel: "-2% settlement water consumption per level",
-  percentPerLevel: -2,
-  maxLevel: 40,
-  spaceResearchLevel: 10,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const unityCapacityResearch = {
-  id: "unityCapacity",
-  name: "Unity Capacity",
-  effectPerLevel: "+5% Unity capacity per level",
-  percentPerLevel: 5,
-  maxLevel: 60,
-  spaceResearchLevel: 5,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const housingCapacityResearch = {
-  id: "housingCapacity",
-  name: "Housing Capacity",
-  effectPerLevel: "+5% housing capacity per level",
-  percentPerLevel: 5,
-  maxLevel: 40,
-  spaceResearchLevel: 4,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const focusPointsResearch = {
-  id: "focusPoints",
-  name: "Focus Points",
-  effectPerLevel: "+4% focus generated by offices per level",
-  percentPerLevel: 4,
-  maxLevel: 25,
-  spaceResearchLevel: 5,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "extreme",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-const vehicleLimitResearch = {
-  id: "vehicleLimit",
-  name: "Vehicle Limit",
-  effectPerLevel: "+5 vehicle limit per level",
-  flatBonusPerLevel: 5,
-  maxLevel: 60,
-  spaceResearchLevel: 20,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "medium",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-const vehiclesFuelUseResearch = {
-  id: "vehiclesFuelUse",
-  name: "Vehicles Fuel Use",
-  effectPerLevel: "-1% vehicle fuel consumption per level",
-  percentPerLevel: -1,
-  maxLevel: 35,
-  spaceResearchLevel: 5,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const shipsFuelUseResearch = {
-  id: "shipsFuelUse",
-  name: "Ships Fuel Use",
-  effectPerLevel: "-1% ship fuel consumption per level",
-  percentPerLevel: -1,
-  maxLevel: 35,
-  spaceResearchLevel: 5,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-const trainsFuelUseResearch = {
-  id: "trainsFuelUse",
-  name: "Trains Fuel Use",
-  effectPerLevel: "-1% train fuel consumption per level",
-  percentPerLevel: -1,
-  maxLevel: 35,
-  spaceResearchLevel: 5,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const rocketsCapacityResearch = {
-  id: "rocketsCapacity",
-  name: "Rockets Capacity",
-  effectPerLevel: "+5% rocket payload capacity per level",
-  percentPerLevel: 5,
-  maxLevel: 20,
-  spaceResearchLevel: 1,
-  baseResearchPoints: 27_840,
-  costCurve: "extreme",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const maintenanceOutputResearch = {
-  id: "maintenanceOutput",
-  name: "Maintenance Output",
-  effectPerLevel: "+1% maintenance production per level",
-  percentPerLevel: 1,
-  maxLevel: 50,
-  spaceResearchLevel: 4,
-  baseResearchPoints: 23_040,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const worldMineOutputResearch = {
-  id: "worldMineOutput",
-  name: "World Mine Output",
-  effectPerLevel: "+2% world mine and oil rig output per level",
-  percentPerLevel: 2,
-  maxLevel: 50,
-  spaceResearchLevel: 5,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "hard",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const solarPowerResearch = {
-  id: "solarPower",
-  name: "Solar Power",
-  effectPerLevel: "+2% solar power production per level",
-  percentPerLevel: 2,
-  maxLevel: 200,
-  spaceResearchLevel: 10,
-  baseResearchPoints: STANDARD_BASE_RESEARCH_POINTS,
-  costCurve: "easy",
-  gameVersion: GAME_VERSION,
-} as const satisfies InfiniteResearchDefinition;
-
-export const infiniteResearchCatalog = [
-  vehiclesPollutionResearch,
-  shipsPollutionResearch,
-  trainsPollutionResearch,
-  cropYieldResearch,
-  treeGrowthSpeedResearch,
-  rainwaterYieldResearch,
-  settlementWaterUseResearch,
-  unityCapacityResearch,
-  housingCapacityResearch,
-  focusPointsResearch,
-  vehicleLimitResearch,
-  vehiclesFuelUseResearch,
-  shipsFuelUseResearch,
-  trainsFuelUseResearch,
-  rocketsCapacityResearch,
-  maintenanceOutputResearch,
-  worldMineOutputResearch,
-  solarPowerResearch,
-] as const satisfies readonly InfiniteResearchDefinition[];
-
-const costCurveFactors: Record<
-  InfiniteResearchCostCurve,
-  { linear: number; exponential: number }
-> = {
-  easy: { linear: 0.2, exponential: 1.03 },
-  medium: { linear: 0.3, exponential: 1.07 },
-  hard: { linear: 0.5, exponential: 1.14 },
-  extreme: { linear: 1, exponential: 1.4 },
-};
-
+    return {
+      ...binding,
+      maxLevel: native.costs.length - 1,
+      spaceResearchLevel: native.spaceResearchLevel,
+      effectPerLevel: native.description,
+      costs: native.costs,
+    }
+  })
+export type InfiniteResearchDefinition = ReturnType<typeof getInfiniteResearchCatalog>[number]
 export const calculateInfiniteResearchLevelCost = (
-  research: InfiniteResearchDefinition,
+  research: Pick<InfiniteResearchDefinition, 'costs'>,
   level: number,
 ) => {
-  const normalizedLevel = Math.min(
-    research.maxLevel,
-    Math.max(1, Math.trunc(level)),
-  );
-  const levelIndex = normalizedLevel - 1;
-  const factors = costCurveFactors[research.costCurve];
+  const cost = research.costs[Math.min(research.costs.length - 1, Math.max(1, Math.trunc(level)))]
 
-  return Math.round(
-    research.baseResearchPoints
-      * (1 + factors.linear * levelIndex + factors.exponential ** levelIndex)
-      / 2,
-  );
-};
-
+  if (cost === undefined) throw new Error('Research cost table is incomplete')
+  return cost
+}
 export const calculateInfiniteResearchRemainingCost = (
-  research: InfiniteResearchDefinition,
+  research: Pick<InfiniteResearchDefinition, 'costs'>,
   currentLevel: number,
   targetLevel: number,
-) => {
-  const fromLevel = Math.max(0, Math.trunc(currentLevel)) + 1;
-  const toLevel = Math.min(research.maxLevel, Math.max(0, Math.trunc(targetLevel)));
-  let total = 0;
-
-  for (let level = fromLevel; level <= toLevel; level += 1) {
-    total += calculateInfiniteResearchLevelCost(research, level);
-  }
-
-  return total;
-};
+) =>
+  research.costs
+    .slice(
+      Math.max(0, Math.trunc(currentLevel)) + 1,
+      Math.min(research.costs.length - 1, Math.max(0, Math.trunc(targetLevel))) + 1,
+    )
+    .reduce((sum, cost) => sum + cost, 0)
 
 export const defaultInfiniteResearchLevels = {
   vehiclesPollution: 0,
@@ -341,7 +56,7 @@ export const defaultInfiniteResearchLevels = {
   maintenanceOutput: 4,
   worldMineOutput: 5,
   solarPower: 10,
-} as const satisfies Record<InfiniteResearchId, number>;
+} as const satisfies Record<InfiniteResearchId, number>
 
 /** Zero state used until the exporter has supplied save-owned research levels. */
 export const emptyInfiniteResearchLevels = {
@@ -363,4 +78,4 @@ export const emptyInfiniteResearchLevels = {
   maintenanceOutput: 0,
   worldMineOutput: 0,
   solarPower: 0,
-} as const satisfies Record<InfiniteResearchId, number>;
+} as const satisfies Record<InfiniteResearchId, number>

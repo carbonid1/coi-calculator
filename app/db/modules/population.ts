@@ -5,10 +5,10 @@ import {
   populationEntityMatchers,
   type ResolvedPopulationEntityInventory,
 } from "../../helpers/population-entity-sync/population-entity-sync";
+import { type PlanningDefinitions } from '../../planning-state';
 import {
-  activeHousingType,
+  getHousingTypes,
   calculatePopulationCapacity,
-  housingTypes,
 } from "../housing";
 import { settlementRecipeIds } from "../settlement";
 import { type Module, type PlanMismatch, type PlanMismatchAction } from "./modules";
@@ -32,7 +32,7 @@ export const resolvePopulationHousingPlanTargets = (
   areas: readonly PopulationHousingPlanArea[],
   targetTotal: number = plannedHousingCount,
 ): ReadonlyMap<number, number> => {
-  let projectedHousingTotal = 0;
+  const totals = { projectedHousing: 0 };
   const candidates: {
     builtHousingIi: number;
     pausedHousingIi: number;
@@ -54,13 +54,13 @@ export const resolvePopulationHousingPlanTargets = (
       builtHousingIi - syncedInventory.housingIiCandidates.running,
     );
 
-    projectedHousingTotal += projectedHousing;
+    totals.projectedHousing += projectedHousing;
     if (builtHousingIi > 0 || (syncedInventory.counts[settlementRecipeIds.residents]?.built ?? 0) > 0 || projectedHousing > 0) {
       candidates.push({ builtHousingIi, pausedHousingIi, projectedHousing, zoneId });
     }
   }
 
-  const pendingHousing = Math.max(0, targetTotal - projectedHousingTotal);
+  const pendingHousing = Math.max(0, targetTotal - totals.projectedHousing);
   const candidate = candidates.toSorted((left, right) => (
     right.pausedHousingIi - left.pausedHousingIi
     || right.builtHousingIi - left.builtHousingIi
@@ -73,11 +73,14 @@ export const resolvePopulationHousingPlanTargets = (
 };
 
 export const createPopulationModule = (
+  planningDefinitions: PlanningDefinitions,
   syncedInventory: ResolvedPopulationEntityInventory,
   generatedArea: Module,
   housingCapacityLevel: number,
   plannedHousingTarget: number | null = plannedHousingCount,
 ): Module => {
+  const housingTypes = getHousingTypes(planningDefinitions);
+  const activeHousingType = housingTypes.housingIII;
   const rawGeneratedPreset = getDefaultPreset(generatedArea);
 
   if (!rawGeneratedPreset) return generatedArea;
@@ -263,7 +266,7 @@ export const createPopulationModule = (
         && recipeId !== settlementRecipeIds.residentsII
       )))
     : specialCurrentActiveBuildings;
-  const capacityMultiplier = calculateHousingCapacity(housingCapacityLevel).multiplier;
+  const capacityMultiplier = calculateHousingCapacity(planningDefinitions, housingCapacityLevel).multiplier;
   const activeHousingCount = specialActiveBuildings[settlementRecipeIds.residents] ?? 0;
   const activeHousingIiCount = specialActiveBuildings[settlementRecipeIds.residentsII] ?? 0;
   const populationCapacity = calculatePopulationCapacity(

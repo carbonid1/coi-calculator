@@ -1,78 +1,73 @@
+import { type PlanningDefinitions } from '../planning-state'
+
 export interface HousingType {
-  id: "housing" | "housing-ii" | "housing-iii" | "housing-iv";
-  name: string;
-  populationCapacity: number;
-  unityStorage: number;
+  id: 'housing' | 'housing-ii' | 'housing-iii' | 'housing-iv'
+  name: string
+  populationCapacity: number
+  unityStorage: number
   serviceDemandMultipliers: {
-    electricity: number;
-    water: number;
-    wasteWater: number;
-    householdGoods: number;
-    householdAppliances: number;
-    luxuryGoods: number;
-  };
+    electricity: number
+    water: number
+    wasteWater: number
+    householdGoods: number
+    householdAppliances: number
+    luxuryGoods: number
+  }
   unityBonusTiers: readonly {
-    multiplier: number;
-    requirements: readonly string[];
-  }[];
+    multiplier: number
+    requirements: readonly string[]
+  }[]
 }
 
-/** Captain of Industry v0.8.7 housing capacities, service demand, and Unity tiers. */
-export const housingTypes = {
-  housing: {
-    id: "housing",
-    name: "Housing",
-    populationCapacity: 80,
-    unityStorage: 8,
-    serviceDemandMultipliers: { electricity: 1, water: 1, wasteWater: 1, householdGoods: 1, householdAppliances: 1, luxuryGoods: 1 },
-    unityBonusTiers: [],
-  },
-  housingII: {
-    id: "housing-ii",
-    name: "Housing II",
-    populationCapacity: 140,
-    unityStorage: 12,
-    serviceDemandMultipliers: { electricity: 1.1, water: 1.05, wasteWater: 1.05, householdGoods: 1, householdAppliances: 1, luxuryGoods: 1 },
-    unityBonusTiers: [{ multiplier: 1.5, requirements: ["Water", "Electricity"] }],
-  },
-  housingIII: {
-    id: "housing-iii",
-    name: "Housing III",
-    populationCapacity: 240,
-    unityStorage: 18,
-    serviceDemandMultipliers: { electricity: 1.2, water: 1.1, wasteWater: 1.1, householdGoods: 1.05, householdAppliances: 1, luxuryGoods: 1 },
-    unityBonusTiers: [
-      { multiplier: 1.5, requirements: ["Water", "Electricity"] },
-      { multiplier: 1.75, requirements: ["Water", "Electricity", "Household Goods"] },
-      { multiplier: 2, requirements: ["Water", "Electricity", "Household Goods", "Household Appliances"] },
-    ],
-  },
-  housingIV: {
-    id: "housing-iv",
-    name: "Housing IV",
-    populationCapacity: 400,
-    unityStorage: 26,
-    serviceDemandMultipliers: { electricity: 1.4, water: 1.2, wasteWater: 1.2, householdGoods: 1.1, householdAppliances: 1.1, luxuryGoods: 1.1 },
-    unityBonusTiers: [
-      { multiplier: 1.5, requirements: ["Water", "Electricity"] },
-      { multiplier: 1.75, requirements: ["Water", "Electricity", "Household Goods"] },
-      { multiplier: 2, requirements: ["Water", "Electricity", "Household Goods", "Household Appliances"] },
-      { multiplier: 2.25, requirements: ["Water", "Electricity", "Household Goods", "Household Appliances", "Consumer Electronics"] },
-    ],
-  },
-} as const satisfies Record<string, HousingType>;
+export const housingCatalog = {
+  housing: { id: 'housing', name: 'Housing', prototypeId: 'Housing' },
+  housingII: { id: 'housing-ii', name: 'Housing II', prototypeId: 'HousingT2' },
+  housingIII: { id: 'housing-iii', name: 'Housing III', prototypeId: 'HousingT3' },
+  housingIV: { id: 'housing-iv', name: 'Housing IV', prototypeId: 'HousingT4' },
+} as const
 
-export const activeHousingType = housingTypes.housingIII;
+export const getHousingTypes = (definitions: PlanningDefinitions) => {
+  const resolve = (identity: (typeof housingCatalog)[keyof typeof housingCatalog]): HousingType => {
+    const native = definitions.housing.find(h => h.prototypeId === identity.prototypeId)
+
+    if (!native) throw new Error('Housing definition unavailable for ' + identity.prototypeId)
+    const demand = (id: string) => 1 + (native.needs.find(n => n.id === id)?.percent ?? 0) / 100
+
+    return {
+      ...identity,
+      populationCapacity: native.capacity,
+      unityStorage: native.unityStorage,
+      serviceDemandMultipliers: {
+        electricity: demand('PowerNeed'),
+        water: demand('WaterNeed'),
+        wasteWater: demand('WaterNeed'),
+        householdGoods: demand('HouseholdGoodsNeed'),
+        householdAppliances: demand('HouseholdAppliancesNeed'),
+        luxuryGoods: demand('LuxuryGoodsNeed'),
+      },
+      unityBonusTiers: native.unityTiers
+        .map(t => ({ multiplier: 1 + t.percent / 100, requirements: t.needs }))
+        .toSorted((a, b) => a.multiplier - b.multiplier),
+    }
+  }
+
+  return {
+    housing: resolve(housingCatalog.housing),
+    housingII: resolve(housingCatalog.housingII),
+    housingIII: resolve(housingCatalog.housingIII),
+    housingIV: resolve(housingCatalog.housingIV),
+  }
+}
 
 export const activeHousingServices = {
   householdGoods: true,
   householdAppliances: false,
   consumerElectronics: false,
-} as const;
-
+} as const
 export const calculatePopulationCapacity = (
   housing: HousingType,
   buildingCount: number,
   capacityMultiplier = 1,
-) => Math.round(housing.populationCapacity * capacityMultiplier)
-  * Math.max(0, Math.trunc(buildingCount));
+) =>
+  Math.round(housing.populationCapacity * capacityMultiplier) *
+  Math.max(0, Math.trunc(buildingCount))

@@ -6,11 +6,12 @@ import { type ResearchMode } from "../db/config";
 import {
   calculateInfiniteResearchLevelCost,
   calculateInfiniteResearchRemainingCost,
-  infiniteResearchCatalog,
+  getInfiniteResearchCatalog,
   type InfiniteResearchDefinition,
   type InfiniteResearchId,
 } from "../db/research";
 import { type ResearchEfficiencyBreakdown } from "../helpers/modifiers/calculate-research-efficiency";
+import { type PlanningDefinitions } from '../planning-state';
 
 interface ResearchSettingsProps {
   efficiency: ResearchEfficiencyBreakdown & {
@@ -20,6 +21,7 @@ interface ResearchSettingsProps {
 }
 
 interface InfiniteResearchSettingsProps {
+  definitions: PlanningDefinitions;
   levels: Readonly<Record<InfiniteResearchId, number>>;
   mode: ResearchMode;
 }
@@ -169,9 +171,11 @@ export const ResearchSettings: React.FC<ResearchSettingsProps> = ({ efficiency }
 );
 
 export const InfiniteResearchSettings: React.FC<InfiniteResearchSettingsProps> = ({
+  definitions,
   levels,
   mode,
 }) => {
+  const infiniteResearchCatalog = getInfiniteResearchCatalog(definitions);
   const completedCount = infiniteResearchCatalog.filter((research) => (
     levels[research.id] >= getResearchTarget(research, mode)
   )).length;

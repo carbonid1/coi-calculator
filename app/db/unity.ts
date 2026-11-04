@@ -1,7 +1,7 @@
-import { type EdictId, type EdictLevel, edictCatalog } from './edicts'
+import { type PlanningDefinitions } from '../planning-state'
+import { type EdictId, type EdictLevel, getEdictCatalog } from './edicts'
 import { type HousingType } from './housing'
 
-const baseUnityStorage = 20
 
 export interface UnityBreakdownItem {
   id: string
@@ -28,6 +28,7 @@ interface ContractUnityInput {
 
 /** Observed settlement income with the current plan's recurring costs. */
 export const calculateUnityBudget = ({
+  definitions,
   housing,
   housingCount,
   additionalHousing = [],
@@ -39,6 +40,7 @@ export const calculateUnityBudget = ({
   buildingConsumption = [],
   buildingGeneration = [],
 }: {
+  definitions: PlanningDefinitions
   housing: HousingType
   housingCount: number
   additionalHousing?: { housing: HousingType; housingCount: number }[]
@@ -50,6 +52,7 @@ export const calculateUnityBudget = ({
   buildingConsumption?: UnityBreakdownItem[]
   buildingGeneration?: UnityBreakdownItem[]
 }): UnityBudget => {
+  const edictCatalog = getEdictCatalog(definitions)
   const edictGeneration = edictCatalog.reduce((total, edict) => {
     const active = edict.levels.find(candidate => candidate.level === edictLevels[edict.id])
 
@@ -92,7 +95,7 @@ export const calculateUnityBudget = ({
     generationPerCycle,
     consumptionPerCycle,
     netPerCycle: generationPerCycle === null ? null : generationPerCycle - consumptionPerCycle,
-    storageCapacity: (baseUnityStorage + housingGroups.reduce((total, group) => (
+    storageCapacity: (definitions.unityBaseCapacity + housingGroups.reduce((total, group) => (
       total + group.housing.unityStorage * Math.max(0, Math.trunc(group.housingCount))
     ), 0)) * unityCapacityMultiplier,
     generation,

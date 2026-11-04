@@ -5,6 +5,7 @@ import {
 } from "../../db/modules/area-maintenance";
 import { type Module } from "../../db/modules/modules";
 import { type Recipe } from '../../db/recipes'
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
 import { testRecycling } from "../../test-fixtures/recycling";
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
@@ -958,7 +959,7 @@ it("installs two demand-balanced tanks with the verified per-building Yellowcake
   const maintenancePreset = maintenance.presets.find(
     (candidate) => candidate.id === maintenance.defaultPresetId,
   )!;
-  const maintenanceOutput = calculateMaintenanceOutput(3);
+  const maintenanceOutput = calculateMaintenanceOutput(testPlanningDefinitions, 3);
   const outputModifiers = { maintenanceOutput: maintenanceOutput.multiplier, recycling: testRecycling };
   const maintenanceLine = buildModuleLines(maintenance, maintenancePreset, outputModifiers).lines.find(
     (line) => line.recipe.id === "maintenance-i-recycling",

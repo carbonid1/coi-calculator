@@ -1,4 +1,4 @@
-import { worldMineOutputResearch } from '../../db/research'
+import { getResearchBonus, type PlanningDefinitions } from '../../planning-state'
 
 export interface WorldMineOutputResult {
   level: number
@@ -7,20 +7,19 @@ export interface WorldMineOutputResult {
   bonusPercent: number
   multiplier: number
 }
-
 export const calculateWorldMineOutput = (
+  definitions: PlanningDefinitions,
   level: number,
   focusBonusPercent = 0,
 ): WorldMineOutputResult => {
-  const normalizedLevel = Math.min(worldMineOutputResearch.maxLevel, Math.max(0, Math.trunc(level)))
-  const researchBonusPercent = normalizedLevel * worldMineOutputResearch.percentPerLevel
-  const normalizedFocusBonusPercent = Math.max(0, focusBonusPercent)
-  const bonusPercent = researchBonusPercent + normalizedFocusBonusPercent
+  const research = getResearchBonus(definitions, 'worldMineOutput', level)
+  const focus = Math.max(0, focusBonusPercent)
+  const bonusPercent = research.bonusPercent + focus
 
   return {
-    level: normalizedLevel,
-    researchBonusPercent,
-    focusBonusPercent: normalizedFocusBonusPercent,
+    level: research.level,
+    researchBonusPercent: research.bonusPercent,
+    focusBonusPercent: focus,
     bonusPercent,
     multiplier: 1 + bonusPercent / 100,
   }

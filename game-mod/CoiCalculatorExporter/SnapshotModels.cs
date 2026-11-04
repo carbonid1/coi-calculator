@@ -33,6 +33,8 @@ internal sealed class SnapshotDocument
     public readonly List<SpaceStationLevelSnapshot> SpaceStationLevels;
     public readonly CropFarmingSnapshot CropFarming;
     public readonly List<GroundwaterAquiferSnapshot> GroundwaterAquifers;
+    public readonly OfficeFocusDefinitionSnapshot OfficeFocusDefinitions;
+    public readonly PlanningDefinitionSnapshot PlanningDefinitions;
 
     public SnapshotDocument(
         string saveId,
@@ -64,7 +66,9 @@ internal sealed class SnapshotDocument
         RocketDefinitionSnapshot rocketIiDefinition,
         List<SpaceStationLevelSnapshot> spaceStationLevels,
         CropFarmingSnapshot cropFarming,
-        List<GroundwaterAquiferSnapshot> groundwaterAquifers)
+        List<GroundwaterAquiferSnapshot> groundwaterAquifers,
+        OfficeFocusDefinitionSnapshot officeFocusDefinitions,
+        PlanningDefinitionSnapshot planningDefinitions)
     {
         SaveId = saveId;
         GameId = gameId;
@@ -96,5 +100,7 @@ internal sealed class SnapshotDocument
         SpaceStationLevels = spaceStationLevels;
         CropFarming = cropFarming;
         GroundwaterAquifers = groundwaterAquifers;
+        OfficeFocusDefinitions = officeFocusDefinitions;
+        PlanningDefinitions = planningDefinitions;
     }
 }

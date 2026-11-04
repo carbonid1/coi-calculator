@@ -10,9 +10,8 @@ import {
   normalizeFarmingBoostLevel,
 } from '../../db/edicts'
 import {
-  activeHousingType,
+  getHousingTypes,
   calculatePopulationCapacity,
-  housingTypes,
 } from '../../db/housing'
 import { getLiveAreaPlans } from '../../db/live-area-plans'
 import {
@@ -92,6 +91,7 @@ import {
 } from '../../db/static-infrastructure'
 import { resolveFocusAllocations } from '../../focus-state'
 import { type GameStateSnapshot } from '../../game-state'
+import { getFocusDefinitions } from '../../office-focus-state'
 import {
   resolveAreaBuildingCounts,
   resolveAreaRecipeBuildingCount,
@@ -152,6 +152,9 @@ export const deriveCalculatorModel = ({
   snapshot,
   resourcePriorityOverrides = {},
 }: DeriveCalculatorModelOptions) => {
+  const planningDefinitions = snapshot.planningDefinitions
+  const housingTypes = getHousingTypes(planningDefinitions)
+  const activeHousingType = housingTypes.housingIII
   const averageSunIntensityPercent = getAverageSunIntensityPercent(snapshot.weather)
   const currentCropFarmEntities = getSyncedCropFarmEntities(snapshot.cropFarms)
   const cropFarmRelatedZoneIds = getCropFarmRelatedZoneIds(currentCropFarmEntities)
@@ -426,7 +429,8 @@ export const deriveCalculatorModel = ({
       const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
 
       if (syncedInventory) {
-        configured.module = applySettlementState(createPopulationModule(
+        configured.module = applySettlementState(planningDefinitions, createPopulationModule(
+          planningDefinitions,
           syncedInventory,
           module,
           housingCapacityLevel,
@@ -440,6 +444,7 @@ export const deriveCalculatorModel = ({
       )
 
       configured.module = createComputingModule(
+        planningDefinitions.computing,
         areaComputingConfigs.built,
         areaComputingConfigs.running,
         module,
@@ -510,7 +515,7 @@ export const deriveCalculatorModel = ({
   }
   const officePlanCalculation = calculateOfficePlan(
     officePlan,
-    researchLevels.focusPoints,
+    snapshot.officeFocusDefinitions,
     officeConfigurations,
     snapshot.buildingDefinitions,
   )
@@ -605,7 +610,7 @@ export const deriveCalculatorModel = ({
     hasModuleCapability(module, 'space-station')
     && module.includedInFactoryTotals !== false
   ))
-  const housingCapacity = calculateHousingCapacity(housingCapacityLevel)
+  const housingCapacity = calculateHousingCapacity(planningDefinitions, housingCapacityLevel)
   const populationHousingCounts = configuredPopulationModules.reduce(
     (counts, module) => {
       const preset = module.presets.find(candidate => candidate.id === module.defaultPresetId)
@@ -627,6 +632,7 @@ export const deriveCalculatorModel = ({
     module.includedInFactoryTotals !== false
   )) && currentSpaceStationLevel.level > 0
   const projectedPopulation = resolveProjectedPopulation(
+    planningDefinitions,
     configuredPopulationModules,
     snapshot.settlement,
     productionEntities,
@@ -635,6 +641,7 @@ export const deriveCalculatorModel = ({
     && projectedSpaceStationLevel.level > 0
   const researchEfficiency = {
     ...calculateResearchEfficiency({
+      definitions: planningDefinitions,
       edictLevel: edictLevels.researchEfficiency,
       focusBonusPercent: focusBonuses.researchEfficiency,
       population: projectedPopulation.population,
@@ -647,48 +654,50 @@ export const deriveCalculatorModel = ({
       && projectedSpaceStationLevel.level > currentSpaceStationLevel.level,
   }
 
-  const plannedRecyclingEfficiency = calculateRecyclingEfficiency(
+  const plannedRecyclingEfficiency = calculateRecyclingEfficiency(planningDefinitions,
     edictLevels.recyclingIncrease,
     focusBonuses.recyclingEfficiency,
   ).effectivePercent
-  const currentRecyclingEfficiency = calculateRecyclingEfficiency(
+  const currentRecyclingEfficiency = calculateRecyclingEfficiency(planningDefinitions,
     snapshot.edicts.recyclingIncrease.activeLevel,
-    snapshot.focus.recyclingEfficiency.activeStep,
+    snapshot.focus.recyclingEfficiency.activeStep * (getFocusDefinitions(snapshot.officeFocusDefinitions).find(f => f.id === 'recyclingEfficiency')?.percentPerStep ?? 0),
   ).effectivePercent
   const recyclingEfficiencyPercent = Math.min(100, Math.max(0,
     snapshot.recycling.efficiencyPercent + plannedRecyclingEfficiency - currentRecyclingEfficiency,
   ))
-  const foodConsumption = calculateFoodConsumption(
+  const foodConsumption = calculateFoodConsumption(planningDefinitions,
     edictLevels.foodSaver,
     edictLevels.plentyOfFood,
     focusBonuses.foodConsumption,
   )
-  const maintenanceOutput = calculateMaintenanceOutput(
+  const maintenanceOutput = calculateMaintenanceOutput(planningDefinitions,
     maintenanceOutputLevel,
     focusBonuses.maintenanceProduction,
   )
-  const solarPowerOutput = calculateSolarPower(
+  const solarPowerOutput = calculateSolarPower(planningDefinitions,
     solarPowerLevel,
     normalizeCleanPanelsLevel(edictLevels.cleanPanels),
     averageSunIntensityPercent,
   )
-  const cropFarming = calculateCropFarmingModifiers(
+  const cropFarming = calculateCropFarmingModifiers(planningDefinitions,
     cropYieldLevel,
     normalizeFarmingBoostLevel(edictLevels.farmingBoost),
     focusBonuses.cropYield,
   )
-  const waterSaverLevel = getEdict('waterSaver').levels.find(
+  const waterSaverLevel = getEdict('waterSaver', planningDefinitions).levels.find(
     level => level.level === edictLevels.waterSaver,
   )
   const waterSaverMultiplier =
     1 - (waterSaverLevel?.modeledEffects?.waterDemandReductionPercent ?? 0) / 100
-  const rainwaterYield = calculateRainwaterYield(rainwaterYieldLevel)
-  const settlementWaterUse = calculateSettlementWaterUse(settlementWaterUseLevel)
+  const rainwaterYield = calculateRainwaterYield(planningDefinitions, rainwaterYieldLevel)
+  const settlementWaterUse = calculateSettlementWaterUse(planningDefinitions, settlementWaterUseLevel)
   const settlementConsumptionMultiplier = 1 + focusBonuses.settlementConsumption / 100
-  const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel)
-  const unityCapacity = calculateUnityCapacity(unityCapacityLevel)
-  const shipsFuelUse = calculateShipsFuelUse(shipsFuelUseLevel)
+  const treeGrowthSpeed = calculateTreeGrowthSpeed(planningDefinitions, treeGrowthSpeedLevel)
+  const unityCapacity = calculateUnityCapacity(planningDefinitions, unityCapacityLevel)
+  const shipsFuelUse = calculateShipsFuelUse(planningDefinitions, shipsFuelUseLevel)
   const outputModifiers = {
+    officeFocusDefinitions: snapshot.officeFocusDefinitions,
+    planningDefinitions,
     buildingDefinitions: snapshot.buildingDefinitions,
     products: snapshot.products ? { catalog: snapshot.products.catalog } : undefined,
     recycling: { ...snapshot.recycling, efficiencyPercent: recyclingEfficiencyPercent },

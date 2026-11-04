@@ -4,7 +4,7 @@ import { Sparkles } from "lucide-react";
 import { type ValueSource } from "../data-source";
 import { type ComputingConfig, getRackAllocation } from "../db/computing";
 import {
-  edictCatalog,
+  getEdictCatalog,
   type EdictDefinition,
   type EdictId,
   type EdictLevel,
@@ -31,9 +31,11 @@ import { calculateSettlementWaterUse } from "../helpers/modifiers/calculate-sett
 import { calculateSolarPower } from "../helpers/modifiers/calculate-solar-power";
 import { calculateTreeGrowthSpeed } from "../helpers/modifiers/calculate-tree-growth-speed";
 import { calculateWorldMineOutput } from "../helpers/modifiers/calculate-world-mine-output";
+import { type ComputingDefinitions , type PlanningDefinitions } from '../planning-state';
 import { getDataSourceSurfaceClassName } from "./DataSourceState";
 
 interface Props {
+  planningDefinitions: PlanningDefinitions;
   averageSunIntensityPercent: number;
   computingCapacityTflops: number;
   computingConfig?: ComputingConfig;
@@ -73,10 +75,11 @@ const formatPower = (value: number) => (
 );
 
 export const formatComputingOverview = (
+  definitions: ComputingDefinitions,
   config: ComputingConfig,
   capacityTflops: number,
 ) => {
-  const rackAllocation = getRackAllocation(config.rackCount, config.dataCenterCount);
+  const rackAllocation = getRackAllocation(definitions, config.rackCount, config.dataCenterCount);
   const dataCenterLabel = `${rackAllocation.length} data center${rackAllocation.length === 1 ? "" : "s"}`;
   const rackLabel = rackAllocation.length > 0
     ? `${rackAllocation.join(" + ")} racks`
@@ -229,6 +232,7 @@ export const EdictCard = ({
 };
 
 export const ModifiersView: React.FC<Props> = ({
+  planningDefinitions,
   averageSunIntensityPercent,
   computingCapacityTflops,
   computingConfig,
@@ -250,41 +254,42 @@ export const ModifiersView: React.FC<Props> = ({
   populationCapacity,
   spaceStation,
 }) => {
-  const foodConsumption = calculateFoodConsumption(
+  const edictCatalog = getEdictCatalog(planningDefinitions);
+  const foodConsumption = calculateFoodConsumption(planningDefinitions,
     edictLevels.foodSaver,
     edictLevels.plentyOfFood,
     focusBonuses.foodConsumption,
   );
-  const maintenanceOutput = calculateMaintenanceOutput(
+  const maintenanceOutput = calculateMaintenanceOutput(planningDefinitions,
     maintenanceOutputLevel,
     focusBonuses.maintenanceProduction,
   );
-  const solarPower = calculateSolarPower(solarPowerLevel, normalizeCleanPanelsLevel(edictLevels.cleanPanels), averageSunIntensityPercent);
-  const cropFarming = calculateCropFarmingModifiers(
+  const solarPower = calculateSolarPower(planningDefinitions, solarPowerLevel, normalizeCleanPanelsLevel(edictLevels.cleanPanels), averageSunIntensityPercent);
+  const cropFarming = calculateCropFarmingModifiers(planningDefinitions,
     cropYieldLevel,
     normalizeFarmingBoostLevel(edictLevels.farmingBoost),
     focusBonuses.cropYield,
   );
-  const waterSaver = getEdict("waterSaver").levels.find(
+  const waterSaver = getEdict("waterSaver", planningDefinitions).levels.find(
     (level) => level.level === edictLevels.waterSaver,
   );
   const waterDemandReductionPercent = waterSaver?.modeledEffects
     ?.waterDemandReductionPercent ?? 0;
   const waterSaverMultiplier = 1 - waterDemandReductionPercent / 100;
-  const rainwaterYield = calculateRainwaterYield(rainwaterYieldLevel);
-  const settlementWaterUse = calculateSettlementWaterUse(settlementWaterUseLevel);
+  const rainwaterYield = calculateRainwaterYield(planningDefinitions, rainwaterYieldLevel);
+  const settlementWaterUse = calculateSettlementWaterUse(planningDefinitions, settlementWaterUseLevel);
   const effectiveCropWaterDemandPercent = (
     cropFarming.waterDemandMultiplier * waterSaverMultiplier - 1
   ) * 100;
   const effectiveSettlementWaterReductionPercent = (
     1 - settlementWaterUse.multiplier * waterSaverMultiplier
   ) * 100;
-  const treeGrowthSpeed = calculateTreeGrowthSpeed(treeGrowthSpeedLevel);
-  const worldMineOutput = calculateWorldMineOutput(
+  const treeGrowthSpeed = calculateTreeGrowthSpeed(planningDefinitions, treeGrowthSpeedLevel);
+  const worldMineOutput = calculateWorldMineOutput(planningDefinitions,
     worldMineOutputLevel,
     focusBonuses.worldMinesEfficiency,
   );
-  const maintenanceDemand = calculateMaintenanceDemandReduction(
+  const maintenanceDemand = calculateMaintenanceDemandReduction(planningDefinitions,
     normalizeMaintenanceReducerLevel(edictLevels.maintenanceReducer),
     maintenanceStatueCount,
   );
@@ -302,7 +307,7 @@ export const ModifiersView: React.FC<Props> = ({
               <PopulationCapacityOverview capacity={populationCapacity} />
             )}
             {computingConfig && (
-              <div className="sm:col-span-2 lg:col-span-2"><p className="text-sm text-muted-foreground">Computing capacity</p><p className="font-mono font-semibold text-foreground">{formatComputingOverview(computingConfig, computingCapacityTflops)}</p></div>
+              <div className="sm:col-span-2 lg:col-span-2"><p className="text-sm text-muted-foreground">Computing capacity</p><p className="font-mono font-semibold text-foreground">{formatComputingOverview(planningDefinitions.computing, computingConfig, computingCapacityTflops)}</p></div>
             )}
             {spaceStation && (
               <SpaceStationPlanOverview

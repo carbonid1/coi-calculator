@@ -1,4 +1,4 @@
-import { Button, Card, TableScrollRegion, Tooltip } from '@carbonid1/design-system';
+import { Button, Card, cn, TableScrollRegion, Tooltip } from '@carbonid1/design-system';
 import { CloudRain, Droplets, Sun } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
@@ -6,6 +6,9 @@ import { type GameStateSnapshot } from '../game-state';
 import { type PassiveResult, type ResourceFlow } from '../helpers/calculate/calculate';
 import { GROUNDWATER_PUMP_OUTPUT_PER_CYCLE } from '../helpers/groundwater/calculate-groundwater-production';
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../helpers/water-planning/water-planning';
+import { useFactoryLayout } from '../hooks/use-factory-layout';
+import { useIslandMap } from '../hooks/use-island-map';
+import { FactoryMapLayer } from './FactoryMapLayer';
 import { MapFrame } from './MapFrame';
 import { useProductState } from './ResourceProducts';
 
@@ -19,8 +22,10 @@ const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; numb
     : null,
     [source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle]);
 
+  if (source.projectedWithdrawalPerCycle <= 0 && source.areas.length === 0) return null;
+
   return (
-    <div className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface" aria-label="Aquifer details">
+    <div className={cn('space-y-3', source.projectedWithdrawalPerCycle > 0 && 'rounded-lg bg-surface-inset p-3 inset-shadow-surface')} aria-label="Aquifer details">
       <h3 className="text-sm font-semibold">Aquifer {number}
         {source.areas.length > 0 && <span className="font-normal text-muted-foreground"> · {source.areas.join(' · ')}</span>}
       </h3>
@@ -37,7 +42,7 @@ const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; numb
             <dd className="font-mono">{format(forecast.firstYearShortfallQuantity)} Water</dd></div>
         </dl>
       )}
-      {!forecast && <p className="text-sm text-muted-foreground">Forecast unavailable · weather override</p>}
+      {source.projectedWithdrawalPerCycle > 0 && !forecast && <p className="text-sm text-muted-foreground">Forecast unavailable · weather override</p>}
     </div>
   );
 };
@@ -66,9 +71,13 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
   onSelect: (id: string) => void;
 }) => {
   const climate = useMemo(() => summarizeWeather(snapshot.weather), [snapshot.weather]);
+  const { map: terrain, loading: mapLoading } = useIslandMap(snapshot.gameId, snapshot.sessionId);
+  const { data: layout, loading: layoutLoading } = useFactoryLayout(snapshot.gameId, snapshot.sessionId);
   const sources = useMemo(() => buildWaterSourceInventory(snapshot, sourceResults), [snapshot, sourceResults]);
   const inventoryRef = useRef<HTMLDivElement>(null);
-  const selected = sources.find(row => row.source.id === selectedId) ?? sources[0];
+  const selected = sources.find(row => row.source.id === selectedId)
+    ?? sources.find(row => row.projectedWithdrawalPerCycle > 0)
+    ?? sources[0];
   const rainwater = getRainwaterHarvesterPotential(climate, rainwaterYieldMultiplier);
   const nextRain = (() => {
     if (snapshot.weather.hasOverride) return 'Weather override';
@@ -77,13 +86,26 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
   })();
   const unused = sources.filter(row => row.builtPumps === 0);
   const date = snapshot.weather.startDate;
-  const bounds = {
-    minX: Math.min(...sources.map(({ source }) => source.position.x - source.radius)) - 140,
-    minY: Math.min(...sources.map(({ source }) => source.position.y - source.radius)) - 80,
-    maxX: Math.max(...sources.map(({ source }) => source.position.x + source.radius)) + 140,
-    maxY: Math.max(...sources.map(({ source }) => source.position.y + source.radius)) + 160,
-  };
+  const bounds = useMemo(() => {
+    if (terrain) return { minX: 0, minY: 0, maxX: terrain.width, maxY: terrain.height };
+    const extent = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+
+    for (const { source } of sources) {
+      extent.minX = Math.min(extent.minX, source.position.x - source.radius);
+      extent.minY = Math.min(extent.minY, source.position.y - source.radius);
+      extent.maxX = Math.max(extent.maxX, source.position.x + source.radius);
+      extent.maxY = Math.max(extent.maxY, source.position.y + source.radius);
+    }
+    for (const { tile } of snapshot.areaEntities) {
+      extent.minX = Math.min(extent.minX, tile.x);
+      extent.minY = Math.min(extent.minY, tile.y);
+      extent.maxX = Math.max(extent.maxX, tile.x);
+      extent.maxY = Math.max(extent.maxY, tile.y);
+    }
+    return { minX: extent.minX - 140, minY: extent.minY - 80, maxX: extent.maxX + 140, maxY: extent.maxY + 160 };
+  }, [terrain, sources, snapshot.areaEntities]);
   const hitRadius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 16;
+  const markerFontSize = hitRadius * 0.75;
   const selectFromMap = (id: string) => {
     onSelect(id);
     const region = inventoryRef.current?.querySelector<HTMLDivElement>('[aria-label="Aquifer inventory"]');
@@ -153,8 +175,10 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
         </div>
         {sources.length > 0 ? <>
           <div ref={inventoryRef} className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <MapFrame label="Aquifer positions" bounds={bounds} interactive>
-              {project => sources.map((row, index) => {
+            <MapFrame label="Aquifer positions" bounds={bounds} terrain={terrain} loading={mapLoading || layoutLoading} interactive>
+              {project => <>
+                {selected && <FactoryMapLayer layout={layout} entities={snapshot.areaEntities} areaIds={selected.areaIds} worldUnitsPerPixel={hitRadius / 16} />}
+                {sources.map((row, index) => {
                 const point = project(row.source.position);
 
                 return <Button key={row.source.id} render={<g />} nativeButton={false}
@@ -166,10 +190,11 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
                   <circle cx={point.x} cy={point.y} r={hitRadius} fill="transparent" />
                   <circle cx={point.x} cy={point.y} r={hitRadius} fill="none" stroke="currentColor" strokeWidth={2}
                     vectorEffect="non-scaling-stroke" className="pointer-events-none opacity-0 group-focus-visible/button:opacity-100" />
-                  <circle cx={point.x} cy={point.y} r={row.source.radius} fill="currentColor" fillOpacity={0.12} stroke="currentColor" strokeWidth={4} />
-                  <text x={point.x} y={point.y - row.source.radius - 100} textAnchor="middle" dominantBaseline="central" fill="currentColor" fontSize={150}>{index + 1}</text>
+                  <circle cx={point.x} cy={point.y} r={row.source.radius} fill="currentColor" fillOpacity={0.12} stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  <text x={point.x} y={point.y - row.source.radius - markerFontSize * 0.7} textAnchor="middle" dominantBaseline="central" fill="currentColor" fontSize={markerFontSize}>{index + 1}</text>
                 </Button>;
-              })}
+                })}
+              </>}
             </MapFrame>
             <TableScrollRegion label="Aquifer inventory" className="max-h-80 min-w-0 [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card" rows={sources} rowKey={row => row.source.id} columns={[
                 { accessorKey: 'source', header: 'Position', render: row => <Button variant="ghost" size="small" selected={row.source.id === selected?.source.id}
@@ -186,7 +211,7 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
                 { accessorKey: 'projectedWithdrawalPerCycle', header: <Tooltip maxWidth={320} label="Projected groundwater withdrawal, apportioned across each area's aquifers. Delivery follows existing calculator area assignments."><span tabIndex={0}>Draw / cycle</span></Tooltip>, align: 'end', render: row => <span className="font-mono">{format(row.projectedWithdrawalPerCycle)}</span> },
               ]} />
           </div>
-          {selected && selected.projectedWithdrawalPerCycle > 0 && <SourceDetails source={selected} number={sources.indexOf(selected) + 1} snapshot={snapshot} />}
+          {selected && <SourceDetails source={selected} number={sources.indexOf(selected) + 1} snapshot={snapshot} />}
         </> : <p className="text-sm text-muted-foreground">No groundwater sources on this map.</p>}
       </Card.Content>
     </Card.Root>

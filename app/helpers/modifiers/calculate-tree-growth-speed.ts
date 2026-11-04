@@ -1,20 +1,7 @@
-import { treeGrowthSpeedResearch } from "../../db/research";
+import { getResearchBonus, type PlanningDefinitions } from '../../planning-state'
 
-export interface TreeGrowthSpeedResult {
-  bonusPercent: number;
-  multiplier: number;
-}
-
-export const calculateTreeGrowthSpeed = (level: number): TreeGrowthSpeedResult => {
-  const normalizedLevel = Math.min(
-    treeGrowthSpeedResearch.maxLevel,
-    Math.max(0, Math.trunc(level)),
-  );
-  const bonusPercent = normalizedLevel * treeGrowthSpeedResearch.percentPerLevel;
-  const multiplier = 1 + bonusPercent / 100;
-
-  return {
-    bonusPercent,
-    multiplier,
-  };
-};
+export type TreeGrowthSpeedResult = ReturnType<typeof getResearchBonus>
+export const calculateTreeGrowthSpeed = (
+  definitions: PlanningDefinitions,
+  level: number,
+): TreeGrowthSpeedResult => getResearchBonus(definitions, 'treeGrowthSpeed', level)

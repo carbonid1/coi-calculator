@@ -3,15 +3,16 @@ import { TriangleAlert } from 'lucide-react'
 
 import {
   calculateFocusPointsCost,
-  focusCatalog,
   type OfficePlanCalculation,
 } from '../db/offices'
 import { type FocusAllocations } from '../focus-state'
+import { getFocusDefinitions, type OfficeFocusDefinitions } from '../office-focus-state'
 import { getDataSourceSurfaceClassName } from './DataSourceState'
 
 interface Props {
   calculation: OfficePlanCalculation
   allocations: FocusAllocations
+  definitions: OfficeFocusDefinitions
 }
 
 const formatNumber = (value: number) => parseFloat(value.toFixed(2)).toLocaleString('en-US')
@@ -27,7 +28,7 @@ const Metric = ({ label, value }: { label: string; value: string }) => (
   </div>
 )
 
-export const FocusView: React.FC<Props> = ({ calculation, allocations }) => (
+export const FocusView: React.FC<Props> = ({ calculation, allocations, definitions }) => (
   <div className="space-y-5">
     <section className="max-w-2xl space-y-2" aria-label="Focus budget">
       <div className="grid grid-cols-3 gap-2">
@@ -53,7 +54,7 @@ export const FocusView: React.FC<Props> = ({ calculation, allocations }) => (
         <p className="text-sm text-muted-foreground">Focus allocations have not synced yet.</p>
       )}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {focusCatalog.map((focus) => {
+        {getFocusDefinitions(definitions).map((focus) => {
           const { step, source, synced } = allocations[focus.id]
           const active = step !== null && step > 0
           const effect = active ? formatSignedPercent(calculation.bonuses[focus.id]) : 'Off'
@@ -71,7 +72,7 @@ export const FocusView: React.FC<Props> = ({ calculation, allocations }) => (
                 <Card.Header>
                   <Card.Title className="text-sm">{focus.name}</Card.Title>
                   <Card.Description className="text-xs">
-                    {focus.effectPerStep}
+                    {formatSignedPercent(focus.percentPerStep)} {focus.effectLabel} per step
                   </Card.Description>
                   <Card.Action>
                     <span className="font-mono text-sm font-semibold tabular-nums text-foreground">

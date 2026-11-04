@@ -6,6 +6,8 @@ import {
   type Recipe,
 } from "../../db/recipes";
 import { type WeatherConfig } from "../../db/weather";
+import { type OfficeFocusDefinitions } from '../../office-focus-state';
+import { type PlanningDefinitions } from '../../planning-state';
 import { type NativeProducts } from '../../product-state';
 import { getProductRecyclingSources, type RecyclingData, type RecyclingSources } from '../recycling/recycling';
 import { typedEntries } from '../typed-entries/typed-entries';
@@ -14,7 +16,7 @@ import { calculateFarmIrrigationRates } from "../weather/calculate-farm-irrigati
 export type RecipeModifierMultipliers = Partial<Record<
   InputModifierId | OutputModifierId | "rainwaterYield",
   number
->> & { weather?: WeatherConfig; recycling?: RecyclingData; products?: Pick<NativeProducts, 'catalog'>; buildingDefinitions?: BuildingDefinition[] };
+>> & { weather?: WeatherConfig; recycling?: RecyclingData; products?: Pick<NativeProducts, 'catalog'>; buildingDefinitions?: BuildingDefinition[]; officeFocusDefinitions?: OfficeFocusDefinitions; planningDefinitions?: PlanningDefinitions };
 
 const GAME_PERCENT_SCALE = 100_000;
 

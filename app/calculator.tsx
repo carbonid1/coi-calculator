@@ -28,7 +28,7 @@ import { WorldMinesView } from './components/WorldMinesView'
 import { getBuildingData } from './db/buildings'
 import { baseConfig } from './db/config'
 import { contracts } from './db/contracts'
-import { activeHousingType, housingTypes } from './db/housing'
+import { getHousingTypes } from './db/housing'
 import { selectMaintenanceDepotLines } from './db/modules/area-maintenance'
 import {
   partitionStationLines,
@@ -373,7 +373,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     (total, count) => total + count,
     0,
   )
+  const housingTypes = getHousingTypes(snapshot.planningDefinitions)
+  const activeHousingType = housingTypes.housingIII
   const unityBudget = calculateUnityBudget({
+    definitions: snapshot.planningDefinitions,
     housing: activeHousingType,
     housingCount,
     additionalHousing: [{ housing: housingTypes.housingII, housingCount: housingIiCount }],
@@ -692,6 +695,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       {isModifiers && (
         <ModifiersView
+          planningDefinitions={snapshot.planningDefinitions}
           recyclingEfficiencyPercent={recyclingEfficiencyPercent}
           averageSunIntensityPercent={averageSunIntensityPercent}
           computingCapacityTflops={computingCapacityTflops}
@@ -796,6 +800,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         <FocusView
           calculation={officePlanCalculation}
           allocations={focusAllocations}
+          definitions={snapshot.officeFocusDefinitions}
         />
       )}
 
@@ -1049,6 +1054,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       {isResearch && (
         <InfiniteResearchSettings
+          definitions={snapshot.planningDefinitions}
           levels={researchLevels}
           mode={baseConfig.researchMode}
         />

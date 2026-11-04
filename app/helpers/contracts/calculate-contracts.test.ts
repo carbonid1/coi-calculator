@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { activeContracts } from "../../test-fixtures/active-contracts";
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
 import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { applyContracts, calculateContractWorkers } from "./calculate-contracts";
 
@@ -166,7 +167,7 @@ describe("contract plans", () => {
   });
 
   it("applies Ship Fuel Use research before the ship's Save Fuel mode", () => {
-    const shipsFuelUse = calculateShipsFuelUse(5);
+    const shipsFuelUse = calculateShipsFuelUse(testPlanningDefinitions, 5);
     const { contractResults, flows } = applyContracts(
       [],
       activeContracts,

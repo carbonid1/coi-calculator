@@ -1,31 +1,22 @@
-import { getEdict, type EdictLevel } from "../../db/edicts";
+import { type EdictLevel } from '../../db/edicts'
+import { getEdictEffects, type PlanningDefinitions } from '../../planning-state'
 
 export interface FoodConsumptionResult {
-  effectivePercent: number;
-  multiplier: number;
+  effectivePercent: number
+  multiplier: number
 }
-
-const getFoodConsumptionPercent = (
-  edictId: "foodSaver" | "plentyOfFood",
-  level: EdictLevel,
-) => getEdict(edictId).levels.find(
-  (definition) => definition.level === level,
-)?.modeledEffects?.foodConsumptionPercent ?? 0;
-
 export const calculateFoodConsumption = (
+  definitions: PlanningDefinitions,
   foodSaverLevel: EdictLevel,
   plentyOfFoodLevel: EdictLevel,
   focusPercent = 0,
 ): FoodConsumptionResult => {
-  const foodSaverPercent = getFoodConsumptionPercent("foodSaver", foodSaverLevel);
-  const plentyOfFoodPercent = getFoodConsumptionPercent("plentyOfFood", plentyOfFoodLevel);
-  const normalizedFocusPercent = Math.min(0, focusPercent);
-  const effectivePercent = foodSaverPercent
-    + plentyOfFoodPercent
-    + normalizedFocusPercent;
+  const foodSaver =
+    getEdictEffects(definitions, 'foodSaver', foodSaverLevel).effects.FoodConsumptionMultiplier ?? 0
+  const plenty =
+    getEdictEffects(definitions, 'plentyOfFood', plentyOfFoodLevel).effects
+      .FoodConsumptionMultiplier ?? 0
+  const effectivePercent = foodSaver + plenty + Math.min(0, focusPercent)
 
-  return {
-    effectivePercent,
-    multiplier: 1 + effectivePercent / 100,
-  };
-};
+  return { effectivePercent, multiplier: 1 + effectivePercent / 100 }
+}

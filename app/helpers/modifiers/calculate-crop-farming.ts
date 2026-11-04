@@ -1,38 +1,32 @@
-import {
-  farmingBoostEdict,
-  type FarmingBoostLevel,
-} from "../../db/edicts";
-import { cropYieldResearch } from "../../db/research";
+import { type FarmingBoostLevel } from '../../db/edicts'
+import { getResearchBonus, getEdictEffects, type PlanningDefinitions } from '../../planning-state'
 
 export interface CropFarmingModifiers {
-  yieldBonusPercent: number;
-  yieldMultiplier: number;
-  waterDemandMultiplier: number;
+  yieldBonusPercent: number
+  yieldMultiplier: number
+  waterDemandMultiplier: number
 }
-
 export const calculateCropFarmingModifiers = (
+  definitions: PlanningDefinitions,
   researchLevel: number,
   farmingBoostLevel: FarmingBoostLevel,
   focusYieldBonusPercent = 0,
 ): CropFarmingModifiers => {
-  const normalizedResearchLevel = Math.min(
-    cropYieldResearch.maxLevel,
-    Math.max(0, Math.trunc(researchLevel)),
-  );
-  const activeEdict = farmingBoostEdict.levels[farmingBoostLevel];
-  const researchYieldBonusPercent = normalizedResearchLevel
-    * cropYieldResearch.percentPerLevel;
-  const researchWaterDemandBonusPercent = normalizedResearchLevel
-    * cropYieldResearch.waterDemandPercentPerLevel;
-  const yieldBonusPercent = researchYieldBonusPercent
-    + activeEdict.yieldIncreasePercent
-    + Math.max(0, focusYieldBonusPercent);
-  const waterDemandBonusPercent = researchWaterDemandBonusPercent
-    + activeEdict.waterDemandIncreasePercent;
+  const research = getResearchBonus(definitions, 'cropYield', researchLevel)
+  const water = getResearchBonus(
+    definitions,
+    'cropYield',
+    researchLevel,
+    'FarmWaterConsumptionMultiplier',
+  )
+  const edict = getEdictEffects(definitions, 'farmingBoost', farmingBoostLevel).effects
+  const yieldBonusPercent =
+    research.bonusPercent + (edict.FarmYieldMultiplier ?? 0) + Math.max(0, focusYieldBonusPercent)
 
   return {
     yieldBonusPercent,
     yieldMultiplier: 1 + yieldBonusPercent / 100,
-    waterDemandMultiplier: 1 + waterDemandBonusPercent / 100,
-  };
-};
+    waterDemandMultiplier:
+      1 + (water.bonusPercent + (edict.FarmWaterConsumptionMultiplier ?? 0)) / 100,
+  }
+}

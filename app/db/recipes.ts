@@ -2,18 +2,18 @@ import { getCropFarmingData, type CropFarmingDefinitions } from '../crop-farming
 import { type GroundwaterSourceConstraint } from '../helpers/groundwater/calculate-groundwater-production'
 import { type RecyclingSources } from '../helpers/recycling/recycling'
 import { type BuildingData } from './buildings'
-import { computingRecipeIds, dataCenter } from './computing'
+import { computingRecipeIds } from './computing'
 import {
   calculateCropFarmGroupRates,
   cropFarmTiers,
   type CropFarmGroup,
 } from './crop-farming'
-import { activeHousingType, housingTypes } from './housing'
+import { housingCatalog } from './housing'
 import { maintenanceStatue } from './maintenance-statue'
-import { getOfficeRecipeId, officeCatalog, type OfficeBoostStep } from './offices'
+import { getOfficeRecipeId, officeCatalog, type OfficeBoostStep, type OfficeTierId } from './offices'
 import { reserveResourceCatalog } from './reserve-resources'
 import { type ResourceId } from './resources'
-import { calculateSettlementPopulationFlows, settlementRecipeIds } from './settlement'
+import { settlementRecipeIds } from './settlement'
 import { solarPanels } from './solar'
 
 export interface Ingredient {
@@ -82,6 +82,8 @@ export interface DecayStorage {
 }
 
 export interface Recipe {
+  planningConfiguration?: 'housingIII' | 'housingII' | 'solar' | 'statue' | 'basicRack' | 'waterChiller'
+  officeConfiguration?: { tierId: OfficeTierId; boostStep: OfficeBoostStep }
   /** Game definition attached when building lines from a compatible snapshot. */
   buildingData?: BuildingData
   /** Keep intermittent capacity available without inventing demand or suggesting it can pause. */
@@ -212,14 +214,6 @@ const radioactiveWasteStorageCapacity = 2400
 const fissionProductDecayCycles = 100 * 12
 const radioactiveWasteStorageThroughput =
   radioactiveWasteStorageCapacity / fissionProductDecayCycles
-const housingPopulationFlows = calculateSettlementPopulationFlows(
-  activeHousingType.populationCapacity,
-  activeHousingType,
-)
-const housingIiPopulationFlows = calculateSettlementPopulationFlows(
-  housingTypes.housingII.populationCapacity,
-  housingTypes.housingII,
-)
 
 export const createCropFarmRecipe = (group: CropFarmGroup, definitions: CropFarmingDefinitions): Recipe => {
   const rates = calculateCropFarmGroupRates(group, definitions)
@@ -455,6 +449,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: solarPanels.standard.recipeId,
+    planningConfiguration: 'solar',
     name: solarPanels.standard.name,
     building: solarPanels.standard.building,
     group: 'electricity',
@@ -462,7 +457,7 @@ export const recipes: Recipe[] = [
     outputs: [
       {
         resourceId: 'electricity',
-        quantity: solarPanels.standard.sunnyOutputKw / 1000,
+        quantity: 0,
         outputModifierId: 'solarPower',
       },
     ],
@@ -470,6 +465,7 @@ export const recipes: Recipe[] = [
   },
   {
     id: solarPanels.mono.recipeId,
+    planningConfiguration: 'solar',
     name: solarPanels.mono.name,
     building: solarPanels.mono.building,
     group: 'electricity',
@@ -477,7 +473,7 @@ export const recipes: Recipe[] = [
     outputs: [
       {
         resourceId: 'electricity',
-        quantity: solarPanels.mono.sunnyOutputKw / 1000,
+        quantity: 0,
         outputModifierId: 'solarPower',
       },
     ],
@@ -489,30 +485,32 @@ export const recipes: Recipe[] = [
   // Settlement demand at full configured housing population capacity
   {
     id: settlementRecipeIds.residents,
-    displayName: activeHousingType.name,
-    name: `${activeHousingType.name} Residents`,
-    building: activeHousingType.name,
+    planningConfiguration: 'housingIII',
+    displayName: housingCatalog.housingIII.name,
+    name: `${housingCatalog.housingIII.name} Residents`,
+    building: housingCatalog.housingIII.name,
     showConfigurationSummary: false,
     group: 'production',
     // Residents consume as population, not as machines: more housing is
     // never the fix for a surplus they leave behind.
     tracksPhysicalCapacity: false,
-    inputs: housingPopulationFlows.inputs,
-    outputs: housingPopulationFlows.outputs,
+    inputs: [],
+    outputs: [],
     recyclesInputs: true,
     electricityInputModifierId: 'settlementConsumption',
     electricityScalesWithSpeed: true,
   },
   {
     id: settlementRecipeIds.residentsII,
-    displayName: housingTypes.housingII.name,
-    name: `${housingTypes.housingII.name} Residents`,
-    building: housingTypes.housingII.name,
+    planningConfiguration: 'housingII',
+    displayName: housingCatalog.housingII.name,
+    name: `${housingCatalog.housingII.name} Residents`,
+    building: housingCatalog.housingII.name,
     showConfigurationSummary: false,
     group: 'production',
     tracksPhysicalCapacity: false,
-    inputs: housingIiPopulationFlows.inputs,
-    outputs: housingIiPopulationFlows.outputs,
+    inputs: [],
+    outputs: [],
     recyclesInputs: true,
     electricityInputModifierId: 'settlementConsumption',
     electricityScalesWithSpeed: true,
@@ -536,27 +534,24 @@ export const recipes: Recipe[] = [
     outputs: [],
   },
   {
-    // v0.8.6 Basic rack: 4 TFLOPS, 0.5 chilled water, 0.5 returned water per month.
     id: computingRecipeIds.basicRack,
+    planningConfiguration: 'basicRack',
     name: 'Basic Rack',
     building: 'Basic Rack',
     group: 'production',
     // Computing is the capacity-driving output; returned Water is a byproduct.
     balanceOutputIds: ['computing'],
-    inputs: [{ resourceId: 'chilledWater', quantity: dataCenter.chilledWaterPerRack }],
-    outputs: [
-      { resourceId: 'water', quantity: dataCenter.chilledWaterPerRack },
-      { resourceId: 'computing', quantity: dataCenter.computingTflopsPerRack },
-    ],
+    inputs: [],
+    outputs: [],
   },
   {
-    // v0.8.6 Water Chiller: 10 Water -> 8 Chilled Water every 20 seconds.
     id: computingRecipeIds.waterChiller,
+    planningConfiguration: 'waterChiller',
     name: 'Water Chiller',
     building: 'Water Chiller',
     group: 'production',
-    inputs: [{ resourceId: 'water', quantity: 30 }],
-    outputs: [{ resourceId: 'chilledWater', quantity: 24 }],
+    inputs: [],
+    outputs: [],
     balanceBy: 'output',
   },
   {
@@ -814,23 +809,19 @@ export const recipes: Recipe[] = [
         name: `${office.name} (Computing boost ${boostStep})`,
         configurationLabel: `Computing boost ${boostStep}`,
         building: office.name,
+        gameBuildingId: office.prototypeId,
+        officeConfiguration: { tierId: office.id, boostStep },
         group: 'production',
         cycleDurationSeconds: 60,
         balanceBy: 'input',
         recyclesInputs: true,
-        inputs: [
-          {
-            resourceId: 'officeSupplies',
-            quantity: office.officeSuppliesPerCycle,
-          },
-        ],
+        inputs: [],
         outputs: [
           {
             resourceId: 'recyclables',
             quantity: 0,
           },
         ],
-        computingMultiplier: boostStep ** 2,
       }),
     ),
   ),
@@ -990,11 +981,12 @@ export const recipes: Recipe[] = [
   // Maintenance
   {
     id: maintenanceStatue.id,
+    planningConfiguration: 'statue',
     name: maintenanceStatue.name,
     building: maintenanceStatue.name,
     group: 'production',
     cycleDurationSeconds: 30,
-    inputs: [{ resourceId: 'fuelGas', quantity: maintenanceStatue.fuelGasPerCycle }],
+    inputs: [],
     outputs: [],
   },
   {

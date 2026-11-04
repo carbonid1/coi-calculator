@@ -65,6 +65,8 @@ internal sealed partial class GameSnapshotCollector
             getRocketIiDefinition(),
             getSpaceStationLevels(),
             getCropFarmingSnapshot(fertilizers),
-            getGroundwaterAquifers());
+            getGroundwaterAquifers(),
+            getOfficeFocusDefinitions(),
+            getPlanningDefinitions());
     }
 }

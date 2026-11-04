@@ -1,6 +1,4 @@
 import { type BuildingDefinition } from '../building-state'
-import { activeHousingType, housingTypes } from "./housing";
-import { settlementConfig } from "./settlement";
 
 export interface BuildingData {
   prototypeId?: string;
@@ -15,8 +13,6 @@ export interface BuildingData {
 }
 
 const syntheticBuildings: Record<string, BuildingData> = {
-  [activeHousingType.name]: { workers: 0, electricityKw: activeHousingType.populationCapacity * settlementConfig.electricityKwPerPop * activeHousingType.serviceDemandMultipliers.electricity },
-  [housingTypes.housingII.name]: { workers: 0, electricityKw: housingTypes.housingII.populationCapacity * settlementConfig.electricityKwPerPop * housingTypes.housingII.serviceDemandMultipliers.electricity },
   Vehicles: { workers: 1, electricityKw: 0 },
   'Terrain Dump': { workers: 0, electricityKw: 0 },
   'Eligible Storage': { workers: 0, electricityKw: 0 },

@@ -14,7 +14,7 @@ import { createReservesModule } from "../../db/modules/reserves";
 import { type Recipe } from '../../db/recipes'
 import { defaultInfiniteResearchLevels } from "../../db/research";
 import { activeContracts } from "../../test-fixtures/active-contracts";
-import { testChickenFarmDefinition } from '../../test-fixtures/recorded-game-data';
+import { testPlanningDefinitions , testChickenFarmDefinition } from '../../test-fixtures/recorded-game-data';
 import { testRecycling } from "../../test-fixtures/recycling";
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
@@ -383,7 +383,7 @@ describe("Factory Total contracts", () => {
   });
 
   it("passes Ship Fuel Use research into recurring contract fuel", () => {
-    const shipsFuelUse = calculateShipsFuelUse(5);
+    const shipsFuelUse = calculateShipsFuelUse(testPlanningDefinitions, 5);
     const result = calculateFactoryTotal(
       modulesWithSyncedHistory,
       {
@@ -399,7 +399,7 @@ describe("Factory Total contracts", () => {
   });
 
   it("uses synced maintenance demand and balances available recycling capacity", () => {
-    const maintenanceOutput = calculateMaintenanceOutput(
+    const maintenanceOutput = calculateMaintenanceOutput(testPlanningDefinitions,
       defaultInfiniteResearchLevels.maintenanceOutput,
     );
     const result = calculateFactoryTotal(

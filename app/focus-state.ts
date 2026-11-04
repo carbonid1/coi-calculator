@@ -1,5 +1,6 @@
 import { type ValueSource } from './data-source'
-import { focusCatalog, mapFocusValues, type FocusEffectId } from './db/offices'
+import { mapFocusValues, type FocusEffectId } from './db/offices'
+import { getFocusDefinitions, type OfficeFocusDefinitions } from './office-focus-state'
 
 export interface SyncedFocusState {
   targetStep: number
@@ -23,11 +24,12 @@ const isComplete = (states: Record<FocusEffectId, SyncedFocusState | null>): sta
   Object.values(states).every(state => state !== null)
 )
 
-export const normalizeFocusStates = (value: unknown): SyncedFocusStates | null => {
+export const normalizeFocusStates = (value: unknown, definitions: OfficeFocusDefinitions): SyncedFocusStates | null => {
   if (!isRecord(value)) return null
+  const focuses = getFocusDefinitions(definitions)
   const states = mapFocusValues(id => {
     const entry = value[id]
-    const focus = focusCatalog.find(candidate => candidate.id === id)
+    const focus = focuses.find(candidate => candidate.id === id)
 
     if (!focus || !isRecord(entry)) return null
     const { targetStep, activeStep } = entry
@@ -52,9 +54,8 @@ export const resolveFocusAllocations = (
   const target = overrides[id]
   // Selected game steps describe steady operation; active steps can dip each tick.
   const step = target ?? current?.targetStep ?? null
-  let source: ValueSource | null = current ? 'synced' : null
-
-  if (target !== undefined && target !== current?.targetStep) source = 'planned'
+  const syncedSource: ValueSource | null = current ? 'synced' : null
+  const source: ValueSource | null = target !== undefined && target !== current?.targetStep ? 'planned' : syncedSource
 
   return { step, source, synced: current }
 })

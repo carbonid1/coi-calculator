@@ -22,7 +22,9 @@ internal static partial class SnapshotJsonWriter
     {
         SnapshotJsonStream json = new SnapshotJsonStream(3600);
         json.BeginObject();
-        json.Field("schemaVersion", 49);
+        json.Field("schemaVersion", 52);
+        appendPlanningDefinitions(json, snapshot.PlanningDefinitions);
+        appendOfficeFocusDefinitions(json, snapshot.OfficeFocusDefinitions);
         appendChickenFarmDefinition(json, snapshot.ChickenFarmDefinition);
         appendRocketIiDefinition(json, snapshot.RocketIiDefinition);
         appendSpaceStationLevels(json, snapshot.SpaceStationLevels);
