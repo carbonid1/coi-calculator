@@ -6,6 +6,7 @@ import { settlementRecipeIds } from '../../db/settlement';
 import { type ProductionLine } from "../calculate/calculate";
 import { getRecipeOutputQuantity, withRecipeRecycling, type RecipeModifierMultipliers } from "../modifiers/recipe-output";
 import { withOfficeDefinition } from '../office-recipes/office-recipes';
+import { withFactoryDefinition } from '../planning-recipes/factory-recipes';
 import { withPlanningDefinition } from '../planning-recipes/planning-recipes';
 import { withModuleInputLimits } from "../recipe-input-scope/recipe-input-scope";
 import { canPrioritizeProcessing } from "../resource-priorities/resource-priorities";
@@ -31,7 +32,7 @@ export const buildModuleLines = (
   const fixedIds = preset ? new Set(preset.fixed) : new Set<string>();
 
   const lines: ProductionLine[] = visibleRecipes.map((templateRecipe) => {
-    const unmodifiedRecipe = withPlanningDefinition(templateRecipe, outputModifiers.planningDefinitions);
+    const unmodifiedRecipe = withFactoryDefinition(withPlanningDefinition(templateRecipe, outputModifiers.planningDefinitions), outputModifiers.planningDefinitions, outputModifiers.spaceResearch);
     const isResident = unmodifiedRecipe.id === settlementRecipeIds.residents || unmodifiedRecipe.id === settlementRecipeIds.residentsII;
     const buildingData = (isResident ? unmodifiedRecipe.buildingData : undefined) ?? (outputModifiers.buildingDefinitions
       ? getBuildingData(unmodifiedRecipe.building, outputModifiers.buildingDefinitions, unmodifiedRecipe.gameBuildingId)

@@ -1,6 +1,21 @@
 
 internal static partial class SnapshotJsonWriter
 {
+    private static void appendEstablishedContract(SnapshotJsonStream json, EstablishedContractSnapshot contract)
+    {
+        json.BeginObject();
+        json.Field("gameId", contract.GameId);
+        appendContractProduct(json, "exportedProduct", contract.ExportedProduct);
+        json.Field("exportedQuantity", contract.ExportedQuantity);
+        appendContractProduct(json, "importedProduct", contract.ImportedProduct);
+        json.Field("importedQuantity", contract.ImportedQuantity);
+        appendDecimal(json, "unityPerCycle", contract.UnityPerCycle);
+        appendDecimal(json, "unityPer100Imported", contract.UnityPer100Imported);
+        appendDecimal(json, "unityToEstablish", contract.UnityToEstablish);
+        json.Field("minimumReputation", contract.MinimumReputation);
+        json.EndObject();
+    }
+
     private static void appendContractState(
         SnapshotJsonStream json,
         ContractStateSnapshot contracts)
@@ -10,17 +25,7 @@ internal static partial class SnapshotJsonWriter
         for (int i = 0; i < contracts.Established.Count; i++)
         {
             EstablishedContractSnapshot contract = contracts.Established[i];
-            json.BeginObject();
-            json.Field("gameId", contract.GameId);
-            appendContractProduct(json, "exportedProduct", contract.ExportedProduct);
-            json.Field("exportedQuantity", contract.ExportedQuantity);
-            appendContractProduct(json, "importedProduct", contract.ImportedProduct);
-            json.Field("importedQuantity", contract.ImportedQuantity);
-            appendDecimal(json, "unityPerCycle", contract.UnityPerCycle);
-            appendDecimal(json, "unityPer100Imported", contract.UnityPer100Imported);
-            appendDecimal(json, "unityToEstablish", contract.UnityToEstablish);
-            json.Field("minimumReputation", contract.MinimumReputation);
-            json.EndObject();
+            appendEstablishedContract(json, contract);
         }
 
         json.EndArray();

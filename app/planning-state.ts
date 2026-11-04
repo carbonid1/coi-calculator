@@ -1,5 +1,6 @@
 import { edictCatalog, type EdictId } from './db/edict-catalog'
 import { researchCatalog, type InfiniteResearchId } from './db/research-catalog'
+import { type FactoryDefinitions, isFactoryDefinitions } from './factory-definitions'
 
 export interface PlanningEffect {
   id: string
@@ -47,6 +48,7 @@ export interface ComputingDefinitions {
   chillerOutputs: { productId: string; quantity: number }[]
 }
 export interface PlanningDefinitions {
+  factory: FactoryDefinitions
   computing: ComputingDefinitions
   unityBaseCapacity: number
   settlement: SettlementDefinitions
@@ -114,6 +116,7 @@ const housing = (v: unknown): v is NativeHousingDefinition =>
 export const isPlanningDefinitions = (value: unknown): value is PlanningDefinitions => {
   if (
     !record(value) ||
+    !isFactoryDefinitions(value.factory) ||
     !amount(value.unityBaseCapacity) ||
     !record(value.settlement) ||
     !record(value.computing) ||

@@ -1,7 +1,5 @@
-import { getCropFarmingData, type CropFarmingDefinitions } from '../../crop-farming-state';
+import { getCropFarmTier, getCropFarmingData, type CropFarmingDefinitions } from '../../crop-farming-state';
 import {
-  cropFarmSimulation,
-  cropFarmTiers,
   type CropFarmGroup,
 } from "../../db/crop-farming";
 import { planningWeather, type WeatherConfig } from "../../db/weather";
@@ -32,7 +30,7 @@ const getCropWaterRawPerDay = (
   scheduleIndex: number,
   cropWaterMultiplier: number,
 ) => {
-  const tier = cropFarmTiers[group.tierId];
+  const tier = getCropFarmTier(definitions, group.tierId);
   const crop = getCropForScheduleIndex(group, definitions, scheduleIndex);
   const baseWaterRaw = toFix32Raw(crop.waterPerDay);
   const tierAdjustedRaw = applyMultiplierToFix32(baseWaterRaw, tier.demandMultiplier);
@@ -47,7 +45,7 @@ const calculateGrossWaterPerMonth = (
 ) => {
   const cycleDays = group.schedule.reduce(
     (total, cropId) => total + getCropFarmingData(definitions).crop(cropId).growthMonths
-      * cropFarmSimulation.daysPerMonth,
+      * planningWeather.daysPerCycle,
     0,
   );
   const waterRawPerCycle = group.schedule.reduce(
@@ -57,11 +55,11 @@ const calculateGrossWaterPerMonth = (
       index,
       cropWaterMultiplier,
     ) * getCropForScheduleIndex(group, definitions, index).growthMonths
-      * cropFarmSimulation.daysPerMonth,
+      * planningWeather.daysPerCycle,
     0,
   );
   const monthlyWaterRaw = Math.trunc(
-    (waterRawPerCycle * cropFarmSimulation.daysPerMonth + Math.trunc(cycleDays / 2))
+    (waterRawPerCycle * planningWeather.daysPerCycle + Math.trunc(cycleDays / 2))
       / cycleDays,
   );
 
@@ -78,10 +76,7 @@ const getCropForScheduleIndex = (group: CropFarmGroup, definitions: CropFarmingD
 
 /**
  * Replays installed 0.8.8 Farm.onNewDay with the native weather forecast.
- * Rain fills the 50-unit soil
- * buffer before irrigation; irrigation runs only on dry days and follows the
- * game's 10% start / 65% stop hysteresis. This is why average rainfall cannot
- * simply be subtracted from gross crop demand.
+ * Replays native soil capacity and irrigation thresholds instead of subtracting average rain.
  */
 export const calculateFarmIrrigationRates = (
   group: CropFarmGroup,
@@ -101,12 +96,13 @@ export const calculateFarmIrrigationRates = (
   if (cached) return cached;
 
   const weatherPeriods = weatherConfig.periods;
-  const tier = cropFarmTiers[group.tierId];
-  const horizonDays = planningWeather.horizonYears * 12 * cropFarmSimulation.daysPerMonth;
+  const tier = getCropFarmTier(definitions, group.tierId);
+  const simulation = definitions.simulation;
+  const horizonDays = planningWeather.horizonYears * 12 * planningWeather.daysPerCycle;
   const state = {
-    soilWater: cropFarmSimulation.soilWaterCapacity, waterCredit: 0, rainPartial: 0,
+    soilWater: simulation.soilWaterCapacity, waterCredit: 0, rainPartial: 0,
     importedWater: 0, scheduleIndex: 0, day: 0,
-    daysRemaining: getCropForScheduleIndex(group, definitions, 0).growthMonths * cropFarmSimulation.daysPerMonth,
+    daysRemaining: getCropForScheduleIndex(group, definitions, 0).growthMonths * planningWeather.daysPerCycle,
     cropStarted: false, wasIrrigating: false, isIrrigating: false,
     weatherIndex: 0, weatherDaysRemaining: weatherPeriods[0]?.days ?? 0,
     evaporatedWater: 0,
@@ -133,7 +129,7 @@ export const calculateFarmIrrigationRates = (
       state.rainPartial -= availableRain;
       const storedRain = Math.min(
         availableRain,
-        cropFarmSimulation.soilWaterCapacity - state.soilWater,
+        simulation.soilWaterCapacity - state.soilWater,
       );
 
       state.soilWater += storedRain;
@@ -143,7 +139,7 @@ export const calculateFarmIrrigationRates = (
 
     if (emptyCrop && state.soilWater > 0) {
       state.evaporatedWater += toFix32Raw(tier.waterEvaporationPerDay) / FIX32_SCALE
-        * (state.soilWater > cropFarmSimulation.soilWaterCapacity / 2 ? 2 : 1);
+        * (state.soilWater > simulation.soilWaterCapacity / 2 ? 2 : 1);
       if (state.evaporatedWater >= 1) { state.soilWater -= 1; state.evaporatedWater -= 1; }
     }
     const waterRawPerDay = getCropWaterRawPerDay(
@@ -153,24 +149,24 @@ export const calculateFarmIrrigationRates = (
       cropWaterMultiplier,
     );
     const waterPerDay = waterRawPerDay / FIX32_SCALE;
-    const normalStartThreshold = cropFarmSimulation.soilWaterCapacity
-      * cropFarmSimulation.irrigationStartPercent / 100;
+    const normalStartThreshold = simulation.soilWaterCapacity
+      * simulation.irrigationStartPercent / 100;
     const irrigationStartThreshold = state.cropStarted
       ? normalStartThreshold
       : Math.max(normalStartThreshold, waterPerDay * 10);
     const continueIrrigating = state.wasIrrigating
-      && state.soilWater / cropFarmSimulation.soilWaterCapacity
-        < (emptyCrop ? cropFarmSimulation.emptyCropIrrigationStopPercent : cropFarmSimulation.irrigationStopPercent) / 100;
+      && state.soilWater / simulation.soilWaterCapacity
+        < (emptyCrop ? simulation.emptyCropIrrigationStopPercent : simulation.irrigationStopPercent) / 100;
     const shouldIrrigate = continueIrrigating || state.soilWater < irrigationStartThreshold;
 
     state.isIrrigating = false;
 
     if (rainIntensity === 0 && shouldIrrigate) {
       const irrigationAmount = Math.min(
-        cropFarmSimulation.soilWaterCapacity - state.soilWater,
+        simulation.soilWaterCapacity - state.soilWater,
         Math.max(
           Math.ceil(waterPerDay * 2),
-          cropFarmSimulation.minimumIrrigationPerDay,
+          simulation.minimumIrrigationPerDay,
         ),
       );
 
@@ -201,7 +197,7 @@ export const calculateFarmIrrigationRates = (
       if (state.daysRemaining === 0) {
         state.scheduleIndex = (state.scheduleIndex + 1) % group.schedule.length;
         state.daysRemaining = getCropForScheduleIndex(group, definitions, state.scheduleIndex).growthMonths
-          * cropFarmSimulation.daysPerMonth;
+          * planningWeather.daysPerCycle;
         state.cropStarted = false;
       }
     }
@@ -214,7 +210,7 @@ export const calculateFarmIrrigationRates = (
     }
   }
 
-  const horizonMonths = horizonDays / cropFarmSimulation.daysPerMonth;
+  const horizonMonths = horizonDays / planningWeather.daysPerCycle;
   const rates = {
     grossWaterPerMonth,
     importedWaterPerMonth: state.importedWater / horizonMonths,

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { contracts, type ActiveContract } from '../../db/contracts'
+import { type ActiveContract } from '../../db/contracts'
 import { activeContracts } from '../../test-fixtures/active-contracts'
-import { calculateFactoryTotal } from '../factory-total/factory-total'
+import { calculateFactoryTotal } from '../../test-fixtures/factory-total'
+import { testContracts as contracts } from '../../test-fixtures/recorded-game-data';
 
 const contractWith = (id: string, fixed: number | null = null): ActiveContract => {
   const contract = contracts.find(contract => contract.id === id)!

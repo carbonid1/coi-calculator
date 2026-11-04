@@ -1,4 +1,6 @@
 import { type SyncedProductionEntity } from '../../game-state'
+import { withFactoryDefinition } from '../../helpers/planning-recipes/factory-recipes'
+import { type PlanningDefinitions } from '../../planning-state'
 import { recipes } from '../recipes'
 import { type ResourceId } from '../resources'
 import { type Module, type Preset } from './modules'
@@ -88,6 +90,7 @@ export interface MaintenanceDepotModuleAssignment {
 }
 
 interface ResolveMaintenanceDepotModuleAssignmentsOptions {
+  definitions: PlanningDefinitions
   defaultModuleId: string
   demand?: MaintenanceDemand
   modules: readonly Pick<Module, 'id' | 'name' | 'liveArea'>[]
@@ -115,6 +118,7 @@ const getCalculatorRecipeId = (
  * outside named areas belong to the game's immutable Default area.
  */
 export const resolveMaintenanceDepotModuleAssignments = ({
+  definitions,
   defaultModuleId,
   demand = emptyMaintenanceDemand,
   modules,
@@ -170,7 +174,8 @@ export const resolveMaintenanceDepotModuleAssignments = ({
       Object.entries(assignment.activeBuildings).flatMap(([recipeId, activeBuildings]) => {
         if (maintenanceResourceByRecipeId.get(recipeId) !== resourceId) return []
 
-        const recipe = recipeById.get(recipeId)
+        const template = recipeById.get(recipeId)
+        const recipe = template ? withFactoryDefinition(template, definitions) : undefined
         const output = recipe?.outputs.find(candidate => candidate.resourceId === resourceId)
         const capacity = (output?.quantity ?? 0) * activeBuildings
 

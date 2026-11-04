@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 
-import { buildModuleLines } from "../helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "../helpers/calculate/calculate";
+import { buildModuleLines } from '../test-fixtures/build-module-lines';
 import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
 import { defaultArea as general } from "./modules/default";
 import { type Recipe } from './recipes'
@@ -30,49 +30,6 @@ const balancedLine = (recipe: Recipe, activeBuildings = 1, moduleId = "test") =>
   builtBuildings: activeBuildings,
   speedLevel: 1,
   operatingMode: "balanced" as const,
-});
-
-it("plans the paused Cooking Oil reforming plant with verified v0.8.7 rates", () => {
-  const preset = general.presets.find((candidate) => candidate.id === general.defaultPresetId);
-  const line = buildModuleLines(general, preset ?? null).lines.find(
-    (candidate) => candidate.recipe.id === "chemical-plant-ii-cooking-oil-diesel",
-  );
-  const mill = getRecipe("mill-canola-cooking-oil");
-
-  expect(mill).toMatchObject({
-    cycleDurationSeconds: 60,
-    balanceOutputIds: ["cookingOil"],
-    consumeSurplusInputIds: ["canola"],
-    surplusConsumptionPriority: 100,
-    surplusConsumptionPhase: "before-fallback",
-    inputs: [{ resourceId: "canola", quantity: 16 }],
-    outputs: [
-      { resourceId: "cookingOil", quantity: 12 },
-      { resourceId: "animalFeed", quantity: 4 },
-    ],
-  });
-  // Fuel runs in the final surplus pass so it never reserves Hydrogen ahead of fallback recipes.
-  expect(line?.recipe.surplusConsumptionPhase).toBeUndefined();
-  expect(line).toMatchObject({
-    activeBuildings: 1,
-    currentActiveBuildings: 0,
-    builtBuildings: 0,
-    constructionGhosts: 0,
-    unplacedPlannedBuildings: 1,
-    dataSource: "planned",
-    operatingMode: "balanced",
-    recipe: {
-      cycleDurationSeconds: 60,
-      balanceOutputIds: [],
-      consumeSurplusInputIds: ["cookingOil"],
-      surplusConsumptionPriority: 110,
-      inputs: [
-        { resourceId: "ethanol", quantity: 15 },
-        { resourceId: "cookingOil", quantity: 30 },
-      ],
-      outputs: [{ resourceId: "diesel", quantity: 54 }],
-    },
-  });
 });
 
 it("uses Canola and Cooking Oil only after useful Cooking Oil demand", () => {

@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import { defaultEdictLevels, edictCatalog } from './db/edicts'
 import { mapFocusValues } from './db/offices'
-import { defaultInfiniteResearchLevels } from './db/research'
 import {
   CURRENT_GAME_STATE_SCHEMA_VERSION,
   isGameStateSnapshot,
   normalizeGameStateSnapshot,
 } from './game-state'
 import { testBuildingDefinitions } from './test-fixtures/building-requirements'
+import { defaultInfiniteResearchLevels } from './test-fixtures/historical-planning'
 import { testProducts } from './test-fixtures/products'
-import { testChickenFarmDefinition, testCropFarming, testOfficeFocusDefinitions, testPlanningDefinitions, testRocketIiDefinition, testSpaceStationLevels } from './test-fixtures/recorded-game-data'
+import { testGroundwater , testChickenFarmDefinition, testCropFarming, testOfficeFocusDefinitions, testPlanningDefinitions, testRocketIiDefinition, testSpaceStationLevels } from './test-fixtures/recorded-game-data'
 import { emptySettlement, testWeather } from './test-fixtures/synced-island-settings'
 
 const emptyHistory = { averagePerCycle: 0, sampleMonths: 0 }
@@ -44,7 +44,7 @@ const currentSnapshot = {
   chickenFarms: [],
   cropFarms: [],
   machines: [],
-  groundwater: { aquifers: [], depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 },
+  groundwater: { ...testGroundwater, aquifers: [] },
   contracts: { established: [], routes: [] },
   productionEntities: [],
   areaEntities: [],

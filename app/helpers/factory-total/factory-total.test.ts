@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { plannedChickenFarmSettings } from "../../db/chicken-farm";
-import { baseConfig } from "../../db/config";
 import {
   attachMaintenanceDepotsToModule,
   resolveMaintenanceDepotModuleAssignments,
@@ -12,16 +11,15 @@ import { mines } from "../../db/modules/mines";
 import { type Module } from "../../db/modules/modules";
 import { createReservesModule } from "../../db/modules/reserves";
 import { type Recipe } from '../../db/recipes'
-import { defaultInfiniteResearchLevels } from "../../db/research";
 import { activeContracts } from "../../test-fixtures/active-contracts";
+import { calculateFactoryTotal } from "../../test-fixtures/factory-total";
+import { defaultInfiniteResearchLevels , baseConfig } from '../../test-fixtures/historical-planning'
 import { testPlanningDefinitions , testChickenFarmDefinition } from '../../test-fixtures/recorded-game-data';
 import { testRecycling } from "../../test-fixtures/recycling";
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
 import { syncedNuclearTestModule } from "../../test-fixtures/synced-nuclear-module";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
-import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
-import { calculateFactoryTotal } from "./factory-total";
 
 const baselineFactoryOptions = {
   recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
@@ -181,7 +179,7 @@ const modulesWithNuclear = [
   currentFactoryFixture,
   syncedNuclearTestModule,
 ];
-const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
+const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
   defaultModuleId: DEFAULT_MODULE_ID,
   demand: maintenanceDemand,
   modules: modulesWithNuclear,
@@ -380,22 +378,6 @@ describe("Factory Total contracts", () => {
       maxImportedPerProductionCycle: 40,
     });
     expect(uranium).toMatchObject({ consumed: 54, produced: 40, net: -14 });
-  });
-
-  it("passes Ship Fuel Use research into recurring contract fuel", () => {
-    const shipsFuelUse = calculateShipsFuelUse(testPlanningDefinitions, 5);
-    const result = calculateFactoryTotal(
-      modulesWithSyncedHistory,
-      {
-        ...baselineFactoryOptions,
-        contracts: activeContracts,
-        shipsFuelUseMultiplier: shipsFuelUse.multiplier,
-      },
-    );
-
-    expect(result.contractResults.at(0)).toMatchObject({
-      fuelPerProductionCycle: 9.2475,
-    });
   });
 
   it("uses synced maintenance demand and balances available recycling capacity", () => {

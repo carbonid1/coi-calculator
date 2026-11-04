@@ -32,6 +32,7 @@ export const resolveNuclearAreaRecipes = (area: Module) => {
     if (policy) recipeIdsByPolicyId.set(policy.id, [...(recipeIdsByPolicyId.get(policy.id) ?? []), id])
     recipes.push(policy ? {
       ...policy,
+      factoryRecipe: undefined,
       id,
       gameBuildingId: live.gameBuildingId,
       gameRecipeId: live.gameRecipeId,

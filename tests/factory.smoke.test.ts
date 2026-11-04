@@ -5,26 +5,32 @@ import { expect, it, vi } from 'vitest'
 import { type ChickenFarmDefinition } from '../app/chicken-farm-state'
 import { getCropFarmingData, type CropFarmingDefinitions } from '../app/crop-farming-state'
 import { getRackAllocation } from '../app/db/computing'
-import { type CropFarmGroup } from '../app/db/crop-farming'
+import { getContractCatalog } from '../app/db/contracts'
+import { calculateCropFarmGroupRates, type CropFarmGroup } from '../app/db/crop-farming'
 import { getEdictCatalog, mapEdictValues } from '../app/db/edicts'
 import { getHousingTypes } from '../app/db/housing'
 import { createCropFarmAreaModule, createDefaultCropFarmModule, getCropFarmGroundwaterRecipeId } from '../app/db/modules/crop-farm-areas'
 import { createChickenFarmsModule } from '../app/db/modules/farms'
 import { createSpaceStationModule } from '../app/db/modules/space-station'
 import { officeCatalog } from '../app/db/office-catalog'
+import { factoryRecipeBindings } from '../app/db/recipe-bindings'
 import { recipes } from '../app/db/recipes'
 import { calculateInfiniteResearchLevelCost, calculateInfiniteResearchRemainingCost, getInfiniteResearchCatalog } from '../app/db/research'
 import { calculateSpaceStationLevel } from '../app/db/space-station'
 import { calculateUnityBudget } from '../app/db/unity'
+import { getLabSpacePoints } from '../app/factory-definitions'
 import { normalizeGameStateSnapshot, type GameStateSnapshot } from '../app/game-state'
 import { buildModuleLines } from '../app/helpers/build-module-lines/build-module-lines'
 import { calculateBuildingStats } from '../app/helpers/building-stats/building-stats'
 import { calculateNet } from '../app/helpers/calculate/calculate'
 import { deriveCalculatorModel } from '../app/helpers/calculator-model/derive-calculator-model'
-import { calculateContractWorkers } from '../app/helpers/contracts/calculate-contracts'
+import { applyContracts, calculateContractWorkers } from '../app/helpers/contracts/calculate-contracts'
+import { resolveSyncedContracts } from '../app/helpers/contracts/resolve-synced-contracts'
 import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/factory-calculation'
 import { calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput, calculateGroundwaterClaimLimits, getAquiferRainRechargePerDay, getDryEmergencyRechargePerDay } from '../app/helpers/groundwater/calculate-groundwater-production'
 import { createLiveAreaModules } from '../app/helpers/live-area-modules/live-area-modules'
+import { calculatePopulationResearchBonus } from '../app/helpers/modifiers/calculate-research-efficiency'
+import { withFactoryDefinition } from '../app/helpers/planning-recipes/factory-recipes'
 import { withPlanningDefinition } from '../app/helpers/planning-recipes/planning-recipes'
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
@@ -40,6 +46,104 @@ import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 // Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
+
+it('replays the complete native recipe catalog, contract definitions, farm tiers and water rules without legacy rate tables', () => {
+  const snapshot = normalizeGameStateSnapshot(capture)
+
+  if (!snapshot) throw new Error('Native definition replay is incompatible')
+  const definitions = snapshot.planningDefinitions
+  const resolve = (id: string, source = definitions) => {
+    const recipe = recipes.find(recipe => recipe.id === id)
+
+    if (!recipe) throw new Error('Recipe policy missing: ' + id)
+    return withFactoryDefinition(recipe, source)
+  }
+
+  for (const id of Object.keys(factoryRecipeBindings)) {
+    const recipe = resolve(id)
+
+    expect(recipe.factoryRecipe).toBeUndefined()
+    expect([...recipe.inputs, ...recipe.outputs].every(item => Number.isFinite(item.quantity))).toBe(true)
+    expect([...recipe.inputs, ...recipe.outputs].some(item => item.quantity > 0)).toBe(true)
+    expect(withFactoryDefinition(recipe, definitions)).toEqual(recipe)
+  }
+  // Evaluated against installed NuclearReactor.Recipe, Generator II and storage prototypes.
+  expect(resolve('fbr-0x').inputs).toContainEqual({ resourceId: 'coreFuel', quantity: 4 })
+  expect(resolve('fbr-3x').inputs).toContainEqual({ resourceId: 'blanketFuel', quantity: 12 })
+  for (const [id, output] of [['turbine-super', 15], ['turbine-high', 10], ['turbine-low', 5]] as const) {
+    expect(resolve(id).outputs).toContainEqual({ resourceId: 'electricity', quantity: output })
+  }
+  const storage = recipes.find(recipe => recipe.factoryRecipe?.storage)
+
+  if (!storage) throw new Error('Native decay storage policy missing')
+  expect(resolve(storage.id).decayStorage).toEqual({ capacity: 2400, decayCycles: 1200 })
+  expect(getLabSpacePoints(definitions.factory, 'ResearchLab4')).toBe(24)
+  expect(getLabSpacePoints(definitions.factory, 'ResearchLab5')).toBe(48)
+  expect(calculatePopulationResearchBonus(definitions, 7488)).toBe(37)
+
+  const changed = structuredClone(definitions)
+
+  for (const recipe of changed.factory.recipes) {
+    for (const product of [...recipe.inputs, ...recipe.outputs]) product.quantity *= 2
+    recipe.electricityOutputMw *= 2
+  }
+  changed.factory.populationResearch = { numerator: 7, rounding: 500, denominator: 1000 }
+  expect(resolve('fbr-0x', changed).inputs).toContainEqual({ resourceId: 'coreFuel', quantity: 8 })
+  expect(resolve('seawater-pump', changed).outputs[0].quantity).toBe(resolve('seawater-pump').outputs[0].quantity * 2)
+  expect(resolve('turbine-super', changed).outputs).toContainEqual({ resourceId: 'electricity', quantity: 30 })
+  expect(calculatePopulationResearchBonus(changed, 7488)).toBe(52)
+
+  const first = definitions.factory.contracts[0]
+  const novel = { ...first, gameId: 'FutureWaterForBread', exportedProduct: { productId: 'Product_Bread', name: 'Bread' },
+    importedProduct: { productId: 'Product_Water', name: 'Water' }, exportedQuantity: 7, importedQuantity: 31 }
+  const catalog = getContractCatalog([novel, { ...novel, gameId: 'SecondWaterForBread' }])
+
+  expect(new Set(catalog.map(contract => contract.id)).size).toBe(2)
+  expect(catalog[0].exchange).toEqual({ exported: { resourceId: 'bread', quantity: 7 }, imported: { resourceId: 'water', quantity: 31 } })
+  expect(resolveSyncedContracts({ established: [novel], routes: [] }).contracts[0].exchange).toEqual(catalog[0].exchange)
+  const active = resolveSyncedContracts(snapshot.contracts).contracts.find(contract => contract.routes.some(route => route.ship && route.shipping.fuelPerTrip !== null))
+
+  if (!active) throw new Error('Recorded shipping oracle missing')
+  const route = active.routes.find(route => route.ship && route.shipping.fuelPerTrip !== null)
+
+  if (!route) throw new Error('Recorded cargo route missing')
+  const enabledRoute = { ...route, enabled: true, running: true, operation: undefined,
+    ship: route.ship ? { ...route.ship, running: true } : null,
+    cargoModules: route.cargoModules.map(module => ({ ...module, running: true })),
+    importedPerProductionCycle: 1, shipping: { ...route.shipping, fuelPerTrip: 289 } }
+  const shipping = applyContracts([], [{ ...active, routes: [enabledRoute] }]).contractResults[0]
+  const expensive = applyContracts([], [{ ...active, routes: [{ ...enabledRoute, shipping: { ...enabledRoute.shipping, fuelPerTrip: 578 } }] }]).contractResults[0]
+
+  expect(shipping.imported).toBeGreaterThan(0)
+  expect(expensive.fuelPerProductionCycle).toBe(shipping.fuelPerProductionCycle * 2)
+  expect(applyContracts([], [{ ...active, routes: [{ ...enabledRoute,
+    shipping: { ...enabledRoute.shipping, fuelPerTrip: null } }] }]).contractResults[0].imported).toBe(0)
+  expect(applyContracts([], [{ ...active, routes: [{ ...enabledRoute, operation: route.operation,
+    shipping: { ...enabledRoute.shipping, fuelPerTrip: null } }] }]).contractResults[0].routes[0].fuelUnavailable).toBe(true)
+
+  const group: CropFarmGroup = { id: 'native-farm', name: 'Native farm', farmCount: 1, tierId: 'greenhouseII',
+    schedule: ['corn'], fertilizer: { id: 'fertilizerII', targetFertilityPercent: 120 } }
+  const farm = calculateCropFarmGroupRates(group, snapshot.cropFarming)
+  const farming = structuredClone(snapshot.cropFarming)
+
+  for (const tier of farming.tiers) { tier.yieldMultiplier *= 2; tier.demandMultiplier *= 2 }
+  const upgraded = calculateCropFarmGroupRates(group, farming)
+
+  expect(upgraded.outputsPerMonth.get('corn')).toBe(farm.outputsPerMonth.get('corn')! * 2)
+  expect(upgraded.waterPerMonth).toBe(farm.waterPerMonth * 2)
+  const aquifer = snapshot.groundwater.aquifers[0]
+
+  expect(getAquiferRainRechargePerDay(aquifer, { ...snapshot.groundwater, capacityReplenishRawPercent: 0 }, 100)).toBe(0)
+  expect(calculateAquiferSustainableOutput(aquifer, 1, { ...snapshot.groundwater, pumpCapacityPerCycle: 24 }, snapshot.weather))
+    .toBeLessThanOrEqual(24)
+  for (const factory of [undefined, { ...definitions.factory, recipes: [...definitions.factory.recipes, definitions.factory.recipes[0]] },
+    { ...definitions.factory, populationResearch: { numerator: 5, rounding: 500, denominator: 0 } }]) {
+    expect(normalizeGameStateSnapshot({ ...snapshot, planningDefinitions: { ...definitions, factory } })).toBeNull()
+  }
+  for (const cropFarming of [{ ...farming, tiers: [] }, { ...farming, simulation: undefined }]) {
+    expect(normalizeGameStateSnapshot({ ...snapshot, cropFarming })).toBeNull()
+  }
+}, 60_000)
 
 it('replays native Office tiers, boost curves, Focus allocations and changed cost tables through the factory model', () => {
   const source = normalizeGameStateSnapshot(capture)
@@ -167,7 +271,7 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
   expect(summary).toMatchObject({ averageRainIntensityPercent: 12.5, nextRainCycles: 0, longestDryCycles: 12 })
   expect(summary.averageSunIntensityPercent).toBe(getAverageSunIntensityPercent(weather))
   expect(summary.cycles[0]?.rainIntensityPercent).toBeCloseTo(50 * 7 / 30, 10)
-  expect(getRainwaterHarvesterPotential(summary, 1.5)).toEqual({ nextYearPerCycle: 5.625, averagePerCycle: 5.625 })
+  expect(getRainwaterHarvesterPotential(summary, 1.5, snapshot.planningDefinitions.factory.rainwaterPerDay)).toEqual({ nextYearPerCycle: 5.625, averagePerCycle: 5.625 })
 
   const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'water-replay' })
   const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
@@ -220,7 +324,7 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
   const pump = snapshot.machines[0]
 
   if (!source || !pump) throw new Error('Aquifer scenario requires an installed pump')
-  const normal = { depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 }
+  const normal = { ...snapshot.groundwater, depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 }
 
   // Oracle values evaluated with installed 0.8.8 GetDailyReplenishQuantity,
   // Percent.Apply and IntExtensions.ScaledByToFix32. Percent multiplication
@@ -229,8 +333,8 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
     [20_000, 18, 37, 2.58984375], [25_000, 23, 46, 3.2197265625], [30_000, 28, 56, 3.919921875]]) {
     const aquifer = { ...source, capacity, configuredCapacity: capacity }
 
-    expect(getAquiferRainRechargePerDay(aquifer, 50)).toBe(halfRain)
-    expect(getAquiferRainRechargePerDay(aquifer, 100)).toBe(fullRain)
+    expect(getAquiferRainRechargePerDay(aquifer, normal, 50)).toBe(halfRain)
+    expect(getAquiferRainRechargePerDay(aquifer, normal, 100)).toBe(fullRain)
     expect(getDryEmergencyRechargePerDay(aquifer, normal)).toBe(emergency)
   }
   const ceiling = calculateAquiferSustainableCeiling(source, normal, weather)
@@ -258,7 +362,7 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
     periods: weather.periods.map(period => ({ ...period, rainIntensityPercent: 0, sunIntensityPercent: 100 })) }
   const wet = { ...weather, currentRainIntensityPercent: 100,
     periods: weather.periods.map(period => ({ ...period, rainIntensityPercent: 100, sunIntensityPercent: 20 })) }
-  const noAssistance = { depletedPumpSpeedPercent: 0, replenishWhenLowPercent: 0 }
+  const noAssistance = { ...snapshot.groundwater, depletedPumpSpeedPercent: 0, replenishWhenLowPercent: 0 }
   const smallReserve = { ...source, quantity: 60, emergencyQuantity: 0 }
   const drought = simulateWaterSource(smallReserve, noAssistance, dry, 1, 30)
 
@@ -430,7 +534,7 @@ it('replays station plans and Rocket II supply through native capacities, recipe
   for (const level of [0, 1, 2, 3, 4]) {
     const stationModule = createSpaceStationModule({ currentLevel: level, highestLevelAchieved: 4 }, current.snapshot.spaceStationLevels, changed,
       { rocketAssemblyDepot: 2, rocketLaunchPad: 2 })
-    const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: current.snapshot.buildingDefinitions }).lines
+    const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: current.snapshot.buildingDefinitions, planningDefinitions: current.snapshot.planningDefinitions }).lines
     const result = calculateNet(lines)
     const logistics = calculateSpaceStationLevel(level, current.snapshot.spaceStationLevels)
     const expected = (logistics.maintenancePartsPerCycle + logistics.crewSuppliesPerCycle + logistics.researchSuppliesPerCycle) / changed.cargoCapacity
@@ -457,7 +561,7 @@ it('replays native station tiers through operations, crew requirements, research
     const stationModule = createSpaceStationModule(snapshot.spaceStation, levels, snapshot.rocketIiDefinition,
       { rocketAssemblyDepot: 1, rocketLaunchPad: 1 }, {}, undefined,
       requiredPoints === undefined ? undefined : { requiredPoints })
-    const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: snapshot.buildingDefinitions }).lines
+    const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: snapshot.buildingDefinitions, planningDefinitions: snapshot.planningDefinitions }).lines
     const result = calculateNet(lines)
     const stats = calculateBuildingStats(lines, result)
     const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'native-station-replay' })
@@ -588,7 +692,7 @@ it('replays crop rotations, fertilizer limits, irrigation and expansion using th
 
       if (!area) throw new Error(`Crop area ${id} is missing`)
       const preset = area.presets[0]
-      const lines = buildModuleLines(area, preset, { buildingDefinitions: source.buildingDefinitions, weather: source.weather }).lines
+      const lines = buildModuleLines(area, preset, { planningDefinitions: source.planningDefinitions, buildingDefinitions: source.buildingDefinitions, weather: source.weather }).lines
       const result = calculateNet(lines, undefined, undefined, { weather: source.weather })
 
       return { area, preset, lines, result }
@@ -787,7 +891,7 @@ it('replays chicken inventory, construction and plans using the supplied farm de
 
   expect(production(largerGhost, 'eggs')).toBeCloseTo(1000 * changedDefinition.eggsPerChicken)
   const plan = createChickenFarmsModule(changedDefinition, { totalChickenCount: 2350, slaughtering: true }, [])
-  const planLines = buildModuleLines(plan, plan.presets[0], { buildingDefinitions: source.buildingDefinitions }).lines
+  const planLines = buildModuleLines(plan, plan.presets[0], { planningDefinitions: source.planningDefinitions, buildingDefinitions: source.buildingDefinitions }).lines
 
   expect(planLines[0]).toMatchObject({ activeBuildings: 3, unplacedPlannedBuildings: 3, speedLevel: 0.8, dataSource: 'planned' })
   expect(plan.presets[0].planMismatches?.[0].target).toBe(2350)

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { activeContracts } from "../../test-fixtures/active-contracts";
 import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
-import { calculateShipsFuelUse } from "../modifiers/calculate-ships-fuel-use";
 import { applyContracts, calculateContractWorkers } from "./calculate-contracts";
 
 describe("contract plans", () => {
@@ -145,7 +144,6 @@ describe("contract plans", () => {
         net: -137.62,
       }],
       quartzContract ? [quartzContract] : [],
-      1,
       new Map(),
       1.14,
     );
@@ -166,20 +164,6 @@ describe("contract plans", () => {
     expect(calculateContractWorkers(activeContracts)).toBe(210);
   });
 
-  it("applies Ship Fuel Use research before the ship's Save Fuel mode", () => {
-    const shipsFuelUse = calculateShipsFuelUse(testPlanningDefinitions, 5);
-    const { contractResults, flows } = applyContracts(
-      [],
-      activeContracts,
-      shipsFuelUse.multiplier,
-    );
-
-    expect(contractResults.at(0)).toMatchObject({
-      fuelPerProductionCycle: 9.2475,
-    });
-    expect(flows.find((flow) => flow.resourceId === "hydrogen")?.consumed).toBeCloseTo(9.2475);
-  });
-
   it("uses Contracts Profitability Focus to reduce the required export", () => {
     const uraniumContract = activeContracts[0];
     const { contractResults } = applyContracts(
@@ -191,7 +175,6 @@ describe("contract plans", () => {
         net: -60,
       }],
       uraniumContract ? [uraniumContract] : [],
-      1,
       new Map(),
       1.2,
     );

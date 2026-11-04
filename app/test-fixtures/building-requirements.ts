@@ -5,6 +5,7 @@ import { type Module } from '../db/modules/modules'
 import { recipes, type Recipe } from '../db/recipes'
 
 import { withOfficeDefinition } from '../helpers/office-recipes/office-recipes'
+import { withFactoryDefinition } from '../helpers/planning-recipes/factory-recipes'
 import { withPlanningDefinition } from '../helpers/planning-recipes/planning-recipes'
 import { testOfficeFocusDefinitions, testPlanningDefinitions } from './recorded-game-data'
 
@@ -57,8 +58,8 @@ export const testBuildingDataByName: Record<string, BuildingData> = {
   "Forestry Control Tower": { workers: 0, electricityKw: 0 },
   // The calculator models the game's fast recipes, whose 300% power
   // multiplier raises the T1/T2 base draws from 100/200 kW to 300/600 kW.
-  "Seawater Pump": { workers: 1, electricityKw: 300 },
-  "Seawater Pump (Tall)": { workers: 1, electricityKw: 600 },
+  "Seawater Pump": { workers: 1, electricityKw: 100 },
+  "Seawater Pump (Tall)": { workers: 1, electricityKw: 200 },
   "Groundwater Pump": { workers: 2, electricityKw: 120 },
   "Fast Breeder Reactor": { workers: 200, electricityKw: 0 },
   "Super-Pressure Turbine": { workers: 1, electricityKw: 0, suppressPauseAttention: true },
@@ -284,9 +285,9 @@ export const testBuildingDefinitions: BuildingDefinition[] = Object.entries(test
   workers: data.workers, electricityKw: data.electricityKw, computingTflops: data.computingTflops ?? 0, unityPerCycle: data.unityPerCycle ?? 0,
 }))
 
-export const withTestBuildingData = (recipe: Recipe): Recipe => withPlanningDefinition(withOfficeDefinition({
+export const withTestBuildingData = (recipe: Recipe): Recipe => withFactoryDefinition(withPlanningDefinition(withOfficeDefinition({
   ...recipe, buildingData: recipe.buildingData ?? getTestBuildingData(recipe.building),
-}, testOfficeFocusDefinitions), testPlanningDefinitions)
+}, testOfficeFocusDefinitions), testPlanningDefinitions), testPlanningDefinitions)
 
 export const withTestBuildingRequirements = (module: Module): Module => ({
   ...module, recipes: [...new Map([...recipes, ...(module.recipes ?? [])].map(recipe => [recipe.id, withTestBuildingData(recipe)])).values()],

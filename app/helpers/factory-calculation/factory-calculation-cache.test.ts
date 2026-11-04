@@ -16,7 +16,7 @@ const entry = {
   model,
   calculation: calculateFactoryCalculation({
     contracts: [], contractsProfitMultiplier: 1, links: [], modules: [],
-    outputModifiers: {}, recyclingEfficiencyPercent: 0, shipsFuelUseMultiplier: 1,
+    outputModifiers: {}, recyclingEfficiencyPercent: 0,
   }),
 } satisfies SavedFactoryCalculation
 

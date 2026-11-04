@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest'
 
 import { type SyncedProductionEntity } from '../../game-state'
-import { buildModuleLines } from '../../helpers/build-module-lines/build-module-lines'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data'
 import {
   attachMaintenanceDepotsToModule,
   resolveMaintenanceDepotModuleAssignments,
@@ -61,7 +62,7 @@ const depotEntity = (
 })
 
 it('does not invent Default depots when synced identities are unavailable', () => {
-  const assignments = resolveMaintenanceDepotModuleAssignments({
+  const assignments = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
     defaultModuleId: defaultModule.id,
     demand: { maintenanceI: 547.8, maintenanceII: 194.22, maintenanceIII: 236.55 },
     modules: ownershipModules,
@@ -75,7 +76,7 @@ it('does not invent Default depots when synced identities are unavailable', () =
 })
 
 it('assigns unzoned depots to Default and preserves their selected recipe', () => {
-  const assignments = resolveMaintenanceDepotModuleAssignments({
+  const assignments = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
     defaultModuleId: defaultModule.id,
     demand: { maintenanceI: 480, maintenanceII: 0, maintenanceIII: 0 },
     modules: ownershipModules,
@@ -101,7 +102,7 @@ it('assigns unzoned depots to Default and preserves their selected recipe', () =
 })
 
 it('moves a depot with an exact named area and falls back on overlaps', () => {
-  const assignments = resolveMaintenanceDepotModuleAssignments({
+  const assignments = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
     defaultModuleId: defaultModule.id,
     modules: ownershipModules,
     productionEntities: [
@@ -125,7 +126,7 @@ it('uses the synced area ID when duplicate area names exist', () => {
 
   depot.zones = [{ id: 15, name: 'Computing' }]
 
-  const assignments = resolveMaintenanceDepotModuleAssignments({
+  const assignments = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
     defaultModuleId: defaultModule.id,
     modules: [defaultModule, firstComputing, secondComputing],
     productionEntities: [depot],
@@ -162,7 +163,7 @@ it('selects every maintenance depot recipe variant for specialized area layouts'
 })
 
 it('adds synced depot cards and observed targets to the owning module', () => {
-  const assignment = resolveMaintenanceDepotModuleAssignments({
+  const assignment = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
     defaultModuleId: defaultModule.id,
     demand: { maintenanceI: 480, maintenanceII: 0, maintenanceIII: 0 },
     modules: [defaultModule],
@@ -185,7 +186,7 @@ it('adds synced depot cards and observed targets to the owning module', () => {
 })
 
 it("splits one tier's observed demand across mixed live recipes by capacity", () => {
-  const assignment = resolveMaintenanceDepotModuleAssignments({
+  const assignment = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
     defaultModuleId: defaultModule.id,
     demand: { maintenanceI: 700, maintenanceII: 0, maintenanceIII: 0 },
     modules: [defaultModule],

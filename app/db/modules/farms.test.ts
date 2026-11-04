@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
+import { calculateFactoryTotal } from "../../test-fixtures/factory-total";
+import { baseConfig } from '../../test-fixtures/historical-planning'
 import { testChickenFarmDefinition } from '../../test-fixtures/recorded-game-data';
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import {
   plannedChickenFarmSettings,
 } from "../chicken-farm";
-import { baseConfig } from "../config";
 import { createChickenFarmsModule } from "./farms";
 import { type Module } from "./modules";
 

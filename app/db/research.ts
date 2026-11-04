@@ -37,26 +37,6 @@ export const calculateInfiniteResearchRemainingCost = (
     )
     .reduce((sum, cost) => sum + cost, 0)
 
-export const defaultInfiniteResearchLevels = {
-  vehiclesPollution: 0,
-  shipsPollution: 0,
-  trainsPollution: 0,
-  cropYield: 20,
-  treeGrowthSpeed: 5,
-  rainwaterYield: 10,
-  settlementWaterUse: 0,
-  unityCapacity: 5,
-  housingCapacity: 4,
-  focusPoints: 5,
-  vehicleLimit: 0,
-  vehiclesFuelUse: 5,
-  shipsFuelUse: 5,
-  trainsFuelUse: 5,
-  rocketsCapacity: 1,
-  maintenanceOutput: 4,
-  worldMineOutput: 5,
-  solarPower: 10,
-} as const satisfies Record<InfiniteResearchId, number>
 
 /** Zero state used until the exporter has supplied save-owned research levels. */
 export const emptyInfiniteResearchLevels = {

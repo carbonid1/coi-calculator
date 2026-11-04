@@ -1,10 +1,10 @@
 import { defaultEdictLevels, edictCatalog } from '../db/edicts'
 import { mapFocusValues } from '../db/offices'
-import { defaultInfiniteResearchLevels } from '../db/research'
 import { CURRENT_GAME_STATE_SCHEMA_VERSION, normalizeGameStateSnapshot } from '../game-state'
 import { deriveCalculatorModel } from '../helpers/calculator-model/derive-calculator-model'
 import { testBuildingDefinitions } from './building-requirements'
-import { testChickenFarmDefinition, testCropFarming, testOfficeFocusDefinitions, testPlanningDefinitions, testRocketIiDefinition, testSpaceStationLevels } from './recorded-game-data'
+import { defaultInfiniteResearchLevels } from './historical-planning'
+import { testGroundwater , testChickenFarmDefinition, testCropFarming, testOfficeFocusDefinitions, testPlanningDefinitions, testRocketIiDefinition, testSpaceStationLevels } from './recorded-game-data'
 import { emptySettlement, testWeather } from './synced-island-settings'
 
 export const createCacheTestModel = () => {
@@ -30,7 +30,7 @@ export const createCacheTestModel = () => {
     exportedAtUtc: '2026-09-04T00:00:00.000Z',
     spaceStation: { currentLevel: 0, highestLevelAchieved: 0 },
     logisticsZones: [], chickenFarms: [], cropFarms: [], machines: [],
-    groundwater: { aquifers: [], depletedPumpSpeedPercent: 40, replenishWhenLowPercent: 7 },
+    groundwater: { ...testGroundwater, aquifers: [] },
     contracts: { established: [], routes: [] },
     productionEntities: [], areaEntities: [], mineTowers: [],
     vehicles: { workersAssigned: 0 },

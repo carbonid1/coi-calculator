@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 using Mafi;
 using Mafi.Core.Buildings.Farms;
@@ -30,6 +31,14 @@ internal sealed class CropFarmingSnapshot
 {
     public readonly List<CropDefinitionSnapshot> Crops = new List<CropDefinitionSnapshot>();
     public readonly List<FertilizerDefinitionSnapshot> Fertilizers = new List<FertilizerDefinitionSnapshot>();
+    public readonly List<FarmTierDefinitionSnapshot> Tiers = new List<FarmTierDefinitionSnapshot>();
+}
+
+internal sealed class FarmTierDefinitionSnapshot
+{
+    public string BuildingId;
+    public bool SupportsIrrigation, IsGreenhouse;
+    public double YieldMultiplier, DemandMultiplier, WaterEvaporationPerDay, RainwaterAtFullRainPerDay, NaturalFertilityReplenishRate;
 }
 
 internal sealed partial class GameSnapshotCollector
@@ -55,6 +64,16 @@ internal sealed partial class GameSnapshotCollector
     private CropFarmingSnapshot getCropFarmingSnapshot(List<FertilizerSource> fertilizers)
     {
         CropFarmingSnapshot snapshot = new CropFarmingSnapshot();
+        foreach (FarmProto farm in m_protosDb.All<FarmProto>()) {
+            if (farm.IsPhantom) continue;
+            snapshot.Tiers.Add(new FarmTierDefinitionSnapshot {
+                BuildingId = farm.Id.ToString(), SupportsIrrigation = farm.HasIrrigationAndFertilizerSupport,
+                IsGreenhouse = farm.IsGreenhouse, YieldMultiplier = farm.YieldMultiplier.ToDouble(),
+                DemandMultiplier = farm.DemandsMultiplier.ToDouble(), WaterEvaporationPerDay = farm.WaterEvaporationPerDay.Value.ToDouble(),
+                RainwaterAtFullRainPerDay = farm.WaterCollectedPerDay.Quantity.Value.ToDouble(),
+                NaturalFertilityReplenishRate = farm.FertilityReplenishPerDay.ToDouble(),
+            });
+        }
         double daysPerMonth = Duration.OneMonth.Days.ToDouble();
         foreach (CropProto crop in m_protosDb.All<CropProto>())
         {
@@ -92,9 +111,42 @@ internal sealed partial class GameSnapshotCollector
 
 internal static partial class SnapshotJsonWriter
 {
+    private static T nativeRule<T>(Type type, string name)
+    {
+        FieldInfo field = type.GetField(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        if (field == null || field.FieldType != typeof(T)) throw new InvalidOperationException("Native rule unavailable: " + name);
+        return (T)field.GetValue(null);
+    }
+
+    private static T nativeFarmRule<T>(string name) { return nativeRule<T>(typeof(Farm), name); }
+
     private static void appendCropFarming(SnapshotJsonStream json, CropFarmingSnapshot data)
     {
         json.Name("cropFarming").BeginObject();
+        json.Name("tiers").BeginArray();
+        foreach (var tier in data.Tiers) {
+            json.BeginObject();
+            json.Field("buildingId", tier.BuildingId);
+            json.Field("supportsIrrigation", tier.SupportsIrrigation);
+            json.Field("isGreenhouse", tier.IsGreenhouse);
+            json.Field("yieldMultiplier", tier.YieldMultiplier);
+            json.Field("demandMultiplier", tier.DemandMultiplier);
+            json.Field("waterEvaporationPerDay", tier.WaterEvaporationPerDay);
+            json.Field("rainwaterAtFullRainPerDay", tier.RainwaterAtFullRainPerDay);
+            json.Field("naturalFertilityReplenishRate", tier.NaturalFertilityReplenishRate);
+            json.EndObject();
+        }
+        json.EndArray();
+        json.Name("simulation").BeginObject();
+        json.Field("soilWaterCapacity", nativeFarmRule<Quantity>("SOIL_WATER_CAPACITY").Value);
+        json.Field("repeatedCropFertilityPenalty", Farm.FERTILITY_PENALTY_FOR_SAME_CROP.ToDouble());
+        json.Field("aboveNaturalFertilityReplenishMultiplier", Farm.FERTILITY_REPLENISH_MULT_WHEN_ABOVE_100.ToDouble());
+        json.Field("aboveNaturalFertilityDemandMultiplier", Farm.CROP_FERTILITY_DEMAND_MULT_WHEN_FERTILITY_ABOVE_100.ToDouble());
+        json.Field("irrigationStartPercent", nativeFarmRule<Percent>("IRRIGATION_START").ToDouble() * 100);
+        json.Field("irrigationStopPercent", nativeFarmRule<Percent>("IRRIGATION_STOP").ToDouble() * 100);
+        json.Field("emptyCropIrrigationStopPercent", nativeFarmRule<Percent>("IRRIGATION_STOP_ON_EMPTY_CROP").ToDouble() * 100);
+        json.Field("minimumIrrigationPerDay", nativeFarmRule<Quantity>("MIN_IRRIGATION_PER_DAY").Value);
+        json.EndObject();
         json.Name("crops").BeginArray();
         foreach (CropDefinitionSnapshot crop in data.Crops)
         {

@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import { calculateBuildingDiagnostics } from "../helpers/building-diagnostics/building-diagnostics";
 import { calculateBuildingStats } from "../helpers/building-stats/building-stats";
-import { calculateFactoryTotal } from "../helpers/factory-total/factory-total";
 import { createLiveAreaModules } from "../helpers/live-area-modules/live-area-modules";
 import {
   getPlanMismatchSummaries,
   getPlannedBuildSummaries,
 } from "../helpers/planned-builds/planned-builds";
 import { withTestBuildingRequirements } from '../test-fixtures/building-requirements'
+import { calculateFactoryTotal } from "../test-fixtures/factory-total";
+import { baseConfig } from '../test-fixtures/historical-planning'
 import { testRocketIiDefinition, testSpaceStationLevels } from '../test-fixtures/recorded-game-data'
 import { testRecipes as recipes } from '../test-fixtures/solver-recipes'
-import { baseConfig } from "./config";
 import {
   createSpaceStationModule,
   selectSpaceStationZone,

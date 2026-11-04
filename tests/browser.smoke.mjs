@@ -13,7 +13,7 @@ const fixture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.j
 // Synthetic topology exercises bays, separate islands and inland water in the UI.
 const islandMap = JSON.parse(readFileSync(new URL('./fixtures/island-map.json', import.meta.url), 'utf8'))
 // Positions and area membership come from the capture. Outlines and footprints
-// are synthetic replay geometry; native geometry needs the next Bridge launch.
+// are synthetic replay geometry; native geometry is verified separately.
 const factoryLayout = {
   schemaVersion: 1, gameId: fixture.gameId, sessionId: fixture.sessionId,
   areas: fixture.logisticsZones.map(zone => {
@@ -66,6 +66,7 @@ const listen = async server => {
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
   const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0 }
   const requests = new Set()
+  const duplicateContract = { ...fixture.contracts.established[0], gameId: 'FutureContractDuplicate' }
   const upstream = createServer((request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
 
@@ -99,7 +100,9 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
       schemaVersion: state.mode === 'old-bridge' ? fixture.schemaVersion - 1 : fixture.schemaVersion,
       planningDefinitions: state.mode === 'missing-planning-definitions' ? undefined : {
-        ...fixture.planningDefinitions, research: fixture.planningDefinitions.research.map(research => ({
+        ...fixture.planningDefinitions, factory: state.mode === 'missing-factory-definitions' ? undefined : {
+          ...fixture.planningDefinitions.factory, contracts: [...fixture.planningDefinitions.factory.contracts, duplicateContract],
+        }, research: fixture.planningDefinitions.research.map(research => ({
           ...research, costs: research.costs.map((cost, level) => cost + (level > 0 ? state.planningCostBonus : 0)),
         })),
       },
@@ -112,7 +115,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       groundwater: state.mode === 'missing-aquifers' ? { ...fixture.groundwater, aquifers: undefined }
         : { ...fixture.groundwater, aquifers: state.pausedPumps ? [...fixture.groundwater.aquifers].reverse() : fixture.groundwater.aquifers },
       machines: state.pausedPumps ? [...fixture.machines].reverse().map(machine => machine.aquifer ? { ...machine, running: false } : machine) : fixture.machines,
-      cropFarming: state.mode === 'missing-crop-definitions' ? undefined : fixture.cropFarming,
+      cropFarming: state.mode === 'missing-crop-definitions' ? undefined : { ...fixture.cropFarming, tiers: state.mode === 'missing-farm-tiers' ? undefined : fixture.cropFarming.tiers },
       spaceStationLevels: state.mode === 'missing-station-levels' ? undefined : fixture.spaceStationLevels,
       rocketIiDefinition: state.mode === 'missing-rocket-definition' ? undefined : fixture.rocketIiDefinition,
       chickenFarmDefinition: state.mode === 'missing-farm-definition' ? undefined : fixture.chickenFarmDefinition,
@@ -241,7 +244,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(await evaluate('document.querySelector("[data-source=synced]").getBoundingClientRect().top < 650'))
     await screenshot('steel-compact')
     await browser('find', 'role', 'button', 'click', '--name', 'Resource balance')
-    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*88\.15[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
+    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*88\.34[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Module inputs\\"] [data-resource-id=seaWater]").length'), 1)
     await screenshot('steel-balance')
 
@@ -274,7 +277,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await area('Computing')
     assert.match(await text(), /Basic Rack[\s\S]*369 \/ 369[\s\S]*1476/)
     await area('Nuclear')
-    assert.match(await text(), /\+163\.1 MW[\s\S]*24 TFLOPS[\s\S]*711/)
+    assert.match(await text(), /\+162\.5 MW[\s\S]*24 TFLOPS[\s\S]*711/)
     await area('Population')
     assert.match(await text(), /7,488 population cap[\s\S]*Clinic I/)
     await click('Focus')
@@ -285,6 +288,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await click('Research')
     assert.match(await text(), /Housing Capacity/i)
     const maintenanceCost = fixture.planningDefinitions.research.find(research => research.id === 'maintenanceOutput').costs[fixture.research.maintenanceOutput + 1]
+
     await browser('hover', '[aria-label^="Maintenance Output:"]')
     await browser('wait', '--text', maintenanceCost.toLocaleString('en-US'))
     await click('Mines')
@@ -388,6 +392,11 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Reserve runway[\s\S]*cycles · [\d,.]+ in-game years/i)
     await click('Contracts')
     assert.match(await text(), /Hydrogen|Food pack/)
+    const availableCards = await evaluate('document.querySelector("[aria-labelledby=available-contracts-heading]").innerText')
+    const duplicateName = `${duplicateContract.exportedProduct.name} → ${duplicateContract.importedProduct.name}`.toLowerCase()
+
+    assert.equal(availableCards.toLowerCase().split(duplicateName).length - 1, 1,
+      'An established native contract must not also appear as available when another prototype has the same exchange')
     await click('Factory Total')
     await browser('find', 'role', 'button', 'click', '--name', 'Inspect Salt supply', '--exact')
     assert.match(await text(), /Island inventory[\s\S]*Total quantity[\s\S]*Stored[\s\S]*Storage capacity/)
@@ -480,6 +489,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await screenshot('focus-native-cost-update')
     await click('Research')
     const maintenanceCost = fixture.planningDefinitions.research.find(research => research.id === 'maintenanceOutput').costs[fixture.research.maintenanceOutput + 1]
+
     await browser('hover', '[aria-label^="Maintenance Output:"]')
     await browser('wait', '--text', (maintenanceCost + 7).toLocaleString('en-US'))
     await screenshot('native-research-cost-update')
@@ -490,7 +500,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
   })
 
   await t.test('rejects missing native data, incompatible Bridges and mixed sessions, then recovers', async () => {
-    for (const [mode, status] of [['old-bridge', 422], ['missing-weather', 422], ['missing-aquifers', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-crop-definitions', 422], ['missing-office-definitions', 422], ['missing-planning-definitions', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
+    for (const [mode, status] of [['old-bridge', 422], ['missing-weather', 422], ['missing-aquifers', 422], ['missing-farm-definition', 422], ['missing-rocket-definition', 422], ['missing-station-levels', 422], ['missing-crop-definitions', 422], ['missing-office-definitions', 422], ['missing-planning-definitions', 422], ['missing-factory-definitions', 422], ['missing-farm-tiers', 422], ['missing-products', 502], ['different-session', 503], ['offline', 502]]) {
       state.mode = mode
       const response = await fetch(`${appUrl}/api/game-state`)
 

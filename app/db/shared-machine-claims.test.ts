@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { type SyncedMachineInventoryItem } from "../game-state";
 import { allocateSharedMachines } from "../helpers/machine-allocation/machine-allocation";
+import { testPlanningDefinitions } from '../test-fixtures/recorded-game-data'
 import {
   getCropFarmGroundwaterClaimId,
   getCropFarmGroundwaterRecipeId,
@@ -72,7 +73,7 @@ describe("Groundwater Pump module claims", () => {
       machine(2, false, []),
       machine(3, false, []),
     ], createGroundwaterPumpClaims([]));
-    const general = createDefaultModule(
+    const general = createDefaultModule(testPlanningDefinitions.factory,
       allocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID],
       {
         aquiferCount: 1,

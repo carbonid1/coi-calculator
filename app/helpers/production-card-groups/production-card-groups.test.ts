@@ -7,8 +7,8 @@ import {
   emptyRocketInfrastructureConfig,
 } from '../../db/rocket-infrastructure'
 import { settlementRecipeIds } from '../../db/settlement'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
 import { testPlanningDefinitions , testRocketIiDefinition, testSpaceStationLevels } from '../../test-fixtures/recorded-game-data';
-import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateProductionCardLoad, groupProductionCardLines, hasBuildingInventory } from './production-card-groups'
 
 describe('production card groups', () => {

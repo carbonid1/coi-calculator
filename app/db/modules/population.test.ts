@@ -1,17 +1,17 @@
 import { expect, it } from "vitest";
 
-import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateBuildingStats } from "../../helpers/building-stats/building-stats";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
 import { type ResolvedPopulationEntityInventory } from "../../helpers/population-entity-sync/population-entity-sync";
+import { buildModuleLines } from '../../test-fixtures/build-module-lines';
 import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
-import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
-import { getHousingTypes } from "../housing";
 
 const activeHousingType = getHousingTypes(testPlanningDefinitions).housingIII;
 
-import { defaultInfiniteResearchLevels } from "../research";
+import { defaultInfiniteResearchLevels } from '../../test-fixtures/historical-planning'
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
+import { getHousingTypes } from "../housing";
 import { settlementRecipeIds } from "../settlement";
 import { type Module } from "./modules";
 import {

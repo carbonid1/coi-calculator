@@ -76,6 +76,9 @@ export interface SyncedGroundwaterAquifer {
 }
 
 export interface SyncedGroundwaterState {
+  pumpCapacityPerCycle: number
+  capacityReplenishRawPercent: number
+  maximumEmergencyWaterCapacity: number
   depletedPumpSpeedPercent: number
   replenishWhenLowPercent: number
 }
@@ -305,7 +308,7 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 52 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 55 as const
 
 export interface GameStateSnapshot {
   chickenFarmDefinition: ChickenFarmDefinition
@@ -642,6 +645,9 @@ const isGroundwaterAquifer = (value: unknown): value is SyncedGroundwaterAquifer
 
 const isGroundwaterState = (value: unknown): value is GameStateSnapshot['groundwater'] =>
   isUnknownRecord(value) &&
+  typeof value.pumpCapacityPerCycle === "number" && Number.isFinite(value.pumpCapacityPerCycle) && value.pumpCapacityPerCycle > 0 &&
+  typeof value.capacityReplenishRawPercent === "number" && Number.isFinite(value.capacityReplenishRawPercent) && value.capacityReplenishRawPercent >= 0 &&
+  isNonNegativeInteger(value.maximumEmergencyWaterCapacity) &&
   isNonNegativeInteger(value.depletedPumpSpeedPercent) &&
   value.depletedPumpSpeedPercent <= 100 &&
   isNonNegativeInteger(value.replenishWhenLowPercent) &&

@@ -1,13 +1,13 @@
 import { expect, it } from "vitest";
 
 import { calculateBuildingDiagnostics } from "../../helpers/building-diagnostics/building-diagnostics";
-import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
 import { getReserveDrawPerProductionCycle } from "../../helpers/reserves/reserves";
+import { calculateFactoryTotal } from "../../test-fixtures/factory-total";
+import { baseConfig } from '../../test-fixtures/historical-planning'
+import { testContracts as contracts } from '../../test-fixtures/recorded-game-data'
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
-import { baseConfig } from "../config";
 import {
   type ActiveContract,
-  contracts,
 } from "../contracts";
 import { reserveResourceCatalog } from "../reserve-resources";
 import { type ResourceId } from "../resources";
@@ -99,7 +99,7 @@ const activateContract = (
         fuelResourceId: "hydrogen",
         saveFuel: true,
         roundTripDurationProductionCycles: null,
-        fuelPerTrip: null,
+        fuelPerTrip: 289,
       },
     }],
   };

@@ -11,6 +11,7 @@ import {
 import { housingCatalog } from './housing'
 import { maintenanceStatue } from './maintenance-statue'
 import { getOfficeRecipeId, officeCatalog, type OfficeBoostStep, type OfficeTierId } from './offices'
+import { factoryRecipeBindings, type FactoryRecipeBinding } from './recipe-bindings'
 import { reserveResourceCatalog } from './reserve-resources'
 import { type ResourceId } from './resources'
 import { settlementRecipeIds } from './settlement'
@@ -82,6 +83,7 @@ export interface DecayStorage {
 }
 
 export interface Recipe {
+  factoryRecipe?: FactoryRecipeBinding
   planningConfiguration?: 'housingIII' | 'housingII' | 'solar' | 'statue' | 'basicRack' | 'waterChiller'
   officeConfiguration?: { tierId: OfficeTierId; boostStep: OfficeBoostStep }
   /** Game definition attached when building lines from a compatible snapshot. */
@@ -210,11 +212,6 @@ export const matchesGameRecipe = (
   recipeId: string,
 ) => recipe.gameBuildingId === buildingId && recipe.gameRecipeId === recipeId
 
-const radioactiveWasteStorageCapacity = 2400
-const fissionProductDecayCycles = 100 * 12
-const radioactiveWasteStorageThroughput =
-  radioactiveWasteStorageCapacity / fissionProductDecayCycles
-
 export const createCropFarmRecipe = (group: CropFarmGroup, definitions: CropFarmingDefinitions): Recipe => {
   const rates = calculateCropFarmGroupRates(group, definitions)
   const fertilizerDefinition = group.fertilizer ? getCropFarmingData(definitions).fertilizer(group.fertilizer.id) : null
@@ -259,7 +256,7 @@ export const createCropFarmRecipe = (group: CropFarmGroup, definitions: CropFarm
   }
 }
 
-export const recipes: Recipe[] = [
+const recipePolicies: Recipe[] = [
   // Sources
   {
     id: 'seawater-pump',
@@ -267,7 +264,7 @@ export const recipes: Recipe[] = [
     building: 'Seawater Pump',
     group: 'source',
     inputs: [],
-    outputs: [{ resourceId: 'seaWater', quantity: 216 }],
+    outputs: [{ resourceId: 'seaWater', quantity: 0 }],
     // Pumps are physically piped inside their module. Do not let spare pump
     // capacity in one network supply a different module's desalination plant.
     sourceMode: 'module-demand-capped',
@@ -278,7 +275,7 @@ export const recipes: Recipe[] = [
     building: 'Seawater Pump (Tall)',
     group: 'source',
     inputs: [],
-    outputs: [{ resourceId: 'seaWater', quantity: 216 }],
+    outputs: [{ resourceId: 'seaWater', quantity: 0 }],
     sourceMode: 'module-demand-capped',
   },
   ...reserveResourceCatalog.map(
@@ -295,26 +292,23 @@ export const recipes: Recipe[] = [
     }),
   ),
   {
-    // Captain of Industry v0.8.7: 8 Water every 10 seconds.
     id: 'groundwater-pump',
     name: 'Groundwater Pump',
     building: 'Groundwater Pump',
     group: 'source',
-    cycleDurationSeconds: 10,
     inputs: [],
-    outputs: [{ resourceId: 'water', quantity: 48 }],
+    outputs: [{ resourceId: 'water', quantity: 0 }],
     sourceMode: 'module-demand-capped',
     sourceKind: 'groundwater',
   },
   {
-    // Same v0.8.7 building, connected to the factory water network as reserve capacity.
+    // Connected to the factory water network as reserve capacity.
     id: 'groundwater-pump-factory-reserve',
     name: 'Groundwater Pump (Factory reserve)',
     building: 'Groundwater Pump',
     group: 'source',
-    cycleDurationSeconds: 10,
     inputs: [],
-    outputs: [{ resourceId: 'water', quantity: 48 }],
+    outputs: [{ resourceId: 'water', quantity: 0 }],
     sourceMode: 'demand-capped',
     sourceKind: 'groundwater',
   },
@@ -355,14 +349,14 @@ export const recipes: Recipe[] = [
     building: 'Fast Breeder Reactor',
     group: 'electricity',
     inputs: [
-      { resourceId: 'water', quantity: 96 },
-      { resourceId: 'coreFuel', quantity: 4 },
-      { resourceId: 'blanketFuel', quantity: 4 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'coreFuel', quantity: 0 },
+      { resourceId: 'blanketFuel', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'steamSuper', quantity: 96 },
-      { resourceId: 'coreFuelSpent', quantity: 4 },
-      { resourceId: 'blanketFuelEnriched', quantity: 4 },
+      { resourceId: 'steamSuper', quantity: 0 },
+      { resourceId: 'coreFuelSpent', quantity: 0 },
+      { resourceId: 'blanketFuelEnriched', quantity: 0 },
     ],
   },
   {
@@ -373,12 +367,12 @@ export const recipes: Recipe[] = [
     building: 'Fast Breeder Reactor',
     group: 'electricity',
     inputs: [
-      { resourceId: 'water', quantity: 96 },
-      { resourceId: 'coreFuel', quantity: 2 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'coreFuel', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'steamSuper', quantity: 96 },
-      { resourceId: 'coreFuelSpent', quantity: 2 },
+      { resourceId: 'steamSuper', quantity: 0 },
+      { resourceId: 'coreFuelSpent', quantity: 0 },
     ],
   },
   {
@@ -389,14 +383,14 @@ export const recipes: Recipe[] = [
     building: 'Fast Breeder Reactor',
     group: 'electricity',
     inputs: [
-      { resourceId: 'water', quantity: 24 },
-      { resourceId: 'coreFuel', quantity: 4 },
-      { resourceId: 'blanketFuel', quantity: 12 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'coreFuel', quantity: 0 },
+      { resourceId: 'blanketFuel', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'steamSuper', quantity: 24 },
-      { resourceId: 'coreFuelSpent', quantity: 4 },
-      { resourceId: 'blanketFuelEnriched', quantity: 12 },
+      { resourceId: 'steamSuper', quantity: 0 },
+      { resourceId: 'coreFuelSpent', quantity: 0 },
+      { resourceId: 'blanketFuelEnriched', quantity: 0 },
     ],
   },
   {
@@ -404,10 +398,10 @@ export const recipes: Recipe[] = [
     name: 'Super-Pressure Turbine',
     building: 'Super-Pressure Turbine',
     group: 'electricity',
-    inputs: [{ resourceId: 'steamSuper', quantity: 48 }],
+    inputs: [{ resourceId: 'steamSuper', quantity: 0 }],
     outputs: [
-      { resourceId: 'steamHigh', quantity: 48 },
-      { resourceId: 'electricity', quantity: 15 },
+      { resourceId: 'steamHigh', quantity: 0 },
+      { resourceId: 'electricity', quantity: 0 },
     ],
     electricityDispatch: { groupId: 'fbr-turbines', priority: 2 },
   },
@@ -416,10 +410,10 @@ export const recipes: Recipe[] = [
     name: 'High-Pressure Turbine II',
     building: 'High-Pressure Turbine II',
     group: 'electricity',
-    inputs: [{ resourceId: 'steamHigh', quantity: 48 }],
+    inputs: [{ resourceId: 'steamHigh', quantity: 0 }],
     outputs: [
-      { resourceId: 'steamLow', quantity: 48 },
-      { resourceId: 'electricity', quantity: 10 },
+      { resourceId: 'steamLow', quantity: 0 },
+      { resourceId: 'electricity', quantity: 0 },
     ],
     electricityDispatch: { groupId: 'fbr-turbines', priority: 2 },
   },
@@ -428,10 +422,10 @@ export const recipes: Recipe[] = [
     name: 'Low-Pressure Turbine II',
     building: 'Low-Pressure Turbine II',
     group: 'electricity',
-    inputs: [{ resourceId: 'steamLow', quantity: 48 }],
+    inputs: [{ resourceId: 'steamLow', quantity: 0 }],
     outputs: [
-      { resourceId: 'steamDepleted', quantity: 48 },
-      { resourceId: 'electricity', quantity: 5 },
+      { resourceId: 'steamDepleted', quantity: 0 },
+      { resourceId: 'electricity', quantity: 0 },
     ],
     electricityDispatch: { groupId: 'fbr-turbines', priority: 2 },
   },
@@ -631,17 +625,16 @@ export const recipes: Recipe[] = [
     name: 'Wastewater Treatment (Filter Media)',
     building: 'Wastewater Treatment',
     group: 'production',
-    cycleDurationSeconds: 30,
     balanceBy: 'input',
     balanceInputIds: ['wasteWater'],
     inputs: [
-      { resourceId: 'wasteWater', quantity: 160 },
-      { resourceId: 'filterMedia', quantity: 8 },
-      { resourceId: 'chlorine', quantity: 16 },
+      { resourceId: 'wasteWater', quantity: 0 },
+      { resourceId: 'filterMedia', quantity: 0 },
+      { resourceId: 'chlorine', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'water', quantity: 120 },
-      { resourceId: 'sludge', quantity: 36 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'sludge', quantity: 0 },
     ],
   },
   {
@@ -649,13 +642,12 @@ export const recipes: Recipe[] = [
     name: 'Anaerobic Digester (Sludge)',
     building: 'Anaerobic Digester',
     group: 'production',
-    cycleDurationSeconds: 60,
     balanceBy: 'input',
     balanceInputIds: ['sludge'],
-    inputs: [{ resourceId: 'sludge', quantity: 18 }],
+    inputs: [{ resourceId: 'sludge', quantity: 0 }],
     outputs: [
-      { resourceId: 'fuelGas', quantity: 8 },
-      { resourceId: 'compost', quantity: 3 },
+      { resourceId: 'fuelGas', quantity: 0 },
+      { resourceId: 'compost', quantity: 0 },
     ],
   },
   {
@@ -663,15 +655,13 @@ export const recipes: Recipe[] = [
     name: 'Mixer II (Biomass → Compost)',
     building: 'Mixer II',
     group: 'production',
-    cycleDurationSeconds: 60,
     balanceBy: 'input',
     balanceInputIds: ['biomass'],
     balanceInputScope: 'module',
-    inputs: [{ resourceId: 'biomass', quantity: 24 }],
-    outputs: [{ resourceId: 'compost', quantity: 16 }],
+    inputs: [{ resourceId: 'biomass', quantity: 0 }],
+    outputs: [{ resourceId: 'compost', quantity: 0 }],
   },
   {
-    // Installed v0.8.7 Ethanol Cooking Oil Reforming binding, normalized to
     // one 60-second production cycle. An empty output-demand list prevents
     // Diesel demand from starting this disposal route; Cooking Oil surplus is
     // its only driver, with Ethanol demand-propagated as supporting production.
@@ -684,37 +674,34 @@ export const recipes: Recipe[] = [
     name: 'Chemical Plant II (Cooking Oil → Diesel)',
     building: 'Chemical Plant II',
     group: 'production',
-    cycleDurationSeconds: 60,
     balanceBy: 'output',
     balanceOutputIds: [],
     consumeSurplusInputIds: ['cookingOil'],
     surplusConsumptionPriority: 110,
     inputs: [
-      { resourceId: 'ethanol', quantity: 15 },
-      { resourceId: 'cookingOil', quantity: 30 },
+      { resourceId: 'ethanol', quantity: 0 },
+      { resourceId: 'cookingOil', quantity: 0 },
     ],
-    outputs: [{ resourceId: 'diesel', quantity: 54 }],
+    outputs: [{ resourceId: 'diesel', quantity: 0 }],
   },
   {
-    // Captain of Industry v0.8.6 game-data rate, normalized from 20 to 60 seconds.
     // This route intentionally consumes only Fuel Gas left after every modeled demand.
     id: 'cracking-unit-fuel-gas-diesel',
     name: 'Cracking Unit (Fuel Gas → Diesel)',
     building: 'Cracking Unit',
     group: 'production',
-    cycleDurationSeconds: 20,
     balanceBy: 'input',
     balanceInputIds: ['fuelGas'],
     balanceOutputIds: ['diesel'],
     allocation: 'surplus',
     allocationPriority: 100,
     inputs: [
-      { resourceId: 'fuelGas', quantity: 36 },
-      { resourceId: 'oxygen', quantity: 18 },
+      { resourceId: 'fuelGas', quantity: 0 },
+      { resourceId: 'oxygen', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'diesel', quantity: 24 },
-      { resourceId: 'water', quantity: 6 },
+      { resourceId: 'diesel', quantity: 0 },
+      { resourceId: 'water', quantity: 0 },
     ],
   },
   {
@@ -722,27 +709,24 @@ export const recipes: Recipe[] = [
     name: 'Electrolyzer II (Chlorine)',
     building: 'Electrolyzer II',
     group: 'production',
-    cycleDurationSeconds: 10,
     balanceBy: 'output',
     balanceInputIds: ['brine'],
     balanceOutputIds: ['chlorine'],
     inputPriorities: { brine: 2 },
-    inputs: [{ resourceId: 'brine', quantity: 72 }],
-    outputs: [{ resourceId: 'chlorine', quantity: 48 }],
+    inputs: [{ resourceId: 'brine', quantity: 0 }],
+    outputs: [{ resourceId: 'chlorine', quantity: 0 }],
   },
   {
     id: 'evaporation-pond-heated-salt-brine',
-    // Captain of Industry v0.8.7 heated-pond rate, normalized to 60 seconds.
     name: 'Evaporation Pond (Brine → Salt)',
     building: 'Evaporation Pond (Heated)',
     group: 'production',
-    cycleDurationSeconds: 20,
     balanceBy: 'output',
     balanceInputIds: ['brine'],
     balanceOutputIds: ['salt'],
     inputPriorities: { brine: 3 },
-    inputs: [{ resourceId: 'brine', quantity: 96 }],
-    outputs: [{ resourceId: 'salt', quantity: 12 }],
+    inputs: [{ resourceId: 'brine', quantity: 0 }],
+    outputs: [{ resourceId: 'salt', quantity: 0 }],
   },
 
   {
@@ -751,14 +735,14 @@ export const recipes: Recipe[] = [
     building: 'Nuclear Reprocessing Plant',
     group: 'production',
     inputs: [
-      { resourceId: 'coreFuelSpent', quantity: 16 },
-      { resourceId: 'acid', quantity: 2 },
-      { resourceId: 'moltenGlass', quantity: 2 },
-      { resourceId: 'steel', quantity: 1 },
+      { resourceId: 'coreFuelSpent', quantity: 0 },
+      { resourceId: 'acid', quantity: 0 },
+      { resourceId: 'moltenGlass', quantity: 0 },
+      { resourceId: 'steel', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'coreFuel', quantity: 12 },
-      { resourceId: 'fissionProduct', quantity: 2 },
+      { resourceId: 'coreFuel', quantity: 0 },
+      { resourceId: 'fissionProduct', quantity: 0 },
     ],
   },
   {
@@ -766,14 +750,13 @@ export const recipes: Recipe[] = [
     name: 'Enrichment Plant (Core Fuel)',
     building: 'Enrichment Plant',
     group: 'production',
-    inputs: [{ resourceId: 'blanketFuelEnriched', quantity: 8 }],
+    inputs: [{ resourceId: 'blanketFuelEnriched', quantity: 0 }],
     outputs: [
-      { resourceId: 'blanketFuel', quantity: 6 },
-      { resourceId: 'coreFuel', quantity: 2 },
+      { resourceId: 'blanketFuel', quantity: 0 },
+      { resourceId: 'coreFuel', quantity: 0 },
     ],
   },
 
-  // Lab Equipment chain on Assembly V, normalized to 60 seconds from v0.8.6c.
   {
     id: 'research-lab-iv',
     gameBuildingId: 'ResearchLab4',
@@ -781,26 +764,24 @@ export const recipes: Recipe[] = [
     building: 'Research Lab IV',
     showConfigurationSummary: false,
     group: 'production',
-    inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
+    inputs: [{ resourceId: 'labEquipmentIv', quantity: 0 }],
     recyclesInputs: true,
     outputs: [{ resourceId: 'recyclables', quantity: 0 }],
   },
   {
-    // Installed v0.8.7 Assembly V binding: 3 Paper + 2 Household Goods
     // + 1 Electronics II -> 6 Office Supplies every 7.5 seconds.
     id: 'assembly-v-office-supplies',
     name: 'Assembly V (Office Supplies)',
     building: 'Assembly V',
     group: 'production',
-    cycleDurationSeconds: 7.5,
     balanceBy: 'output',
     balanceOutputIds: ['officeSupplies'],
     inputs: [
-      { resourceId: 'paper', quantity: 24 },
-      { resourceId: 'householdGoods', quantity: 16 },
-      { resourceId: 'electronicsII', quantity: 8 },
+      { resourceId: 'paper', quantity: 0 },
+      { resourceId: 'householdGoods', quantity: 0 },
+      { resourceId: 'electronicsII', quantity: 0 },
     ],
-    outputs: [{ resourceId: 'officeSupplies', quantity: 48 }],
+    outputs: [{ resourceId: 'officeSupplies', quantity: 0 }],
   },
   ...officeCatalog.flatMap(office =>
     ([0, 1, 2] as const satisfies readonly OfficeBoostStep[]).map(
@@ -826,21 +807,19 @@ export const recipes: Recipe[] = [
     ),
   ),
   {
-    // Installed v0.8.7 Assembly V binding: 4 Composite Cores + 2 Mono
     // Solar Cells + 1 Chemical Fuel -> 2 Station Parts every 15 seconds.
     id: 'assembly-v-station-parts',
     name: 'Assembly V (Station Parts)',
     building: 'Assembly V',
     group: 'production',
-    cycleDurationSeconds: 15,
     balanceBy: 'output',
     balanceOutputIds: ['stationParts'],
     inputs: [
-      { resourceId: 'compositeCore', quantity: 16 },
-      { resourceId: 'solarCellMono', quantity: 8 },
-      { resourceId: 'chemicalFuel', quantity: 4 },
+      { resourceId: 'compositeCore', quantity: 0 },
+      { resourceId: 'solarCellMono', quantity: 0 },
+      { resourceId: 'chemicalFuel', quantity: 0 },
     ],
-    outputs: [{ resourceId: 'stationParts', quantity: 8 }],
+    outputs: [{ resourceId: 'stationParts', quantity: 0 }],
   },
   // Static infrastructure. Runtime utilization is not available, so these
   // no-flow rows account for workers while avoiding modeled production flows.
@@ -994,24 +973,22 @@ export const recipes: Recipe[] = [
     name: 'Maintenance I (Basic)',
     building: 'Maintenance Depot (Basic)',
     group: 'production',
-    cycleDurationSeconds: 30,
     inputs: [
-      { resourceId: 'mechanicalParts', quantity: 12 },
-      { resourceId: 'electronicsI', quantity: 6 },
+      { resourceId: 'mechanicalParts', quantity: 0 },
+      { resourceId: 'electronicsI', quantity: 0 },
     ],
-    outputs: [{ resourceId: 'maintenanceI', quantity: 220, outputModifierId: 'maintenanceOutput' }],
+    outputs: [{ resourceId: 'maintenanceI', quantity: 0, outputModifierId: 'maintenanceOutput' }],
   },
   {
     id: 'maintenance-i',
     name: 'Maintenance I',
     building: 'Maintenance Depot',
     group: 'production',
-    cycleDurationSeconds: 20,
     inputs: [
-      { resourceId: 'mechanicalParts', quantity: 24 },
-      { resourceId: 'electronicsI', quantity: 12 },
+      { resourceId: 'mechanicalParts', quantity: 0 },
+      { resourceId: 'electronicsI', quantity: 0 },
     ],
-    outputs: [{ resourceId: 'maintenanceI', quantity: 480, outputModifierId: 'maintenanceOutput' }],
+    outputs: [{ resourceId: 'maintenanceI', quantity: 0, outputModifierId: 'maintenanceOutput' }],
   },
   {
     id: 'maintenance-i-recycling',
@@ -1019,13 +996,12 @@ export const recipes: Recipe[] = [
     name: 'Maintenance I (Recycling)',
     building: 'Maintenance Depot',
     group: 'production',
-    cycleDurationSeconds: 20,
     inputs: [
-      { resourceId: 'mechanicalParts', quantity: 24 },
-      { resourceId: 'electronicsI', quantity: 12 },
+      { resourceId: 'mechanicalParts', quantity: 0 },
+      { resourceId: 'electronicsI', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'maintenanceI', quantity: 480, outputModifierId: 'maintenanceOutput' },
+      { resourceId: 'maintenanceI', quantity: 0, outputModifierId: 'maintenanceOutput' },
       { resourceId: 'recyclables', quantity: 0 },
     ],
   },
@@ -1034,13 +1010,12 @@ export const recipes: Recipe[] = [
     name: 'Maintenance II',
     building: 'Maintenance II Depot',
     group: 'production',
-    cycleDurationSeconds: 20,
     inputs: [
-      { resourceId: 'mechanicalParts', quantity: 18 },
-      { resourceId: 'electronicsII', quantity: 12 },
+      { resourceId: 'mechanicalParts', quantity: 0 },
+      { resourceId: 'electronicsII', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'maintenanceII', quantity: 480, outputModifierId: 'maintenanceOutput' },
+      { resourceId: 'maintenanceII', quantity: 0, outputModifierId: 'maintenanceOutput' },
     ],
   },
   {
@@ -1049,13 +1024,12 @@ export const recipes: Recipe[] = [
     name: 'Maintenance II (Recycling)',
     building: 'Maintenance II Depot',
     group: 'production',
-    cycleDurationSeconds: 20,
     inputs: [
-      { resourceId: 'mechanicalParts', quantity: 18 },
-      { resourceId: 'electronicsII', quantity: 12 },
+      { resourceId: 'mechanicalParts', quantity: 0 },
+      { resourceId: 'electronicsII', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'maintenanceII', quantity: 480, outputModifierId: 'maintenanceOutput' },
+      { resourceId: 'maintenanceII', quantity: 0, outputModifierId: 'maintenanceOutput' },
       { resourceId: 'recyclables', quantity: 0 },
     ],
   },
@@ -1064,13 +1038,12 @@ export const recipes: Recipe[] = [
     name: 'Maintenance III',
     building: 'Maintenance III Depot',
     group: 'production',
-    cycleDurationSeconds: 20,
     inputs: [
-      { resourceId: 'mechanicalParts', quantity: 9 },
-      { resourceId: 'electronicsIII', quantity: 6 },
+      { resourceId: 'mechanicalParts', quantity: 0 },
+      { resourceId: 'electronicsIII', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'maintenanceIII', quantity: 240, outputModifierId: 'maintenanceOutput' },
+      { resourceId: 'maintenanceIII', quantity: 0, outputModifierId: 'maintenanceOutput' },
     ],
   },
   {
@@ -1079,13 +1052,12 @@ export const recipes: Recipe[] = [
     name: 'Maintenance III (Recycling)',
     building: 'Maintenance III Depot',
     group: 'production',
-    cycleDurationSeconds: 20,
     inputs: [
-      { resourceId: 'mechanicalParts', quantity: 9 },
-      { resourceId: 'electronicsIII', quantity: 6 },
+      { resourceId: 'mechanicalParts', quantity: 0 },
+      { resourceId: 'electronicsIII', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'maintenanceIII', quantity: 240, outputModifierId: 'maintenanceOutput' },
+      { resourceId: 'maintenanceIII', quantity: 0, outputModifierId: 'maintenanceOutput' },
       { resourceId: 'recyclables', quantity: 0 },
     ],
   },
@@ -1096,21 +1068,21 @@ export const recipes: Recipe[] = [
     group: 'production',
     balanceBy: 'output',
     inputs: [
-      { resourceId: 'yellowcake', quantity: 6 },
-      { resourceId: 'salt', quantity: 2 },
+      { resourceId: 'yellowcake', quantity: 0 },
+      { resourceId: 'salt', quantity: 0 },
     ],
-    outputs: [{ resourceId: 'blanketFuel', quantity: 2 }],
+    outputs: [{ resourceId: 'blanketFuel', quantity: 0 }],
   },
   {
     id: 'radioactive-waste-storage',
     name: 'Radioactive Waste Storage (Fission Product)',
     building: 'Radioactive Waste Storage',
     group: 'waste',
-    inputs: [{ resourceId: 'fissionProduct', quantity: radioactiveWasteStorageThroughput }],
-    outputs: [{ resourceId: 'retiredWaste', quantity: radioactiveWasteStorageThroughput }],
+    inputs: [{ resourceId: 'fissionProduct', quantity: 0 }],
+    outputs: [{ resourceId: 'retiredWaste', quantity: 0 }],
     decayStorage: {
-      capacity: radioactiveWasteStorageCapacity,
-      decayCycles: fissionProductDecayCycles,
+      capacity: 0,
+      decayCycles: 0,
     },
     balanceBy: 'input',
   },
@@ -1120,7 +1092,7 @@ export const recipes: Recipe[] = [
     name: 'Shredder (Retired Waste)',
     building: 'Shredder',
     group: 'waste',
-    inputs: [{ resourceId: 'retiredWaste', quantity: 6 }],
+    inputs: [{ resourceId: 'retiredWaste', quantity: 0 }],
     outputs: [{ resourceId: 'recyclables', quantity: 0 }],
     // Preserve the recoverable source materials carried by Retired Waste.
     balanceBy: 'input',
@@ -1130,8 +1102,8 @@ export const recipes: Recipe[] = [
     name: 'Crusher (Uranium Ore)',
     building: 'Crusher',
     group: 'production',
-    inputs: [{ resourceId: 'uraniumOre', quantity: 12 }],
-    outputs: [{ resourceId: 'uraniumOrePowder', quantity: 12 }],
+    inputs: [{ resourceId: 'uraniumOre', quantity: 0 }],
+    outputs: [{ resourceId: 'uraniumOrePowder', quantity: 0 }],
   },
 
   // Water & hydrogen
@@ -1141,8 +1113,8 @@ export const recipes: Recipe[] = [
     building: 'Hydrogen Reformer',
     group: 'production',
     inputs: [
-      { resourceId: 'water', quantity: 16 },
-      { resourceId: 'steamSuper', quantity: 12 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'steamSuper', quantity: 0 },
     ],
     // Nuclear electrolysis is the factory's shared source for both products.
     // Run for whichever requested product needs more throughput; the paired
@@ -1150,9 +1122,9 @@ export const recipes: Recipe[] = [
     balanceBy: 'output',
     balanceOutputIds: ['hydrogen', 'oxygen'],
     outputs: [
-      { resourceId: 'hydrogen', quantity: 32 },
-      { resourceId: 'oxygen', quantity: 32 },
-      { resourceId: 'steamDepleted', quantity: 12 },
+      { resourceId: 'hydrogen', quantity: 0 },
+      { resourceId: 'oxygen', quantity: 0 },
+      { resourceId: 'steamDepleted', quantity: 0 },
     ],
   },
   {
@@ -1161,8 +1133,8 @@ export const recipes: Recipe[] = [
     building: 'Thermal Desalinator',
     group: 'production',
     inputs: [
-      { resourceId: 'seaWater', quantity: 15 },
-      { resourceId: 'steamDepleted', quantity: 24 },
+      { resourceId: 'seaWater', quantity: 0 },
+      { resourceId: 'steamDepleted', quantity: 0 },
     ],
     // Recover useful Water and Brine first, but do not desalinate merely to
     // consume steam. Any Depleted Steam left after real demand is routed to
@@ -1173,12 +1145,11 @@ export const recipes: Recipe[] = [
     allocation: 'fallback',
     allocationPriority: 0,
     outputs: [
-      { resourceId: 'water', quantity: 33 },
-      { resourceId: 'brine', quantity: 6 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'brine', quantity: 0 },
     ],
   },
   {
-    // Captain of Industry v0.8.7 game-data rate, normalized from 10 to 60 seconds.
     // Keep Low Steam desalination as a secondary option. It can sacrifice the
     // last turbine stage for Water/Brine only after the ordinary depleted- and
     // super-steam desalination paths cannot satisfy demand.
@@ -1186,19 +1157,18 @@ export const recipes: Recipe[] = [
     name: 'Thermal Desalinator (Low Steam)',
     building: 'Thermal Desalinator',
     group: 'production',
-    cycleDurationSeconds: 10,
     balanceBy: 'output',
     balanceInputIds: ['steamLow'],
     balanceOutputIds: ['water', 'brine'],
     allocation: 'fallback',
     allocationPriority: 80,
     inputs: [
-      { resourceId: 'seaWater', quantity: 72 },
-      { resourceId: 'steamLow', quantity: 24 },
+      { resourceId: 'seaWater', quantity: 0 },
+      { resourceId: 'steamLow', quantity: 0 },
     ],
     outputs: [
-      { resourceId: 'water', quantity: 72 },
-      { resourceId: 'brine', quantity: 24 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'brine', quantity: 0 },
     ],
   },
   {
@@ -1207,8 +1177,8 @@ export const recipes: Recipe[] = [
     building: 'Thermal Desalinator',
     group: 'production',
     inputs: [
-      { resourceId: 'seaWater', quantity: 108 },
-      { resourceId: 'steamSuper', quantity: 6 },
+      { resourceId: 'seaWater', quantity: 0 },
+      { resourceId: 'steamSuper', quantity: 0 },
     ],
     // Cover Water demand with reactor steam left after electricity and H2;
     // the resulting Brine then feeds wastewater, Chlorine, and Salt in order.
@@ -1220,8 +1190,8 @@ export const recipes: Recipe[] = [
     allocation: 'fallback',
     allocationPriority: 10,
     outputs: [
-      { resourceId: 'water', quantity: 72 },
-      { resourceId: 'brine', quantity: 42 },
+      { resourceId: 'water', quantity: 0 },
+      { resourceId: 'brine', quantity: 0 },
     ],
   },
 
@@ -1237,12 +1207,10 @@ export const recipes: Recipe[] = [
       priority: 1,
     },
     sinkScope: 'module',
-    inputs: [{ resourceId: 'steamDepleted', quantity: 96 }],
-    outputs: [{ resourceId: 'water', quantity: 72 }],
+    inputs: [{ resourceId: 'steamDepleted', quantity: 0 }],
+    outputs: [{ resourceId: 'water', quantity: 0 }],
   },
   {
-    // Captain of Industry v0.8.7 game data: 16 Low Steam becomes 12 Water
-    // every 10 seconds, normalized here to one 60-second production cycle.
     id: 'cooling-tower-large-low',
     name: 'Cooling Tower Large (Low)',
     building: 'Cooling Tower (Large)',
@@ -1252,8 +1220,8 @@ export const recipes: Recipe[] = [
       label: 'Cooling Tower (Large)',
       priority: 2,
     },
-    inputs: [{ resourceId: 'steamLow', quantity: 96 }],
-    outputs: [{ resourceId: 'water', quantity: 72 }],
+    inputs: [{ resourceId: 'steamLow', quantity: 0 }],
+    outputs: [{ resourceId: 'water', quantity: 0 }],
   },
   {
     id: 'cooling-tower-large-super',
@@ -1265,40 +1233,36 @@ export const recipes: Recipe[] = [
       label: 'Cooling Tower (Large)',
       priority: 3,
     },
-    inputs: [{ resourceId: 'steamSuper', quantity: 96 }],
-    outputs: [{ resourceId: 'water', quantity: 48 }],
+    inputs: [{ resourceId: 'steamSuper', quantity: 0 }],
+    outputs: [{ resourceId: 'water', quantity: 0 }],
   },
   {
-    // Captain of Industry v0.8.7: each Liquid Dump handles 200 fluid per
-    // production cycle. It consumes only Water left after useful consumers.
+    // Consume only Water left after useful consumers.
     id: 'nuclear-liquid-dump-water',
     name: 'Liquid Dump (Water)',
     building: 'Liquid Dump',
     group: 'sink',
-    inputs: [{ resourceId: 'water', quantity: 200 }],
+    inputs: [{ resourceId: 'water', quantity: 0 }],
     outputs: [],
   },
   {
-    // Captain of Industry v0.8.7: each Liquid Dump handles 200 fluid per
-    // production cycle. It consumes only Brine left after useful consumers.
+    // Consume only Brine left after useful consumers.
     id: 'nuclear-liquid-dump-brine',
     name: 'Liquid Dump (Brine)',
     building: 'Liquid Dump',
     group: 'sink',
     sinkScope: 'module',
-    inputs: [{ resourceId: 'brine', quantity: 200 }],
+    inputs: [{ resourceId: 'brine', quantity: 0 }],
     outputs: [],
   },
   {
-    // Captain of Industry v0.8.7: the Large Smoke Stack runs the 20 Oxygen / 20s
-    // disposal recipe at 15x throughput, or 900 Oxygen per production cycle.
     // As a sink, it exports Oxygen to regular factory consumers first and vents
     // only the final factory-wide remainder.
     id: 'nuclear-smoke-stack-large-oxygen',
     name: 'Smoke stack (large) (Oxygen)',
     building: 'Smoke stack (large)',
     group: 'sink',
-    inputs: [{ resourceId: 'oxygen', quantity: 900 }],
+    inputs: [{ resourceId: 'oxygen', quantity: 0 }],
     outputs: [],
   },
 ]
@@ -1335,3 +1299,9 @@ export const applyGroundwaterSourceConstraint = (
     groundwaterConstraint: constraint,
   }
 }
+
+export const recipes: Recipe[] = recipePolicies.map(recipe => {
+  const binding = factoryRecipeBindings[recipe.id];
+
+  return binding ? { ...recipe, gameBuildingId: binding.buildingId, gameRecipeId: binding.recipeId, factoryRecipe: binding } : recipe;
+});

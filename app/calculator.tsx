@@ -27,7 +27,7 @@ import { WaterPlanningView } from './components/WaterPlanningView'
 import { WorldMinesView } from './components/WorldMinesView'
 import { getBuildingData } from './db/buildings'
 import { baseConfig } from './db/config'
-import { contracts } from './db/contracts'
+import { getContractCatalog } from './db/contracts'
 import { getHousingTypes } from './db/housing'
 import { selectMaintenanceDepotLines } from './db/modules/area-maintenance'
 import {
@@ -317,7 +317,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     runningResearchLabCount,
     settlementWaterUseLevel,
     sharedMachineAllocation,
-    shipsFuelUse,
     snapshot,
     solarPowerLevel,
     spaceStationIncludedInFactoryTotals,
@@ -425,7 +424,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           {
             recyclingEfficiencyPercent,
             outputModifiers,
-            shipsFuelUseMultiplier: shipsFuelUse.multiplier,
             contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
           },
         )
@@ -728,7 +726,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       {isContracts && factoryResult && (
         <ContractsView
-          contracts={contracts}
+          contracts={getContractCatalog(snapshot.planningDefinitions.factory.contracts)}
           issues={contractResolution.issues}
           results={factoryResult.contractResults}
         />

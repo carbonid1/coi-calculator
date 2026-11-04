@@ -1,6 +1,5 @@
 import {
   type ActiveContract,
-  cargoShipping,
   type ContractRoute,
 } from '../../db/contracts'
 import { type ResourceId, resources } from '../../db/resources'
@@ -41,17 +40,15 @@ const isRouteOperating = (route: ContractRoute) => (
 const calculateContractRouteShipping = (
   contract: ActiveContract,
   route: ContractRoute,
-  shipsFuelUseMultiplier = 1,
   contractsProfitMultiplier = 1,
 ) => {
   if (!isRouteOperating(route)) {
     return { importedPerTrip: 0, maxImportedPerProductionCycle: 0, fuelPerTrip: 0 }
   }
-  if (route.operation && route.shipping.fuelPerTrip === null) {
+  if (route.shipping.fuelPerTrip === null) {
     return { importedPerTrip: 0, maxImportedPerProductionCycle: null, fuelPerTrip: 0 }
   }
 
-  const installedModuleCount = route.cargoModules.length
   const importCargoCapacity = route.cargoModules.reduce(
     (total, module) => total + (
       module.running &&
@@ -82,30 +79,7 @@ const calculateContractRouteShipping = (
       / contract.exchange.exported.quantity
     : 0
   const importedPerTrip = Math.min(importCargoCapacity, exchangeLimitedImportedPerTrip)
-  const fallbackCapacityMultiplier = route.depotSize === 6 || route.depotSize === 8
-    ? cargoShipping.capacityMultiplierByShipSize[route.depotSize]
-    : 1
-  const fuelResourceMultiplier = route.shipping.fuelResourceId === 'hydrogen'
-    ? cargoShipping.hydrogenDieselEnergyRatio
-    : 1
-  const fuelPerJourneyBase = scaleQuantityLikeGame(
-    cargoShipping.fuelPerJourneyBase,
-    fuelResourceMultiplier,
-  )
-  const fuelPerJourneyPerModule = scaleQuantityLikeGame(
-    cargoShipping.fuelPerJourneyPerModule,
-    fuelResourceMultiplier,
-  )
-  const saveFuelMultiplier = route.shipping.saveFuel
-    ? cargoShipping.saveFuelMultiplier
-    : 1
-  const loadedShipFuel = fuelPerJourneyBase + scaleQuantityLikeGame(
-    fuelPerJourneyPerModule * installedModuleCount,
-    fallbackCapacityMultiplier,
-  )
-  const researchedFuel = scaleQuantityLikeGame(loadedShipFuel, shipsFuelUseMultiplier)
-  const fallbackFuelPerTrip = scaleQuantityLikeGame(researchedFuel, saveFuelMultiplier)
-  const fuelPerTrip = route.shipping.fuelPerTrip ?? fallbackFuelPerTrip
+  const fuelPerTrip = route.shipping.fuelPerTrip
   const transferDuration = route.operation ? Math.max(0, ...route.cargoModules.map(module => {
     const operation = route.operation?.modules.find(item => item.entityId === module.entityId)
 
@@ -168,7 +142,6 @@ const getFlow = (
 export const applyContracts = (
   resourceFlows: ResourceFlow[],
   contracts: readonly ActiveContract[],
-  shipsFuelUseMultiplier = 1,
   demandBalancedImports: ReadonlyMap<string, number> = new Map(),
   contractsProfitMultiplier = 1,
   /** Factory feedback has already propagated these payment and shipping loads. */
@@ -185,7 +158,7 @@ export const applyContracts = (
   const shippingByRoute = new Map<ContractRoute, ReturnType<typeof calculateContractRouteShipping>>()
   const getRouteShipping = (contract: ActiveContract, route: ContractRoute) => {
     const shipping = shippingByRoute.get(route) ?? calculateContractRouteShipping(
-      contract, route, shipsFuelUseMultiplier, contractsProfitMultiplier,
+      contract, route, contractsProfitMultiplier,
     )
 
     shippingByRoute.set(route, shipping)
@@ -194,7 +167,7 @@ export const applyContracts = (
   const getRouteImport = (contract: ActiveContract, route: ContractRoute, requested: number) => {
     const shipping = getRouteShipping(contract, route)
 
-    if (shipping.maxImportedPerProductionCycle === null) return route.operation ? 0 : requested
+    if (shipping.maxImportedPerProductionCycle === null) return route.operation || route.shipping.fuelPerTrip === null ? 0 : requested
 
     return Math.min(requested, shipping.maxImportedPerProductionCycle)
   }
@@ -242,7 +215,7 @@ export const applyContracts = (
         requestedImported,
         maxImportedPerProductionCycle: shipping.maxImportedPerProductionCycle,
         fuelPerProductionCycle,
-        ...(route.operation && isRouteOperating(route) && shipping.maxImportedPerProductionCycle === null
+        ...(isRouteOperating(route) && shipping.maxImportedPerProductionCycle === null
           ? { fuelUnavailable: true as const } : {}),
       })
       return imported
@@ -327,13 +300,12 @@ export const balanceContractExports = (
   resourceFlows: ResourceFlow[],
   contracts: readonly ActiveContract[],
   previousResults: readonly ContractResult[],
-  shipsFuelUseMultiplier = 1,
   contractsProfitMultiplier = 1,
   paymentAvailability: ReadonlyMap<ResourceId, number> = new Map(),
 ) => {
   const importTargets = new Map<string, number>()
   const calculatePlan = () => applyContracts(
-    resourceFlows, contracts, shipsFuelUseMultiplier, importTargets,
+    resourceFlows, contracts, importTargets,
     contractsProfitMultiplier, true,
   )
   let plan = calculatePlan()

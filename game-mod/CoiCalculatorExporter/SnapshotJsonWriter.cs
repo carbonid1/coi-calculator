@@ -22,7 +22,7 @@ internal static partial class SnapshotJsonWriter
     {
         SnapshotJsonStream json = new SnapshotJsonStream(3600);
         json.BeginObject();
-        json.Field("schemaVersion", 52);
+        json.Field("schemaVersion", 55);
         appendPlanningDefinitions(json, snapshot.PlanningDefinitions);
         appendOfficeFocusDefinitions(json, snapshot.OfficeFocusDefinitions);
         appendChickenFarmDefinition(json, snapshot.ChickenFarmDefinition);
@@ -140,6 +140,9 @@ internal static partial class SnapshotJsonWriter
         }
         json.EndArray();
         json.Name("groundwater").BeginObject();
+        json.Field("pumpCapacityPerCycle", snapshot.PlanningDefinitions.Factory.PumpCapacityPerCycle);
+        json.Field("capacityReplenishRawPercent", nativeRule<Mafi.Percent>(typeof(Mafi.Core.Environment.GroundWaterManager), "CAPACITY_REPLENISH_PER_DAY").ToDouble() * 100000);
+        json.Field("maximumEmergencyWaterCapacity", nativeRule<Mafi.Quantity>(typeof(Mafi.Core.Environment.GroundWaterManager), "MAX_EMERGENCY_WATER_CAPACITY").Value);
         json.Field("depletedPumpSpeedPercent", snapshot.GroundwaterDepletedPumpSpeedPercent);
         json.Field("replenishWhenLowPercent", snapshot.GroundwaterReplenishWhenLowPercent);
         json.Name("aquifers").BeginArray();

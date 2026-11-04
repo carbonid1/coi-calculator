@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 import { createNuclearModule, plannedNuclearOperation, type NuclearOperationPlan } from '../../db/modules/nuclear'
 import { emptyPlanningBaselines } from '../../db/planning-baselines'
 import { type SyncedAreaEntity } from '../../game-state'
-import { buildModuleLines } from '../build-module-lines/build-module-lines'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
 import { calculateNet } from '../calculate/calculate'
 import { createLiveAreaModules } from '../live-area-modules/live-area-modules'
 

@@ -12,13 +12,11 @@ export interface ResearchEfficiencyBreakdown {
   totalOutputPercent: number;
 }
 
-/**
- * Installed v0.8.7 rounds the population contribution to the nearest percent:
- * `(population * 5 + 500) / 1000` using integer division.
- */
-export const calculatePopulationResearchBonus = (population: number) => (
-  Math.trunc((Math.max(0, Math.trunc(population)) * 5 + 500) / 1000)
-);
+export const calculatePopulationResearchBonus = (definitions: PlanningDefinitions, population: number) => {
+  const formula = definitions.factory.populationResearch;
+
+  return Math.trunc((Math.max(0, Math.trunc(population)) * formula.numerator + formula.rounding) / formula.denominator);
+};
 
 export const calculateResearchEfficiency = ({
   definitions,
@@ -38,6 +36,7 @@ export const calculateResearchEfficiency = ({
   const normalizedStationBonus = Math.max(0, stationBonusPercent);
   const normalizedFocusBonus = Math.max(0, focusBonusPercent);
   const populationBonusPercent = calculatePopulationResearchBonus(
+    definitions,
     normalizedPopulation,
   );
   const bonusPercent = edictBonusPercent

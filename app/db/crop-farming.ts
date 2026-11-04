@@ -1,5 +1,6 @@
-import { getCropFarmingData, type CropFarmingDefinitions } from '../crop-farming-state';
+import { getCropFarmTier, getCropFarmingData, type CropFarmingDefinitions } from '../crop-farming-state';
 import { type ResourceId } from "./resources";
+import { planningWeather } from "./weather";
 
 export type CropFarmTierId = "farm" | "irrigatedFarm" | "greenhouse" | "greenhouseII";
 export type FertilizerId = "organic" | "fertilizerI" | "fertilizerII";
@@ -24,18 +25,7 @@ export type CropSchedule =
   | readonly [CropId, CropId, CropId]
   | readonly [CropId, CropId, CropId, CropId];
 
-export interface CropFarmTier {
-  id: CropFarmTierId;
-  name: string;
-  maintenanceIPerMonth: number;
-  supportsImportedWater: boolean;
-  supportsFertilizer: boolean;
-  isGreenhouse: boolean;
-  yieldMultiplier: number;
-  demandMultiplier: number;
-  waterEvaporationPerDay: number;
-  rainwaterAtFullRainPerDay: number;
-}
+export interface CropFarmTier { id: CropFarmTierId; name: string }
 
 export interface FertilizerDefinition {
   id: FertilizerId;
@@ -80,81 +70,11 @@ export interface CurrentCropFarmEntity {
   zones?: readonly { id: number; name: string | null }[];
 }
 
-/**
- * Installed 0.8.8 FarmsData.RegisterData and Farm runtime constants.
- * The game advances crop growth daily; one calculator month is 30 game days.
- */
-export const cropFarmSimulation = {
-  daysPerMonth: 30,
-  scheduleSlots: 4,
-  startingFertilityPercent: 80,
-  soilWaterCapacity: 50,
-  importedWaterCapacity: 60,
-  fertilizerCapacity: 40,
-  fertilityTargetStepPercent: 10,
-  maximumFertilityTargetPercent: 140,
-  repeatedCropFertilityPenaltyMultiplier: 1.5,
-  naturalFertilityEquilibriumPercent: 100,
-  naturalFertilityReplenishRate: 0.01,
-  drySoilNaturalReplenishMultiplier: 0.5,
-  aboveNaturalFertilityReplenishMultiplier: 0.2,
-  aboveNaturalFertilityDemandMultiplier: 2,
-  irrigationStartPercent: 10,
-  irrigationStopPercent: 65,
-  emptyCropIrrigationStopPercent: 35,
-  minimumIrrigationPerDay: 1,
-  minimumGrowthForHarvestPercent: 50,
-} as const;
-
 export const cropFarmTiers = {
-  farm: {
-    id: "farm",
-    name: "Farm",
-    maintenanceIPerMonth: 0,
-    supportsImportedWater: false,
-    supportsFertilizer: false,
-    isGreenhouse: false,
-    yieldMultiplier: 1,
-    demandMultiplier: 1,
-    waterEvaporationPerDay: 0.2,
-    rainwaterAtFullRainPerDay: 6,
-  },
-  irrigatedFarm: {
-    id: "irrigatedFarm",
-    name: "Irrigated Farm",
-    maintenanceIPerMonth: 2,
-    supportsImportedWater: true,
-    supportsFertilizer: true,
-    isGreenhouse: false,
-    yieldMultiplier: 1,
-    demandMultiplier: 1,
-    waterEvaporationPerDay: 0.2,
-    rainwaterAtFullRainPerDay: 6,
-  },
-  greenhouse: {
-    id: "greenhouse",
-    name: "Greenhouse",
-    maintenanceIPerMonth: 6,
-    supportsImportedWater: true,
-    supportsFertilizer: true,
-    isGreenhouse: true,
-    yieldMultiplier: 1.25,
-    demandMultiplier: 1.125,
-    waterEvaporationPerDay: 0.1,
-    rainwaterAtFullRainPerDay: 6,
-  },
-  greenhouseII: {
-    id: "greenhouseII",
-    name: "Greenhouse II",
-    maintenanceIPerMonth: 8,
-    supportsImportedWater: true,
-    supportsFertilizer: true,
-    isGreenhouse: true,
-    yieldMultiplier: 1.5,
-    demandMultiplier: 1.25,
-    waterEvaporationPerDay: 0.1,
-    rainwaterAtFullRainPerDay: 6,
-  },
+  farm: { id: "farm", name: "Farm" },
+  irrigatedFarm: { id: "irrigatedFarm", name: "Irrigated Farm" },
+  greenhouse: { id: "greenhouse", name: "Greenhouse" },
+  greenhouseII: { id: "greenhouseII", name: "Greenhouse II" },
 } as const satisfies Record<CropFarmTierId, CropFarmTier>;
 
 export const crops = {
@@ -246,17 +166,18 @@ export const calculateCropFarmGroupRates = (
   definitions: CropFarmingDefinitions,
 ): CropFarmGroupRates => {
   const data = getCropFarmingData(definitions);
-  const tier = cropFarmTiers[group.tierId];
+  const tier = getCropFarmTier(definitions, group.tierId);
+  const simulation = definitions.simulation;
   const fertilizer = group.fertilizer ? data.fertilizer(group.fertilizer.id) : null;
   const targetFertilityPercent = fertilizer && group.fertilizer
     ? Math.min(
         group.fertilizer.targetFertilityPercent,
         fertilizer.maximumFertilityPercent,
       )
-    : cropFarmSimulation.naturalFertilityEquilibriumPercent;
+    : 100;
   const targetFertilityMultiplier = targetFertilityPercent / 100;
   const cycleDays = group.schedule.reduce(
-    (total, cropId) => total + data.crop(cropId).growthMonths * cropFarmSimulation.daysPerMonth,
+    (total, cropId) => total + data.crop(cropId).growthMonths * planningWeather.daysPerCycle,
     0,
   );
   const outputsPerCycle = new Map<ResourceId, number>();
@@ -264,13 +185,13 @@ export const calculateCropFarmGroupRates = (
 
   group.schedule.forEach((cropId, index) => {
     const crop = data.crop(cropId);
-    const cropDays = crop.growthMonths * cropFarmSimulation.daysPerMonth;
+    const cropDays = crop.growthMonths * planningWeather.daysPerCycle;
     const previousCropId = group.schedule[
       (index + group.schedule.length - 1) % group.schedule.length
     ];
     const repeatedCropPenalty = crop.fertilityPercentPerDay > 0
       && previousCropId === cropId
-      ? cropFarmSimulation.repeatedCropFertilityPenaltyMultiplier
+      ? 1 + simulation.repeatedCropFertilityPenalty
       : 1;
 
     if (crop.productId) {
@@ -289,11 +210,11 @@ export const calculateCropFarmGroupRates = (
     if (fertilizer) {
       const aboveNaturalFertility = Math.max(
         0,
-        targetFertilityPercent - cropFarmSimulation.naturalFertilityEquilibriumPercent,
+        targetFertilityPercent - 100,
       );
       const aboveNaturalDemandMultiplier = 1
         + aboveNaturalFertility / 100
-        * cropFarmSimulation.aboveNaturalFertilityDemandMultiplier;
+        * simulation.aboveNaturalFertilityDemandMultiplier;
       const cropFertilityDemandPerDay = crop.fertilityPercentPerDay >= 0
         ? crop.fertilityPercentPerDay
           * tier.demandMultiplier
@@ -301,8 +222,8 @@ export const calculateCropFarmGroupRates = (
           * repeatedCropPenalty
         : crop.fertilityPercentPerDay * tier.yieldMultiplier;
       const naturalFertilityLossPerDay = aboveNaturalFertility
-        * cropFarmSimulation.naturalFertilityReplenishRate
-        * cropFarmSimulation.aboveNaturalFertilityReplenishMultiplier;
+        * tier.naturalFertilityReplenishRate
+        * simulation.aboveNaturalFertilityReplenishMultiplier;
 
       totals.fertilityDemandPerCycle += (
         cropFertilityDemandPerDay + naturalFertilityLossPerDay
@@ -310,7 +231,7 @@ export const calculateCropFarmGroupRates = (
     }
   });
 
-  const cyclesPerMonth = cropFarmSimulation.daysPerMonth / cycleDays;
+  const cyclesPerMonth = planningWeather.daysPerCycle / cycleDays;
   const outputsPerMonth = new Map(
     [...outputsPerCycle].map(([resourceId, quantity]) => [
       resourceId,

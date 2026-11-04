@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 
-import { recipes, type Recipe } from '../../db/recipes'
+import { type Recipe } from '../../db/recipes'
+import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { calculateNet, type ProductionLine } from './calculate'
 
 const coolingTower = recipes.find(recipe => recipe.id === 'cooling-tower-large-depleted')!

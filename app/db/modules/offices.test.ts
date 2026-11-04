@@ -4,11 +4,11 @@ import {
   type SyncedAreaEntity,
   type SyncedProductionEntity,
 } from '../../game-state'
-import { calculateFactoryTotal } from '../../helpers/factory-total/factory-total'
 import { createLiveAreaModules } from '../../helpers/live-area-modules/live-area-modules'
 import { testBuildingDefinitions, withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
+import { calculateFactoryTotal } from '../../test-fixtures/factory-total'
+import { baseConfig } from '../../test-fixtures/historical-planning'
 import { testOfficeFocusDefinitions } from '../../test-fixtures/recorded-game-data'
-import { baseConfig } from '../config'
 import { getLiveAreaPlans } from '../live-area-plans'
 import { calculateOfficePlan, defaultOfficePlan, plannedOfficePlan } from '../offices'
 import {

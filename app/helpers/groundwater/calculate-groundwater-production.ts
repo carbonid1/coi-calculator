@@ -1,15 +1,8 @@
-import { cropFarmSimulation } from "../../db/crop-farming";
 import { planningWeather, type WeatherConfig } from "../../db/weather";
 import { type SyncedGroundwaterAquifer, type SyncedGroundwaterState, type SyncedMachineInventoryItem } from "../../game-state";
 import { createWeatherSimulationCache } from '../weather/weather-simulation-cache';
 
-// Installed 0.8.8 WellPumpsData: 8 Water every 10s = 48 / production cycle.
-export const GROUNDWATER_PUMP_OUTPUT_PER_CYCLE = 48;
-
-// Installed v0.8.8 GroundWaterManager.CAPACITY_REPLENISH_PER_DAY.
-const MAX_EMERGENCY_WATER = 200;
 const PERCENT_RAW_SCALE = 100_000;
-const CAPACITY_REPLENISH_RAW_PERCENT = 185;
 
 export interface GroundwaterClaimPlan {
   claimId: string;
@@ -47,12 +40,12 @@ const multiplyPercentRaw = (left: number, right: number) => Math.trunc(
 // Installed 0.8.8 GroundWaterManager.onNewDay rounds the base recharge to a
 // whole unit BEFORE applying the low-water difficulty multiplier as Fix32.
 export const getDryEmergencyRechargePerDay = (aquifer: SyncedGroundwaterAquifer, groundwater: SyncedGroundwaterState) => (
-  Math.round(applyPercentRaw(aquifer.configuredCapacity, CAPACITY_REPLENISH_RAW_PERCENT)
+  Math.round(applyPercentRaw(aquifer.configuredCapacity, groundwater.capacityReplenishRawPercent)
     * groundwater.replenishWhenLowPercent / 100 * 1_024) / 1_024
 );
 
-export const getAquiferRainRechargePerDay = (aquifer: SyncedGroundwaterAquifer, rainIntensityPercent: number) => (
-  applyPercentRaw(aquifer.configuredCapacity, multiplyPercentRaw(CAPACITY_REPLENISH_RAW_PERCENT,
+export const getAquiferRainRechargePerDay = (aquifer: SyncedGroundwaterAquifer, groundwater: SyncedGroundwaterState, rainIntensityPercent: number) => (
+  applyPercentRaw(aquifer.configuredCapacity, multiplyPercentRaw(groundwater.capacityReplenishRawPercent,
     Math.round(rainIntensityPercent * 1_000)))
 );
 
@@ -68,9 +61,9 @@ export const advanceAquiferDay = (
   requestedPerDay = pumpCapacityPerDay,
 ) => {
   if (rainIntensityPercent > 0) {
-    state.reserve = Math.min(aquifer.capacity, state.reserve + getAquiferRainRechargePerDay(aquifer, rainIntensityPercent));
+    state.reserve = Math.min(aquifer.capacity, state.reserve + getAquiferRainRechargePerDay(aquifer, groundwater, rainIntensityPercent));
   } else if (state.reserve <= 0 && groundwater.replenishWhenLowPercent > 0
-    && Math.trunc(state.emergencyReserve) <= MAX_EMERGENCY_WATER) {
+    && Math.trunc(state.emergencyReserve) <= groundwater.maximumEmergencyWaterCapacity) {
     state.emergencyReserve += getDryEmergencyRechargePerDay(aquifer, groundwater);
   }
   if (pumpCapacityPerDay <= 0) return 0;
@@ -98,6 +91,7 @@ export const calculateAquiferSustainableCeiling = (
     aquifer.configuredCapacity,
     groundwater.depletedPumpSpeedPercent,
     groundwater.replenishWhenLowPercent,
+    groundwater.capacityReplenishRawPercent, groundwater.maximumEmergencyWaterCapacity, groundwater.pumpCapacityPerCycle,
   ].join(":");
   const cache = aquiferCeilingCache(weatherConfig);
   const cached = cache.get(cacheKey);
@@ -110,7 +104,7 @@ export const calculateAquiferSustainableCeiling = (
     : 0;
   const output = weather.reduce((total, period) => {
     const outputPerDay = period.rainIntensityPercent > 0
-      ? Math.min(aquifer.capacity, getAquiferRainRechargePerDay(aquifer, period.rainIntensityPercent))
+      ? Math.min(aquifer.capacity, getAquiferRainRechargePerDay(aquifer, groundwater, period.rainIntensityPercent))
       : emergencyOutputPerDryDay;
 
     return total + outputPerDay * period.days;
@@ -142,6 +136,7 @@ export const calculateAquiferSustainableOutput = (
     pumpCount,
     groundwater.depletedPumpSpeedPercent,
     groundwater.replenishWhenLowPercent,
+    groundwater.capacityReplenishRawPercent, groundwater.maximumEmergencyWaterCapacity, groundwater.pumpCapacityPerCycle,
   ].join(":");
   const cache = simulationCache(weatherConfig);
   const cached = cache.get(cacheKey);
@@ -149,8 +144,8 @@ export const calculateAquiferSustainableOutput = (
   if (cached != null) return cached;
 
   const weather = weatherConfig.periods;
-  const daysPerCycle = cropFarmSimulation.daysPerMonth;
-  const pumpCapacityPerDay = GROUNDWATER_PUMP_OUTPUT_PER_CYCLE
+  const daysPerCycle = planningWeather.daysPerCycle;
+  const pumpCapacityPerDay = groundwater.pumpCapacityPerCycle
     * pumpCount
     / daysPerCycle;
   const replayHorizon = (initialReserve: number, initialEmergencyReserve: number) => {
@@ -187,9 +182,9 @@ export const calculateAquiferPumpsForCeiling = (
   const ceiling = calculateAquiferSustainableCeiling(aquifer, groundwater, weather);
 
   if (ceiling <= 0) return 0;
-  const dailyPumpCapacity = GROUNDWATER_PUMP_OUTPUT_PER_CYCLE / planningWeather.daysPerCycle;
+  const dailyPumpCapacity = groundwater.pumpCapacityPerCycle / planningWeather.daysPerCycle;
   const maximumRainRecharge = weather.periods.reduce((maximum, period) => Math.max(maximum,
-    getAquiferRainRechargePerDay(aquifer, period.rainIntensityPercent)), 0);
+    getAquiferRainRechargePerDay(aquifer, groundwater, period.rainIntensityPercent)), 0);
   const depletedDailyPumpCapacity = dailyPumpCapacity * groundwater.depletedPumpSpeedPercent / 100;
   // Enough capacity to clear each day's rain and dry-weather assistance is a
   // safe upper bound. Searching the replay also accounts for aquifer storage;
@@ -324,7 +319,7 @@ export const calculateGroundwaterClaimLimits = (
         ),
         0,
       ),
-      pumpCapacityPerCycle: plan.projectedPumpCount * GROUNDWATER_PUMP_OUTPUT_PER_CYCLE,
+      pumpCapacityPerCycle: plan.projectedPumpCount * groundwater.pumpCapacityPerCycle,
       sustainableOutputPerCycle: aquiferAllocations.reduce((total, source) => total + source.sustainableOutputPerCycle, 0),
       aquiferAllocations,
     };

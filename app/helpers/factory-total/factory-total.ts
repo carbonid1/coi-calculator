@@ -33,7 +33,6 @@ export interface FactoryTotalOptions {
   /** Effective recycling efficiency after synced values and planned modifiers. */
   recyclingEfficiencyPercent: number;
   outputModifiers?: RecipeModifierMultipliers;
-  shipsFuelUseMultiplier?: number;
   contractsProfitMultiplier?: number;
   /** Synced world-cargo projections and their operating costs. */
   externalSupplies?: Partial<Record<ResourceId, number>>;
@@ -661,7 +660,6 @@ export const calculateFactoryTotal = (
     contracts = [],
     recyclingEfficiencyPercent,
     outputModifiers = {},
-    shipsFuelUseMultiplier = 1,
     contractsProfitMultiplier = 1,
     externalSupplies = {},
     externalDemands = {},
@@ -881,7 +879,7 @@ export const calculateFactoryTotal = (
     );
 
     return applyContracts(
-      globalContractPlanningFlows, contracts, shipsFuelUseMultiplier,
+      globalContractPlanningFlows, contracts,
       new Map(), contractsProfitMultiplier,
     );
   };
@@ -982,7 +980,6 @@ export const calculateFactoryTotal = (
         calculatePlanningFlowsWithContractExports(plan),
         contracts,
         plan.contractResults,
-        shipsFuelUseMultiplier,
         contractsProfitMultiplier,
         paymentAvailability,
       );

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { type SyncedAreaEntity } from '../../game-state'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
 import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
-import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { calculateBuildingDiagnostics } from '../building-diagnostics/building-diagnostics'
 import { calculateBuildingStats } from '../building-stats/building-stats'
 import { calculateNet } from '../calculate/calculate'
@@ -382,7 +382,7 @@ describe('createLiveAreaModules', () => {
     expect(liveRecipe).toMatchObject({
       gameRecipeId: 'research-lab-iv',
       building: 'Research Lab IV',
-      inputs: [{ resourceId: 'labEquipmentIv', quantity: 48 }],
+      factoryRecipe: { buildingId: 'ResearchLab5' },
       outputs: [{ resourceId: 'recyclables', quantity: 0 }],
     })
     expect(module?.presets[0]).toMatchObject({

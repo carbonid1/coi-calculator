@@ -16,7 +16,6 @@ export interface FactoryCalculationInput {
   modules: Module[]
   outputModifiers: RecipeModifierMultipliers
   recyclingEfficiencyPercent: number
-  shipsFuelUseMultiplier: number
   externalSupplies?: Partial<Record<ResourceId, number>>
   externalDemands?: Partial<Record<ResourceId, number>>
 }
@@ -38,7 +37,6 @@ export const calculateFactoryCalculation = ({
   modules,
   outputModifiers,
   recyclingEfficiencyPercent,
-  shipsFuelUseMultiplier,
   externalSupplies,
   externalDemands,
 }: FactoryCalculationInput): FactoryCalculation => {
@@ -80,7 +78,7 @@ export const calculateFactoryCalculation = ({
   }
   const factoryOptions = {
     contracts, externalSupplies, externalDemands, recyclingEfficiencyPercent,
-    outputModifiers, shipsFuelUseMultiplier, contractsProfitMultiplier, moduleDrivingInputIds,
+    outputModifiers, contractsProfitMultiplier, moduleDrivingInputIds,
   }
   let factoryResult: FactoryCalculation['factoryResult'] | undefined
   let initialContractResults: FactoryCalculation['factoryResult']['contractResults'] | undefined

@@ -4,7 +4,7 @@ import { type BuildingDefinition } from '../../building-state'
 import { getBuildingData } from '../../db/buildings'
 import { type Module } from '../../db/modules/modules'
 import { type Recipe } from '../../db/recipes'
-import { buildModuleLines } from '../build-module-lines/build-module-lines'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
 import { calculateNet } from '../calculate/calculate'
 import { calculateBuildingStats } from './building-stats'
 

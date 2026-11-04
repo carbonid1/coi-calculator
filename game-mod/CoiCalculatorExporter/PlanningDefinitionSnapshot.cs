@@ -19,6 +19,7 @@ internal sealed class PlanningDefinitionSnapshot
     public readonly List<HousingDefinitionSnapshot> Housing = new List<HousingDefinitionSnapshot>();
     public readonly List<double> StatueReductions = new List<double>();
     public readonly SettlementDefinitionSnapshot Settlement = new SettlementDefinitionSnapshot();
+    public FactoryDefinitionSnapshot Factory;
     public double UnityBaseCapacity;
     public int RackCapacity;
     public double ComputingPerRack, CoolantInPerRack, CoolantOutPerRack;
@@ -85,6 +86,7 @@ internal sealed partial class GameSnapshotCollector
     private PlanningDefinitionSnapshot getPlanningDefinitions()
     {
         var result = new PlanningDefinitionSnapshot();
+        result.Factory = getFactoryDefinitions();
         foreach (DataCenterProto center in m_protosDb.All<DataCenterProto>()) if (center.Id.ToString() == "DataCenter") {
             result.RackCapacity = center.RacksCapacity; result.CoolantInProductId = center.CoolantIn.Id.ToString(); result.CoolantOutProductId = center.CoolantOut.Id.ToString();
         }
@@ -230,6 +232,7 @@ internal static partial class SnapshotJsonWriter
     private static void appendPlanningDefinitions(SnapshotJsonStream json, PlanningDefinitionSnapshot definition)
     {
         json.Name("planningDefinitions").BeginObject();
+        appendFactoryDefinitions(json, definition.Factory);
         json.Name("computing").BeginObject(); json.Field("rackCapacity", definition.RackCapacity); json.Field("computingPerRack", definition.ComputingPerRack);
         json.Field("coolantInProductId", definition.CoolantInProductId); json.Field("coolantOutProductId", definition.CoolantOutProductId);
         json.Field("coolantInPerRack", definition.CoolantInPerRack); json.Field("coolantOutPerRack", definition.CoolantOutPerRack);

@@ -1,12 +1,11 @@
 import { type ContractRoutePlans, surplusExportContractIds } from '../../db/contract-plans'
 import {
   type ActiveContract,
-  type Contract,
   type ContractCargoModule,
   type ContractRoute,
-  contracts as contractCatalog,
+  contractFromGame,
+  getContractCatalog,
 } from '../../db/contracts'
-import { resources } from '../../db/resources'
 import { type SyncedContractState } from '../../game-state'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
 
@@ -20,11 +19,6 @@ export interface SyncedContractResolution {
   claimedEntityIds: ReadonlySet<number>
   issues: SyncedContractIssue[]
 }
-
-const catalogByExchange = new Map<string, Contract>(contractCatalog.map(contract => [
-  `${contract.exchange.exported.resourceId}|${contract.exchange.imported.resourceId}`,
-  contract,
-]))
 
 export const getContractClaimedEntityIds = (state: SyncedContractState | null) => (
   new Set(state?.routes.flatMap(route => [
@@ -156,6 +150,7 @@ export const resolveSyncedContracts = (
   }
 
   const activeContracts: ActiveContract[] = []
+  const catalog = getContractCatalog(state.established)
 
   for (const syncedContract of state.established) {
     const importedResourceId = resolveSyncedResourceId(syncedContract.importedProduct)
@@ -169,12 +164,12 @@ export const resolveSyncedContracts = (
       continue
     }
 
-    const catalogContract = catalogByExchange.get(`${exportedResourceId}|${importedResourceId}`)
+    const catalogContract = catalog.find(contract => contract.gameId === syncedContract.gameId) ?? contractFromGame(syncedContract)
 
     if (!catalogContract) {
       issues.push({
         gameId: syncedContract.gameId,
-        message: 'This established contract is missing from the installed game catalog.',
+        message: 'This established contract uses a product the calculator does not recognize.',
       })
       continue
     }
@@ -183,7 +178,6 @@ export const resolveSyncedContracts = (
       ...catalogContract,
       exportSurplus: surplusExportContractIds.has(catalogContract.id),
       gameId: syncedContract.gameId,
-      name: `${resources[exportedResourceId].name} → ${resources[importedResourceId].name}`,
       exchange: {
         exported: {
           resourceId: exportedResourceId,

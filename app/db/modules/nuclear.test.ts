@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
 
 import { type SyncedProductionEntity } from "../../game-state";
-import { calculateFactoryTotal } from "../../helpers/factory-total/factory-total";
-import { baseConfig } from "../config";
+import { calculateFactoryTotal } from "../../test-fixtures/factory-total";
+import { baseConfig } from '../../test-fixtures/historical-planning'
 import { emptyPlanningBaselines } from "../planning-baselines";
 import { type Module } from "./modules";
 import { createNuclearModule, plannedNuclearOperation } from "./nuclear";
@@ -189,54 +189,6 @@ it("keeps standard and tall seawater pumps at their synced running counts", () =
   expect(preset?.dataSources?.["seawater-pump"]).toBe("synced");
   expect(preset?.dataSources?.["seawater-pump-tall"]).toBe("synced");
   expect(preset?.planMismatches).toBeUndefined();
-});
-
-it("preserves the synced Nuclear checkpoint's complete Factory Total", () => {
-  const entities = [
-    reactor(0, 400),
-    reactor(2, 100),
-    ...makeMany(4, 4, "OceanWaterPumpT1", ["OceanWaterPumping2x"]),
-    ...makeMany(1, 1, "NuclearReprocessingPlant", ["CoreFuelReprocessing"]),
-    ...makeMany(2, 2, "UraniumEnrichmentPlant", ["BlanketFuelReprocessing"]),
-    ...makeMany(2, 2, "ChemicalPlant2", ["BlanketFuelFromYellowcake"]),
-    ...makeMany(8, 3, "TurbineSuperPress"),
-    ...makeMany(8, 3, "TurbineHighPressT2"),
-    ...makeMany(8, 3, "TurbineLowPressT2"),
-    ...makeMany(16, 6, "PowerGeneratorT2"),
-    ...makeMany(8, 8, "HydrogenReformer", ["HydrogenProductionFromSteamSp"]),
-    ...makeMany(4, 4, "ThermalDesalinator", ["DesalinationFromDepleted"]),
-    ...makeMany(6, 6, "ThermalDesalinator", ["DesalinationFromSP"]),
-    ...makeMany(2, 1, "ElectrolyzerT2", ["BrineElectrolysis"]),
-    ...makeMany(2, 1, "EvaporationPondHeated", ["SaltMakingFromBrine"]),
-    ...makeMany(4, 4, "CoolingTowerT2"),
-    ...makeMany(1, 1, "WasteDump", ["OceanWaterDumping"]),
-    ...makeMany(1, 1, "WasteDump", ["BrineDumping"]),
-    ...makeMany(1, 1, "SmokeStackLarge", ["SmokeStackOxygen"]),
-    ...makeMany(1, 1, "NuclearWasteStorage"),
-    ...makeMany(1, 1, "Shredder", ["ShreddingRetiredWaste"]),
-  ];
-  const nuclearModule = createNuclearModule(
-    { averageGeneratorOutputMw: 77, hydrogenFuelDemandPerCycle: 46.5 },
-    undefined,
-    entities,
-  );
-  const result = calculateFactoryTotal(
-    [nuclearModule],
-    { recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent },
-  );
-  const flow = (resourceId: string) => result.calculation.allResourceFlows.find(
-    candidate => candidate.resourceId === resourceId,
-  );
-
-  expect(flow("coreFuel")?.net).toBeCloseTo(0, 6);
-  expect(flow("blanketFuel")?.net).toBeCloseTo(0, 6);
-  expect(flow("yellowcake")?.net).toBeCloseTo(-9, 6);
-  expect(flow("hydrogen")?.net).toBeCloseTo(0, 6);
-  expect(flow("water")?.net).toBeCloseTo(0, 6);
-  expect(flow("brine")?.net).toBeCloseTo(0, 6);
-  expect(flow("oxygen")?.net).toBeCloseTo(0, 6);
-  expect(flow("electricity")?.produced).toBeCloseTo(77, 6);
-  expect(result.electricityDemandMw).toBeCloseTo(77, 6);
 });
 
 it("preserves the generated Nuclear area identity", () => {

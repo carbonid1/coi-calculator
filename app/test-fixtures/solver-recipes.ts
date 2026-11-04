@@ -904,5 +904,5 @@ export const testRecipes = [...recipes, ...solverRecipeFixtures].map(withTestBui
 
 export const withSolverRecipes = (module: Module): Module => ({
   ...module,
-  recipes: [...solverRecipeFixtures, ...(module.recipes ?? [])].map(withTestBuildingData),
+  recipes: [...testRecipes, ...(module.recipes ?? [])].map(withTestBuildingData),
 })

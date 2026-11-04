@@ -1,7 +1,7 @@
 import { planningWeather, type WeatherConfig } from '../../db/weather';
 import { type GameStateSnapshot, type SyncedGroundwaterSource, type SyncedGroundwaterState } from '../../game-state';
 import { type PassiveResult } from '../calculate/calculate';
-import { advanceAquiferDay, calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput, GROUNDWATER_PUMP_OUTPUT_PER_CYCLE } from '../groundwater/calculate-groundwater-production';
+import { advanceAquiferDay, calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput } from '../groundwater/calculate-groundwater-production';
 
 export const summarizeWeather = (weather: WeatherConfig) => {
   const state = { elapsedDays: 0, rainDays: 0, sunDays: 0, dryDays: 0, longestDryDays: 0,
@@ -55,7 +55,7 @@ export const simulateWaterSource = (
     firstYearShortfallQuantity: 0, daysBelowDemand: 0, skipCapturedDay: true, periodDay: 0 };
   const firstShortfall: { cycle: number | null } = { cycle: null };
   const requestedPerDay = Math.max(0, withdrawalPerCycle) / 30;
-  const pumpCapacityPerDay = Math.max(0, pumpCount) * GROUNDWATER_PUMP_OUTPUT_PER_CYCLE / 30;
+  const pumpCapacityPerDay = Math.max(0, pumpCount) * groundwater.pumpCapacityPerCycle / 30;
 
   if (weather.hasOverride) return null;
   for (const period of weather.periods) {
@@ -126,9 +126,8 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
     || left.source.position.y - right.source.position.y);
 };
 
-// Installed 0.8.8 RainwaterHarvesterData.RegisterData: 1 water / full-rain day.
 // This is collection potential before overflow and delivery limitations.
-export const getRainwaterHarvesterPotential = (weather: ReturnType<typeof summarizeWeather>, rainwaterYieldMultiplier: number) => ({
-  nextYearPerCycle: weather.nextYearFullRainCycles * planningWeather.daysPerCycle * rainwaterYieldMultiplier / 12,
-  averagePerCycle: weather.averageRainIntensityPercent / 100 * planningWeather.daysPerCycle * rainwaterYieldMultiplier,
+export const getRainwaterHarvesterPotential = (weather: ReturnType<typeof summarizeWeather>, rainwaterYieldMultiplier: number, rainwaterPerDay: number) => ({
+  nextYearPerCycle: weather.nextYearFullRainCycles * planningWeather.daysPerCycle * rainwaterYieldMultiplier * rainwaterPerDay / 12,
+  averagePerCycle: weather.averageRainIntensityPercent / 100 * planningWeather.daysPerCycle * rainwaterYieldMultiplier * rainwaterPerDay,
 });

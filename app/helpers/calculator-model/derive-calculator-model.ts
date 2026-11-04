@@ -42,7 +42,6 @@ import {
   createDefaultModule,
   DEFAULT_MODULE_ID,
   plannedResearchLabTarget,
-  spaceResearchPointsPerLab,
 } from '../../db/modules/default'
 import { createChickenFarmAreaModule } from '../../db/modules/farms'
 import { mines } from '../../db/modules/mines'
@@ -89,6 +88,7 @@ import {
   emptyStaticInfrastructureConfig,
   type StaticInfrastructureConfig,
 } from '../../db/static-infrastructure'
+import { getLabSpacePoints } from '../../factory-definitions'
 import { resolveFocusAllocations } from '../../focus-state'
 import { type GameStateSnapshot } from '../../game-state'
 import { getFocusDefinitions } from '../../office-focus-state'
@@ -280,7 +280,12 @@ export const deriveCalculatorModel = ({
         ? Math.max(runningDefaultResearchLabCount, plannedResearchLabTarget)
         : 0)
     : 0
-  const plannedSpaceResearchPoints = plannedResearchLabCount * spaceResearchPointsPerLab
+  const runningSpaceResearchPoints = researchLabEntities.filter(entity => entity.running).reduce((total, entity) => total
+    + getLabSpacePoints(planningDefinitions.factory, entity.prototypeId), 0)
+  const plannedSpaceResearchPoints = baseConfig.researchMode === 'with-space'
+    ? runningSpaceResearchPoints + Math.max(0, plannedResearchLabCount - runningResearchLabCount)
+      * getLabSpacePoints(planningDefinitions.factory, defaultResearchLabEntities[0]?.prototypeId ?? 'ResearchLab5')
+    : 0
   const projectedSpaceStationTargetLevel = Math.max(
     currentSpaceStationLevel.level,
     getMinimumSpaceStationLevelForResearchPoints(plannedSpaceResearchPoints, snapshot.spaceStationLevels),
@@ -357,6 +362,7 @@ export const deriveCalculatorModel = ({
   const configuredAreaModules = [
     createDefaultCropFarmModule(
       createDefaultModule(
+        planningDefinitions.factory,
         defaultGroundwaterResolution,
         defaultGroundwaterConstraint,
       ),
@@ -406,7 +412,7 @@ export const deriveCalculatorModel = ({
 
     if (module.id === DEFAULT_MODULE_ID) {
       configured.module = createDefaultCropFarmModule(
-        applyDefaultAreaPlan(module),
+        applyDefaultAreaPlan(planningDefinitions.factory, module),
         currentCropFarmEntities,
         snapshot.cropFarming,
         defaultGroundwaterConstraint,
@@ -529,6 +535,7 @@ export const deriveCalculatorModel = ({
     ...configuredLiveAreaModules,
   ]
   const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
+    definitions: planningDefinitions,
     defaultModuleId: DEFAULT_MODULE_ID,
     demand: maintenanceDemand,
     modules: modulesWithLiveAreas,
@@ -644,7 +651,8 @@ export const deriveCalculatorModel = ({
       definitions: planningDefinitions,
       edictLevel: edictLevels.researchEfficiency,
       focusBonusPercent: focusBonuses.researchEfficiency,
-      population: projectedPopulation.population,
+      population: Math.max(0, projectedPopulation.population - snapshot.settlement.population
+        + snapshot.settlement.settlements.reduce((total, settlement) => total + settlement.population, 0)),
       stationBonusPercent: hasProjectedSpaceStation
         ? projectedSpaceStationLevel.researchEfficiencyBonusPercent
         : 0,
@@ -698,6 +706,7 @@ export const deriveCalculatorModel = ({
   const outputModifiers = {
     officeFocusDefinitions: snapshot.officeFocusDefinitions,
     planningDefinitions,
+    spaceResearch: baseConfig.researchMode === 'with-space',
     buildingDefinitions: snapshot.buildingDefinitions,
     products: snapshot.products ? { catalog: snapshot.products.catalog } : undefined,
     recycling: { ...snapshot.recycling, efficiencyPercent: recyclingEfficiencyPercent },
@@ -732,7 +741,6 @@ export const deriveCalculatorModel = ({
     modules: configuredModules,
     outputModifiers,
     recyclingEfficiencyPercent,
-    shipsFuelUseMultiplier: shipsFuelUse.multiplier,
   }
 
   return {

@@ -4,8 +4,8 @@ import { type Module } from "../../db/modules/modules";
 import { settlementRecipeIds } from "../../db/settlement";
 import { type SyncedProductionEntity } from "../../game-state";
 import { isSyncedSettlementState, type SyncedSettlementState } from "../../settlement-state";
+import { buildModuleLines } from '../../test-fixtures/build-module-lines';
 import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
-import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateNet } from "../calculate/calculate";
 import { applySettlementState, resolveProjectedPopulation } from "./apply-settlement-state";
 

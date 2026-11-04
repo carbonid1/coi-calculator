@@ -80,7 +80,7 @@
   "totals": {
     "lines": 586,
     "workers": 7356,
-    "electricityMw": 296.9724,
+    "electricityMw": 296.974,
     "computingTflops": 1357.2913,
     "populationCapacity": 7488,
     "focus": 5460,
@@ -100,9 +100,9 @@
   "contracts": [
     {
       "id": "ammonia-for-food-pack",
-      "imported": 22.4798,
-      "requiredImported": 22.4798,
-      "exported": 2.882
+      "imported": 22.4779,
+      "requiredImported": 22.4779,
+      "exported": 2.8818
     },
     {
       "id": "copper-ore-for-medical-supplies-iii",
@@ -132,62 +132,62 @@
   "flows": [
     {
       "resource": "carbonDioxide",
-      "produced": 150.2605,
-      "consumed": 150.2605,
+      "produced": 150.2615,
+      "consumed": 150.2615,
       "net": 0
     },
     {
       "resource": "graphite",
-      "produced": 60.1739,
-      "consumed": 60.1739,
+      "produced": 60.2051,
+      "consumed": 60.2051,
       "net": 0
     },
     {
       "resource": "exhaust",
-      "produced": 492.5312,
-      "consumed": 492.5312,
+      "produced": 493.0337,
+      "consumed": 493.0337,
       "net": 0
     },
     {
       "resource": "water",
-      "produced": 2014.1215,
-      "consumed": 2014.1215,
+      "produced": 2014.4156,
+      "consumed": 2014.4156,
       "net": 0
     },
     {
       "resource": "limestone",
-      "produced": 83.3072,
-      "consumed": 83.3072,
+      "produced": 83.3791,
+      "consumed": 83.3791,
       "net": 0
     },
     {
       "resource": "sulfur",
-      "produced": 52.3703,
-      "consumed": 52.3703,
+      "produced": 52.4536,
+      "consumed": 52.4536,
       "net": 0
     },
     {
       "resource": "steamLow",
-      "produced": 363.1032,
-      "consumed": 363.1032,
+      "produced": 363.1659,
+      "consumed": 363.1659,
       "net": 0
     },
     {
       "resource": "slag",
-      "produced": 258.3867,
-      "consumed": 258.3867,
+      "produced": 258.5836,
+      "consumed": 258.5836,
       "net": 0
     },
     {
       "resource": "seaWater",
-      "produced": 1341.7854,
-      "consumed": 1341.7854,
+      "produced": 1342.1258,
+      "consumed": 1342.1258,
       "net": 0
     },
     {
       "resource": "brine",
-      "produced": 499.7542,
-      "consumed": 499.7541,
+      "produced": 499.8678,
+      "consumed": 499.8677,
       "net": 0.0001
     },
     {
@@ -228,8 +228,8 @@
     },
     {
       "resource": "hydrogen",
-      "produced": 280.287,
-      "consumed": 282.6822,
+      "produced": 280.2867,
+      "consumed": 282.6819,
       "net": -2.3952
     },
     {
@@ -241,8 +241,8 @@
     {
       "resource": "foodPack",
       "produced": 26.1458,
-      "consumed": 31.1749,
-      "net": -5.0292
+      "consumed": 31.1747,
+      "net": -5.0289
     },
     {
       "resource": "medicalSuppliesIII",
@@ -252,8 +252,8 @@
     },
     {
       "resource": "coal",
-      "produced": 108.387,
-      "consumed": 108.387,
+      "produced": 108.3947,
+      "consumed": 108.3947,
       "net": 0
     },
     {
@@ -270,8 +270,8 @@
     },
     {
       "resource": "fuelGas",
-      "produced": 130.8896,
-      "consumed": 130.8896,
+      "produced": 130.8898,
+      "consumed": 130.8898,
       "net": 0
     },
     {
@@ -300,8 +300,8 @@
     },
     {
       "resource": "oxygen",
-      "produced": 280.287,
-      "consumed": 280.287,
+      "produced": 280.2867,
+      "consumed": 280.2867,
       "net": 0
     },
     {
@@ -372,9 +372,9 @@
     },
     {
       "resource": "coreFuel",
-      "produced": 12,
-      "consumed": 12,
-      "net": 0
+      "produced": 15,
+      "consumed": 20,
+      "net": -5
     },
     {
       "resource": "steamSuper",
@@ -384,9 +384,9 @@
     },
     {
       "resource": "coreFuelSpent",
-      "produced": 12,
-      "consumed": 12,
-      "net": 0
+      "produced": 20,
+      "consumed": 16,
+      "net": 4
     },
     {
       "resource": "blanketFuel",
@@ -564,38 +564,38 @@
     },
     {
       "resource": "moltenSteel",
-      "produced": 123.0393,
-      "consumed": 123.0393,
+      "produced": 123.2893,
+      "consumed": 123.2893,
       "net": 0
     },
     {
       "resource": "steel",
-      "produced": 123.0393,
-      "consumed": 123.0393,
+      "produced": 123.2893,
+      "consumed": 123.2893,
       "net": 0
     },
     {
       "resource": "chlorine",
-      "produced": 119.3644,
-      "consumed": 119.3644,
+      "produced": 119.3873,
+      "consumed": 119.3873,
       "net": 0
     },
     {
       "resource": "salt",
-      "produced": 33.7164,
+      "produced": 33.7263,
       "consumed": 41.9871,
-      "net": -8.2707
+      "net": -8.2608
     },
     {
       "resource": "steamHigh",
-      "produced": 264.1369,
-      "consumed": 264.1369,
+      "produced": 264.1376,
+      "consumed": 264.1376,
       "net": 0
     },
     {
       "resource": "steamDepleted",
-      "produced": 362.2615,
-      "consumed": 362.2615,
+      "produced": 362.2614,
+      "consumed": 362.2614,
       "net": 0
     },
     {
@@ -606,26 +606,26 @@
     },
     {
       "resource": "acid",
-      "produced": 173.1249,
-      "consumed": 173.1249,
+      "produced": 173.6249,
+      "consumed": 173.6249,
       "net": 0
     },
     {
       "resource": "moltenGlass",
       "produced": 96,
-      "consumed": 97.5,
-      "net": -1.5
+      "consumed": 98,
+      "net": -2
     },
     {
       "resource": "fissionProduct",
-      "produced": 1.5,
-      "consumed": 1.5,
+      "produced": 2,
+      "consumed": 2,
       "net": 0
     },
     {
       "resource": "retiredWaste",
-      "produced": 1.5,
-      "consumed": 1.5,
+      "produced": 2,
+      "consumed": 2,
       "net": 0
     },
     {
@@ -690,8 +690,8 @@
     },
     {
       "resource": "moltenIron",
-      "produced": 246.0786,
-      "consumed": 246.0786,
+      "produced": 246.5786,
+      "consumed": 246.5786,
       "net": 0
     },
     {
@@ -1206,14 +1206,14 @@
     },
     {
       "resource": "ironOre",
-      "produced": 123.9529,
-      "consumed": 123.9529,
+      "produced": 124.4529,
+      "consumed": 124.4529,
       "net": 0
     },
     {
       "resource": "ironOreCrushed",
-      "produced": 140.6989,
-      "consumed": 140.6989,
+      "produced": 141.1989,
+      "consumed": 141.1989,
       "net": 0
     },
     {
@@ -1230,8 +1230,8 @@
     },
     {
       "resource": "sourWater",
-      "produced": 17.7972,
-      "consumed": 17.7972,
+      "produced": 17.8048,
+      "consumed": 17.8048,
       "net": 0
     }
   ]

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildModuleLines } from '../../helpers/build-module-lines/build-module-lines'
 import { calculateBuildingDiagnostics } from '../../helpers/building-diagnostics/building-diagnostics'
 import { calculateBuildingStats } from '../../helpers/building-stats/building-stats'
 import { calculateNet } from '../../helpers/calculate/calculate'
 import { getPlannedConfigurationSummaries } from '../../helpers/planned-builds/planned-builds'
 import { getPresetResourceDemands } from '../../helpers/preset-resource-demands/preset-resource-demands'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
 import { withTestBuildingRequirements } from '../../test-fixtures/building-requirements'
+import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data'
 import { type Recipe } from '../recipes'
 import {
   applyDefaultAreaPlan,
@@ -221,7 +222,7 @@ describe('Default area plans', () => {
   })
 
   it('binds the plan to the equivalent runtime recipe', () => {
-    const defaultModule = applyDefaultAreaPlan(syncedDefault({ built: 0, running: 0 }))
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory, syncedDefault({ built: 0, running: 0 }))
     const preset = defaultModule.presets[0]
     const line = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
@@ -252,7 +253,7 @@ describe('Default area plans', () => {
     }
 
     synced.recipes = [wrongBuildingRecipe]
-    const defaultModule = applyDefaultAreaPlan(synced)
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory, synced)
     const preset = defaultModule.presets[0]
 
     expect(defaultModule.recipes).toEqual(expect.arrayContaining([
@@ -272,7 +273,7 @@ describe('Default area plans', () => {
       sourcePreset.unplacedPlannedBuildings = { [runtimeCookingOilDiesel.id]: 1 }
     }
 
-    const defaultModule = applyDefaultAreaPlan(synced)
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory, synced)
     const preset = defaultModule.presets[0]
     const line = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
@@ -292,7 +293,7 @@ describe('Default area plans', () => {
   })
 
   it('accepts a synced construction ghost as projected capacity', () => {
-    const defaultModule = applyDefaultAreaPlan(syncedDefault({ built: 0, running: 0, ghosts: 1 }))
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory, syncedDefault({ built: 0, running: 0, ghosts: 1 }))
     const preset = defaultModule.presets[0]
     const line = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines.find(
       candidate => candidate.recipe.id === runtimeCookingOilDiesel.id,
@@ -310,7 +311,7 @@ describe('Default area plans', () => {
   })
 
   it('plans three synced Diesel Cracking Units at full load', () => {
-    const defaultModule = applyDefaultAreaPlan(
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory,
       syncedDefaultWithCrackingUnits({ built: 3, running: 3 }),
     )
     const preset = defaultModule.presets[0]
@@ -348,7 +349,7 @@ describe('Default area plans', () => {
   })
 
   it('keeps the planned Diesel Cracking Unit count at three', () => {
-    const defaultModule = applyDefaultAreaPlan(
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory,
       syncedDefaultWithCrackingUnits({ built: 4, running: 4 }),
     )
     const preset = defaultModule.presets[0]
@@ -372,7 +373,7 @@ describe('Default area plans', () => {
   })
 
   it('cancels excess Cracking Unit construction before pausing running capacity', () => {
-    const defaultModule = applyDefaultAreaPlan(
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory,
       syncedDefaultWithCrackingUnits({ built: 3, running: 3, ghosts: 1 }),
     )
     const preset = defaultModule.presets[0]
@@ -391,7 +392,7 @@ describe('Default area plans', () => {
   })
 
   it('plans two paused Research Lab IV buildings as fixed consumption', () => {
-    const defaultModule = applyDefaultAreaPlan(
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory,
       syncedDefaultWithResearchLabs({ built: 3, running: 0 }),
     )
     const preset = defaultModule.presets[0]
@@ -431,7 +432,7 @@ describe('Default area plans', () => {
   })
 
   it('keeps two running Research Lab IV buildings fixed without a plan mismatch', () => {
-    const defaultModule = applyDefaultAreaPlan(
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory,
       syncedDefaultWithResearchLabs({ built: 3, running: 2 }),
     )
     const preset = defaultModule.presets[0]
@@ -452,7 +453,7 @@ describe('Default area plans', () => {
   })
 
   it('can disable the temporary Space Research pressure setting', () => {
-    const defaultModule = applyDefaultAreaPlan(
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory,
       syncedDefaultWithResearchLabs({ built: 3, running: 2 }),
       'before-space',
     )
@@ -488,7 +489,7 @@ describe('Default area plans', () => {
       [runtimeRailParts.id]: 'synced',
     }
 
-    const defaultModule = applyDefaultAreaPlan(synced)
+    const defaultModule = applyDefaultAreaPlan(testPlanningDefinitions.factory, synced)
     const preset = defaultModule.presets[0]
     const lines = buildModuleLines(withTestBuildingRequirements(defaultModule), preset ?? null).lines
     const calculation = calculateNet(
@@ -511,7 +512,7 @@ describe('Default area plans', () => {
   })
 
   it('lets downstream demand drive Composite Panel and Titanium Alloy production', () => {
-    const defaultModule = createDefaultModule()
+    const defaultModule = createDefaultModule(testPlanningDefinitions.factory, )
 
     expect(defaultModule.presets[0]?.outputTargets).toBeUndefined()
   })

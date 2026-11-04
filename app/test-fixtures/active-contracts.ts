@@ -1,9 +1,9 @@
 import {
   type ActiveContract,
   type ContractRoute,
-  contracts,
 } from '../db/contracts'
 import { type ResourceId } from '../db/resources'
+import { testContracts as contracts } from './recorded-game-data'
 
 interface ModuleGroup {
   buildingName: string
@@ -51,7 +51,7 @@ const defineRoute = (
     fuelResourceId: 'hydrogen',
     saveFuel: true,
     roundTripDurationProductionCycles,
-    fuelPerTrip: null,
+    fuelPerTrip: 289,
   },
   importedPerProductionCycle,
 })

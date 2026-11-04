@@ -211,9 +211,9 @@ const InactiveContractCard: React.FC<{ contract: Contract }> = ({ contract }) =>
 
 export const ContractsView: React.FC<Props> = ({ contracts, issues, results }) => {
   const resources = useResources()
-  const activeIdSet = new Set(results.map(result => result.contract.id))
+  const activeIdSet = new Set(results.map(result => result.contract.gameId))
   const inactiveContracts = contracts
-    .filter(contract => !activeIdSet.has(contract.id))
+    .filter(contract => !activeIdSet.has(contract.gameId ?? contract.id))
     .toSorted((a, b) => {
       const importedComparison = resources[a.exchange.imported.resourceId].name
         .localeCompare(resources[b.exchange.imported.resourceId].name)

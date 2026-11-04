@@ -1,3 +1,4 @@
+import { getLabSpacePoints, type FactoryDefinitions } from '../../factory-definitions'
 import { type GroundwaterSourceConstraint } from '../../helpers/groundwater/calculate-groundwater-production'
 import { type SharedMachineClaimResolution } from '../../helpers/machine-allocation/machine-allocation'
 import { baseConfig, type ResearchMode } from '../config'
@@ -29,7 +30,6 @@ export const plannedCrackingUnitDieselTarget = 3
 
 export const plannedResearchLabTarget = 2
 
-export const spaceResearchPointsPerLab = 48
 
 const cookingOilDieselRecipe = recipes.find(recipe => recipe.id === cookingOilDieselRecipeId)
 const crackingUnitDieselRecipe = recipes.find(recipe => recipe.id === crackingUnitDieselRecipeId)
@@ -299,6 +299,7 @@ const isResearchLabRecipe = (recipe: Recipe) => (
 )
 
 const applyResearchLabPlan = (
+  definitions: FactoryDefinitions | undefined,
   module: Module,
   researchMode: ResearchMode,
 ): Module => {
@@ -306,6 +307,7 @@ const applyResearchLabPlan = (
   const recipe = module.recipes?.find(isResearchLabRecipe)
 
   if (!sourcePreset || !recipe) return module
+  if (!definitions) throw new Error('Research Lab definitions are unavailable')
 
   const recipeId = recipe.id
   const built = sourcePreset.builtBuildings?.[recipeId]
@@ -346,7 +348,7 @@ const applyResearchLabPlan = (
     inputs: [
       ...recipe.inputs.filter(input => input.resourceId !== 'spaceResearchPoints'),
       ...(researchMode === 'with-space'
-        ? [{ resourceId: 'spaceResearchPoints' as const, quantity: spaceResearchPointsPerLab }]
+        ? [{ resourceId: 'spaceResearchPoints' as const, quantity: getLabSpacePoints(definitions, recipe.gameBuildingId ?? 'ResearchLab5') }]
         : []),
     ],
   }
@@ -388,9 +390,11 @@ const applyResearchLabPlan = (
 
 /** Applies calculator-owned Default plans over the current synced inventory. */
 export const applyDefaultAreaPlan = (
+  definitions: FactoryDefinitions | undefined,
   module: Module,
   researchMode: ResearchMode = baseConfig.researchMode,
 ) => applyResearchLabPlan(
+  definitions,
   applyCrackingUnitDieselPlan(
     applyCookingOilDieselPlan(module),
   ),
@@ -421,6 +425,7 @@ const emptyDefaultModule = (): Module => ({
 
 /** Empty compatibility shell used until the exporter provides Default entities. */
 export const createDefaultModule = (
+  definitions: FactoryDefinitions | undefined = undefined,
   groundwaterPumpResolution?: SharedMachineClaimResolution,
   groundwaterConstraint?: GroundwaterSourceConstraint,
   researchMode: ResearchMode = baseConfig.researchMode,
@@ -447,6 +452,7 @@ export const createDefaultModule = (
     : base
 
   return applyDefaultAreaPlan(
+    definitions,
     withGroundwater,
     researchMode,
   )

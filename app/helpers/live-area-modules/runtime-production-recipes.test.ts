@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest'
 
 import type * as RecipeDefinitions from '../../db/recipes'
 import { type SyncedAreaEntity, type SyncedAreaRecipe } from '../../game-state'
-import { buildModuleLines } from '../build-module-lines/build-module-lines'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
 import { createLiveAreaModules } from './live-area-modules'
 
 vi.mock('../../db/recipes', async importOriginal => ({

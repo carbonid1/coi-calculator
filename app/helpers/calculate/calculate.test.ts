@@ -5,11 +5,11 @@ import {
 } from "../../db/modules/area-maintenance";
 import { type Module } from "../../db/modules/modules";
 import { type Recipe } from '../../db/recipes'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines';
 import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
 import { testRecycling } from "../../test-fixtures/recycling";
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { syncedMaintenanceDepotEntities } from "../../test-fixtures/synced-maintenance-depots";
-import { buildModuleLines } from "../build-module-lines/build-module-lines";
 import { calculateMaintenanceOutput } from "../modifiers/calculate-maintenance-output";
 import { calculateNet } from "./calculate";
 
@@ -45,7 +45,7 @@ const maintenanceFixture: Module = {
   }],
   defaultPresetId: "current",
 };
-const maintenanceAssignment = resolveMaintenanceDepotModuleAssignments({
+const maintenanceAssignment = resolveMaintenanceDepotModuleAssignments({ definitions: testPlanningDefinitions,
   defaultModuleId: maintenanceFixture.id,
   demand: { maintenanceI: 547.8, maintenanceII: 194.22, maintenanceIII: 236.55 },
   modules: [maintenanceFixture],

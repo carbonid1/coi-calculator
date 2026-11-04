@@ -4,7 +4,6 @@ import { useMemo, useRef, useState } from 'react';
 
 import { type GameStateSnapshot } from '../game-state';
 import { type PassiveResult, type ResourceFlow } from '../helpers/calculate/calculate';
-import { GROUNDWATER_PUMP_OUTPUT_PER_CYCLE } from '../helpers/groundwater/calculate-groundwater-production';
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../helpers/water-planning/water-planning';
 import { useFactoryLayout } from '../hooks/use-factory-layout';
 import { useIslandMap } from '../hooks/use-island-map';
@@ -31,7 +30,7 @@ const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; numb
       </h3>
       {forecast && (
         <dl className="grid gap-3 text-sm sm:grid-cols-3" aria-live="polite">
-          <div><dt className="text-xs text-muted-foreground"><Tooltip maxWidth={320} label={`Steady draw ${format(source.projectedWithdrawalPerCycle)} / cycle · pump capacity ${format(source.projectedPumps * GROUNDWATER_PUMP_OUTPUT_PER_CYCLE)} · sustainable output ${format(source.sustainableOutputPerCycle)} Water / cycle. Pipe delivery and tank buffers excluded.`}>
+          <div><dt className="text-xs text-muted-foreground"><Tooltip maxWidth={320} label={`Steady draw ${format(source.projectedWithdrawalPerCycle)} / cycle · pump capacity ${format(source.projectedPumps * snapshot.groundwater.pumpCapacityPerCycle)} · sustainable output ${format(source.sustainableOutputPerCycle)} Water / cycle. Pipe delivery and tank buffers excluded.`}>
             <span tabIndex={0} aria-label="First shortfall estimate">First shortfall · estimate</span>
           </Tooltip></dt>
             <dd className="font-mono">{forecast.firstShortfallCycle === null ? 'None · 100Y'
@@ -78,7 +77,7 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
   const selected = sources.find(row => row.source.id === selectedId)
     ?? sources.find(row => row.projectedWithdrawalPerCycle > 0)
     ?? sources[0];
-  const rainwater = getRainwaterHarvesterPotential(climate, rainwaterYieldMultiplier);
+  const rainwater = getRainwaterHarvesterPotential(climate, rainwaterYieldMultiplier, snapshot.planningDefinitions.factory.rainwaterPerDay);
   const nextRain = (() => {
     if (snapshot.weather.hasOverride) return 'Weather override';
     if (climate.nextRainCycles === 0) return 'Raining';

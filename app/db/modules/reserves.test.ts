@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 
-import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateNet } from "../../helpers/calculate/calculate";
+import { buildModuleLines } from '../../test-fixtures/build-module-lines';
 import { recipes } from "../recipes";
 import {
   mapReserveResources,

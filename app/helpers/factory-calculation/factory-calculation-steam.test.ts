@@ -27,7 +27,7 @@ const recipe = (id: string, overrides: Partial<Recipe>): Recipe => ({
 })
 const calculate = (modules: Module[], links: ModuleResourceLink[] = []) => calculateFactoryCalculation({
   modules, links, contracts: [], contractsProfitMultiplier: 1, outputModifiers: {},
-  recyclingEfficiencyPercent: 100, shipsFuelUseMultiplier: 1,
+  recyclingEfficiencyPercent: 100,
 })
 
 it.each([200, 300, 408, 500])('allocates %s Super Steam to turbines, Hydrogen, desalination, then cooling', steam => {

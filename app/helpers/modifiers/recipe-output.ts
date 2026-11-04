@@ -16,7 +16,7 @@ import { calculateFarmIrrigationRates } from "../weather/calculate-farm-irrigati
 export type RecipeModifierMultipliers = Partial<Record<
   InputModifierId | OutputModifierId | "rainwaterYield",
   number
->> & { weather?: WeatherConfig; recycling?: RecyclingData; products?: Pick<NativeProducts, 'catalog'>; buildingDefinitions?: BuildingDefinition[]; officeFocusDefinitions?: OfficeFocusDefinitions; planningDefinitions?: PlanningDefinitions };
+>> & { weather?: WeatherConfig; recycling?: RecyclingData; products?: Pick<NativeProducts, 'catalog'>; buildingDefinitions?: BuildingDefinition[]; officeFocusDefinitions?: OfficeFocusDefinitions; planningDefinitions?: PlanningDefinitions; spaceResearch?: boolean };
 
 const GAME_PERCENT_SCALE = 100_000;
 

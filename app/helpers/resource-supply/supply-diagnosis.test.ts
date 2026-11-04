@@ -22,7 +22,7 @@ const flow = (resourceId: ResourceId, produced: number, consumed = produced): Re
 })
 const setup = (lines: RegularResult[], flows: ResourceFlow[], blockedRoutes: BlockedSurplusRoute[] = []) => {
   const calculation = calculateFactoryCalculation({ modules: [], links: [], contracts: [],
-    contractsProfitMultiplier: 1, outputModifiers: {}, recyclingEfficiencyPercent: 0, shipsFuelUseMultiplier: 1 })
+    contractsProfitMultiplier: 1, outputModifiers: {}, recyclingEfficiencyPercent: 0, })
 
   Object.assign(calculation.factoryResult.calculation, { regularResults: lines, allResourceFlows: flows, blockedRoutes })
   return { calculation, inspector: createSupplyInspector([], calculation) }
@@ -51,7 +51,7 @@ const liveModule = (id: string, recipes: Recipe[], preset: Partial<Preset> = {},
 })
 const calculate = (modules: Module[], links: ModuleResourceLink[] = []) => {
   const calculation = calculateFactoryCalculation({ modules, links, contracts: [],
-    contractsProfitMultiplier: 1, outputModifiers: {}, recyclingEfficiencyPercent: 0, shipsFuelUseMultiplier: 1 })
+    contractsProfitMultiplier: 1, outputModifiers: {}, recyclingEfficiencyPercent: 0, })
 
   return { calculation, inspector: createSupplyInspector(modules, calculation) }
 }
@@ -79,7 +79,7 @@ describe('supply diagnosis', () => {
     })
     const calculation = calculateFactoryCalculation({ modules: [food], links: [], contracts: [],
       contractsProfitMultiplier: 1, outputModifiers: {}, recyclingEfficiencyPercent: 0,
-      shipsFuelUseMultiplier: 1, externalSupplies: { chickenCarcass: 5 } })
+      externalSupplies: { chickenCarcass: 5 } })
     const inspector = createSupplyInspector([food], calculation)
     const uses = inspector.getUses({ resourceId: 'chickenCarcass' }, true)
 

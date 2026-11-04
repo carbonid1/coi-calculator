@@ -201,7 +201,7 @@ it('uses the housing and station plans for the research summary', () => {
 
   expect(model.researchEfficiency).toMatchObject({
     population: 7488, populationBonusPercent: 37, populationIsPlanned: true,
-    stationBonusPercent: 25, stationIsPlanned: true, totalOutputPercent: 162,
+    stationBonusPercent: 20, stationIsPlanned: true, totalOutputPercent: 157,
   })
 })
 

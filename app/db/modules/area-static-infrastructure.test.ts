@@ -4,7 +4,7 @@ import {
   type SyncedAreaEntity,
   type SyncedProductionEntity,
 } from '../../game-state'
-import { buildModuleLines } from '../../helpers/build-module-lines/build-module-lines'
+import { buildModuleLines } from '../../test-fixtures/build-module-lines'
 import {
   emptyStaticInfrastructureConfig,
   type StaticInfrastructureConfig,

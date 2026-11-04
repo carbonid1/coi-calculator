@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
 
 import { type SyncedProductionEntity } from "../../game-state";
-import { buildModuleLines } from "../../helpers/build-module-lines/build-module-lines";
 import { calculateBuildingDiagnostics } from "../../helpers/building-diagnostics/building-diagnostics";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { getPlannedConfigurationSummaries } from "../../helpers/planned-builds/planned-builds";
+import { buildModuleLines } from '../../test-fixtures/build-module-lines';
 import { testPlanningDefinitions } from '../../test-fixtures/recorded-game-data';
 import {
   attachSolarPanelsToModule,

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { type ActiveContract, contracts } from "../../db/contracts";
+import { type ActiveContract, } from "../../db/contracts";
 import { type Module } from "../../db/modules/modules";
 import { activeContracts } from "../../test-fixtures/active-contracts";
+import { testContracts as contracts } from '../../test-fixtures/recorded-game-data';
 import { withSolverRecipes } from '../../test-fixtures/solver-recipes';
 import { calculateFactoryTotal } from "./factory-total";
 

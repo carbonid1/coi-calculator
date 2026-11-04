@@ -25,7 +25,7 @@ const recipe = (id: string, overrides: Partial<Recipe>): Recipe => ({
 })
 const calculate = (modules: Module[], links: ModuleResourceLink[] = []) => calculateFactoryCalculation({
   modules, links, contracts: [], contractsProfitMultiplier: 1, outputModifiers: {},
-  recyclingEfficiencyPercent: 100, shipsFuelUseMultiplier: 1,
+  recyclingEfficiencyPercent: 100,
 })
 
 describe('resource supply provenance', () => {
