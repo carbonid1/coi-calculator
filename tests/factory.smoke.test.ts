@@ -148,6 +148,16 @@ it('replays live crop phase and soil reserves into the existing water forecast w
   const buffered = simulateWaterSource(dry, groundwater, weather, 1, full.source.projectedWithdrawalPerCycle, full.source.dailyWithdrawal)
 
   expect(forecast?.firstYearShortfallQuantity).toBeGreaterThan(buffered?.firstYearShortfallQuantity ?? Infinity)
+  const startupOnly = new Map([...empty.demand].map(([id, demand]) => [id, { ...demand, steadyPerCycle: 0,
+    dailyDifference: demand.dailyDifference.map((_quantity, day) => Number(day === 1) * 3) }]))
+  const zeroDraw = empty.calculation.sourceResults.map(result => ({ ...result,
+    actualOutputs: result.actualOutputs.map(output => output.resourceId === 'water' ? { ...output, quantity: 0 } : output) }))
+  const startup = buildWaterSourceInventory(snapshot, zeroDraw, startupOnly).find(row => row.source.id === aquifer.id)
+
+  expect(startup?.projectedWithdrawalPerCycle).toBe(0)
+  expect(startup?.dailyWithdrawal?.[1]).toBe(3)
+  expect(simulateWaterSource(dry, groundwater, weather, 1, 0, startup?.dailyWithdrawal))
+    .toMatchObject({ firstShortfallCycle: 1 / 30, firstYearShortfallQuantity: 3 })
   const skippedSlot = getSyncedCropFarmEntities([{ ...empty.native, runtime: { ...empty.native.runtime, scheduleIndex: 1 } }])[0]
 
   expect(skippedSlot?.runtime?.scheduleIndex).toBe(0)

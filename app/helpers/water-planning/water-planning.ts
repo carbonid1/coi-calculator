@@ -100,7 +100,8 @@ export const simulateWaterSource = (
 export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceResults: readonly PassiveResult[], farmDemand: ReadonlyMap<string, FarmWaterDemand> = new Map()) => {
   const allocation = new Map<string, { pumps: number; withdrawal: number }>();
   const moduleWithdrawals = new Map<string, number>();
-  const sourceModules = new Map<string, Map<string, number>>();
+  const moduleCapacities = new Map<string, number>();
+  const sourceModules = new Map<string, Map<string, { draw: number; capacity: number }>>();
 
   for (const result of sourceResults) {
     const constraint = result.recipe.groundwaterConstraint;
@@ -118,9 +119,12 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
       current.pumps += aquifer.pumpCount;
       current.withdrawal += draw * share;
       allocation.set(aquifer.aquiferId, current);
-      const modules = sourceModules.get(aquifer.aquiferId) ?? new Map<string, number>();
+      const modules = sourceModules.get(aquifer.aquiferId) ?? new Map<string, { draw: number; capacity: number }>();
+      const previous = modules.get(result.moduleId) ?? { draw: 0, capacity: 0 };
+      const capacity = aquifer.pumpCount * snapshot.groundwater.pumpCapacityPerCycle;
 
-      modules.set(result.moduleId, (modules.get(result.moduleId) ?? 0) + draw * share);
+      modules.set(result.moduleId, { draw: previous.draw + draw * share, capacity: previous.capacity + capacity });
+      moduleCapacities.set(result.moduleId, (moduleCapacities.get(result.moduleId) ?? 0) + capacity);
       sourceModules.set(aquifer.aquiferId, modules);
     }
   }
@@ -130,11 +134,14 @@ export const buildWaterSourceInventory = (snapshot: GameStateSnapshot, sourceRes
     const projected = allocation.get(source.id);
     const projectedPumps = projected?.pumps ?? pumps.filter(pump => pump.running).length;
     const projectedWithdrawalPerCycle = projected?.withdrawal ?? 0;
-    const demandChanges = [...(sourceModules.get(source.id) ?? [])].flatMap(([id, draw]) => {
+    const demandChanges = [...(sourceModules.get(source.id) ?? [])].flatMap(([id, { draw, capacity }]) => {
       const demand = farmDemand.get(id);
+      const steady = Math.max(demand?.steadyPerCycle ?? 0, moduleWithdrawals.get(id) ?? 0);
+      // A rain-fed rotation can still need startup irrigation from empty soil.
+      const share = steady > 0 ? draw / steady : capacity / Math.max(moduleCapacities.get(id) ?? 0, 0.000001);
 
       return demand && demand.dailyDifference.some(value => value !== 0)
-        ? [{ demand, share: draw / Math.max(demand.steadyPerCycle, moduleWithdrawals.get(id) ?? 0, 0.000001) }] : [];
+        ? [{ demand, share }] : [];
     });
     const dailyWithdrawal = demandChanges.length ? Array.from({ length: planningWeather.daysPerCycle * 12 + 1 }, (_, day) =>
       Math.max(0, projectedWithdrawalPerCycle / planningWeather.daysPerCycle

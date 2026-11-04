@@ -18,15 +18,16 @@ const format = (value: number) => value.toLocaleString('en-US', { maximumFractio
 type WaterSource = ReturnType<typeof buildWaterSourceInventory>[number];
 
 const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; number: number; snapshot: GameStateSnapshot }) => {
-  const forecast = useMemo(() => source.projectedWithdrawalPerCycle > 0
+  const hasDemand = source.projectedWithdrawalPerCycle > 0 || source.dailyWithdrawal?.some(quantity => quantity > 0) === true;
+  const forecast = useMemo(() => hasDemand
     ? simulateWaterSource(source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal, source.buffer)
     : null,
-    [source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal, source.buffer]);
+    [hasDemand, source.source, snapshot.groundwater, snapshot.weather, source.projectedPumps, source.projectedWithdrawalPerCycle, source.dailyWithdrawal, source.buffer]);
 
-  if (source.projectedWithdrawalPerCycle <= 0 && source.areas.length === 0) return null;
+  if (!hasDemand && source.areas.length === 0) return null;
 
   return (
-    <div className={cn('space-y-3', source.projectedWithdrawalPerCycle > 0 && 'rounded-lg bg-surface-inset p-3 inset-shadow-surface')} aria-label="Aquifer details">
+    <div className={cn('space-y-3', hasDemand && 'rounded-lg bg-surface-inset p-3 inset-shadow-surface')} aria-label="Aquifer details">
       <h3 className="text-sm font-semibold">Aquifer {number}
         {source.areas.length > 0 && <span className="font-normal text-muted-foreground"> · {source.areas.join(' · ')}</span>}
       </h3>
