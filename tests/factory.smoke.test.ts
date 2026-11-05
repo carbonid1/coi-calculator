@@ -52,6 +52,101 @@ import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
 
+it('replays the complete Science expansion preset and returns to the latest live baseline', () => {
+  const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
+
+  if (!snapshot) throw new Error('Recorded factory is incompatible')
+  snapshot.recycling.efficiencyPercent = 37.25
+  snapshot.focus.recyclingEfficiency = { activeStep: 3, targetStep: 5 }
+  const original = JSON.stringify(snapshot)
+  const baseline = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'baseline' })
+  const activePreset = (module: typeof baseline.configuredModules[number]) => module.presets.find(preset => preset.id === module.defaultPresetId)
+  const presets = baseline.configuredModules.flatMap(module => activePreset(module) ?? [])
+
+  expect(baseline.presetId).toBe('current')
+  expect(presets.flatMap(preset => preset.planMismatches ?? [])).toEqual([])
+  expect(presets.flatMap(preset => Object.values(preset.dataSources ?? {}))).not.toContain('planned')
+  expect(presets.flatMap(preset => Object.values(preset.unplacedPlannedBuildings ?? {})).some(count => count > 0)).toBe(false)
+  expect(baseline.recyclingEfficiencyPercent).toBe(37.25)
+  expect(baseline.focusAllocations.recyclingEfficiency).toMatchObject({ step: 3, source: 'synced' })
+  expect(baseline.projectedSpaceStationLevel.level).toBe(snapshot.spaceStation.currentLevel)
+  for (const { id } of getEdictCatalog(snapshot.planningDefinitions)) expect(baseline.edictLevels[id]).toBe(snapshot.edicts[id].activeLevel)
+
+  const ignoredPreferences = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'baseline',
+    contractFullThrottlePreferences: Object.fromEntries(snapshot.contracts.established.map(contract => [contract.gameId, true])),
+    worldMineFullThrottlePreferences: { Product_IronOre: true },
+    resourcePriorityOverrides: { 14: { water: 'local-first' } },
+  })
+
+  expect(ignoredPreferences.factoryCalculationInput).toEqual(baseline.factoryCalculationInput)
+  const science = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'science' })
+  const housing = snapshot.areaEntities.find(entity => entity.prototypeId === 'HousingT3')
+
+  if (!housing) throw new Error('Recorded Housing III required')
+  const withGhost = structuredClone(snapshot)
+
+  withGhost.areaEntities.push({ ...structuredClone(housing), entityId: 2_000_000_003,
+    constructed: false, running: false, constructionState: 'InConstruction' })
+  const ghostBaseline = deriveCalculatorModel({ snapshot: withGhost, machineZoneAssignments: {}, revision: 'ghost-baseline' })
+  const construction = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: withGhost, machineZoneAssignments: {}, revision: 'construction' })
+
+  expect(ghostBaseline.factoryCalculationInput).toEqual(baseline.factoryCalculationInput)
+  expect(construction.populationCapacity).toBeGreaterThan(baseline.populationCapacity)
+  expect(science.housingCount).toBeGreaterThanOrEqual(26)
+  expect(science.officePlan.offices.officeIII.count).toBeGreaterThanOrEqual(3)
+  expect(science.edictLevels.recyclingIncrease).toBe(5)
+  expect(science.projectedSpaceStationLevel.level).toBe(4)
+  expect(science.researchEfficiency.stationIsPlanned).toBe(true)
+  const recyclingBonus = getFocusDefinitions(snapshot.officeFocusDefinitions).find(focus => focus.id === 'recyclingEfficiency')?.percentPerStep
+
+  expect(recyclingBonus).toBeGreaterThan(0)
+  expect(science.recyclingEfficiencyPercent).toBeCloseTo(37.25 + 2 * (recyclingBonus ?? 0))
+  const currentResult = calculateFactoryCalculation(baseline.factoryCalculationInput)
+  const scienceResult = calculateFactoryCalculation(science.factoryCalculationInput)
+  const labCount = (result: typeof scienceResult) => result.factoryResult.allLines.filter(line =>
+    line.recipe.gameBuildingId === 'ResearchLab4' || line.recipe.gameBuildingId === 'ResearchLab5')
+    .reduce((sum, line) => sum + line.activeBuildings, 0)
+  const workers = (result: typeof scienceResult) => calculateBuildingStats(result.factoryResult.allLines, result.factoryResult.calculation).workers
+
+  expect(labCount(currentResult)).toBe(baseline.runningResearchLabCount)
+  expect(labCount(scienceResult)).toBe(2)
+  const cracking = (result: typeof scienceResult) => result.factoryResult.allLines.filter(line =>
+    line.recipe.gameBuildingId === 'HydroCrackerT1' && line.recipe.gameRecipeId === 'FuelGasReforming')
+  const currentCracking = cracking(currentResult)
+  const scienceCracking = cracking(scienceResult)
+
+  expect(currentCracking.length).toBeGreaterThan(0)
+  const crackingConfig = (lines: typeof currentCracking) => lines.map(line => ({
+    id: line.recipe.id, active: line.activeBuildings, built: line.builtBuildings,
+    source: line.dataSource, mode: line.operatingMode,
+  }))
+
+  expect(crackingConfig(scienceCracking)).toEqual(crackingConfig(currentCracking))
+  const crackingIds = new Set(scienceCracking.map(line => line.recipe.id))
+  const crackingChanges = science.configuredModules.flatMap(module => activePreset(module)?.planMismatches ?? [])
+    .filter(change => crackingIds.has(change.recipeId))
+
+  expect(crackingChanges).toEqual([])
+  expect(workers(scienceResult)).toBeGreaterThan(workers(currentResult))
+  expect(scienceResult.factoryResult.computingDemandTflops).toBeGreaterThan(currentResult.factoryResult.computingDemandTflops)
+  const reverted = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'reverted' })
+
+  expect(reverted.factoryCalculationInput).toEqual(baseline.factoryCalculationInput)
+  const fresh = structuredClone(snapshot)
+
+  for (const entity of fresh.productionEntities) if (entity.prototypeId.startsWith('ResearchLab')) entity.running = true
+  for (const entity of fresh.areaEntities) if (entity.prototypeId.startsWith('ResearchLab')) entity.running = true
+  const updated = deriveCalculatorModel({ snapshot: fresh, machineZoneAssignments: {}, revision: 'fresh' })
+
+  expect(updated.presetId).toBe('current')
+  // All three recorded labs are now running; no-plan mode must not retain
+  // the preset's two-lab target when the live configuration changes.
+  expect(updated.runningResearchLabCount).toBe(3)
+  expect(updated.projectedSpaceStationLevel.level).toBe(fresh.spaceStation.currentLevel)
+  expect(updated.factoryCalculationInput).not.toEqual(baseline.factoryCalculationInput)
+  expect(JSON.stringify(snapshot)).toBe(original)
+}, 60_000)
+
 it('replays connected tank and pipe reserves, refill and shared-source exclusions through the existing shortfall forecast', () => {
   const original = normalizeGameStateSnapshot(capture)
 
@@ -311,7 +406,7 @@ it('replays native Office tiers, boost curves, Focus allocations and changed cos
     const validated = normalizeGameStateSnapshot(snapshot)
 
     if (!validated) throw new Error('Office replay failed snapshot validation')
-    const model = deriveCalculatorModel({ snapshot: validated, machineZoneAssignments: {}, revision: 'office-smoke' })
+    const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: validated, machineZoneAssignments: {}, revision: 'office-smoke' })
     const lines = model.configuredModules.flatMap(module => buildModuleLines(module, module.presets[0], model.outputModifiers).lines)
       .filter(line => line.recipe.id.startsWith('officeI'))
 
@@ -368,12 +463,12 @@ it('replays native Office tiers, boost curves, Focus allocations and changed cos
 
   allocation.focus.contractsProfitability = { targetStep: 7, activeStep: 3 }
   allocation.focus.foodConsumption = { targetStep: 2, activeStep: 0 }
-  const selected = deriveCalculatorModel({ snapshot: allocation, machineZoneAssignments: {}, revision: 'selected-focus' })
+  const selected = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: allocation, machineZoneAssignments: {}, revision: 'selected-focus' })
 
   expect(selected.focusBonuses.contractsProfitability).toBe(14)
   expect(selected.focusBonuses.foodConsumption).toBe(-4)
   allocation.focus.contractsProfitability = { targetStep: 15, activeStep: 15 }
-  expect(deriveCalculatorModel({ snapshot: allocation, machineZoneAssignments: {}, revision: 'completed-focus' })
+  expect(deriveCalculatorModel({ presetId: 'science-expansion', snapshot: allocation, machineZoneAssignments: {}, revision: 'completed-focus' })
     .focusBonuses.contractsProfitability).toBe(30)
   const extended = structuredClone(source)
   const crop = extended.officeFocusDefinitions.focuses.find(focus => focus.id === 'cropYield')
@@ -409,7 +504,7 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
   expect(summary.cycles[0]?.rainIntensityPercent).toBeCloseTo(50 * 7 / 30, 10)
   expect(getRainwaterHarvesterPotential(summary, 1.5, snapshot.planningDefinitions.factory.rainwaterPerDay)).toEqual({ nextYearPerCycle: 5.625, averagePerCycle: 5.625 })
 
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'water-replay' })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'water-replay' })
   const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
   const sourceResults = [...factoryResult.calculation.sourceResults,
     ...[...linkedModulesResult.moduleResults.values()].flatMap(result => result.sourceResults)]
@@ -541,7 +636,7 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
     if (getCropFarmingData(snapshot.cropFarming).crop(cropId).fertilityPercentPerDay > 0)
       expect(cropId).not.toBe(schedule[(index + 1) % schedule.length])
   }
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'recorded-factory' })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'recorded-factory' })
   const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
 
   for (const resourceId of ['coreFuel', 'coreFuelSpent'])
@@ -628,7 +723,7 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
 
   if (!officeBoost) throw new Error('Recorded Office boost definition is missing')
   officeBoost.computingTflops += 48
-  const changedModel = deriveCalculatorModel({ snapshot: updated, machineZoneAssignments: {}, revision: 'changed-catalog' })
+  const changedModel = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: updated, machineZoneAssignments: {}, revision: 'changed-catalog' })
   const changed = calculateFactoryCalculation(changedModel.factoryCalculationInput).factoryResult
   const changedStats = calculateBuildingStats(changed.allLines, changed.calculation, changedModel.outputModifiers)
 
@@ -650,7 +745,7 @@ it('replays station plans and Rocket II supply through native capacities, recipe
     const snapshot = normalizeGameStateSnapshot(raw)
 
     if (!snapshot) throw new Error('Recorded rocket data is incompatible')
-    const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'rocket-replay' })
+    const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'rocket-replay' })
     const stationModule = model.configuredModules.find(candidate => candidate.recipes?.some(recipe => recipe.id === 'space-station-operations'))
 
     if (!stationModule) throw new Error('Recorded factory must exercise Space Station planning')
@@ -747,7 +842,7 @@ it('replays native station tiers through operations, crew requirements, research
     const lines = buildModuleLines(stationModule, stationModule.presets[0], { buildingDefinitions: snapshot.buildingDefinitions, planningDefinitions: snapshot.planningDefinitions }).lines
     const result = calculateNet(lines)
     const stats = calculateBuildingStats(lines, result)
-    const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'native-station-replay' })
+    const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'native-station-replay' })
 
     return { stationModule, lines, result, stats, model }
   }
@@ -1004,7 +1099,7 @@ it('replays chicken inventory, construction and plans using the supplied farm de
     const compatible = normalizeGameStateSnapshot(snapshot)
 
     if (!compatible) throw new Error('Farm replay snapshot is invalid')
-    const model = deriveCalculatorModel({ snapshot: compatible, machineZoneAssignments: {}, revision: 'farm-smoke' })
+    const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: compatible, machineZoneAssignments: {}, revision: 'farm-smoke' })
     const reports = model.configuredModules.filter(module => module.liveArea).map(module => {
       const preset = module.presets[0]
       const { lines } = buildModuleLines(module, preset, model.outputModifiers)
@@ -1089,7 +1184,7 @@ it('replays native research, edicts, housing, settlement composition, computing,
     const snapshot = normalizeGameStateSnapshot({ ...source, planningDefinitions: definitions })
 
     if (!snapshot) throw new Error('Planning replay is incompatible')
-    const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'planning-replay' })
+    const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'planning-replay' })
     const lines = model.configuredModules.flatMap(module => buildModuleLines(module, module.presets[0], model.outputModifiers).lines)
     const housing = getHousingTypes(definitions)
     const budget = (settlementUnity = snapshot.settlement.unity) => calculateUnityBudget({
@@ -1107,7 +1202,7 @@ it('replays native research, edicts, housing, settlement composition, computing,
   if (!recyclingFocus) throw new Error('Native recycling Focus definition missing')
   recyclingFocus.percentPerStep = 2
   recyclingSnapshot.focus.recyclingEfficiency = { targetStep: 7, activeStep: 3 }
-  expect(deriveCalculatorModel({ snapshot: recyclingSnapshot, machineZoneAssignments: {}, revision: 'recycling-focus-replay' }).recyclingEfficiencyPercent)
+  expect(deriveCalculatorModel({ presetId: 'science-expansion', snapshot: recyclingSnapshot, machineZoneAssignments: {}, revision: 'recycling-focus-replay' }).recyclingEfficiencyPercent)
     .toBeCloseTo(source.recycling.efficiencyPercent + 8, 8)
   const original = replay(source.planningDefinitions)
   const housing = getHousingTypes(source.planningDefinitions)

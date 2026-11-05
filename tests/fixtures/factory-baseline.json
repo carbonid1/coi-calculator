@@ -311,12 +311,6 @@
       "net": 0
     },
     {
-      "resource": "oxygen",
-      "produced": 276.224,
-      "consumed": 276.224,
-      "net": 0
-    },
-    {
       "resource": "fertilizerII",
       "produced": 110.8281,
       "consumed": 110.8281,
@@ -614,6 +608,12 @@
       "resource": "rocketII",
       "produced": 0.0866,
       "consumed": 0.0866,
+      "net": 0
+    },
+    {
+      "resource": "oxygen",
+      "produced": 276.224,
+      "consumed": 276.224,
       "net": 0
     },
     {

@@ -49,11 +49,12 @@ export const normalizeFocusStates = (value: unknown, definitions: OfficeFocusDef
 export const resolveFocusAllocations = (
   synced: SyncedFocusStates | undefined,
   overrides: Partial<Record<FocusEffectId, number>>,
+  useActiveSteps = false,
 ): FocusAllocations => mapFocusValues(id => {
   const current = synced?.[id] ?? null
   const target = overrides[id]
-  // Selected game steps describe steady operation; active steps can dip each tick.
-  const step = target ?? current?.targetStep ?? null
+  // Current setup uses active bonuses; a factory preset can project selected steps.
+  const step = target ?? (useActiveSteps ? current?.activeStep : current?.targetStep) ?? null
   const syncedSource: ValueSource | null = current ? 'synced' : null
   const source: ValueSource | null = target !== undefined && target !== current?.targetStep ? 'planned' : syncedSource
 

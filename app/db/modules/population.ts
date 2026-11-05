@@ -78,6 +78,7 @@ export const createPopulationModule = (
   generatedArea: Module,
   housingCapacityLevel: number,
   plannedHousingTarget: number | null = plannedHousingCount,
+  includeHouseholdGoodsPlan = true,
 ): Module => {
   const housingTypes = getHousingTypes(planningDefinitions);
   const activeHousingType = housingTypes.housingIII;
@@ -193,7 +194,7 @@ export const createPopulationModule = (
   const runningHouseholdGoodsCount = specialCurrentActiveBuildings[householdGoodsRecipeId] ?? 0;
   // Pausing every module drops HouseholdGoodsNeed from the settlement, which would
   // retire the demand instead of exposing it. The plan keeps one module running.
-  const hasHouseholdGoodsPlan = builtHouseholdGoodsCount > 0
+  const hasHouseholdGoodsPlan = includeHouseholdGoodsPlan && builtHouseholdGoodsCount > 0
     && runningHouseholdGoodsCount < plannedHouseholdGoodsModuleCount;
 
   if (hasHouseholdGoodsPlan) {

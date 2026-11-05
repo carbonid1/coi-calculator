@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile, spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -108,6 +108,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     }
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
+      saveId: state.saveId ?? fixture.saveId,
       world: state.worldMining ? { ...fixture.world,
         mines: fixture.world.mines.map(mine => mine.product.productId === 'Product_Sulfur'
           ? { ...mine, running: true, state: 'Working', outputPerCycle: 432, capacityPerCycle: 432, workers: 96, unityPerCycle: 1.6 } : mine),
@@ -227,6 +228,10 @@ test('recorded factory: browser → Next API → replayed game API → worker �
   const evaluate = async expression => (await browser('eval', '--base64', Buffer.from(expression).toString('base64'))).result
   const text = () => evaluate('document.body.innerText')
   const click = name => browser('find', 'role', 'button', 'click', '--name', name, '--exact')
+  const preset = async name => {
+    await browser('click', '[aria-label="Factory preset"]')
+    await browser('find', 'role', 'option', 'click', '--name', name, '--exact')
+  }
   const area = async name => {
     await browser('fill', '[aria-label="Factory area"]', name)
     await browser('find', 'role', 'option', 'click', '--name', name, '--exact')
@@ -243,17 +248,80 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     })()`)
   }
   const screenshot = async name => {
-    if (process.env.COI_SMOKE_SCREENSHOTS) await browser('screenshot', `${process.env.COI_SMOKE_SCREENSHOTS}/${name}.png`)
+    if (!process.env.COI_SMOKE_SCREENSHOTS) return
+    mkdirSync(process.env.COI_SMOKE_SCREENSHOTS, { recursive: true })
+    await browser('screenshot', `${process.env.COI_SMOKE_SCREENSHOTS}/${name}.png`)
   }
   const ready = () => browser('wait', '--fn', 'document.body.innerText.includes("Game sync: Live") && document.querySelector("nav") !== null', '--timeout', '45000')
 
   t.after(() => browser('close'))
 
+  await t.test('switches complete factory presets, restores current setup and persists the selection per save', async () => {
+    await browser('open', appUrl)
+    await browser('set', 'viewport', '1440', '1000')
+    await ready()
+    const selected = () => evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`)
+
+    assert.equal(await selected(), 'Current setup')
+    assert.match(await text(), /Calculated · flows \/ cycle/)
+    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
+    const summary = () => evaluate('Array.from(document.querySelectorAll("dt + dd")).slice(0, 4).map(node => node.innerText)')
+    const baseline = await summary()
+
+    await screenshot('current-setup')
+    await browser('click', '[aria-label="Factory preset"]')
+    assert.equal(await evaluate('document.querySelectorAll("[role=option]").length'), 2)
+    assert.equal(await evaluate('document.querySelectorAll("[role=listbox] [role=switch]").length'), 0)
+    await screenshot('factory-presets')
+    await browser('press', 'End')
+    await browser('press', 'Enter')
+    await ready()
+    assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Build Space Station level 4/)
+    assert.match(await text(), /Unpause 1 Household Goods Module/)
+    assert.notDeepEqual(await summary(), baseline)
+    await screenshot('science-expansion')
+    await preset('Current setup')
+    await ready()
+    assert.deepEqual(await summary(), baseline)
+    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
+    await preset('Science expansion')
+    await ready()
+    await browser('reload')
+    await ready()
+    assert.equal(await selected(), 'Science expansion')
+    assert.match(await text(), /Unpause 2 Research Lab IV/)
+    try {
+      state.saveId = 'Other factory'
+      await click('Sync now')
+      await browser('wait', '--fn', `JSON.parse(localStorage.getItem('coi-game-state-last-valid-v1'))?.saveId === 'Other factory'`)
+      await ready()
+      assert.equal(await selected(), 'Current setup')
+      assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
+    } finally {
+      state.saveId = undefined
+      await click('Sync now')
+      await browser('wait', '--fn', `JSON.parse(localStorage.getItem('coi-game-state-last-valid-v1'))?.saveId === ${JSON.stringify(fixture.saveId)}`)
+      await ready()
+    }
+    assert.equal(await selected(), 'Science expansion')
+    await browser('set', 'viewport', '375', '900')
+    await browser('click', '[aria-label="Factory preset"]')
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
+    assert.equal(await evaluate('document.querySelectorAll("[role=option]").length'), 2)
+    await screenshot('mobile-presets')
+    await browser('press', 'Escape')
+    await ready()
+    await browser('set', 'viewport', '1440', '1000')
+  })
+
   await t.test('loads the real calculation and navigates production, planning, inventory and diagnostics', async () => {
     await browser('open', appUrl)
     await browser('set', 'viewport', '1440', '1000')
     await ready()
-    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*\+20\.1 MW[\s\S]*\+118\.71 TFLOPS[\s\S]*-1\.04 \/ cycle[\s\S]*7,356 \/ 7,488/)
+    await preset('Science expansion')
+    await ready()
+    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*\+20\.1 MW[\s\S]*\+118\.71 TFLOPS[\s\S]*-0\.74 \/ cycle[\s\S]*7,356 \/ 7,488/)
+    assert.doesNotMatch(await text(), /(?:Pause|Unpause|Build) \d+ Cracking Units?/)
     assert.match(await text(), /Unpause 2 Research Lab IV/)
     assert.match(await text(), /Build Space Station level 4/)
     const storedRock = await evaluate(`document.querySelector('[aria-label="From storage"] li:has([aria-label="Inspect Rock supply"])').innerText`)
@@ -267,7 +335,9 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       `Desktop selection/focus ring is clipped: ${JSON.stringify(desktopTabs)}`)
     await screenshot('factory-overview')
     await browser('focus', '[aria-label="297 MW demand / 317.1 MW generation capacity."]')
-    await browser('wait', '[role="tooltip"]')
+    await browser('press', 'Shift+Tab')
+    await browser('press', 'Tab')
+    await browser('wait', '--fn', 'document.body.innerText.includes("297 MW demand / 317.1 MW generation capacity")')
     assert.match(await text(), /297 MW demand \/ 317\.1 MW generation capacity/)
     await browser('press', 'Escape')
 
@@ -285,7 +355,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('wait', '--text', 'No areas found.')
     assert.equal(await evaluate('document.querySelector("h2").textContent'), 'Factory Total')
     await browser('fill', '[aria-label="Factory area"]', 'ste')
-    assert.equal(await evaluate('document.querySelectorAll("[role=option]").length'), 1)
+    assert.equal(await evaluate(`document.getElementById(document.querySelector('[aria-label="Factory area"]').getAttribute('aria-controls')).querySelectorAll('[role=option]').length`), 1)
     assert.match(await text(), /Steel #1/)
     await screenshot('area-search')
     await browser('press', 'ArrowDown')
@@ -722,6 +792,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     })()`)
 
     assert.ok(rates[0] > 0 && Math.abs(rates[0] - rates[1]) < 0.001, 'Full throttle imports at measured route capacity')
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`), 'Science expansion · modified')
     await screenshot('contracts-full-throttle')
     state.limitedConnections = true
     await browser('reload')

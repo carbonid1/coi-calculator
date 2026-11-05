@@ -184,7 +184,7 @@ const applyCookingOilDieselPlan = (module: Module): Module => {
   }
 }
 
-const applyCrackingUnitDieselPlan = (module: Module): Module => {
+const applyCrackingUnitDieselPlan = (module: Module, target: number): Module => {
   const sourcePreset = getPreset(module)
 
   if (!sourcePreset) return module
@@ -202,23 +202,23 @@ const applyCrackingUnitDieselPlan = (module: Module): Module => {
     sourcePreset.activeBuildings[recipeId] ?? 0,
     running + constructionGhosts,
   )
-  const planSatisfied = projected === plannedCrackingUnitDieselTarget
-  const direction = projected < plannedCrackingUnitDieselTarget
+  const planSatisfied = projected === target
+  const direction = projected < target
     ? 'at-least' as const
     : 'at-most' as const
-  const excess = Math.max(0, projected - plannedCrackingUnitDieselTarget)
+  const excess = Math.max(0, projected - target)
   const cancelBuildCount = Math.min(constructionGhosts, excess)
   const pauseCount = excess - cancelBuildCount
   const unplaced = Math.max(
     0,
-    plannedCrackingUnitDieselTarget - built - constructionGhosts,
+    target - built - constructionGhosts,
   )
   const planMismatch = planSatisfied
     ? []
     : [{
         recipeId,
         current: projected,
-        target: plannedCrackingUnitDieselTarget,
+        target,
         direction,
         format: 'count' as const,
         currentLabel: constructionGhosts > 0
@@ -228,7 +228,7 @@ const applyCrackingUnitDieselPlan = (module: Module): Module => {
           ? createAtLeastBuildingActions({
               built: built + constructionGhosts,
               running: projected,
-              target: plannedCrackingUnitDieselTarget,
+              target,
               name: 'Cracking Unit',
             })
           : [
@@ -269,7 +269,7 @@ const applyCrackingUnitDieselPlan = (module: Module): Module => {
       },
       activeBuildings: {
         ...preset.activeBuildings,
-        [recipeId]: plannedCrackingUnitDieselTarget,
+        [recipeId]: target,
       },
       dataSources: {
         ...preset.dataSources,
@@ -302,6 +302,7 @@ const applyResearchLabPlan = (
   definitions: FactoryDefinitions | undefined,
   module: Module,
   researchMode: ResearchMode,
+  target = plannedResearchLabTarget,
 ): Module => {
   const sourcePreset = getPreset(module)
   const recipe = module.recipes?.find(isResearchLabRecipe)
@@ -321,26 +322,26 @@ const applyResearchLabPlan = (
     sourcePreset.activeBuildings[recipeId] ?? 0,
     running + constructionGhosts,
   )
-  const planSatisfied = projected >= plannedResearchLabTarget
+  const planSatisfied = projected >= target
   const unplaced = planSatisfied
     ? 0
-    : Math.max(0, plannedResearchLabTarget - built - constructionGhosts)
+    : Math.max(0, target - built - constructionGhosts)
   const plannedActive = planSatisfied
     ? projected
-    : Math.max(projected, plannedResearchLabTarget)
+    : Math.max(projected, target)
   const planMismatch = planSatisfied
     ? []
     : [{
         recipeId,
         current: running,
-        target: plannedResearchLabTarget,
+        target,
         direction: 'at-least' as const,
         format: 'count' as const,
         actions: createPlanActions({
           buildingName: 'Research Lab IV',
           built: built + constructionGhosts,
           running: projected,
-          target: plannedResearchLabTarget,
+          target,
         }),
       }]
   const plannedRecipe: Recipe = {
@@ -393,13 +394,19 @@ export const applyDefaultAreaPlan = (
   definitions: FactoryDefinitions | undefined,
   module: Module,
   researchMode: ResearchMode = baseConfig.researchMode,
-) => applyResearchLabPlan(
-  definitions,
-  applyCrackingUnitDieselPlan(
-    applyCookingOilDieselPlan(module),
-  ),
-  researchMode,
-)
+  plans: { science: boolean; refining: boolean; crackingUnitTarget?: number } = {
+    science: true, refining: true, crackingUnitTarget: plannedCrackingUnitDieselTarget,
+  },
+) => {
+  const production = plans.refining ? applyCookingOilDieselPlan(module) : module
+
+  return applyResearchLabPlan(
+    definitions,
+    plans.crackingUnitTarget === undefined ? production : applyCrackingUnitDieselPlan(production, plans.crackingUnitTarget),
+    researchMode,
+    plans.science ? plannedResearchLabTarget : 0,
+  )
+}
 
 const emptyDefaultModule = (): Module => ({
   id: DEFAULT_MODULE_ID,

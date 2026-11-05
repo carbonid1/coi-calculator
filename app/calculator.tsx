@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { BuildingCardTarget, getBuildingTargetId } from './components/BuildingCardTarget'
 import { ContractsView } from './components/ContractsView'
+import { FactoryPresetPicker } from './components/FactoryPresetPicker'
 import { FactoryStartup } from './components/FactoryStartup'
 import { FocusView } from './components/FocusView'
 import { GameSyncStatus } from './components/GameSyncStatus'
@@ -60,13 +61,11 @@ import { getPresetResourceDemands } from './helpers/preset-resource-demands/pres
 import { groupProductionCardLines, hasBuildingInventory } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import { createSpaceResearchAttention } from './helpers/space-research-attention/space-research-attention'
-import { getWorldMinePreferencesStorageKey } from './helpers/world-mines/world-mine-planning'
-import { useContractPreferences } from './hooks/use-contract-preferences'
+import { calculateFreshwaterUse } from './helpers/water-planning/freshwater-use'
 import { useFactoryCalculation } from './hooks/use-factory-calculation'
+import { useFactoryPreset } from './hooks/use-factory-preset'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 import { useKeepReadyPreferences } from './hooks/use-keep-ready-preferences'
-import { useOperatingPreferences } from './hooks/use-operating-preferences'
-import { useResourcePriorities } from './hooks/use-resource-priorities'
 
 const groupLabels: Record<RecipeGroup, string> = {
   source: 'Sources',
@@ -92,9 +91,7 @@ interface Props {
 
 export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersion }) => {
   const gameState = useGameState(initialGameState)
-  const resourcePriorities = useResourcePriorities(gameState.snapshot?.saveId)
-  const contractPreferences = useContractPreferences(gameState.snapshot?.saveId)
-  const worldMinePreferences = useOperatingPreferences(getWorldMinePreferencesStorageKey(gameState.snapshot?.saveId))
+  const factoryPreset = useFactoryPreset(gameState.snapshot?.saveId)
   const { preferences: keepReadyPreferences, canSave: canSaveKeepReady, setKeepReady } = useKeepReadyPreferences(gameState.snapshot?.saveId)
   const changeKeepReady = canSaveKeepReady ? (diagnostic: BuildingDiagnostic, enabled: boolean) => {
     if (!setKeepReady(diagnostic.key, enabled)) {
@@ -137,15 +134,17 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const latestModel = useMemo(() => (
     latestSnapshot
       ? deriveCalculatorModel({
-          contractFullThrottlePreferences: contractPreferences.preferences,
-          worldMineFullThrottlePreferences: worldMinePreferences.preferences,
+          presetId: factoryPreset.presetId,
+          operatingOverrides: factoryPreset.isModified,
+          contractFullThrottlePreferences: factoryPreset.changes.contracts,
+          worldMineFullThrottlePreferences: factoryPreset.changes.worldMines,
           machineZoneAssignments,
-          resourcePriorityOverrides: resourcePriorities.overrides,
+          resourcePriorityOverrides: factoryPreset.changes.priorities,
           revision: latestRevision,
           snapshot: latestSnapshot,
         })
       : null
-  ), [latestRevision, latestSnapshot, machineZoneAssignments, resourcePriorities.overrides, contractPreferences.preferences, worldMinePreferences.preferences])
+  ), [latestRevision, latestSnapshot, machineZoneAssignments, factoryPreset.changes, factoryPreset.presetId, factoryPreset.isModified])
   const groundwaterPumpClaimIds = (latestModel?.groundwaterPumpClaims ?? [])
     .map(claim => claim.id)
     .join('|')
@@ -153,7 +152,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
     : null
   const { failed, retry, settled } = useFactoryCalculation(
-    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && resourcePriorities.ready && contractPreferences.ready && worldMinePreferences.ready ? latestModel : null,
+    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && factoryPreset.ready ? latestModel : null,
     calculationVersion,
   )
 
@@ -271,16 +270,20 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         <h1 className="text-2xl font-bold text-foreground">Captain of Industry</h1>
         <p className="text-sm text-muted-foreground">Production Chain Calculator</p>
       </div>
-      <GameSyncStatus
-        calculationStatus={calculationStatus}
-        exportedAtUtc={settled?.isStale ? settled.model.snapshot.exportedAtUtc : gameState.exportedAtUtc}
-        isFresh={gameState.isFresh}
-        isSyncing={gameState.isSyncing}
-        onSync={gameState.syncNow}
-        snapshot={failed && !settled ? null : displayedSnapshot}
-        source={gameState.source}
-        status={gameState.status}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <FactoryPresetPicker selected={factoryPreset.presetId} modified={factoryPreset.isModified} disabled={!factoryPreset.canSave}
+          onChange={id => { if (!factoryPreset.selectPreset(id)) toast.error('Could not save preset. Check browser storage and try again.') }} />
+        <GameSyncStatus
+          calculationStatus={calculationStatus}
+          exportedAtUtc={settled?.isStale ? settled.model.snapshot.exportedAtUtc : gameState.exportedAtUtc}
+          isFresh={gameState.isFresh}
+          isSyncing={gameState.isSyncing}
+          onSync={gameState.syncNow}
+          snapshot={failed && !settled ? null : displayedSnapshot}
+          source={gameState.source}
+          status={gameState.status}
+        />
+      </div>
     </div>
   )
 
@@ -303,6 +306,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     contractResolution,
     cropYieldLevel,
     currentSpaceStationLevel,
+    projectedSpaceStationLevel,
     edictLevels,
     edictSources,
     enabledContracts,
@@ -408,12 +412,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         name: cargo.route.depotCustomTitle || cargo.route.depotPrototypeName, amount: cargo.unityPerCycle })),
     ],
     buildingGeneration:
-      spaceStationIncludedInFactoryTotals && currentSpaceStationLevel.unityPerCycle > 0
+      spaceStationIncludedInFactoryTotals && projectedSpaceStationLevel.unityPerCycle > 0
         ? [
             {
               id: 'space-station',
-              name: `Space Station level ${currentSpaceStationLevel.level}`,
-              amount: currentSpaceStationLevel.unityPerCycle,
+              name: `Space Station level ${projectedSpaceStationLevel.level}`,
+              amount: projectedSpaceStationLevel.unityPerCycle,
             },
           ]
         : [],
@@ -581,7 +585,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     )
   const linkedModuleLines = [...linkedModulesResult.moduleResults.values()]
     .flatMap(result => result.lines)
-  const hasPlannedChanges = (lines: readonly ProductionLine[]) => lines.some(line => (
+  const hasPlannedChanges = (lines: readonly ProductionLine[]) => (settled.model.presetId !== 'current' || settled.model.operatingOverrides) || lines.some(line => (
     line.dataSource === 'planned'
     || (line.constructionGhosts ?? 0) > 0
     || (line.unplacedPlannedBuildings ?? 0) > 0
@@ -712,7 +716,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           populationCapacity={configuredPopulationModules.length > 0 ? populationCapacity : undefined}
           spaceStation={spaceStationIncludedInFactoryTotals
             ? {
-                station: currentSpaceStationLevel,
+                station: projectedSpaceStationLevel,
                 logistics: rocketIiRecurringLogistics,
               }
             : undefined}
@@ -721,6 +725,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           edictLevels={edictLevels}
           edictSources={edictSources}
           unityBudget={unityBudget}
+          freshwaterUse={calculateFreshwaterUse(settled.calculation, outputModifiers, worldMines)}
           maintenanceStatueCount={maintenanceStatueCount}
           maintenanceOutputLevel={maintenanceOutputLevel}
           solarPowerLevel={solarPowerLevel}
@@ -735,9 +740,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       {isContracts && factoryResult && (
         <ContractsView
-          fullThrottlePreferences={contractPreferences.preferences}
-          onFullThrottleChange={contractPreferences.canSave ? (contractGameId, enabled) => {
-            if (!contractPreferences.setFullThrottle(contractGameId, enabled)) {
+          fullThrottlePreferences={factoryPreset.changes.contracts}
+          onFullThrottleChange={factoryPreset.canSave ? (contractGameId, enabled) => {
+            if (!factoryPreset.setContractMode(contractGameId, enabled)) {
               toast.error('Could not save contract mode. Check browser storage and try again.')
             }
           } : undefined}
@@ -798,7 +803,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           priorityModules={latestModel?.configuredModules ?? configuredModules}
           calculation={settled.calculation}
           onProcessingPriorityChange={(zoneId, resourceId, priority) => {
-            if (!resourcePriorities.setPriority(zoneId, resourceId, priority)) {
+            if (!factoryPreset.setPriority(zoneId, resourceId, priority)) {
               toast.error('Could not save processing priority. Check browser storage and try again.')
             }
           }}
@@ -833,9 +838,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           {activeModule.id === MINES_MODULE_ID && (
             <>
               <WorldMinesView world={snapshot.world} result={worldMines} storages={snapshot.storages}
-                fullThrottlePreferences={worldMinePreferences.preferences}
-                onFullThrottleChange={worldMinePreferences.canSave ? (productId, enabled) => {
-                  if (!worldMinePreferences.setFullThrottle(productId, enabled)) toast.error('Could not save mine mode. Check browser storage and try again.')
+                fullThrottlePreferences={factoryPreset.changes.worldMines}
+                onFullThrottleChange={factoryPreset.canSave ? (productId, enabled) => {
+                  if (!factoryPreset.setWorldMineMode(productId, enabled)) toast.error('Could not save mine mode. Check browser storage and try again.')
                 } : undefined} />
               <WaterPlanningView snapshot={snapshot}
                 farmResults={factoryResult.calculation.regularResults}

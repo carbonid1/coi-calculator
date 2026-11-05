@@ -169,8 +169,9 @@ export const plannedEdictLevels: Partial<Record<EdictId, EdictLevel>> = {
 export const resolveEdictLevel = (
   id: EdictId,
   synced: EdictLevel,
+  includePlan = true,
 ): { source: ValueSource; value: EdictLevel } => {
-  const target = plannedEdictLevels[id]
+  const target = includePlan ? plannedEdictLevels[id] : undefined
 
   if (target === undefined) return { source: 'synced' as const, value: synced }
 

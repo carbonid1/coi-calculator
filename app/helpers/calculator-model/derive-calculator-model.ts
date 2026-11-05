@@ -9,6 +9,7 @@ import {
   normalizeCleanPanelsLevel,
   normalizeFarmingBoostLevel,
 } from '../../db/edicts'
+import { getFactoryPreset, resolvePlanAreaTargets, type FactoryPresetId, type PlanLayerId } from '../../db/factory-presets'
 import {
   getHousingTypes,
   calculatePopulationCapacity,
@@ -135,6 +136,8 @@ import { getAverageSunIntensityPercent } from '../weather/planning-weather'
 import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
 export interface DeriveCalculatorModelOptions {
+  presetId?: FactoryPresetId
+  operatingOverrides?: boolean
   worldMineFullThrottlePreferences?: Readonly<Record<string, boolean>>
   contractFullThrottlePreferences?: ContractFullThrottlePreferences
   resourcePriorityOverrides?: ResourcePriorityOverrides
@@ -150,13 +153,20 @@ export interface DeriveCalculatorModelOptions {
  * separately on `factoryCalculationInput`.
  */
 export const deriveCalculatorModel = ({
+  presetId = 'current',
+  operatingOverrides = false,
   machineZoneAssignments,
   revision,
   snapshot,
-  resourcePriorityOverrides = {},
-  contractFullThrottlePreferences = {},
-  worldMineFullThrottlePreferences = {},
+  resourcePriorityOverrides: savedResourcePriorities = {},
+  contractFullThrottlePreferences: savedContractModes = {},
+  worldMineFullThrottlePreferences: savedWorldMineModes = {},
 }: DeriveCalculatorModelOptions) => {
+  const plan = getFactoryPreset(presetId)
+  const targets = new Set<PlanLayerId>(plan.layers)
+  const resourcePriorityOverrides = operatingOverrides ? savedResourcePriorities : {}
+  const contractFullThrottlePreferences = operatingOverrides ? savedContractModes : {}
+  const worldMineFullThrottlePreferences = operatingOverrides ? savedWorldMineModes : {}
   const planningDefinitions = snapshot.planningDefinitions
   const housingTypes = getHousingTypes(planningDefinitions)
   const activeHousingType = housingTypes.housingIII
@@ -164,6 +174,7 @@ export const deriveCalculatorModel = ({
   const currentCropFarmEntities = getSyncedCropFarmEntities(snapshot.cropFarms)
   const cropFarmRelatedZoneIds = getCropFarmRelatedZoneIds(currentCropFarmEntities)
   const groundwaterPumpClaims = createGroundwaterPumpClaims(snapshot.logisticsZones)
+    .map(claim => targets.has('power-water') ? claim : { ...claim, target: 0 })
   const sharedMachineAllocation =
     allocateSharedMachines(snapshot.machines, groundwaterPumpClaims, machineZoneAssignments, true)
   const defaultGroundwaterResolution = sharedMachineAllocation.claims[DEFAULT_GROUNDWATER_CLAIM_ID]
@@ -207,7 +218,7 @@ export const deriveCalculatorModel = ({
     entity => !cargoEntityIds.has(entity.entityId),
   )
   const areaEntities = snapshot.areaEntities.filter(
-    entity => !cargoEntityIds.has(entity.entityId),
+    entity => !cargoEntityIds.has(entity.entityId) && (targets.has('construction') || entity.constructed),
   )
   const globalBuildingCounts = resolveAreaBuildingCounts(productionEntities)
   const officeAreaZoneIds = getOfficeAreaZoneIds(areaEntities)
@@ -281,14 +292,14 @@ export const deriveCalculatorModel = ({
   ).length
   const runningOtherResearchLabCount = runningResearchLabCount - runningDefaultResearchLabCount
   const hasDefaultResearchLabInventory = defaultResearchLabEntities.length > 0
-  const plannedResearchLabCount = baseConfig.researchMode === 'with-space'
+  const plannedResearchLabCount = targets.has('science') && baseConfig.researchMode === 'with-space'
     ? runningOtherResearchLabCount + (hasDefaultResearchLabInventory
         ? Math.max(runningDefaultResearchLabCount, plannedResearchLabTarget)
         : 0)
     : 0
   const runningSpaceResearchPoints = researchLabEntities.filter(entity => entity.running).reduce((total, entity) => total
     + getLabSpacePoints(planningDefinitions.factory, entity.prototypeId), 0)
-  const plannedSpaceResearchPoints = baseConfig.researchMode === 'with-space'
+  const plannedSpaceResearchPoints = targets.has('science') && baseConfig.researchMode === 'with-space'
     ? runningSpaceResearchPoints + Math.max(0, plannedResearchLabCount - runningResearchLabCount)
       * getLabSpacePoints(planningDefinitions.factory, defaultResearchLabEntities[0]?.prototypeId ?? 'ResearchLab5')
     : 0
@@ -318,15 +329,16 @@ export const deriveCalculatorModel = ({
     researchLevels.rocketsCapacity,
   )
   const hasSyncedOfficeAreaInventory = officeAreaZoneIds.size > 0
+  const requestedOfficePlan = targets.has('computing') ? plannedOfficePlan : defaultOfficePlan
   const officeInventoryPlan = hasSyncedOfficeAreaInventory
-    ? applySyncedOfficeInventory(plannedOfficePlan, productionEntities)
-    : plannedOfficePlan
+    ? applySyncedOfficeInventory(requestedOfficePlan, productionEntities)
+    : requestedOfficePlan
   const officeBuiltPlan = hasSyncedOfficeAreaInventory
-    ? applySyncedOfficeInventory(plannedOfficePlan, productionEntities, 'built')
+    ? applySyncedOfficeInventory(requestedOfficePlan, productionEntities, 'built')
     : defaultOfficePlan
   const officeCurrentPlan = hasSyncedOfficeAreaInventory ? officeInventoryPlan : defaultOfficePlan
   const resolvedEdictLevels = mapEdictValues(edictId =>
-    resolveEdictLevel(edictId, snapshot.edicts[edictId].activeLevel),
+    resolveEdictLevel(edictId, snapshot.edicts[edictId].activeLevel, targets.has('settlement')),
   )
   const edictLevels: Record<EdictId, EdictLevel> = mapEdictValues(
     edictId => resolvedEdictLevels[edictId].value,
@@ -378,7 +390,7 @@ export const deriveCalculatorModel = ({
     mines,
     createReservesModule(snapshot.reserves),
   ]
-  const liveAreaPlans = getLiveAreaPlans(snapshot.saveId)
+  const liveAreaPlans = resolvePlanAreaTargets(getLiveAreaPlans(snapshot.saveId), targets)
   const generatedLiveAreaModules = createLiveAreaModules(
     [
       { id: DEFAULT_LIVE_AREA_ZONE_ID, name: 'Default' },
@@ -403,14 +415,14 @@ export const deriveCalculatorModel = ({
         : []
     )),
   )
-  const populationHousingPlanTargets = resolvePopulationHousingPlanTargets(
+  const populationHousingPlanTargets = targets.has('settlement') ? resolvePopulationHousingPlanTargets(
     unconfiguredLiveAreaModules.flatMap(module => {
       if (!hasModuleCapability(module, 'population') || !module.liveArea) return []
       const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
 
       return syncedInventory ? [{ generatedArea: module, syncedInventory }] : []
     }),
-  )
+  ) : new Map<number, number>()
   const configuredLiveAreaModules = unconfiguredLiveAreaModules.map(module => {
     if (!module.liveArea) return module
 
@@ -418,7 +430,9 @@ export const deriveCalculatorModel = ({
 
     if (module.id === DEFAULT_MODULE_ID) {
       configured.module = createDefaultCropFarmModule(
-        applyDefaultAreaPlan(planningDefinitions.factory, module),
+        applyDefaultAreaPlan(planningDefinitions.factory, module, baseConfig.researchMode, {
+          science: targets.has('science'), refining: targets.has('refining'),
+        }),
         currentCropFarmEntities,
         snapshot.cropFarming,
         defaultGroundwaterConstraint,
@@ -428,7 +442,7 @@ export const deriveCalculatorModel = ({
 
       configured.module = createNuclearModule(
         appliesPlan ? planningBaselines : emptyPlanningBaselines,
-        appliesPlan ? plannedNuclearOperation : undefined,
+        appliesPlan && targets.has('power-water') ? plannedNuclearOperation : undefined,
         productionEntities,
         module,
       )
@@ -447,6 +461,7 @@ export const deriveCalculatorModel = ({
           module,
           housingCapacityLevel,
           populationHousingPlanTargets.get(module.liveArea.zoneId) ?? null,
+          targets.has('settlement'),
         ), snapshot.settlement, productionEntities)
       }
     } else if (hasModuleCapability(module, 'computing')) {
@@ -511,11 +526,11 @@ export const deriveCalculatorModel = ({
     ...configuredLiveAreaModules,
     ...officeFallbackModules,
   ])
-  const focusAllocations = resolveFocusAllocations(snapshot.focus, {})
+  const focusAllocations = resolveFocusAllocations(snapshot.focus, {}, !targets.has('computing'))
   const officePlan = {
     ...officeInventoryPlan,
     offices: { ...officeInventoryPlan.offices },
-    focusSteps: mapFocusValues(id => snapshot.focus[id].targetStep),
+    focusSteps: mapFocusValues(id => targets.has('computing') ? snapshot.focus[id].targetStep : snapshot.focus[id].activeStep),
   }
 
   for (const office of officeCatalog) {
@@ -570,7 +585,7 @@ export const deriveCalculatorModel = ({
       },
     },
     modules: configuredModulesWithoutSolar,
-    plannedTargets: plannedSolarPanelTargets,
+    plannedTargets: targets.has('power-water') ? plannedSolarPanelTargets : undefined,
     productionEntities,
   })
   const configuredBaseModules = configuredModulesWithoutSolar.map(module => {
@@ -643,7 +658,7 @@ export const deriveCalculatorModel = ({
     calculatePopulationCapacity(housingTypes.housingII, housingIiCount, housingCapacity.multiplier)
   const spaceStationIncludedInFactoryTotals = configuredSpaceStationModules.some(module => (
     module.includedInFactoryTotals !== false
-  )) && currentSpaceStationLevel.level > 0
+  )) && projectedSpaceStationLevel.level > 0
   const projectedPopulation = resolveProjectedPopulation(
     planningDefinitions,
     configuredPopulationModules,
@@ -735,9 +750,9 @@ export const deriveCalculatorModel = ({
   )
   const calculationRevision = `${
     revision ?? snapshot.exportedAtUtc
-  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}:${JSON.stringify(contractFullThrottlePreferences)}:${JSON.stringify(worldMineFullThrottlePreferences)}`
+  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}:${JSON.stringify(contractFullThrottlePreferences)}:${JSON.stringify(worldMineFullThrottlePreferences)}:${presetId}:${operatingOverrides}`
   // Every calculation input above is a pure derivation of the game-state
-  // revision, machine-zone assignments, priorities, and operating modes identified by `calculationRevision`.
+  // revision, assignments, operating modes, and the factory preset identified by `calculationRevision`.
   const factoryCalculationInput: FactoryCalculationInput = {
     contracts: enabledContracts,
     worldMinePlanning: { world: snapshot.world, fullThrottle: worldMineFullThrottlePreferences },
@@ -761,6 +776,9 @@ export const deriveCalculatorModel = ({
     cargoElectricityKw,
     cropYieldLevel,
     currentSpaceStationLevel,
+    projectedSpaceStationLevel,
+    presetId,
+    operatingOverrides,
     edictLevels,
     edictSources,
     enabledContracts,

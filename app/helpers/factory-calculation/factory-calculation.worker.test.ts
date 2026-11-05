@@ -101,20 +101,39 @@ it('reuses saved calculation inputs when only the snapshot revision changed', as
   })
 })
 
-it('refreshes native inventory without rerunning the solver', async () => {
+it('refreshes native inventory while revisiting recent operating configurations without stale model values', async () => {
   const snapshot = { ...structuredClone(model.snapshot), products: structuredClone(testProducts) }
   const first = deriveCalculatorModel({ snapshot, revision: 'stock-a', machineZoneAssignments: {} })
 
   await receive({ data: { ...request, model: first, revision: first.calculationRevision } })
+  const alternate = structuredClone(first)
+
+  alternate.factoryCalculationInput.externalDemands = { water: 123 }
+  await receive({ data: { ...request, model: alternate, revision: 'alternate' } })
   snapshot.products.inventory.Product_Salt.quantity += 100
   const next = deriveCalculatorModel({ snapshot, revision: 'stock-b', machineZoneAssignments: {} })
 
   await receive({ data: { ...request, model: next, revision: next.calculationRevision } })
-  expect(calculate).toHaveBeenCalledTimes(1)
+  expect(calculate).toHaveBeenCalledTimes(2)
   expect(postMessage).toHaveBeenLastCalledWith({
     type: 'settled', revision: next.calculationRevision,
     result: { ...request, model: next, revision: next.calculationRevision, calculation: { fresh: true } },
   })
+})
+
+it('bounds recently solved configurations and keeps the most recently used results', async () => {
+  for (const [index, water] of [1, 2, 3, 1, 4, 2].entries()) {
+    const next = structuredClone(request)
+
+    next.revision = `change-${index}`
+    next.model.factoryCalculationInput.externalDemands = { water }
+    calculate.mockReturnValue({ water })
+    await receive({ data: next })
+    expect(postMessage).toHaveBeenLastCalledWith({
+      type: 'settled', revision: next.revision, result: { ...next, calculation: { water } },
+    })
+  }
+  expect(calculate).toHaveBeenCalledTimes(5)
 })
 
 it.each(['input', 'save', 'version', 'reserve availability'])('recalculates when the %s changes', async change => {

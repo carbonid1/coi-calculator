@@ -8,19 +8,6 @@ import { type GameStateSnapshot, type SyncedProductionEntity } from '../../game-
 import { createCacheTestModel } from '../../test-fixtures/factory-calculation-cache'
 import { deriveCalculatorModel } from './derive-calculator-model'
 
-it('anchors recycling projections to the observed game efficiency', () => {
-  const snapshot = createSnapshot()
-
-  snapshot.recycling.efficiencyPercent = 37.25
-  snapshot.edicts.recyclingIncrease = { activeLevel: 5, enabledLevel: 5, inactiveReason: null }
-  snapshot.focus.recyclingEfficiency = { activeStep: 3, targetStep: 5 }
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} })
-
-  expect(model.recyclingEfficiencyPercent).toBe(39.25)
-  expect(model.outputModifiers.recycling.efficiencyPercent).toBe(39.25)
-  expect(model.factoryCalculationInput.recyclingEfficiencyPercent).toBe(39.25)
-})
-
 it.each([
   { saveId: 'Last-Stop Waters', zoneId: 10, planned: true },
   { saveId: 'Different factory', zoneId: 10, planned: false },
@@ -36,7 +23,7 @@ it.each([
     fertilityTargetPercent: 0, fertilizerProductId: null,
     schedule: [null, null, null, null], zones: [zone],
   }]
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {} })
   const area = model.configuredModules.find(module => module.liveArea?.zoneId === zoneId)
   const plans = area?.presets[0].planMismatches?.filter(mismatch => mismatch.recipeId.includes(':crop-farm-plan:')) ?? []
 
@@ -55,7 +42,7 @@ it('applies crop plans when the saved area only contains farms under constructio
     constructed: false, running: false, constructionState: 'InConstruction',
     zones: [zone], tile: { x: 901, y: 0 }, recipes: [],
   })
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {} })
   const area = model.configuredModules.find(module => module.liveArea?.zoneId === zone.id)
   const preset = area?.presets[0]
   const recipeId = `live-area-10:crop-farm-plan:${activeCropFarmGroups[0].id}`
@@ -83,7 +70,7 @@ it('uses the rack distribution in the synced computing inventory', () => {
     prototypeName: 'Data center', constructionState: 'Constructed', constructed: true,
     tile: { x: entity.entityId, y: 0 }, recipes: [],
   })))
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {} })
   const preset = model.configuredComputingModules.find(module => module.liveArea?.zoneId === zone.id)?.presets[0]
 
   expect(preset?.activeBuildings[computingRecipeIds.dataCenter]).toBe(9)
@@ -108,7 +95,7 @@ it.each([
   snapshot.areaEntities.push({ ...entity, prototypeName: 'Data center', constructionState: 'Constructed',
     constructed: true, tile: { x: 900, y: 0 }, recipes: [] });
   snapshot.logisticsZones.push(entity.zones[0]);
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} });
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {} });
   const area = model.configuredComputingModules.find(module => module.liveArea?.zoneId === zoneId);
 
   expect(area?.presets[0].activeBuildings[computingRecipeIds.basicRack]).toBe(racks);
@@ -179,7 +166,7 @@ it.each([
     }],
   })
 
-  const model = deriveCalculatorModel({ snapshot, revision: null, machineZoneAssignments: {} })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, revision: null, machineZoneAssignments: {} })
   const pumpOwners = model.configuredModules.flatMap(module => (module.recipes ?? [])
     .filter(recipe => recipe.gameBuildingId === 'LandWaterPump')
     .map(recipe => ({ moduleId: module.id, built: module.builtBuildings[recipe.id] })))
@@ -197,7 +184,7 @@ it.each([
 })
 
 it('uses the housing and station plans for the research summary', () => {
-  const model = deriveCalculatorModel({ snapshot: createSnapshot(), machineZoneAssignments: {} })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: createSnapshot(), machineZoneAssignments: {} })
 
   expect(model.researchEfficiency).toMatchObject({
     population: 7488, populationBonusPercent: 37, populationIsPlanned: true,
@@ -206,7 +193,7 @@ it('uses the housing and station plans for the research summary', () => {
 })
 
 it('keeps synced occupancy after the housing target is built, even with empty homes', () => {
-  const model = deriveCalculatorModel({ snapshot: createSnapshot(26), machineZoneAssignments: {} })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: createSnapshot(26), machineZoneAssignments: {} })
 
   expect(model.populationCapacity).toBe(7488)
   expect(model.researchEfficiency).toMatchObject({
@@ -219,7 +206,7 @@ it('does not award a planned station bonus without a station module', () => {
 
   snapshot.productionEntities = snapshot.productionEntities.filter(entity => entity.prototypeId !== 'RocketLaunchPad')
   snapshot.areaEntities = snapshot.areaEntities.filter(entity => entity.prototypeId !== 'RocketLaunchPad')
-  const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} })
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {} })
 
   expect(model.researchEfficiency).toMatchObject({
     population: 7488, stationBonusPercent: 0, stationIsPlanned: false, totalOutputPercent: 137,
@@ -228,11 +215,11 @@ it('does not award a planned station bonus without a station module', () => {
 
 it('applies saved area priorities and invalidates the calculation when they change', () => {
   const snapshot = createSnapshot()
-  const original = deriveCalculatorModel({ snapshot, machineZoneAssignments: {} })
-  const planned = deriveCalculatorModel({ snapshot, machineZoneAssignments: {},
-    resourcePriorityOverrides: { 14: { water: 'local-first' }, 99: { brine: 'local-first' } } })
-  const reverted = deriveCalculatorModel({ snapshot, machineZoneAssignments: {},
-    resourcePriorityOverrides: { 14: { water: 'factory' } } })
+  const original = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {} })
+  const planned = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {},
+    operatingOverrides: true, resourcePriorityOverrides: { 14: { water: 'local-first' }, 99: { brine: 'local-first' } } })
+  const reverted = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {},
+    operatingOverrides: true, resourcePriorityOverrides: { 14: { water: 'factory' } } })
   const area = (model: typeof original, zoneId: number) => model.configuredModules
     .find(module => module.liveArea?.zoneId === zoneId)?.presets[0].resourceProcessingPriorities
 

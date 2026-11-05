@@ -1,5 +1,5 @@
 import { type CalculatorModel } from '../calculator-model/derive-calculator-model'
-import { calculateFactoryCalculation } from './factory-calculation'
+import { calculateFactoryCalculation, type FactoryCalculation } from './factory-calculation'
 import {
   readSavedFactoryCalculation,
   type SavedFactoryCalculation,
@@ -18,46 +18,52 @@ export type FactoryCalculationResponse =
   | { type: 'error'; error: string; revision: string }
 
 const respond = (response: FactoryCalculationResponse) => self.postMessage(response)
-let restored = false
-let previous: SavedFactoryCalculation | null = null
-let previousInput: string | undefined
+// Keep a few recently visited operating configurations, without retaining old
+// snapshots. Returning to one still pairs its solve with the newest live model.
+const recent = { restored: false, identity: '', calculations: new Map<string, FactoryCalculation>() }
+const MAX_RECENT_CALCULATIONS = 3
 
 self.addEventListener('message', async ({ data }: MessageEvent<FactoryCalculationRequest>) => {
   try {
     const input = JSON.stringify(data.model.factoryCalculationInput)
+    const identity = JSON.stringify([data.model.snapshot.saveId, data.version])
 
-    if (!restored) {
-      restored = true
+    if (recent.identity !== identity) {
+      recent.identity = identity
+      recent.calculations.clear()
+    }
+
+    if (!recent.restored) {
+      recent.restored = true
       const saved = await readSavedFactoryCalculation(data.model.snapshot.saveId, data.version)
 
       if (saved) {
-        previous = saved
-        previousInput = JSON.stringify(saved.model.factoryCalculationInput)
+        const savedInput = JSON.stringify(saved.model.factoryCalculationInput)
+
+        if (savedInput) recent.calculations.set(savedInput, saved.calculation)
         if (saved.revision === data.revision) {
-          previous = { ...saved, model: data.model }
-          previousInput = input
-          respond({ type: 'settled', result: previous, revision: data.revision })
+          recent.calculations.set(input, saved.calculation)
+          respond({ type: 'settled', result: { ...saved, model: data.model }, revision: data.revision })
           return
         }
-        if (previousInput !== input) respond({ type: 'preview', result: saved, revision: data.revision })
+        if (savedInput !== input) respond({ type: 'preview', result: saved, revision: data.revision })
       }
     }
 
-    // Stock levels and other snapshot-only changes need a fresh model, but do
-    // not invalidate a solve of identical inputs. Keep only the latest result.
-    const reusable = previous && previousInput === input
-      && previous.version === data.version
-      && previous.model.snapshot.saveId === data.model.snapshot.saveId
-      ? previous : null
     const result: SavedFactoryCalculation = {
-      calculation: reusable?.calculation ?? calculateFactoryCalculation(data.model.factoryCalculationInput),
+      calculation: recent.calculations.get(input) ?? calculateFactoryCalculation(data.model.factoryCalculationInput),
       model: data.model,
       revision: data.revision,
       version: data.version,
     }
 
-    previous = result
-    previousInput = input
+    recent.calculations.delete(input)
+    recent.calculations.set(input, result.calculation)
+    if (recent.calculations.size > MAX_RECENT_CALCULATIONS) {
+      const oldest = recent.calculations.keys().next().value
+
+      if (oldest !== undefined) recent.calculations.delete(oldest)
+    }
     respond({ type: 'settled', result, revision: data.revision })
     await writeSavedFactoryCalculation(result)
   } catch (error) {

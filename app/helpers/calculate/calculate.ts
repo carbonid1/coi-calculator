@@ -15,6 +15,7 @@ import {
 import { getResourceProducts } from '../products/products';
 import { getModuleInputIds, isModuleInput } from "../recipe-input-scope/recipe-input-scope";
 import { typedEntries } from "../typed-entries/typed-entries";
+import { AllocationMap } from './allocation-map';
 
 export interface ProductionLine {
   recipe: Recipe;
@@ -267,7 +268,7 @@ const getCachedLineOrder = (
 };
 
 const createCapacityTracker = (lines: ProductionLine[]) => {
-  const remainingByPool = new Map<string, number>();
+  const remainingByPool = new AllocationMap<string>();
 
   for (const line of lines) {
     if (!line.capacityPoolId) continue;
@@ -303,14 +304,10 @@ const createCapacityTracker = (lines: ProductionLine[]) => {
 
   const snapshot = () => new Map(remainingByPool);
   const restore = (state: ReadonlyMap<string, number>) => {
-    remainingByPool.clear();
-
-    for (const [poolId, remaining] of state) {
-      remainingByPool.set(poolId, remaining);
-    }
+    remainingByPool.restore(state);
   };
 
-  return { availableRatio, restore, snapshot, use };
+  return { availableRatio, remaining: (poolId: string) => remainingByPool.get(poolId) ?? 0, restore, snapshot, use };
 };
 
 const orderDemandBalancedLines = (lines: ProductionLine[]) => getCachedLineOrder(
@@ -483,8 +480,14 @@ interface InternalFlow {
 
 type FlowMap = Map<ResourceId, InternalFlow>;
 
-const makeGetFlow = (flows: FlowMap) => (id: ResourceId) => {
-  const f = flows.get(id) ?? {
+// Mutable reads register in-place writes for rollback; demand-only reads leave
+// untouched flows out of the next restore.
+const makeGetFlow = (flows: FlowMap, markChanged?: (id: ResourceId) => void) => (id: ResourceId, mutable = false) => {
+  if (mutable) markChanged?.(id);
+  const existing = flows.get(id);
+
+  if (existing) return existing;
+  const f = {
     consumed: 0,
     produced: 0,
     recyclableSourcesConsumed: new Map<ResourceId, number>(),
@@ -885,15 +888,20 @@ export const calculateNet = (
   }
 
   // ── Pass 2: actual allocation with priority for constrained resources only ──
-  let flows: FlowMap = new Map();
-  let getFlow = makeGetFlow(flows);
-  let actualModuleFlows = new Map<
+  const flows = new AllocationMap<ResourceId, InternalFlow>();
+  const getFlow = makeGetFlow(flows, id => flows.markChanged(id));
+  const actualModuleFlows = new AllocationMap<
     string,
     { consumed: number; produced: number }
   >();
-  const getActualModuleFlow = (moduleId: string, resourceId: ResourceId) => {
+  const getActualModuleFlow = (moduleId: string, resourceId: ResourceId, mutable = false) => {
     const key = moduleResourceKey(moduleId, resourceId);
-    const flow = actualModuleFlows.get(key) ?? { consumed: 0, produced: 0 };
+
+    if (mutable) actualModuleFlows.markChanged(key);
+    const existing = actualModuleFlows.get(key);
+
+    if (existing) return existing;
+    const flow = { consumed: 0, produced: 0 };
 
     actualModuleFlows.set(key, flow);
 
@@ -924,6 +932,23 @@ export const calculateNet = (
 
     return globalFlow.produced - globalFlow.consumed - unavailableModuleSupply;
   };
+  const localDemandProducers = new Map<string, { line: ProductionLine; capacity: number }[]>();
+
+  for (const producer of demandBalancedLines) {
+    const seenOutputs = new Set<ResourceId>();
+
+    for (const output of producer.recipe.outputs) {
+      if (resourceSupplyRules[output.resourceId] !== "connections"
+        || seenOutputs.has(output.resourceId)
+        || (producer.recipe.balanceOutputIds && !producer.recipe.balanceOutputIds.includes(output.resourceId))) continue;
+      seenOutputs.add(output.resourceId);
+      const key = `${producer.moduleId}:${output.resourceId}`;
+      const candidates = localDemandProducers.get(key) ?? [];
+
+      candidates.push({ line: producer, capacity: getRecipeOutputQuantity(producer.recipe, output, outputModifiers) * lineFactor(producer) });
+      localDemandProducers.set(key, candidates);
+    }
+  }
   const getAvailableInput = (line: ProductionLine, resourceId: ResourceId) => {
     // A named-link planning probe measures demand before a delivery is assigned.
     if (nonConstrainingSuppliedResourceIds.has(resourceId)
@@ -940,30 +965,29 @@ export const calculateNet = (
       const flow = getActualModuleFlow(line.moduleId, resourceId);
       // Local output-balanced producers run after their consumers. Let demand
       // start that local chain, bounded by its remaining installed capacity.
-      const projectedCapacity = createCapacityTracker([]);
+      // Only these producers can reserve capacity in this projection. Copy
+      // their touched pools lazily instead of cloning every factory pool.
+      const projectedRemaining = new Map<string, number>();
+      const pendingLocalProduction = (localDemandProducers.get(moduleKey) ?? [])
+        .reduce((total, { line: producer, capacity }) => {
+          if (producer === line) return total;
 
-      projectedCapacity.restore(capacityTracker.snapshot());
-      const pendingLocalProduction = resourceSupplyRules[resourceId] === "connections"
-        ? demandBalancedLines.reduce((total, producer) => {
-            if (producer.moduleId !== line.moduleId || producer === line) return total;
-            if (producer.recipe.balanceOutputIds
-              && !producer.recipe.balanceOutputIds.includes(resourceId)) return total;
+          const poolId = producer.capacityPoolId;
+          const remaining = poolId
+            ? projectedRemaining.get(poolId) ?? capacityTracker.remaining(poolId)
+            : 0;
+          const availableRatio = poolId && producer.activeBuildings > 0
+            ? Math.min(1, Math.max(0, remaining / producer.activeBuildings))
+            : 1;
+          const ratio = Math.min(
+            Math.max(0, 1 - (allocationRatios.get(producer) ?? 0)),
+            availableRatio,
+          );
 
-            const output = producer.recipe.outputs.find(output => output.resourceId === resourceId);
+          if (poolId) projectedRemaining.set(poolId, Math.max(0, remaining - producer.activeBuildings * ratio));
 
-            if (!output) return total;
-
-            const ratio = Math.min(
-              Math.max(0, 1 - (allocationRatios.get(producer) ?? 0)),
-              projectedCapacity.availableRatio(producer),
-            );
-
-            projectedCapacity.use(producer, ratio);
-
-            return total + getRecipeOutputQuantity(producer.recipe, output, outputModifiers)
-              * lineFactor(producer) * ratio;
-          }, 0)
-        : 0;
+          return total + capacity * ratio;
+        }, 0);
 
       return flow.produced - flow.consumed + pendingLocalProduction;
     }
@@ -973,20 +997,20 @@ export const calculateNet = (
 
   // Caller-supplied resources, such as contract imports, are virtual sources.
   for (const [id, qty] of suppliedEntries) {
-    getFlow(id).produced += qty;
+    getFlow(id, true).produced += qty;
   }
   for (const [moduleId, supplies] of moduleSuppliedResources) {
     for (const [id, qty] of typedEntries(supplies)) {
-      getActualModuleFlow(moduleId, id).produced += qty;
+      getActualModuleFlow(moduleId, id, true).produced += qty;
     }
   }
   for (const [id, qty] of fixedDemandEntries) {
-    getFlow(id).consumed += qty;
+    getFlow(id, true).consumed += qty;
   }
   for (const [moduleId, demands] of moduleFixedDemands) {
     for (const [id, qty] of typedEntries(demands)) {
-      getFlow(id).consumed += qty;
-      getActualModuleFlow(moduleId, id).consumed += qty;
+      getFlow(id, true).consumed += qty;
+      getActualModuleFlow(moduleId, id, true).consumed += qty;
     }
   }
 
@@ -996,16 +1020,16 @@ export const calculateNet = (
     for (const output of line.recipe.outputs) {
       const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
 
-      getFlow(output.resourceId).produced += capacity;
-      getActualModuleFlow(line.moduleId, output.resourceId).produced += capacity;
+      getFlow(output.resourceId, true).produced += capacity;
+      getActualModuleFlow(line.moduleId, output.resourceId, true).produced += capacity;
     }
   }
   const reservedSourceInputs = new Map<ProductionLine, Map<ResourceId, number>>();
 
-  let allocationRatios = new Map<ProductionLine, number>();
-  let surplusOnlyConsumption = new Map<ResourceId, number>();
-  let surplusOnlyModuleConsumption = new Map<string, number>();
-  let moduleScopedInputConsumption = new Map<ResourceId, number>();
+  const allocationRatios = new AllocationMap<ProductionLine>();
+  const surplusOnlyConsumption = new AllocationMap<ResourceId>();
+  const surplusOnlyModuleConsumption = new AllocationMap<string>();
+  const moduleScopedInputConsumption = new AllocationMap<ResourceId>();
   let createdRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   let sortedRecyclableSources = new Map<ProductionLine, Map<ResourceId, number>>();
   const capacityTracker = createCapacityTracker(regularLines);
@@ -1059,7 +1083,7 @@ export const calculateNet = (
     const sortedSources = new Map<ResourceId, number>();
 
     for (const input of line.recipe.inputs) {
-      const flow = getFlow(input.resourceId);
+      const flow = getFlow(input.resourceId, true);
       const inputQuantity = getRecipeInputQuantity(input, outputModifiers);
       const actualQuantity = inputQuantity * multiplier;
 
@@ -1088,7 +1112,7 @@ export const calculateNet = (
       }
 
       flow.consumed += actualQuantity;
-      getActualModuleFlow(line.moduleId, input.resourceId).consumed += actualQuantity;
+      getActualModuleFlow(line.moduleId, input.resourceId, true).consumed += actualQuantity;
 
       if (isModuleInput(line.recipe, input.resourceId)) {
         moduleScopedInputConsumption.set(
@@ -1115,10 +1139,10 @@ export const calculateNet = (
       const actualQuantity = line.recipe.sortsRecyclableSources
         ? (sortedSources.get(output.resourceId) ?? 0)
         : outputQuantity * multiplier;
-      const flow = getFlow(output.resourceId);
+      const flow = getFlow(output.resourceId, true);
 
       flow.produced += actualQuantity;
-      getActualModuleFlow(line.moduleId, output.resourceId).produced += actualQuantity;
+      getActualModuleFlow(line.moduleId, output.resourceId, true).produced += actualQuantity;
 
       if (isRecyclableResource(output.resourceId)) {
         const sourceComposition = new Map<ResourceId, number>();
@@ -1494,13 +1518,29 @@ export const calculateNet = (
   const restoreAllocationState = (
     state: ReturnType<typeof snapshotAllocationState>,
   ) => {
-    flows = cloneFlows(state.flows);
-    getFlow = makeGetFlow(flows);
-    actualModuleFlows = cloneModuleFlows(state.actualModuleFlows);
-    allocationRatios = new Map(state.allocationRatios);
-    surplusOnlyConsumption = new Map(state.surplusOnlyConsumption);
-    surplusOnlyModuleConsumption = new Map(state.surplusOnlyModuleConsumption);
-    moduleScopedInputConsumption = new Map(state.moduleScopedInputConsumption);
+    flows.restore(state.flows, (saved, current) => {
+      if (!current) return {
+        consumed: saved.consumed,
+        produced: saved.produced,
+        recyclableSourcesConsumed: new Map(saved.recyclableSourcesConsumed),
+        recyclableSourcesProduced: new Map(saved.recyclableSourcesProduced),
+      };
+      current.consumed = saved.consumed;
+      current.produced = saved.produced;
+      current.recyclableSourcesConsumed = new Map(saved.recyclableSourcesConsumed);
+      current.recyclableSourcesProduced = new Map(saved.recyclableSourcesProduced);
+      return current;
+    });
+    actualModuleFlows.restore(state.actualModuleFlows, (saved, current) => {
+      if (!current) return { ...saved };
+      current.consumed = saved.consumed;
+      current.produced = saved.produced;
+      return current;
+    });
+    allocationRatios.restore(state.allocationRatios);
+    surplusOnlyConsumption.restore(state.surplusOnlyConsumption);
+    surplusOnlyModuleConsumption.restore(state.surplusOnlyModuleConsumption);
+    moduleScopedInputConsumption.restore(state.moduleScopedInputConsumption);
     createdRecyclableSources = cloneLineResourceMaps(state.createdRecyclableSources);
     sortedRecyclableSources = cloneLineResourceMaps(state.sortedRecyclableSources);
     capacityTracker.restore(state.capacity);
@@ -2199,8 +2239,8 @@ export const calculateNet = (
       for (const input of line.recipe.inputs) {
         const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
 
-        getFlow(input.resourceId).consumed += quantity;
-        getActualModuleFlow(line.moduleId, input.resourceId).consumed += quantity;
+        getFlow(input.resourceId, true).consumed += quantity;
+        getActualModuleFlow(line.moduleId, input.resourceId, true).consumed += quantity;
         reservedInputs.set(input.resourceId, quantity);
       }
 
@@ -2353,7 +2393,7 @@ export const calculateNet = (
 
     const sourceResults: PassiveResult[] = sourceLines.map((line) => {
       const actualOutputs = line.recipe.outputs.map((output) => {
-        const flow = getFlow(output.resourceId);
+        const flow = getFlow(output.resourceId, true);
         const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
         const moduleKey = moduleResourceKey(line.moduleId, output.resourceId);
         const moduleScoped = isModuleScopedSourceMode(line.recipe.sourceMode);
@@ -2363,7 +2403,7 @@ export const calculateNet = (
         const actualUsed = Math.min(capacity, remaining);
 
         flow.produced -= capacity - actualUsed;
-        getActualModuleFlow(line.moduleId, output.resourceId).produced -= capacity - actualUsed;
+        getActualModuleFlow(line.moduleId, output.resourceId, true).produced -= capacity - actualUsed;
         if (moduleScoped) {
           remainingModuleSourceDemand.set(moduleKey, remaining - actualUsed);
           remainingSourceDemand.set(
@@ -2395,8 +2435,8 @@ export const calculateNet = (
         const quantity = getRecipeInputQuantity(input, outputModifiers) * sourceScale;
         const reserved = reservedSourceInputs.get(line)?.get(input.resourceId) ?? 0;
 
-        getFlow(input.resourceId).consumed += quantity - reserved;
-        getActualModuleFlow(line.moduleId, input.resourceId).consumed += quantity - reserved;
+        getFlow(input.resourceId, true).consumed += quantity - reserved;
+        getActualModuleFlow(line.moduleId, input.resourceId, true).consumed += quantity - reserved;
 
         return { resourceId: input.resourceId, quantity };
       });
@@ -2464,8 +2504,9 @@ export const calculateNet = (
           const reduction = Math.min(actualOutput.quantity, excess);
 
           actualOutput.quantity -= reduction;
+          flows.markChanged(resourceId);
           flow.produced -= reduction;
-          getActualModuleFlow(result.moduleId, resourceId).produced -= reduction;
+          getActualModuleFlow(result.moduleId, resourceId, true).produced -= reduction;
           excess -= reduction;
 
           const nextScale = result.actualOutputs.reduce((maximum, actual) => {
@@ -2497,8 +2538,8 @@ export const calculateNet = (
             const nextQuantity = getRecipeInputQuantity(declared, outputModifiers) * nextScale;
             const inputReduction = actualInput.quantity - nextQuantity;
 
-            getFlow(actualInput.resourceId).consumed -= inputReduction;
-            getActualModuleFlow(result.moduleId, actualInput.resourceId).consumed -= inputReduction;
+            getFlow(actualInput.resourceId, true).consumed -= inputReduction;
+            getActualModuleFlow(result.moduleId, actualInput.resourceId, true).consumed -= inputReduction;
             actualInput.quantity = nextQuantity;
           }
         }
@@ -2592,7 +2633,7 @@ export const calculateNet = (
             * capacity
             * utilizationRatio;
 
-          getFlow(input.resourceId).consumed += actual;
+          getFlow(input.resourceId, true).consumed += actual;
           actualInputs.push({ resourceId: input.resourceId, quantity: actual });
         }
         for (const output of line.recipe.outputs) {
@@ -2600,7 +2641,7 @@ export const calculateNet = (
             * capacity
             * utilizationRatio;
 
-          getFlow(output.resourceId).produced += actual;
+          getFlow(output.resourceId, true).produced += actual;
           actualOutputs.push({ resourceId: output.resourceId, quantity: actual });
         }
       }
