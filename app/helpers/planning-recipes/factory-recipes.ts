@@ -61,8 +61,17 @@ export const withFactoryDefinition = (
         return []
       if (!resourceId) throw new Error('Unsupported recipe product: ' + product.productId)
       const policy = policies.find(ingredient => ingredient.resourceId === resourceId)
+      // Installed 0.8.8 NuclearReactor.Recipe omits EnrichmentStepData.FuelMultiplier
+      // from its displayed fuel rates. Runtime consumption applies 50% at 0x;
+      // spent fuel follows consumption, while water and steam remain unchanged.
+      const fuelMultiplier =
+        buildingId === 'FastBreederReactor' &&
+        binding.recipeId === 'Product_CoreFuel:enrichment:0' &&
+        (resourceId === 'coreFuel' || resourceId === 'coreFuelSpent')
+          ? 0.5
+          : 1
 
-      return [{ ...policy, resourceId, quantity: product.quantity * scale }]
+      return [{ ...policy, resourceId, quantity: product.quantity * scale * fuelMultiplier }]
     })
   const isLab = buildingId.startsWith('ResearchLab')
   const needsSpacePoints =

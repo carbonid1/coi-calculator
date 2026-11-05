@@ -244,6 +244,14 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /297 MW demand \/ 317\.1 MW generation capacity/)
     await browser('press', 'Escape')
 
+    await click('Resource supply')
+    for (const resource of ['Core fuel', 'Core fuel (spent)']) {
+      await browser('fill', '[aria-label="Resource"]', resource)
+      await browser('find', 'role', 'option', 'click', '--name', resource, '--exact')
+      assert.match(await text(), /Supply\s+12\s+Demand\s+12\s+Remaining\s+0/)
+    }
+    await click('Factory Total')
+
     await browser('fill', '[aria-label="Factory area"]', 'no-such-area-qzx')
     await browser('wait', '--text', 'No areas found.')
     assert.equal(await evaluate('document.querySelector("h2").textContent'), 'Factory Total')
@@ -258,7 +266,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(await evaluate('document.querySelector("[data-source=synced]").getBoundingClientRect().top < 650'))
     await screenshot('steel-compact')
     await browser('find', 'role', 'button', 'click', '--name', 'Resource balance')
-    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*88\.34[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
+    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*88\.15[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Module inputs\\"] [data-resource-id=seaWater]").length'), 1)
     await screenshot('steel-balance')
 
@@ -291,7 +299,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await area('Computing')
     assert.match(await text(), /Basic Rack[\s\S]*369 \/ 369[\s\S]*1476/)
     await area('Nuclear')
-    assert.match(await text(), /\+162\.5 MW[\s\S]*24 TFLOPS[\s\S]*711/)
+    assert.match(await text(), /\+163\.1 MW[\s\S]*24 TFLOPS[\s\S]*711/)
     await area('Population')
     assert.match(await text(), /7,488 population cap[\s\S]*Clinic I/)
     await click('Focus')

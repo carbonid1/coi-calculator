@@ -203,8 +203,8 @@ it('replays the complete native recipe catalog, contract definitions, farm tiers
     expect([...recipe.inputs, ...recipe.outputs].some(item => item.quantity > 0)).toBe(true)
     expect(withFactoryDefinition(recipe, definitions)).toEqual(recipe)
   }
-  // Evaluated against installed NuclearReactor.Recipe, Generator II and storage prototypes.
-  expect(resolve('fbr-0x').inputs).toContainEqual({ resourceId: 'coreFuel', quantity: 4 })
+  // Installed reactor runtime applies the 0x fuel multiplier omitted by its UI recipe.
+  expect(resolve('fbr-0x').inputs).toContainEqual({ resourceId: 'coreFuel', quantity: 2 })
   expect(resolve('fbr-3x').inputs).toContainEqual({ resourceId: 'blanketFuel', quantity: 12 })
   for (const [id, output] of [['turbine-super', 15], ['turbine-high', 10], ['turbine-low', 5]] as const) {
     expect(resolve(id).outputs).toContainEqual({ resourceId: 'electricity', quantity: output })
@@ -224,7 +224,7 @@ it('replays the complete native recipe catalog, contract definitions, farm tiers
     recipe.electricityOutputMw *= 2
   }
   changed.factory.populationResearch = { numerator: 7, rounding: 500, denominator: 1000 }
-  expect(resolve('fbr-0x', changed).inputs).toContainEqual({ resourceId: 'coreFuel', quantity: 8 })
+  expect(resolve('fbr-0x', changed).inputs).toContainEqual({ resourceId: 'coreFuel', quantity: 4 })
   expect(resolve('seawater-pump', changed).outputs[0].quantity).toBe(resolve('seawater-pump').outputs[0].quantity * 2)
   expect(resolve('turbine-super', changed).outputs).toContainEqual({ resourceId: 'electricity', quantity: 30 })
   expect(calculatePopulationResearchBonus(changed, 7488)).toBe(52)
@@ -543,6 +543,12 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   }
   const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'recorded-factory' })
   const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
+
+  for (const resourceId of ['coreFuel', 'coreFuelSpent'])
+    expect(factoryResult.flows.find(flow => flow.resourceId === resourceId))
+      .toMatchObject({ produced: 12, consumed: 12, net: 0 })
+  expect(factoryResult.flows.find(flow => flow.resourceId === 'steamSuper'))
+    .toMatchObject({ produced: 408, consumed: 408, net: 0 })
   const rockDraw = getReserveDrawPerProductionCycle(factoryResult.calculation.sourceResults, 'rock-virtual-provision', 'rock')
   const rockBalance = snapshot.reserves?.rock ?? 0
 
