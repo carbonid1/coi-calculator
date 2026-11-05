@@ -135,6 +135,7 @@ import { getAverageSunIntensityPercent } from '../weather/planning-weather'
 import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
 export interface DeriveCalculatorModelOptions {
+  worldMineFullThrottlePreferences?: Readonly<Record<string, boolean>>
   contractFullThrottlePreferences?: ContractFullThrottlePreferences
   resourcePriorityOverrides?: ResourcePriorityOverrides
   machineZoneAssignments: MachineZoneAssignments
@@ -154,6 +155,7 @@ export const deriveCalculatorModel = ({
   snapshot,
   resourcePriorityOverrides = {},
   contractFullThrottlePreferences = {},
+  worldMineFullThrottlePreferences = {},
 }: DeriveCalculatorModelOptions) => {
   const planningDefinitions = snapshot.planningDefinitions
   const housingTypes = getHousingTypes(planningDefinitions)
@@ -733,13 +735,13 @@ export const deriveCalculatorModel = ({
   )
   const calculationRevision = `${
     revision ?? snapshot.exportedAtUtc
-  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}:${JSON.stringify(contractFullThrottlePreferences)}`
+  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}:${JSON.stringify(contractFullThrottlePreferences)}:${JSON.stringify(worldMineFullThrottlePreferences)}`
   // Every calculation input above is a pure derivation of the game-state
-  // revision, machine-zone assignments, priorities, and contract modes identified by `calculationRevision`.
+  // revision, machine-zone assignments, priorities, and operating modes identified by `calculationRevision`.
   const factoryCalculationInput: FactoryCalculationInput = {
     contracts: enabledContracts,
-    externalSupplies: worldMines.supplies,
-    externalDemands: { ...worldMines.fuelDemands, electricity: cargoElectricityKw / 1000 },
+    worldMinePlanning: { world: snapshot.world, fullThrottle: worldMineFullThrottlePreferences },
+    externalDemands: { electricity: cargoElectricityKw / 1000 },
     contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
     links: resolvedModuleResourceLinks,
     modules: configuredModules,

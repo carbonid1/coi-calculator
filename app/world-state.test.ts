@@ -15,6 +15,18 @@ it('normalizes world cargo and derives linked sulfur reserves from inventory', (
   expect(normalized?.reserves.sulfur).toBe(250123)
 })
 
+it('validates optional local storage evidence without requiring it from older bridges', () => {
+  const value = snapshot()
+  const route = value.world.routes[0]!
+
+  route.operation.connections = [{ product: value.world.mines[0]!.product, direction: 'import', capacityPerCycle: 450, storageEntityIds: [500] }]
+  expect(normalizeGameStateSnapshot(value)?.world.routes[0]?.operation.connections?.[0]?.storageEntityIds).toEqual([500])
+  route.operation.connections[0]!.storageEntityIds = [500, 500]
+  expect(normalizeGameStateSnapshot(value)).toBeNull()
+  delete route.operation.connections[0]!.storageEntityIds
+  expect(normalizeGameStateSnapshot(value)).not.toBeNull()
+})
+
 it('rejects duplicate inventories and invalid operating data', () => {
   const value = snapshot()
 

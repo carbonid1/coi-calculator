@@ -60,10 +60,12 @@ import { getPresetResourceDemands } from './helpers/preset-resource-demands/pres
 import { groupProductionCardLines, hasBuildingInventory } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import { createSpaceResearchAttention } from './helpers/space-research-attention/space-research-attention'
+import { getWorldMinePreferencesStorageKey } from './helpers/world-mines/world-mine-planning'
 import { useContractPreferences } from './hooks/use-contract-preferences'
 import { useFactoryCalculation } from './hooks/use-factory-calculation'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 import { useKeepReadyPreferences } from './hooks/use-keep-ready-preferences'
+import { useOperatingPreferences } from './hooks/use-operating-preferences'
 import { useResourcePriorities } from './hooks/use-resource-priorities'
 
 const groupLabels: Record<RecipeGroup, string> = {
@@ -92,6 +94,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const gameState = useGameState(initialGameState)
   const resourcePriorities = useResourcePriorities(gameState.snapshot?.saveId)
   const contractPreferences = useContractPreferences(gameState.snapshot?.saveId)
+  const worldMinePreferences = useOperatingPreferences(getWorldMinePreferencesStorageKey(gameState.snapshot?.saveId))
   const { preferences: keepReadyPreferences, canSave: canSaveKeepReady, setKeepReady } = useKeepReadyPreferences(gameState.snapshot?.saveId)
   const changeKeepReady = canSaveKeepReady ? (diagnostic: BuildingDiagnostic, enabled: boolean) => {
     if (!setKeepReady(diagnostic.key, enabled)) {
@@ -135,13 +138,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     latestSnapshot
       ? deriveCalculatorModel({
           contractFullThrottlePreferences: contractPreferences.preferences,
+          worldMineFullThrottlePreferences: worldMinePreferences.preferences,
           machineZoneAssignments,
           resourcePriorityOverrides: resourcePriorities.overrides,
           revision: latestRevision,
           snapshot: latestSnapshot,
         })
       : null
-  ), [latestRevision, latestSnapshot, machineZoneAssignments, resourcePriorities.overrides, contractPreferences.preferences])
+  ), [latestRevision, latestSnapshot, machineZoneAssignments, resourcePriorities.overrides, contractPreferences.preferences, worldMinePreferences.preferences])
   const groundwaterPumpClaimIds = (latestModel?.groundwaterPumpClaims ?? [])
     .map(claim => claim.id)
     .join('|')
@@ -149,7 +153,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
     : null
   const { failed, retry, settled } = useFactoryCalculation(
-    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && resourcePriorities.ready && contractPreferences.ready ? latestModel : null,
+    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && resourcePriorities.ready && contractPreferences.ready && worldMinePreferences.ready ? latestModel : null,
     calculationVersion,
   )
 
@@ -329,8 +333,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     treeGrowthSpeedLevel,
     unityCapacity,
     worldMineOutputLevel,
-    worldMines,
+    worldMines: syncedWorldMines,
   } = settled.model
+  const worldMines = settled.calculation.worldMines ?? syncedWorldMines
 
   const openBuilding = (diagnostic: BuildingDiagnostic) => {
     setBuildingTarget({
@@ -827,13 +832,17 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         <>
           {activeModule.id === MINES_MODULE_ID && (
             <>
+              <WorldMinesView world={snapshot.world} result={worldMines} storages={snapshot.storages}
+                fullThrottlePreferences={worldMinePreferences.preferences}
+                onFullThrottleChange={worldMinePreferences.canSave ? (productId, enabled) => {
+                  if (!worldMinePreferences.setFullThrottle(productId, enabled)) toast.error('Could not save mine mode. Check browser storage and try again.')
+                } : undefined} />
               <WaterPlanningView snapshot={snapshot}
                 farmResults={factoryResult.calculation.regularResults}
                 outputModifiers={outputModifiers}
                 sourceResults={[...factoryResult.calculation.sourceResults, ...linkedSourceResults]}
                 waterFlow={factoryResult.flows.find(flow => flow.resourceId === 'water')}
                 rainwaterYieldMultiplier={outputModifiers.rainwaterYield} />
-              <WorldMinesView world={snapshot.world} result={worldMines} />
               <MinesView
                 focusedTargetKey={focusedModuleTargetKey}
                 sourceResults={[]}

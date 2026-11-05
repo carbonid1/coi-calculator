@@ -67,7 +67,7 @@ internal sealed partial class GameSnapshotCollector
     private CargoOperationSnapshot getCargoOperation(CargoDepot depot)
     {
         CargoOperationSnapshot result = new CargoOperationSnapshot {
-            Connections = depot.ContractAssigned.HasValue ? getCargoConnections(depot) : null,
+            Connections = getCargoConnections(depot),
             DockBlocked = depot.IsAccessBlocked,
             Modules = new List<CargoModuleOperationSnapshot>(),
         };

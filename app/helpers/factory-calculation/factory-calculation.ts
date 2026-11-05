@@ -8,6 +8,8 @@ import { calculateLinkedModules, type PooledLinkCalculationInput } from '../calc
 import { calculateFactoryTotal } from '../factory-total/factory-total'
 import { getRecipeInputQuantity, type RecipeModifierMultipliers } from '../modifiers/recipe-output'
 import { typedEntries } from '../typed-entries/typed-entries'
+import { calculateWorldMines, type WorldMineResult } from '../world-mines/calculate-world-mines'
+import { getBalancedWorldResources, limitWorldMineDeliveries, type WorldMinePlanning } from '../world-mines/world-mine-planning'
 
 export interface FactoryCalculationInput {
   contracts: ActiveContract[]
@@ -18,11 +20,13 @@ export interface FactoryCalculationInput {
   recyclingEfficiencyPercent: number
   externalSupplies?: Partial<Record<ResourceId, number>>
   externalDemands?: Partial<Record<ResourceId, number>>
+  worldMinePlanning?: WorldMinePlanning
 }
 
 export interface FactoryCalculation {
   factoryResult: ReturnType<typeof calculateFactoryTotal>
   linkedModulesResult: ReturnType<typeof calculateLinkedModules>
+  worldMines?: WorldMineResult
 }
 
 /**
@@ -30,7 +34,7 @@ export interface FactoryCalculation {
  * endpoint is solved with the whole factory, preserving shared demand and
  * capacity. Pure and structured-clone safe for the calculation worker.
  */
-export const calculateFactoryCalculation = ({
+const calculateLinkedFactory = ({
   contracts,
   contractsProfitMultiplier,
   links,
@@ -80,8 +84,7 @@ export const calculateFactoryCalculation = ({
     contracts, externalSupplies, externalDemands, recyclingEfficiencyPercent,
     outputModifiers, contractsProfitMultiplier, moduleDrivingInputIds,
   }
-  let factoryResult: FactoryCalculation['factoryResult'] | undefined
-  let initialContractResults: FactoryCalculation['factoryResult']['contractResults'] | undefined
+  const progress: { factoryResult?: FactoryCalculation['factoryResult']; initialContractResults?: FactoryCalculation['factoryResult']['contractResults'] } = {}
   const cache = new Map<string, FactoryCalculation['factoryResult']>()
   const calculatePooled = (input: PooledLinkCalculationInput) => {
     const moduleSuppliedResources = new Map([...input.moduleSupplies].map(([id, supplies]) => [id, { ...supplies }]))
@@ -100,28 +103,25 @@ export const calculateFactoryCalculation = ({
       input.boundaryDemands, input.boundarySupplies,
       [...input.moduleDemands], [...moduleSuppliedResources],
     ])
-    let result = cache.get(key)
+    const result = cache.get(key) ?? calculateFactoryTotal(modules, {
+      ...factoryOptions,
+      boundaryDemands: input.boundaryDemands,
+      boundarySupplies: input.boundarySupplies,
+      moduleFixedDemands: input.moduleDemands,
+      moduleSuppliedResources,
+      initialContractResults: progress.initialContractResults,
+    })
 
-    if (!result) {
-      result = calculateFactoryTotal(modules, {
-        ...factoryOptions,
-        boundaryDemands: input.boundaryDemands,
-        boundarySupplies: input.boundarySupplies,
-        moduleFixedDemands: input.moduleDemands,
-        moduleSuppliedResources,
-        initialContractResults,
-      })
-      cache.set(key, result)
-    }
-    initialContractResults = result.contractResults
-    if (!input.planning) factoryResult = result
+    cache.set(key, result)
+    progress.initialContractResults = result.contractResults
+    if (!input.planning) progress.factoryResult = result
     return result.calculation
   }
   const linkedModulesResult = calculateLinkedModules({
     links: activeLinks, modules, outputModifiers, recyclingEfficiencyPercent,
     calculatePooled,
   })
-  const resolvedFactory = factoryResult ?? calculateFactoryTotal(modules, {
+  const resolvedFactory = progress.factoryResult ?? calculateFactoryTotal(modules, {
     ...factoryOptions,
     boundaryDemands: linkedModulesResult.boundaryDemands,
     boundarySupplies: linkedModulesResult.boundarySupplies,
@@ -154,4 +154,39 @@ export const calculateFactoryCalculation = ({
       },
     },
   }
+}
+
+export const calculateFactoryCalculation = (input: FactoryCalculationInput): FactoryCalculation => {
+  if (!input.worldMinePlanning) return calculateLinkedFactory(input)
+  const full = calculateWorldMines(input.worldMinePlanning.world)
+  const balanced = getBalancedWorldResources(input.worldMinePlanning).filter(id => (full.supplies[id] ?? 0) > 0)
+  const run = (worldMines: WorldMineResult) => {
+    const externalSupplies = { ...input.externalSupplies }, externalDemands = { ...worldMines.fuelDemands }
+
+    for (const [id, quantity] of typedEntries(worldMines.supplies)) externalSupplies[id] = (externalSupplies[id] ?? 0) + quantity
+    for (const [id, quantity] of typedEntries(input.externalDemands ?? {})) externalDemands[id] = (externalDemands[id] ?? 0) + quantity
+    return { ...calculateLinkedFactory({ ...input, externalSupplies, externalDemands }), worldMines }
+  }
+  const allocation = { result: run(full), iteration: 0 }
+
+  // A full-capacity first pass reveals downstream demand, including chains that would otherwise stay idle.
+  // Reconcile fuel and contracts in the same worker, never during rendering or game simulation.
+  while (balanced.length > 0 && allocation.iteration++ < 8) {
+    const targets: Partial<Record<ResourceId, number>> = {}
+
+    for (const id of balanced) {
+      const flow = allocation.result.factoryResult.flows.find(flow => flow.resourceId === id)
+      const reserve = allocation.result.factoryResult.calculation.sourceResults.reduce((sum, source) => sum + (
+        source.recipe.sourceMode === 'demand' ? source.actualOutputs.reduce((total, output) => total + (output.resourceId === id ? output.quantity : 0), 0) : 0
+      ), 0)
+
+      targets[id] = Math.min(full.supplies[id] ?? 0, Math.max(0,
+        (flow?.consumed ?? 0) - (flow?.produced ?? 0) + (allocation.result.worldMines.supplies[id] ?? 0) + reserve))
+    }
+    const next = limitWorldMineDeliveries(full, targets)
+
+    if (balanced.every(id => Math.abs((next.supplies[id] ?? 0) - (allocation.result.worldMines.supplies[id] ?? 0)) < 0.001)) break
+    allocation.result = run(next)
+  }
+  return allocation.result
 }

@@ -71,7 +71,7 @@ const listen = async server => {
 }
 
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
-  const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false, limitedConnections: false }
+  const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false, limitedConnections: false, worldMining: false }
   const requests = new Set()
   const upstream = createServer((request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
@@ -108,6 +108,21 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     }
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
+      world: state.worldMining ? { ...fixture.world,
+        mines: fixture.world.mines.map(mine => mine.product.productId === 'Product_Sulfur'
+          ? { ...mine, running: true, state: 'Working', outputPerCycle: 432, capacityPerCycle: 432, workers: 96, unityPerCycle: 1.6 } : mine),
+        routes: fixture.world.routes.map(route => {
+          if (!route.modules.every(module => module.selectedProduct?.productId === 'Product_Sulfur')) return route
+          const local = fixture.storages.filter(storage => storage.product.productId === 'Product_Sulfur').slice(0, 2)
+
+          return { ...route, running: true, modules: route.modules.map(module => ({ ...module, running: true, workers: 5 })),
+            ship: { ...route.ship, running: true, workers: 36 }, operation: { ...route.operation,
+              connections: [{ product: route.modules[0].selectedProduct, direction: 'import', capacityPerCycle: 450, storageEntityIds: local.map(storage => storage.entityId) }],
+              modules: route.operation.modules.map(module => ({ ...module, state: 'Idle', operational: true, shoreQuantity: 0, shoreFreeCapacity: module.shoreCapacity, onboardQuantity: 0 })),
+              ship: { ...route.operation.ship, state: 'NotEnoughToPickUp', availableCargo: [{ product: route.modules[0].selectedProduct, quantity: 0, capacity: 19000 }] },
+            } }
+        }),
+      } : fixture.world,
       contracts: state.limitedConnections ? { ...fixture.contracts, routes: fixture.contracts.routes.map(route => {
         const contract = fixture.contracts.established.find(contract => contract.gameId === route.contractGameId)
 
@@ -361,6 +376,12 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.doesNotMatch(await text(), /North up|source radius to scale/)
     assert.ok(await evaluate('Array.from(document.querySelectorAll("[aria-label=\\"Weather over the next in-game year\\"] .h-8 span")).every(bar => bar.getBoundingClientRect().width > 30)'))
     assert.doesNotMatch(await evaluate('document.querySelector("[aria-label=\\"Water planning\\"]").innerText'), /\bcycles\b/)
+    // Keep the map target visible without starting at the page's bottom, where
+    // selecting an unused source removes the previous source's detail panel.
+    await evaluate(`(() => {
+      const target = document.querySelector('[aria-label="Select aquifer 3132, 1583 on map"]').getBoundingClientRect()
+      window.scrollTo({ top: Math.max(0, target.bottom + window.scrollY - window.innerHeight + 100), behavior: 'instant' })
+    })()`)
     const mapPageY = await evaluate('window.scrollY')
 
     await click('Select aquifer 3132, 1583 on map')
@@ -719,6 +740,62 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('click', toggle)
     await browser('wait', '--fn', `document.querySelector('${row}').dataset.fullThrottle === 'false'`, '--timeout', '45000')
     state.limitedConnections = false
+    assert.equal((await browser('errors')).errors.length, 0)
+  })
+
+  await t.test('shows built world mines, local stock and saved demand-balanced shipping', async () => {
+    state.worldMining = true
+    await browser('reload')
+    await ready()
+    await click('Mines')
+    const row = '[data-world-product="Product_Sulfur"]'
+    const delivery = `${row} > summary > span:nth-child(3)`
+
+    await browser('wait', '--fn', `document.querySelector('${delivery}')?.firstChild.textContent === '432'`, '--timeout', '45000')
+    assert.equal(await evaluate('document.querySelector("[data-world-product]").dataset.worldProduct'), 'Product_Sulfur')
+    assert.equal(await evaluate('document.querySelectorAll("[data-world-product]").length'), new Set(fixture.world.mines.filter(mine => mine.repaired).map(mine => mine.product.productId)).size)
+    assert.match(await evaluate(`document.querySelector('${row} > summary').innerText`), /172 workers/)
+    assert.doesNotMatch(await evaluate(`document.querySelector('${row} > summary').innerText`), /8\/8/)
+    assert.match(await evaluate('document.querySelector("[data-world-product=Product_CrudeOil] > summary").innerText'), /3,287,900/)
+    await browser('focus', `${row} > summary`)
+    await browser('press', 'Enter')
+    assert.ok(await evaluate(`Array.from(document.querySelectorAll('${row} .text-success-foreground')).some(element => element.textContent === '8/8')`))
+    const local = fixture.storages.filter(storage => storage.product.productId === 'Product_Sulfur').slice(0, 2)
+    const quantity = local.reduce((sum, storage) => sum + storage.quantity, 0).toLocaleString('en-US', { maximumFractionDigits: 2 })
+
+    assert.match(await evaluate(`document.querySelector('${row}').innerText`), new RegExp(`Depot-connected stock[\\s\\S]*${quantity}`))
+    await screenshot('world-mines-full-throttle')
+    await browser('click', `${row} [role=switch]`)
+    await browser('wait', '--fn', `Number(document.querySelector('${delivery}').firstChild.textContent.replaceAll(',', '')) < 431`, '--timeout', '45000')
+    assert.match(await evaluate(`document.querySelector('${row}').innerText`), /Planned · Demand-balanced/)
+    await browser('reload')
+    await ready()
+    await click('Mines')
+    await browser('wait', '--fn', `document.querySelector('${row}')?.dataset.fullThrottle === 'false'`, '--timeout', '45000')
+    await browser('click', `${row} > summary`)
+    assert.equal(await evaluate(`document.querySelector('${row} [role=switch]').getAttribute('aria-checked')`), 'false')
+    await browser('set', 'viewport', '375', '900')
+    assert.equal(await evaluate('document.documentElement.scrollWidth > window.innerWidth'), false)
+    await screenshot('world-mines-mobile')
+    await browser('set', 'viewport', '1440', '1000')
+    await preset('Science expansion')
+    await ready()
+    await browser('wait', '--fn', `document.querySelector('${row}')?.dataset.fullThrottle === 'true'`, '--timeout', '45000')
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`), 'Science expansion')
+    await click('Contracts')
+    const titanium = fixture.contracts.established.find(contract => contract.importedProduct.productId === 'Product_TitaniumOre')
+    const contract = `details[data-contract-id="${titanium.gameId}"]`
+
+    await browser('click', `${contract} > summary`)
+    await browser('click', `${contract} [role=switch]`)
+    await browser('wait', '--fn', `document.querySelector('${contract}').dataset.fullThrottle === 'true'`, '--timeout', '45000')
+    await click('Mines')
+    assert.equal(await evaluate(`document.querySelector('${row}').dataset.fullThrottle`), 'true', 'Editing a different setting must not resurrect a discarded draft')
+    await preset('Science expansion')
+    await ready()
+    await click('Contracts')
+    assert.equal(await evaluate(`document.querySelector('${contract}').dataset.fullThrottle`), 'false')
+    state.worldMining = false
     assert.equal((await browser('errors')).errors.length, 0)
   })
 })

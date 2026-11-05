@@ -1,5 +1,5 @@
 import { type ResourceId } from '../../db/resources'
-import { type SyncedWorldCargoRoute, type SyncedWorldState } from '../../world-state'
+import { type SyncedWorldCargoRoute, type SyncedWorldMine, type SyncedWorldState } from '../../world-state'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
 import { typedEntries } from '../typed-entries/typed-entries'
 
@@ -27,6 +27,13 @@ const add = (values: Quantities, id: ResourceId, quantity: number) => {
 const entries = (values: Quantities) => typedEntries(values)
 const EPSILON = 1e-6
 
+export const getWorldMineWorkers = (mine: SyncedWorldMine) => Math.max(mine.workers, mine.repaired && mine.running ? mine.workersNeeded : 0)
+export const getWorldCargoWorkers = (route: SyncedWorldCargoRoute) => (
+  route.modules.reduce((total, module) => total + Math.max(module.workers, route.running && module.running
+    ? route.operation.modules.find(operation => operation.entityId === module.entityId)?.workersNeeded ?? module.workers : 0), 0)
+  + Math.max(route.ship?.workers ?? 0, route.running && route.ship?.running ? route.operation.ship?.workersNeeded ?? route.ship.workers : 0)
+)
+
 export const getWorldClaimedEntityIds = (world: SyncedWorldState) => new Set([
   ...world.mines.map(mine => mine.entityId),
   ...world.routes.flatMap(route => [route.depotEntityId, ...route.modules.map(cargoModule => cargoModule.entityId),
@@ -40,13 +47,11 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
   const bufferCapacities: Quantities = {}
   const enabledBufferCapacities: Quantities = {}
   const issues: string[] = []
-  let workers = world.unassignedWorkers
-  let mineUnityPerCycle = 0
-  let electricityKw = 0
+  const costs = { workers: world.unassignedWorkers, mineUnityPerCycle: 0, electricityKw: 0 }
 
   for (const mine of world.mines) {
-    workers += mine.workers
-    mineUnityPerCycle += mine.unityPerCycle
+    costs.workers += getWorldMineWorkers(mine)
+    costs.mineUnityPerCycle += mine.unityPerCycle
     const id = resolveSyncedResourceId(mine.product)
 
     if (!id) { issues.push(`${mine.name}: unrecognized product ${mine.product.name}`); continue }
@@ -59,11 +64,10 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
     }
   }
   const routes: WorldCargoResult[] = world.routes.map(route => {
-    workers += route.modules.reduce((total, cargoModule) => total + cargoModule.workers, 0) + (route.ship?.workers ?? 0)
-    electricityKw += route.operation.modules.reduce((total, cargoModule) => total + cargoModule.electricityKw, 0)
+    costs.workers += getWorldCargoWorkers(route)
+    costs.electricityKw += route.operation.modules.reduce((total, cargoModule) => total + cargoModule.electricityKw, 0)
     const capacities: Quantities = {}, pickupLoads: Quantities = {}, onboard: Quantities = {}, onshore: Quantities = {}, offshoreAvailable: Quantities = {}
-    let transferCycles = 0
-    let shoreBlocked = false
+    const loading = { transferCycles: 0, shoreBlocked: false }
 
     for (const cargoModule of route.modules) {
       const operation = route.operation.modules.find(item => item.entityId === cargoModule.entityId)
@@ -77,12 +81,12 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
       add(onshore, id, operation.shoreQuantity)
       if (cargoModule.direction !== 'import' || !cargoModule.running || !operation.operational) continue
       // A ship cannot finish unloading while any of its import buffers is blocked.
-      if (operation.shoreFreeCapacity <= 0 && operation.onboardQuantity > 0) shoreBlocked = true
+      if (operation.shoreFreeCapacity <= 0 && operation.onboardQuantity > 0) loading.shoreBlocked = true
       const capacity = Math.min(cargoModule.onboardCapacity, operation.shoreCapacity)
 
       if (capacity <= 0 || operation.transferPerCycle <= 0) continue
       add(capacities, id, capacity)
-      transferCycles = Math.max(transferCycles, capacity / operation.transferPerCycle)
+      loading.transferCycles = Math.max(loading.transferCycles, capacity / operation.transferPerCycle)
     }
     for (const [id, capacity] of entries(capacities)) {
       // The game permits departure when an enabled mine buffer is full, even if
@@ -97,22 +101,22 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
     }
     const ship = route.ship, operation = route.operation.ship
     const fuelResourceId = ship ? resolveSyncedResourceId(ship.fuelProduct) ?? null : null
-    const cycleDuration = ship?.journeyDurationSeconds ? ship.journeyDurationSeconds / 60 + transferCycles : null
-    let status = operation?.state ?? 'NoShip'
+    const cycleDuration = ship?.journeyDurationSeconds ? ship.journeyDurationSeconds / 60 + loading.transferCycles : null
+    const state = { status: operation?.state ?? 'NoShip' }
 
-    if (!route.running || !ship?.running) status = ship ? 'Paused' : 'NoShip'
-    else if (route.operation.dockBlocked) status = 'CannotLeave'
-    else if (shoreBlocked) status = 'ShoreStorageFull'
-    else if (!entries(capacities).some(([, capacity]) => capacity > 0)) status = 'NoCargoCapacity'
-    else if (ship.workers < (operation?.workersNeeded ?? 0)) status = 'NotEnoughWorkers'
-    else if (cycleDuration === null) status = 'UnknownJourney'
-    else if (ship.fuelPerTrip === null || !fuelResourceId) status = 'UnknownFuel'
-    if (status === 'UnknownJourney') issues.push(`${route.depotCustomTitle || route.depotPrototypeName}: waiting for first voyage timing`)
-    if (status === 'UnknownFuel') issues.push(`${route.depotCustomTitle || route.depotPrototypeName}: voyage fuel unavailable`)
+    if (!route.running || !ship?.running) state.status = ship ? 'Paused' : 'NoShip'
+    else if (route.operation.dockBlocked) state.status = 'CannotLeave'
+    else if (loading.shoreBlocked) state.status = 'ShoreStorageFull'
+    else if (!entries(capacities).some(([, capacity]) => capacity > 0)) state.status = 'NoCargoCapacity'
+    else if (ship.workers < (operation?.workersNeeded ?? 0)) state.status = 'NotEnoughWorkers'
+    else if (cycleDuration === null) state.status = 'UnknownJourney'
+    else if (ship.fuelPerTrip === null || !fuelResourceId) state.status = 'UnknownFuel'
+    if (state.status === 'UnknownJourney') issues.push(`${route.depotCustomTitle || route.depotPrototypeName}: waiting for first voyage timing`)
+    if (state.status === 'UnknownFuel') issues.push(`${route.depotCustomTitle || route.depotPrototypeName}: voyage fuel unavailable`)
     if (ship && !fuelResourceId) issues.push(`${route.depotPrototypeName}: unrecognized fuel ${ship.fuelProduct.name}`)
     return { route, capacities, pickupLoads, delivered: {}, sustained: {}, offshoreAvailable, onboard, onshore,
-      cycleDuration, fuelResourceId, fuelPerCycle: status === 'UnknownJourney' || status === 'UnknownFuel' ? null : 0,
-      unityPerCycle: 0, burstCyclesRemaining: null, status }
+      cycleDuration, fuelResourceId, fuelPerCycle: state.status === 'UnknownJourney' || state.status === 'UnknownFuel' ? null : 0,
+      unityPerCycle: 0, burstCyclesRemaining: null, status: state.status }
   })
   const blocked = new Set(['Paused', 'NoShip', 'CannotLeave', 'ShoreStorageFull', 'NoModulesBuilt', 'NoCargoCapacity', 'NotEnoughWorkers', 'UnknownJourney', 'UnknownFuel'])
   const candidates = routes.filter((route): route is WorldCargoResult & { cycleDuration: number } => !blocked.has(route.status) && route.cycleDuration !== null)
@@ -142,11 +146,11 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
     }
   }
   const supplies: Quantities = {}, sustainedSupplies: Quantities = {}, fuelDemands: Quantities = {}
-  let fuelComplete = world.unassignedShipIds.length === 0
+  const fuel = { complete: world.unassignedShipIds.length === 0 }
 
-  if (!fuelComplete) issues.push('Cargo ships without a depot have no recurring fuel estimate')
+  if (!fuel.complete) issues.push('Cargo ships without a depot have no recurring fuel estimate')
   for (const route of routes) {
-    let tripsPerCycle = 0
+    const trips = { perCycle: 0 }
 
     if (!blocked.has(route.status) && route.cycleDuration !== null) {
       const duration = route.cycleDuration
@@ -158,7 +162,7 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
         || Boolean(route.route.operation.ship?.departureRequested && (route.offshoreAvailable[id] ?? 0) > 0)
       ))
 
-      tripsPerCycle = canCollect ? 1 / duration : recurringTrips
+      trips.perCycle = canCollect ? 1 / duration : recurringTrips
       for (const [id, capacity] of entries(route.capacities)) {
         const sustained = route.sustained[id] ?? 0
         const available = route.offshoreAvailable[id] ?? 0
@@ -172,18 +176,18 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
     }
     const fuelPerTrip = route.route.ship?.fuelPerTrip
 
-    if (route.fuelPerCycle === null || (tripsPerCycle > 0 && (fuelPerTrip === null || fuelPerTrip === undefined || !route.fuelResourceId))) {
+    if (route.fuelPerCycle === null || (trips.perCycle > 0 && (fuelPerTrip === null || fuelPerTrip === undefined || !route.fuelResourceId))) {
       route.fuelPerCycle = null
-      fuelComplete = false
+      fuel.complete = false
     } else {
-      route.fuelPerCycle = tripsPerCycle * (fuelPerTrip ?? 0)
+      route.fuelPerCycle = trips.perCycle * (fuelPerTrip ?? 0)
       const shipOperation = route.route.operation.ship
 
       if (shipOperation?.docked && shipOperation.canUseUnityForFuel && shipOperation.fuelQuantity < (fuelPerTrip ?? 0)) {
         // Unity covers the shortfall, while the ship still consumes the fuel
         // actually aboard. Do not charge a full tank and Unity for the same trip.
-        route.fuelPerCycle = tripsPerCycle * shipOperation.fuelQuantity
-        route.unityPerCycle = tripsPerCycle * (shipOperation.unityPerTrip ?? 0)
+        route.fuelPerCycle = trips.perCycle * shipOperation.fuelQuantity
+        route.unityPerCycle = trips.perCycle * (shipOperation.unityPerTrip ?? 0)
       }
       if (route.fuelResourceId) add(fuelDemands, route.fuelResourceId, route.fuelPerCycle)
     }
@@ -195,8 +199,8 @@ export const calculateWorldMines = (world: SyncedWorldState) => {
     for (const [id, quantity] of entries(route.delivered)) add(supplies, id, quantity)
     for (const [id, quantity] of entries(route.sustained)) add(sustainedSupplies, id, quantity)
   }
-  return { routes, production, offshore, supplies, sustainedSupplies, fuelDemands, fuelComplete,
-    workers, electricityKw, mineUnityPerCycle, issues }
+  return { routes, production, offshore, supplies, sustainedSupplies, fuelDemands, fuelComplete: fuel.complete,
+    ...costs, issues }
 }
 
 export type WorldMineResult = ReturnType<typeof calculateWorldMines>

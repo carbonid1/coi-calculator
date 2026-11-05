@@ -43,6 +43,8 @@ export interface SyncedCargoOperation {
     direction: 'import' | 'export'
     capacityPerCycle: number | null
     unmeasuredReason?: string | null
+    /** Connected product-line storage banks; never map-wide stock. */
+    storageEntityIds?: number[] | null
   }[] | null
   dockBlocked: boolean
   modules: SyncedCargoModuleOperation[]
@@ -95,6 +97,8 @@ export const isCargoOperation = (value: unknown): value is SyncedCargoOperation 
       || !value.connections.every(c => record(c) && product(c.product)
         && (c.direction === 'import' || c.direction === 'export')
         && (c.capacityPerCycle === null || number(c.capacityPerCycle))
+        && (c.storageEntityIds == null || (Array.isArray(c.storageEntityIds) && c.storageEntityIds.length <= 128
+          && c.storageEntityIds.every(integer) && unique(c.storageEntityIds)))
         && (c.unmeasuredReason == null || (typeof c.unmeasuredReason === 'string' && c.unmeasuredReason.length <= 300)))
       || new Set(value.connections.map(c => `${c.product.productId}:${c.direction}`)).size !== value.connections.length) return false
   }

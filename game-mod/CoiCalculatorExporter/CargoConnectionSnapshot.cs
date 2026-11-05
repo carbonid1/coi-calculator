@@ -6,6 +6,7 @@ using Mafi.Core.Factory.Sorters;
 using Mafi.Core.Factory.Lifts;
 using Mafi.Core.Ports;
 using Mafi.Core.Products;
+using Mafi.Core.Buildings.Storages;
 
 internal sealed class CargoConnectionSnapshot
 {
@@ -13,6 +14,7 @@ internal sealed class CargoConnectionSnapshot
     public string Direction;
     public double? CapacityPerCycle;
     public string UnmeasuredReason;
+    public List<int> StorageEntityIds;
 }
 
 internal sealed partial class GameSnapshotCollector
@@ -23,7 +25,7 @@ internal sealed partial class GameSnapshotCollector
         var groups = new Dictionary<string, List<CargoDepotModule>>();
         foreach (var slot in depot.Modules) {
             var module = slot.ValueOrNull;
-            if (module == null || module.IsDestroyed || !module.IsConstructed || module.IsPaused
+            if (module == null || module.IsDestroyed || !module.IsConstructed
                 || !module.StoredProduct.HasValue) continue;
             string key = module.StoredProduct.Value.Id.ToString() + (module.IsForImport() ? ":import" : ":export");
             List<CargoDepotModule> group;
@@ -38,6 +40,7 @@ internal sealed partial class GameSnapshotCollector
             result.Add(new CargoConnectionSnapshot {
                 Product = getProductSnapshot(product), Direction = reverse ? "export" : "import",
                 CapacityPerCycle = capacity, UnmeasuredReason = reason,
+                StorageEntityIds = collectCargoStorage(group, product, reverse),
             });
         }
         result.Sort(delegate(CargoConnectionSnapshot a, CargoConnectionSnapshot b) {
@@ -46,7 +49,43 @@ internal sealed partial class GameSnapshotCollector
         return result;
     }
 
-    private static double? measureCargoConnections(List<CargoDepotModule> modules, ProductProto product, bool reverse, out string reason)
+    private static IEnumerable<IEntityWithPorts> cargoNeighbors(IEntityWithPorts owner, ProductProto product, bool reverse)
+    {
+        foreach (var port in owner.Ports) {
+            if (port.IsDestroyed || !port.ShapePrototype.AllowedProductType.Matches(product.Type)
+                || !(reverse ? port.IsConnectedAsInput : port.IsConnectedAsOutput) || !port.ConnectedPort.HasValue) continue;
+            var sorter = owner as Sorter;
+            if (!reverse && sorter != null
+                && !CargoConnectionTypes.AllowsSorterOutput(port.Name, sorter.FilteredProducts.Contains(product))) continue;
+            var peer = port.ConnectedPort.Value;
+            var next = peer.OwnerEntity;
+            if (next.IsDestroyed) continue;
+            var nextSorter = next as Sorter;
+            if (reverse && nextSorter != null
+                && !CargoConnectionTypes.AllowsSorterOutput(peer.Name, nextSorter.FilteredProducts.Contains(product))) continue;
+            yield return next;
+        }
+    }
+
+    private static List<int> collectCargoStorage(List<CargoDepotModule> modules, ProductProto product, bool reverse)
+    {
+        var sources = new HashSet<int>();
+        var roots = new List<IEntityWithPorts>();
+        foreach (var module in modules) { sources.Add(module.Id.Value); roots.Add(module); }
+        return CargoStorageReach.Collect(roots, node => node.Id.Value, delegate(IEntityWithPorts node) {
+            var storage = node as Storage;
+            if (storage != null) return storage.IsConstructed && storage.StoredProduct.ValueOrNull == product
+                ? CargoStorageNodeKind.Storage : CargoStorageNodeKind.Boundary;
+            if (sources.Contains(node.Id.Value) || CargoConnectionTypes.IsRouting(node.GetType()))
+                return CargoStorageNodeKind.Routing;
+            if (node is CargoDepotModule || CargoConnectionTypes.IsEndpoint(node.GetType()))
+                return CargoStorageNodeKind.Boundary;
+            return CargoStorageNodeKind.Unknown;
+        }, node => cargoNeighbors(node, product, reverse));
+    }
+
+    private static double? measureCargoConnections(List<CargoDepotModule> modules, ProductProto product, bool reverse,
+        out string reason)
     {
         reason = null;
         var capacities = new Dictionary<int, double>();
@@ -57,22 +96,11 @@ internal sealed partial class GameSnapshotCollector
         int transports = 0;
         foreach (var module in modules) {
             int id = module.Id.Value;
-            capacities.Add(id, CargoConnectionFlow.Unbounded); sources.Add(id); queue.Enqueue(module);
+            capacities.Add(id, module.IsPaused ? 0 : CargoConnectionFlow.Unbounded); sources.Add(id); queue.Enqueue(module);
         }
         while (queue.Count > 0) {
             var owner = queue.Dequeue();
-            foreach (var port in owner.Ports) {
-                if (port.IsDestroyed || !port.ShapePrototype.AllowedProductType.Matches(product.Type)
-                    || !(reverse ? port.IsConnectedAsInput : port.IsConnectedAsOutput) || !port.ConnectedPort.HasValue) continue;
-                var sorter = owner as Sorter;
-                if (!reverse && sorter != null
-                    && !CargoConnectionTypes.AllowsSorterOutput(port.Name, sorter.FilteredProducts.Contains(product))) continue;
-                var peer = port.ConnectedPort.Value;
-                var next = peer.OwnerEntity;
-                if (next.IsDestroyed) continue;
-                var nextSorter = next as Sorter;
-                if (reverse && nextSorter != null
-                    && !CargoConnectionTypes.AllowsSorterOutput(peer.Name, nextSorter.FilteredProducts.Contains(product))) continue;
+            foreach (var next in cargoNeighbors(owner, product, reverse)) {
                 int id = next.Id.Value;
                 links.Add(new KeyValuePair<int, int>(owner.Id.Value, id));
                 // Bound snapshot work and payload cost independently of island/network size.

@@ -64,6 +64,34 @@ internal static class CargoConnectionsSmoke
         check("paused lift blocks only its branches", 450, nodes, links, new HashSet<int> { 1, 2, 3 }, sinks);
     }
 
+    private static void sulfurStorageBankReplay()
+    {
+        // Depot -> belt -> almost empty first silo -> 35 more silos -> train.
+        // The train is a boundary; unrelated island storage is not local stock.
+        var links = new Dictionary<int, int[]> { { 1, new[] { 2 } }, { 2, new[] { 100 } } };
+        for (int id = 100; id < 135; id++) links.Add(id, new[] { id + 1 });
+        links.Add(135, new[] { 100, 200 }); // A loop must not count stock twice.
+        links.Add(200, new[] { 999 });
+        Func<int, CargoStorageNodeKind> kind = delegate(int id) {
+            return id >= 100 && id <= 135 || id == 999 ? CargoStorageNodeKind.Storage
+                : id == 200 ? CargoStorageNodeKind.Boundary : CargoStorageNodeKind.Routing;
+        };
+        Func<int, IEnumerable<int>> neighbors = delegate(int id) {
+            int[] next; return links.TryGetValue(id, out next) ? next : new int[0];
+        };
+        var stock = CargoStorageReach.Collect(new[] { 1, 2 }, id => id, kind, neighbors);
+        if (stock == null || stock.Count != 36 || stock[0] != 100 || stock[35] != 135)
+            throw new Exception("Sulfur stock must include the entire 36-silo bank, once, without crossing the train.");
+        links[135] = new[] { 300 };
+        var incomplete = CargoStorageReach.Collect(new[] { 1 }, id => id,
+            id => id == 300 ? CargoStorageNodeKind.Unknown : kind(id), neighbors);
+        if (incomplete != null) throw new Exception("Unknown devices cannot produce a complete stock total.");
+        links[135] = new[] { 136 };
+        for (int id = 136; id < 700; id++) links[id] = new[] { id + 1 };
+        if (CargoStorageReach.Collect(new[] { 1 }, id => id, id => CargoStorageNodeKind.Routing, neighbors) != null)
+            throw new Exception("Oversized storage networks must stop within the scan budget.");
+    }
+
     public static void Main(string[] args)
     {
         AppDomain.CurrentDomain.AssemblyResolve += delegate(object sender, ResolveEventArgs request) {
@@ -71,6 +99,7 @@ internal static class CargoConnectionsSmoke
             return File.Exists(file) ? Assembly.LoadFrom(file) : null;
         };
         harborFeedReplay();
+        sulfurStorageBankReplay();
         var nodes = new Dictionary<int, double>();
         var links = new List<KeyValuePair<int, int>>();
         var sources = new HashSet<int>();

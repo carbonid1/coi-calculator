@@ -103,6 +103,13 @@ internal static partial class SnapshotJsonWriter
                 json.Field("direction", connection.Direction);
                 appendNullableDecimal(json, "capacityPerCycle", connection.CapacityPerCycle);
                 json.Field("unmeasuredReason", connection.UnmeasuredReason);
+                json.Name("storageEntityIds");
+                if (connection.StorageEntityIds == null) json.Value((string)null);
+                else {
+                    json.BeginArray();
+                    foreach (int storageId in connection.StorageEntityIds) json.Value(storageId);
+                    json.EndArray();
+                }
                 json.EndObject();
             }
             json.EndArray();
