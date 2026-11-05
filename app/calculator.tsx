@@ -60,6 +60,7 @@ import { getPresetResourceDemands } from './helpers/preset-resource-demands/pres
 import { groupProductionCardLines, hasBuildingInventory } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import { createSpaceResearchAttention } from './helpers/space-research-attention/space-research-attention'
+import { useContractPreferences } from './hooks/use-contract-preferences'
 import { useFactoryCalculation } from './hooks/use-factory-calculation'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 import { useKeepReadyPreferences } from './hooks/use-keep-ready-preferences'
@@ -90,6 +91,7 @@ interface Props {
 export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersion }) => {
   const gameState = useGameState(initialGameState)
   const resourcePriorities = useResourcePriorities(gameState.snapshot?.saveId)
+  const contractPreferences = useContractPreferences(gameState.snapshot?.saveId)
   const { preferences: keepReadyPreferences, canSave: canSaveKeepReady, setKeepReady } = useKeepReadyPreferences(gameState.snapshot?.saveId)
   const changeKeepReady = canSaveKeepReady ? (diagnostic: BuildingDiagnostic, enabled: boolean) => {
     if (!setKeepReady(diagnostic.key, enabled)) {
@@ -132,13 +134,14 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const latestModel = useMemo(() => (
     latestSnapshot
       ? deriveCalculatorModel({
+          contractFullThrottlePreferences: contractPreferences.preferences,
           machineZoneAssignments,
           resourcePriorityOverrides: resourcePriorities.overrides,
           revision: latestRevision,
           snapshot: latestSnapshot,
         })
       : null
-  ), [latestRevision, latestSnapshot, machineZoneAssignments, resourcePriorities.overrides])
+  ), [latestRevision, latestSnapshot, machineZoneAssignments, resourcePriorities.overrides, contractPreferences.preferences])
   const groundwaterPumpClaimIds = (latestModel?.groundwaterPumpClaims ?? [])
     .map(claim => claim.id)
     .join('|')
@@ -146,7 +149,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
     : null
   const { failed, retry, settled } = useFactoryCalculation(
-    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && resourcePriorities.ready ? latestModel : null,
+    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && resourcePriorities.ready && contractPreferences.ready ? latestModel : null,
     calculationVersion,
   )
 
@@ -727,6 +730,12 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       {isContracts && factoryResult && (
         <ContractsView
+          fullThrottlePreferences={contractPreferences.preferences}
+          onFullThrottleChange={contractPreferences.canSave ? (contractGameId, enabled) => {
+            if (!contractPreferences.setFullThrottle(contractGameId, enabled)) {
+              toast.error('Could not save contract mode. Check browser storage and try again.')
+            }
+          } : undefined}
           issues={contractResolution.issues}
           results={factoryResult.contractResults}
         />

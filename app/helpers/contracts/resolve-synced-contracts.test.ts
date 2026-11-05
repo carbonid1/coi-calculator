@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { type SyncedContractRoute, type SyncedContractState } from '../../game-state'
+import { getContractPreferencesStorageKey, parseContractPreferences } from './contract-preferences'
 import {
   getContractClaimedEntityIds,
   resolveSyncedContracts,
@@ -63,6 +64,17 @@ const createRoute = (depotEntityId: number): SyncedContractRoute => ({
 })
 
 describe('synced contract resolution', () => {
+  it('restores saved full-throttle choices after cancellation and reassignment to another depot', () => {
+    const preferences = parseContractPreferences(JSON.stringify({ [contractGameId]: true, unrelated: 'bad' }))
+
+    expect(resolveSyncedContracts({ established: [], routes: [] }, {}, preferences).contracts).toEqual([])
+    const result = resolveSyncedContracts({ established: [established], routes: [createRoute(20_000)] }, {}, preferences)
+
+    expect(result.contracts[0]).toMatchObject({ gameId: contractGameId, fullThrottle: true, routes: [{ depotEntityId: 20_000 }] })
+    expect(preferences).toEqual({ [contractGameId]: true })
+    expect(getContractPreferencesStorageKey('save-a')).not.toBe(getContractPreferencesStorageKey('save-b'))
+    expect(parseContractPreferences('broken')).toEqual({})
+  })
   it('builds depot-identified routes and applies a route Plan', () => {
     const state: SyncedContractState = {
       established: [established],

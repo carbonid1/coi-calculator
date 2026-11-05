@@ -8,6 +8,7 @@ import {
 } from '../../db/contracts'
 import { type SyncedContractState } from '../../game-state'
 import { resolveSyncedResourceId } from '../synced-resources/synced-resources'
+import { type ContractFullThrottlePreferences } from './contract-preferences'
 
 export interface SyncedContractIssue {
   gameId: string
@@ -31,6 +32,7 @@ export const getContractClaimedEntityIds = (state: SyncedContractState | null) =
 export const resolveSyncedContracts = (
   state: SyncedContractState | null,
   plans: ContractRoutePlans = {},
+  fullThrottlePreferences: ContractFullThrottlePreferences = {},
 ): SyncedContractResolution => {
   const claimedEntityIds = getContractClaimedEntityIds(state)
 
@@ -61,7 +63,7 @@ export const resolveSyncedContracts = (
     }
 
     const cargoModules: ContractCargoModule[] = []
-    let unsupportedModule = false
+    const validation = { unsupportedModule: false }
 
     for (const cargoModule of route.modules) {
       if (!cargoModule.selectedProduct || !cargoModule.direction) {
@@ -82,7 +84,7 @@ export const resolveSyncedContracts = (
       const resourceId = resolveSyncedResourceId(cargoModule.selectedProduct)
 
       if (!resourceId) {
-        unsupportedModule = true
+        validation.unsupportedModule = true
         break
       }
 
@@ -99,7 +101,7 @@ export const resolveSyncedContracts = (
       })
     }
 
-    if (unsupportedModule) {
+    if (validation.unsupportedModule) {
       issues.push({
         gameId: route.contractGameId,
         message: `Cargo Depot ${route.depotEntityId} has a module product the calculator does not recognize.`,
@@ -176,6 +178,7 @@ export const resolveSyncedContracts = (
 
     activeContracts.push({
       ...catalogContract,
+      fullThrottle: fullThrottlePreferences[syncedContract.gameId] === true,
       exportSurplus: surplusExportContractIds.has(catalogContract.id),
       gameId: syncedContract.gameId,
       exchange: {

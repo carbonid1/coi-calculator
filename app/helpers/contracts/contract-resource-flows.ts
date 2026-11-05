@@ -21,18 +21,16 @@ export interface ContractResourceFlow {
 
 export const getContractResourceFlows = (results: readonly ContractResult[]): ContractResourceFlow[] => (
   results.flatMap(result => result.routes.flatMap(route => {
-    let importLimit: ContractImportLimit | undefined
-
-    if (route.requestedImported - route.imported > 0.001) {
-      importLimit = getContractRouteBlocker(route.route)
+    const importLimit: ContractImportLimit | undefined = route.requestedImported - route.imported > 0.001
+      ? getContractRouteBlocker(route.route)
         ?? (route.maxImportedPerProductionCycle === null ? 'voyage-unmeasured' : 'capacity')
-    }
+      : undefined
     const origin = {
       contractId: result.contract.id,
       contractName: result.contract.name,
       routeId: route.route.id,
       routeName: route.route.depotName,
-      demandBalanced: route.route.importedPerProductionCycle === null,
+      demandBalanced: !result.contract.fullThrottle && route.route.importedPerProductionCycle === null,
     }
 
     return [

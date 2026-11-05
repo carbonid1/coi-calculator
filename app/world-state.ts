@@ -37,6 +37,13 @@ export interface SyncedCargoModuleOperation {
 }
 
 export interface SyncedCargoOperation {
+  /** Optional on older exporters. Null capacity means the local network was not measurable. */
+  connections?: {
+    product: { productId: string; name: string }
+    direction: 'import' | 'export'
+    capacityPerCycle: number | null
+    unmeasuredReason?: string | null
+  }[] | null
   dockBlocked: boolean
   modules: SyncedCargoModuleOperation[]
   ship: {
@@ -83,6 +90,14 @@ const unique = (ids: number[]) => new Set(ids).size === ids.length
 
 export const isCargoOperation = (value: unknown): value is SyncedCargoOperation => {
   if (!record(value) || typeof value.dockBlocked !== 'boolean' || !Array.isArray(value.modules)) return false
+  if (value.connections != null) {
+    if (!Array.isArray(value.connections) || value.connections.length > 32
+      || !value.connections.every(c => record(c) && product(c.product)
+        && (c.direction === 'import' || c.direction === 'export')
+        && (c.capacityPerCycle === null || number(c.capacityPerCycle))
+        && (c.unmeasuredReason == null || (typeof c.unmeasuredReason === 'string' && c.unmeasuredReason.length <= 300)))
+      || new Set(value.connections.map(c => `${c.product.productId}:${c.direction}`)).size !== value.connections.length) return false
+  }
   if (!value.modules.every(m => record(m) && integer(m.entityId) && string(m.state)
     && typeof m.operational === 'boolean' && integer(m.workersNeeded)
     && number(m.shoreQuantity) && number(m.shoreCapacity) && m.shoreQuantity <= m.shoreCapacity

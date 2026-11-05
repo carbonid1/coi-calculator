@@ -70,6 +70,7 @@ internal sealed class CargoShipOperationSnapshot
 
 internal sealed class CargoOperationSnapshot
 {
+    public List<CargoConnectionSnapshot> Connections;
     public bool DockBlocked;
     public List<CargoModuleOperationSnapshot> Modules;
     public CargoShipOperationSnapshot Ship;

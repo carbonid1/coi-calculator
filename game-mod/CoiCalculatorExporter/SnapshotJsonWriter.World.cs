@@ -93,6 +93,20 @@ internal static partial class SnapshotJsonWriter
         if (value == null) { json.Value((string)null); return; }
         json.BeginObject();
         json.Field("dockBlocked", value.DockBlocked);
+        json.Name("connections");
+        if (value.Connections == null) json.Value((string)null);
+        else {
+            json.BeginArray();
+            foreach (var connection in value.Connections) {
+                json.BeginObject();
+                appendContractProduct(json, "product", connection.Product);
+                json.Field("direction", connection.Direction);
+                appendNullableDecimal(json, "capacityPerCycle", connection.CapacityPerCycle);
+                json.Field("unmeasuredReason", connection.UnmeasuredReason);
+                json.EndObject();
+            }
+            json.EndArray();
+        }
         json.Name("modules").BeginArray();
         for (int i = 0; i < value.Modules.Count; i++)
         {

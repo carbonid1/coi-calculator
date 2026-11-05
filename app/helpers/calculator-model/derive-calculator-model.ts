@@ -99,6 +99,7 @@ import {
   syncedRocketBuildingIds,
 } from '../area-building-sync/area-building-sync'
 import { resolveComputingEntityInventory } from '../computing-entity-sync/computing-entity-sync'
+import { type ContractFullThrottlePreferences } from '../contracts/contract-preferences'
 import { resolveSyncedContracts } from '../contracts/resolve-synced-contracts'
 import { type FactoryCalculationInput } from '../factory-calculation/factory-calculation'
 import { calculateGroundwaterClaimLimits } from '../groundwater/calculate-groundwater-production'
@@ -134,6 +135,7 @@ import { getAverageSunIntensityPercent } from '../weather/planning-weather'
 import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
 export interface DeriveCalculatorModelOptions {
+  contractFullThrottlePreferences?: ContractFullThrottlePreferences
   resourcePriorityOverrides?: ResourcePriorityOverrides
   machineZoneAssignments: MachineZoneAssignments
   /** Snapshot revision; falls back to the export time when unavailable. */
@@ -151,6 +153,7 @@ export const deriveCalculatorModel = ({
   revision,
   snapshot,
   resourcePriorityOverrides = {},
+  contractFullThrottlePreferences = {},
 }: DeriveCalculatorModelOptions) => {
   const planningDefinitions = snapshot.planningDefinitions
   const housingTypes = getHousingTypes(planningDefinitions)
@@ -190,6 +193,7 @@ export const deriveCalculatorModel = ({
   const contractResolution = resolveSyncedContracts(
     snapshot.contracts,
     contractRoutePlans,
+    contractFullThrottlePreferences,
   )
   const enabledContracts = contractResolution.contracts
   const worldMines = calculateWorldMines(snapshot.world)
@@ -729,9 +733,9 @@ export const deriveCalculatorModel = ({
   )
   const calculationRevision = `${
     revision ?? snapshot.exportedAtUtc
-  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}`
+  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}:${JSON.stringify(contractFullThrottlePreferences)}`
   // Every calculation input above is a pure derivation of the game-state
-  // revision, machine-zone assignments, and saved priorities identified by `calculationRevision`.
+  // revision, machine-zone assignments, priorities, and contract modes identified by `calculationRevision`.
   const factoryCalculationInput: FactoryCalculationInput = {
     contracts: enabledContracts,
     externalSupplies: worldMines.supplies,

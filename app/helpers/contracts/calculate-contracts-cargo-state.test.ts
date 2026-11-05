@@ -1,7 +1,9 @@
 import { expect, it } from 'vitest'
 import { activeContracts } from '../../test-fixtures/active-contracts'
 import { createWorldRoute } from '../../test-fixtures/world-mines'
+import { isCargoOperation } from '../../world-state'
 import { applyContracts, calculateContractWorkers } from './calculate-contracts'
+import { getContractConnectionLimits } from './contract-connection-limits'
 import { getContractResourceFlows } from './contract-resource-flows'
 
 const syncedContract = () => {
@@ -19,6 +21,28 @@ const syncedContract = () => {
   return { contract, route }
 }
 
+it('validates connector evidence, warns on known ceilings, and leaves missing or unrelated data unmeasured', () => {
+  const { contract, route } = syncedContract()
+
+  route.operation!.connections = [
+    { product: { productId: 'Product_UraniumOre', name: 'Uranium ore' }, direction: 'import', capacityPerCycle: 10 },
+    { product: { productId: 'Product_FoodPack', name: 'Food pack' }, direction: 'export', capacityPerCycle: null, unmeasuredReason: 'scan-limit' },
+    { product: { productId: 'Product_Water', name: 'Water' }, direction: 'import', capacityPerCycle: 1 },
+  ]
+  expect(isCargoOperation(route.operation)).toBe(true)
+  const result = applyContracts([], [contract]).contractResults[0]!.routes[0]!
+
+  expect(getContractConnectionLimits(result, contract)).toMatchObject([
+    { resourceId: 'uraniumOre', limited: true, capacity: 10, planned: 54 },
+    { resourceId: 'foodPack', limited: false, capacity: null, unmeasuredReason: 'scan-limit' },
+  ])
+  route.operation!.connections[0]!.capacityPerCycle = Infinity
+  expect(isCargoOperation(route.operation)).toBe(false)
+  delete route.operation!.connections
+  expect(isCargoOperation(route.operation)).toBe(true)
+  expect(getContractConnectionLimits(result, contract)).toEqual([])
+})
+
 it('preserves assigned cargo workers when a synced ship is paused', () => {
   const { contract, route } = syncedContract()
 
@@ -29,6 +53,32 @@ it('preserves assigned cargo workers when a synced ship is paused', () => {
   expect(contractResults[0]!.imported).toBe(0)
   expect(contractResults[0]!.fuelPerProductionCycle).toBe(0)
   expect(calculateContractWorkers([contract])).toBe(20)
+})
+
+it('budgets the native crew requirement while an enabled route is awaiting worker assignment', () => {
+  const { contract, route } = syncedContract()
+
+  route.ship!.workers = 0
+  for (const cargoModule of route.cargoModules) cargoModule.workers = 0
+
+  expect(calculateContractWorkers([contract])).toBe(42)
+  route.ship!.running = false
+  expect(calculateContractWorkers([contract])).toBe(20)
+})
+
+it.each(['paused', 'no-ship', 'timing'])('does not invent full-throttle deliveries for %s routes', condition => {
+  const { contract, route } = syncedContract()
+
+  contract.fullThrottle = true
+  if (condition === 'paused') route.ship!.running = false
+  if (condition === 'no-ship') route.ship = null
+  if (condition === 'timing') route.shipping.roundTripDurationProductionCycles = null
+  const result = applyContracts([], [contract]).contractResults[0]!
+
+  expect(result.imported).toBe(0)
+  expect(result.exported).toBe(0)
+  expect(result.fuelPerProductionCycle).toBe(0)
+  expect(result.routes[0]!.fuelUnavailable === true).toBe(condition === 'timing')
 })
 
 it.each(['timing', 'fuel'])('does not substitute constants for missing synced voyage %s', field => {

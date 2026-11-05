@@ -78,6 +78,15 @@ if ($LASTEXITCODE -ne 0) { throw "Bridge geometry smoke compilation failed." }
 & $geometrySmokeExe
 if ($LASTEXITCODE -ne 0) { throw "Bridge geometry smoke failed." }
 
+$cargoSmokeExe = Join-Path $outputDirectory "BridgeCargoConnectionsSmoke.exe"
+& $compiler "/nologo" "/target:exe" "/optimize+" "/out:$cargoSmokeExe" `
+    ($references | ForEach-Object { "/reference:$_" }) `
+    (Join-Path $modSource "CargoConnectionFlow.cs") (Join-Path $modSource "CargoConnectionTypes.cs") `
+    (Join-Path $repositoryRoot "tests\bridge-cargo-connections.smoke.cs")
+if ($LASTEXITCODE -ne 0) { throw "Cargo connections smoke compilation failed." }
+& $cargoSmokeExe $managed
+if ($LASTEXITCODE -ne 0) { throw "Cargo connections smoke failed." }
+
 if ($Install) {
     $modsRoot = Join-Path $env:APPDATA "Captain of Industry\Mods"
     $installDirectory = Join-Path $modsRoot "CoiCalculatorExporter"

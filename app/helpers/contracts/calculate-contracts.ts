@@ -101,7 +101,13 @@ export const calculateContractWorkerBreakdown = (contract: ActiveContract) => {
     (contractTotal, route) => contractTotal + (
       route.enabled && (route.operation || route.running)
         ? route.cargoModules.reduce(
-            (routeTotal, module) => routeTotal + (route.operation || module.running ? module.workers : 0),
+            (routeTotal, module) => {
+              // Enabled equipment needs its native crew even before assignment catches up.
+              const required = route.operation?.modules.find(item => item.entityId === module.entityId)?.workersNeeded ?? module.workers
+              const workers = route.running && module.running ? required : 0
+
+              return routeTotal + (route.operation ? Math.max(module.workers, workers) : workers)
+            },
             0,
           )
         : 0
@@ -110,7 +116,10 @@ export const calculateContractWorkerBreakdown = (contract: ActiveContract) => {
   )
   const cargoShipWorkers = contract.routes.reduce(
     (total, route) => total + (
-      route.enabled && (route.operation || (route.running && route.ship?.running)) ? route.ship?.workers ?? 0 : 0
+      route.enabled && (route.operation || (route.running && route.ship?.running))
+        ? Math.max(route.ship?.workers ?? 0, route.running && route.ship?.running
+            ? route.operation?.ship?.workersNeeded ?? route.ship.workers : 0)
+        : 0
     ),
     0,
   )
@@ -171,10 +180,18 @@ export const applyContracts = (
 
     return Math.min(requested, shipping.maxImportedPerProductionCycle)
   }
+  const getRouteTarget = (contract: ActiveContract, route: ContractRoute) => (
+    contract.fullThrottle
+      ? getRouteShipping(contract, route).maxImportedPerProductionCycle ?? 0
+      : route.importedPerProductionCycle
+  )
   const fixedImportsByContract = new Map(contracts.map(contract => [
     contract,
-    contract.routes.reduce((total, route) => total + (route.importedPerProductionCycle === null
-      ? 0 : getRouteImport(contract, route, route.importedPerProductionCycle)), 0),
+    contract.routes.reduce((total, route) => {
+      const target = getRouteTarget(contract, route)
+
+      return total + (target === null ? 0 : getRouteImport(contract, route, target))
+    }, 0),
   ]))
   const pendingFixedImports = new Map<ResourceId, number>()
 
@@ -191,7 +208,7 @@ export const applyContracts = (
     // Reserve other contracts' fixed deliveries before filling the remaining demand.
     const requiredImported = Math.max(0, importedFlow.consumed - importedFlow.produced
       - (pendingFixedImports.get(resourceId) ?? 0) + ownFixedImports)
-    let demandRemaining = demandBalancedImports.get(contract.id) ?? requiredImported
+    const demand = { remaining: demandBalancedImports.get(contract.id) ?? requiredImported }
     const effectiveImportedQuantity = scaleQuantityLikeGame(
       contract.exchange.imported.quantity,
       Math.max(0.01, contractsProfitMultiplier),
@@ -222,17 +239,19 @@ export const applyContracts = (
     }
 
     for (const route of contract.routes) {
-      if (route.importedPerProductionCycle === null) continue
+      const target = getRouteTarget(contract, route)
 
-      demandRemaining = Math.max(
+      if (target === null) continue
+
+      demand.remaining = Math.max(
         0,
-        demandRemaining - applyRoute(route, route.importedPerProductionCycle),
+        demand.remaining - applyRoute(route, target),
       )
     }
     for (const route of contract.routes) {
-      if (route.importedPerProductionCycle !== null) continue
+      if (getRouteTarget(contract, route) !== null) continue
 
-      demandRemaining = Math.max(0, demandRemaining - applyRoute(route, demandRemaining))
+      demand.remaining = Math.max(0, demand.remaining - applyRoute(route, demand.remaining))
     }
 
     const routes = contract.routes.flatMap(route => {
@@ -308,28 +327,28 @@ export const balanceContractExports = (
     resourceFlows, contracts, importTargets,
     contractsProfitMultiplier, true,
   )
-  let plan = calculatePlan()
+  const allocation = { plan: calculatePlan() }
   const previousCosts = getContractResourceFlows(previousResults)
     .filter(flow => flow.kind !== 'import')
 
   for (const contract of contracts) {
-    if (!contract.exportSurplus || !contract.routes.some(route => route.importedPerProductionCycle === null)) continue
+    if (contract.fullThrottle || !contract.exportSurplus || !contract.routes.some(route => route.importedPerProductionCycle === null)) continue
 
     const paymentId = contract.exchange.exported.resourceId
     // Planning flows contain last iteration's costs. Replace those with the
     // new plan's costs, reserving every contract's required payment before
     // allowing any surplus export. Recompute after each allocation so two
     // contracts cannot spend the same surplus.
-    const currentCosts = getContractResourceFlows(plan.contractResults)
+    const currentCosts = getContractResourceFlows(allocation.plan.contractResults)
     const reserved = currentCosts.reduce((total, flow) => total + (
       flow.kind !== 'import' && flow.resourceId === paymentId ? flow.quantity : 0
     ), 0)
     const available = Math.min(
-      (plan.flows.find(flow => flow.resourceId === paymentId)?.net ?? 0)
+      (allocation.plan.flows.find(flow => flow.resourceId === paymentId)?.net ?? 0)
         + previousCosts.reduce((total, flow) => total + (flow.resourceId === paymentId ? flow.quantity : 0), 0),
       paymentAvailability.get(paymentId) ?? Infinity,
     ) - reserved
-    const result = plan.contractResults.find(result => result.contract.id === contract.id)
+    const result = allocation.plan.contractResults.find(result => result.contract.id === contract.id)
     const effectiveImportedQuantity = scaleQuantityLikeGame(
       contract.exchange.imported.quantity, Math.max(0.01, contractsProfitMultiplier),
     )
@@ -339,8 +358,8 @@ export const balanceContractExports = (
     const additionalImports = available * effectiveImportedQuantity / contract.exchange.exported.quantity
 
     importTargets.set(contract.id, Math.max(result.requiredImported, result.imported + additionalImports))
-    plan = calculatePlan()
+    allocation.plan = calculatePlan()
   }
 
-  return plan
+  return allocation.plan
 }

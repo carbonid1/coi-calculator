@@ -71,7 +71,7 @@ const listen = async server => {
 }
 
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
-  const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false }
+  const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false, limitedConnections: false }
   const requests = new Set()
   const upstream = createServer((request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
@@ -108,6 +108,15 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     }
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
+      contracts: state.limitedConnections ? { ...fixture.contracts, routes: fixture.contracts.routes.map(route => {
+        const contract = fixture.contracts.established.find(contract => contract.gameId === route.contractGameId)
+
+        if (contract.importedProduct.productId !== 'Product_TitaniumOre') return route
+        return { ...route, operation: { ...route.operation, connections: [
+          { product: contract.exportedProduct, direction: 'export', capacityPerCycle: 0.01 },
+          { product: contract.importedProduct, direction: 'import', capacityPerCycle: 10 },
+        ] } }
+      }) } : fixture.contracts,
       storages: fixture.storages.map(storage => state.emptyRock && storage.product.productId === 'Product_Rock'
         ? { ...storage, quantity: 0 } : storage),
       schemaVersion: state.mode === 'old-bridge' ? fixture.schemaVersion - 1 : fixture.schemaVersion,
@@ -437,8 +446,13 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('focus', `${contractRows} > summary`)
     await browser('press', 'Enter')
     assert.equal(await evaluate(`document.querySelector('${contractRows}').open`), true)
-    assert.match(await evaluate(`document.querySelector('${contractRows}').innerText`), /Ship fuel \/ cycle[\s\S]*Max import \/ month/)
+    assert.match(await evaluate(`document.querySelector('${contractRows}').innerText`), /Shipping[\s\S]*Capacity[\s\S]*Max import \/ month/)
     assert.doesNotMatch(await evaluate(`document.querySelector('${contractRows}').innerText`), /CargoDepotT|Cargo Ship|1×|Route workers/)
+    await browser('hover', `${contractRows} > summary`)
+    assert.ok(await evaluate(`(() => {
+      const row = document.querySelector('${contractRows}')
+      return row.children[1].firstElementChild.getBoundingClientRect().top - row.firstElementChild.getBoundingClientRect().bottom >= 12
+    })()`), 'Expanded content keeps its inset when the header is hovered or focused')
     await screenshot('contracts-details')
     await browser('press', 'Enter')
     await browser('set', 'viewport', '375', '900')
@@ -667,6 +681,44 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await evaluate('document.querySelector("[aria-label=\\"Aquifer details\\"]").innerText'), /Population/)
     assert.equal(await evaluate('document.querySelectorAll("[data-factory-building-point]").length'), factoryLayout.buildings.filter(building => building.areas.includes(14)).length)
     await screenshot('water-without-terrain')
+    assert.equal((await browser('errors')).errors.length, 0)
+  })
+
+  await t.test('persists full-throttle shipping and recalculates its resource pressure', async () => {
+    await click('Contracts')
+    const nativeContract = fixture.contracts.established.find(contract => contract.importedProduct.productId === 'Product_TitaniumOre')
+    const row = `details[data-contract-id="${nativeContract.gameId}"]`
+    const toggle = `${row} [role=switch]`
+
+    await browser('click', `${row} > summary`)
+    await browser('click', toggle)
+    await browser('wait', '--fn', `document.querySelector('${row}').dataset.fullThrottle === 'true'`, '--timeout', '45000')
+    const rates = await evaluate(`(() => {
+      const row = document.querySelector('${row}')
+      const imported = row.querySelector('summary').children[2].querySelector('.font-mono').textContent
+      const capacity = Array.from(row.querySelectorAll('dl > div')).find(field => field.querySelector('dt').textContent === 'Max import / month').querySelector('dd').textContent
+      return [imported, capacity].map(value => Number(value.replaceAll(',', '')))
+    })()`)
+
+    assert.ok(rates[0] > 0 && Math.abs(rates[0] - rates[1]) < 0.001, 'Full throttle imports at measured route capacity')
+    await screenshot('contracts-full-throttle')
+    state.limitedConnections = true
+    await browser('reload')
+    await ready()
+    await click('Contracts')
+    await browser('wait', '--fn', `document.querySelector('${row}').dataset.fullThrottle === 'true'`, '--timeout', '45000')
+    await browser('wait', '--fn', `document.querySelector('${row}').innerText.includes('Line limit')`, '--timeout', '45000')
+    await browser('click', `${row} > summary`)
+    assert.equal(await evaluate(`document.querySelector('${toggle}').getAttribute('aria-checked')`), 'true')
+    const connectionDetails = await evaluate(`document.querySelector('${row}').innerText`)
+
+    assert.match(connectionDetails, /input line:[\s\S]*capacity[\s\S]*planned/)
+    assert.match(connectionDetails, /output line:[\s\S]*capacity[\s\S]*planned/)
+    assert.match(connectionDetails, /Round trip[\s\S]*Save fuel[\s\S]*On/)
+    await screenshot('contracts-connection-warning')
+    await browser('click', toggle)
+    await browser('wait', '--fn', `document.querySelector('${row}').dataset.fullThrottle === 'false'`, '--timeout', '45000')
+    state.limitedConnections = false
     assert.equal((await browser('errors')).errors.length, 0)
   })
 })

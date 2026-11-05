@@ -72,6 +72,8 @@ export interface ActiveContract extends Contract {
   routes: readonly ContractRoute[]
   /** Dynamic routes may exchange spare payment goods beyond factory import demand. */
   exportSurplus?: boolean
+  /** Forecast continuous shipping at each route's measured capacity. */
+  fullThrottle?: boolean
 }
 
 export const getContractExchangeId = (exported: ResourceId, imported: ResourceId) => {

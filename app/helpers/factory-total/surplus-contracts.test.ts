@@ -14,6 +14,23 @@ const uranium: ActiveContract = {
 };
 const options = { recyclingEfficiencyPercent: 90, contracts: [uranium] };
 
+it('runs full-throttle imports at capacity with zero demand, preserving payment and fuel pressure', () => {
+  const fullThrottle = { ...uranium, exportSurplus: false, fullThrottle: true };
+  const result = calculateFactoryTotal([], {
+    ...options, contracts: [fullThrottle], externalSupplies: { foodPack: 10000, hydrogen: 10000 },
+  });
+  const contract = result.contractResults[0]!;
+
+  expect(contract.maxImportedPerProductionCycle).toBeGreaterThan(0);
+  expect(contract.imported).toBeCloseTo(contract.maxImportedPerProductionCycle!);
+  expect(contract.exported).toBeGreaterThan(0);
+  expect(contract.fuelPerProductionCycle).toBeGreaterThan(0);
+  expect(result.contractFlows.every(flow => !flow.demandBalanced)).toBe(true);
+  expect(result.flows.find(flow => flow.resourceId === 'foodPack')?.consumed).toBeCloseTo(contract.exported);
+  expect(result.flows.find(flow => flow.resourceId === 'hydrogen')?.consumed).toBeCloseTo(contract.fuelPerProductionCycle);
+  expect(result.flows.find(flow => flow.resourceId === 'uraniumOre')?.net).toBeCloseTo(contract.imported);
+});
+
 describe("surplus contract exports", () => {
   it.each([0, 30])("exports available packs above %s Uranium demand and accounts for shipping", uraniumOre => {
     const result = calculateFactoryTotal([], {
