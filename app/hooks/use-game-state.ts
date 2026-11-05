@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   normalizeGameStateSnapshot,
@@ -51,10 +51,13 @@ const writeCachedSnapshot = (snapshot: GameStateSnapshot) => {
   }
 };
 
-export const useGameState = (initialResult: GameStateResult): GameStateResult => {
+export const useGameState = (initialResult: GameStateResult) => {
   const [result, setResult] = useState(initialResult);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof startGameStatePolling> | null>(null);
   const initialSnapshotRef = useRef(initialResult.snapshot);
   const revisionRef = useRef(initialResult.revision);
+  const syncNow = useCallback(() => pollingRef.current?.refreshNow(), []);
 
   useEffect(() => {
     let isActive = true;
@@ -201,12 +204,15 @@ export const useGameState = (initialResult: GameStateResult): GameStateResult =>
       refresh,
       isVisible: () => document.visibilityState !== "hidden",
       onError: () => setUnavailable("error"),
+      onRefreshingChange: setIsSyncing,
     });
 
+    pollingRef.current = polling;
     document.addEventListener("visibilitychange", polling.visibilityChanged);
 
     return () => {
       isActive = false;
+      pollingRef.current = null;
       polling.dispose();
       document.removeEventListener("visibilitychange", polling.visibilityChanged);
       if (initialCacheWriteTimer !== undefined) window.clearTimeout(initialCacheWriteTimer);
@@ -214,5 +220,5 @@ export const useGameState = (initialResult: GameStateResult): GameStateResult =>
     };
   }, []);
 
-  return result;
+  return { ...result, isSyncing, syncNow };
 };

@@ -1,3 +1,6 @@
+import { Button, Tooltip } from "@carbonid1/design-system";
+import { RefreshCw } from "lucide-react";
+
 import {
   type GameStateConnectionStatus,
   type GameStateDataSource,
@@ -8,6 +11,8 @@ interface Props {
   calculationStatus?: "loading" | "updating" | "error" | "ready";
   exportedAtUtc: string | null;
   isFresh: boolean;
+  isSyncing: boolean;
+  onSync: () => void;
   snapshot: GameStateSnapshot | null;
   source: GameStateDataSource;
   status: GameStateConnectionStatus;
@@ -36,6 +41,8 @@ export const GameSyncStatus: React.FC<Props> = ({
   calculationStatus = "ready",
   exportedAtUtc,
   isFresh,
+  isSyncing,
+  onSync,
   snapshot,
   source,
   status,
@@ -48,23 +55,31 @@ export const GameSyncStatus: React.FC<Props> = ({
   if (calculationStatus === "error" && !snapshot) label = "Factory unavailable";
 
   return (
-    <p
-      role="status"
-      className={isLive
-        ? "min-h-4 whitespace-nowrap text-xs font-medium tabular-nums text-success sm:text-right"
-        : "min-h-4 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:text-right"}
-    >
-      {label}
-      {calculationStatus !== "loading" && snapshot && exportedAtUtc && (
-        <>
-          {" · "}
-          <time dateTime={exportedAtUtc} suppressHydrationWarning>
-            {formatSnapshotTime(exportedAtUtc)}
-          </time>
-        </>
-      )}
-      {calculationStatus === "updating" && " · Updating…"}
-      {calculationStatus === "error" && snapshot && " · Update failed"}
-    </p>
+    <div className="flex items-center gap-1 sm:justify-end">
+      <p
+        role="status"
+        className={isLive
+          ? "min-h-4 whitespace-nowrap text-xs font-medium tabular-nums text-success sm:text-right"
+          : "min-h-4 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:text-right"}
+      >
+        {label}
+        {calculationStatus !== "loading" && snapshot && exportedAtUtc && (
+          <>
+            {" · "}
+            <time dateTime={exportedAtUtc} suppressHydrationWarning>
+              {formatSnapshotTime(exportedAtUtc)}
+            </time>
+          </>
+        )}
+        {calculationStatus === "updating" && " · Updating…"}
+        {calculationStatus === "error" && snapshot && " · Update failed"}
+      </p>
+      <Tooltip label="Sync now · Next automatic sync in 1 minute" position="bottom">
+        <Button type="button" variant="ghost" size="smallIcon" aria-label="Sync now"
+          loading={isSyncing} onClick={onSync} className="text-muted-foreground">
+          <RefreshCw aria-hidden="true" className="size-4" />
+        </Button>
+      </Tooltip>
+    </div>
   );
 };

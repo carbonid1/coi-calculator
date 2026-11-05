@@ -79,7 +79,11 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     requests.add(url.pathname)
     const json = (value, status = 200) => {
       response.writeHead(status, { 'Content-Type': 'application/json' })
-      response.end(JSON.stringify(value))
+      const body = JSON.stringify(value)
+
+      if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot' && state.syncDelayMs) {
+        setTimeout(() => response.end(body), state.syncDelayMs)
+      } else response.end(body)
     }
 
     if (request.method !== 'GET') return json({ error: 'Replay is read-only' }, 405)
@@ -461,6 +465,32 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal((await browser('errors')).errors.length, 0)
   })
 
+  await t.test('syncs current inventory by keyboard without reloading and disables sync during the request', async () => {
+    await browser('focus', '[aria-label="Sync now"]')
+    await browser('press', 'Tab')
+    await browser('press', 'Shift+Tab')
+    assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Sync now')
+    await browser('wait', '--text', 'Next automatic sync in 1 minute')
+    state.inventoryBonus = 17
+    state.syncDelayMs = 2500
+    await browser('press', 'Enter')
+    await browser('wait', '[aria-label="Sync now"][disabled][aria-busy="true"]')
+    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
+    state.syncDelayMs = 0
+    await ready()
+    await click('Inspect Salt supply')
+    const inventory = await evaluate(`document.querySelector('[aria-label="Island inventory"]').innerText`)
+
+    assert.ok(inventory.includes((fixture.products.inventory.Product_Salt.quantity + 17).toLocaleString('en-US', { maximumFractionDigits: 2 })))
+    await click('Back to Factory Total')
+    await screenshot('manual-sync')
+    // An unchanged response (304) must also settle the button and remain Live.
+    await click('Sync now')
+    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
+    await ready()
+    state.inventoryBonus = 0
+  })
+
   await t.test('returns Rock to deficits when its synced storage is empty', async () => {
     state.emptyRock = true
     await browser('reload')
@@ -580,8 +610,10 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await click('Resource supply')
     assert.match(await text(), /Island inventory unavailable/)
     state.mode = 'live'
-    await browser('reload')
+    await click('Sync now')
+    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
     await ready()
+    await click('Factory Total')
     assert.match(await text(), /7,356 \/ 7,488/)
     assert.equal((await browser('errors')).errors.length, 0)
   })
