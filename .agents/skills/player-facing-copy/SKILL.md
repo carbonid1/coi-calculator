@@ -1,6 +1,6 @@
 ---
 name: player-facing-copy
-description: Write or edit player-facing Captain of Industry text, including in-game labels, settings, tooltips, mod descriptions, READMEs, and release notes. Use whenever changing words players will read; do not use for logs, code comments, internal engineering docs, or publishing checklists.
+description: Write or edit player-facing Captain of Industry calculator and mod text. Excludes code comments, logs, and engineering documentation.
 ---
 
 # Player-Facing Copy

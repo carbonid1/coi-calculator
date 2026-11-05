@@ -1,6 +1,6 @@
 ---
 name: rebalance-farms
-description: Plan Captain of Industry crop rotations to reduce deficits and surplus, and apply a farm plan through the game Web API when asked.
+description: Plan or apply Captain of Industry crop rotations for farm rebalancing. Excludes calculator code and data maintenance.
 ---
 
 # Rebalance Farms
