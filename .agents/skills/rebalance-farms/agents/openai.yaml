@@ -1,4 +1,4 @@
 interface:
   display_name: "Rebalance Farms"
-  short_description: "Plan COI crop rotations against factory demand"
-  default_prompt: "Use $rebalance-farms to propose crop rotations for factory demand while preserving synced farm state."
+  short_description: "Plan crop rotations and apply farm plans via API"
+  default_prompt: "Use $rebalance-farms to plan crop rotations against Factory Total demand; apply them through the game API only when I ask."
