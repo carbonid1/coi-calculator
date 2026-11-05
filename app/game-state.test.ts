@@ -53,7 +53,7 @@ const currentSnapshot = {
   research: defaultInfiniteResearchLevels,
   focus: mapFocusValues(() => ({ targetStep: 0, activeStep: 0 })),
   edicts,
-  reserves: { fuelGas: 0, gold: 0, sulfur: 0 },
+  reserves: { fuelGas: 0, gold: 0, sulfur: 0, rock: 0 },
   history: {
     windowMonths: 120,
     maintenance: {

@@ -71,7 +71,7 @@ const listen = async server => {
 }
 
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
-  const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0 }
+  const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false }
   const requests = new Set()
   const duplicateContract = { ...fixture.contracts.established[0], gameId: 'FutureContractDuplicate' }
   const upstream = createServer((request, response) => {
@@ -105,6 +105,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     }
     if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') return json({
       ...fixture, products: undefined, exportedAtUtc: new Date().toISOString(),
+      storages: fixture.storages.map(storage => state.emptyRock && storage.product.productId === 'Product_Rock'
+        ? { ...storage, quantity: 0 } : storage),
       schemaVersion: state.mode === 'old-bridge' ? fixture.schemaVersion - 1 : fixture.schemaVersion,
       planningDefinitions: state.mode === 'missing-planning-definitions' ? undefined : {
         ...fixture.planningDefinitions, factory: state.mode === 'missing-factory-definitions' ? undefined : {
@@ -228,6 +230,10 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*\+20\.1 MW[\s\S]*\+118\.71 TFLOPS[\s\S]*-1\.08 \/ cycle[\s\S]*7,356 \/ 7,488/)
     assert.match(await text(), /Unpause 2 Research Lab IV/)
     assert.match(await text(), /Build Space Station level 4/)
+    const storedRock = await evaluate(`document.querySelector('[aria-label="From storage"] li:has([aria-label="Inspect Rock supply"])').innerText`)
+
+    assert.match(storedRock, /Rock[\s\S]*stored · [\s\S]*cycles · [\s\S]*in-game years[\s\S]*74\.07/)
+    assert.equal(await evaluate(`Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle').querySelector('[aria-label="Inspect Rock supply"]') === null`), true)
     const desktopTabs = await tabClearance('first')
 
     assert.ok(desktopTabs.left >= 3 && desktopTabs.top >= 3 && desktopTabs.bottom >= 3,
@@ -418,7 +424,26 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(inventory.includes(fixture.products.inventory.Product_Salt.quantity.toLocaleString('en-US', { maximumFractionDigits: 2 })))
     await click('Back to Factory Total')
     assert.match(await text(), /Factory Summary/)
+    await click('Inspect Rock supply')
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Rock supply diagnosis"]') !== null`), true)
+    assert.match(await evaluate(`document.querySelector('[aria-label="Supply sources"]').innerText`), /Reserves[\s\S]*74\.07/)
+    await click('Back to Factory Total')
     assert.equal((await browser('errors')).errors.length, 0)
+  })
+
+  await t.test('returns Rock to deficits when its synced storage is empty', async () => {
+    state.emptyRock = true
+    await browser('reload')
+    await ready()
+    await browser('wait', '--fn', `Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle')?.querySelector('[aria-label="Inspect Rock supply"]') != null`, '--timeout', '45000')
+    const deficit = await evaluate(`Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle').innerText`)
+
+    assert.match(deficit, /Rock\s+No producer\s+-74\.07/)
+    assert.equal(await evaluate(`document.querySelector('[aria-label="From storage"] [aria-label="Inspect Rock supply"]') === null`), true)
+    state.emptyRock = false
+    await browser('reload')
+    await ready()
+    await browser('wait', '[aria-label="From storage"] [aria-label="Inspect Rock supply"]')
   })
 
   await t.test('keeps aquifer numbers, rows, selection, focus and scroll stable through live pump changes', async () => {

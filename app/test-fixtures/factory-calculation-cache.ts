@@ -39,7 +39,7 @@ export const createCacheTestModel = () => {
     edicts: Object.fromEntries(edictCatalog.map(edict => [edict.id, {
       activeLevel: defaultEdictLevels[edict.id], enabledLevel: defaultEdictLevels[edict.id], inactiveReason: null,
     }])),
-    reserves: { fuelGas: 0, gold: 0, sulfur: 0 },
+    reserves: { fuelGas: 0, gold: 0, sulfur: 0, rock: 0 },
     history: {
       windowMonths: 120,
       maintenance: { maintenanceI: emptyHistory, maintenanceII: emptyHistory, maintenanceIII: emptyHistory },

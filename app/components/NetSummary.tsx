@@ -3,6 +3,7 @@ import { type ReactNode, type Ref } from "react";
 
 import { type ModuleResourceTransfer } from "../db/module-resource-links";
 import { type Module } from "../db/modules/modules";
+import { type ReserveBalances, reserveResourceCatalog } from "../db/reserve-resources";
 import { type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
@@ -20,6 +21,7 @@ import {
   type MachineZoneSummary,
   type SharedMachineClaim,
 } from "../helpers/machine-allocation/machine-allocation";
+import { calculateReserveRunway, getReserveDrawPerProductionCycle } from "../helpers/reserves/reserves";
 import { getSurplusRootCause } from "../helpers/surplus-root-cause/surplus-root-cause";
 import { BuildingAttentionView } from "./BuildingAttentionView";
 import { type KeepReadyChange } from "./KeepReadyMenu";
@@ -42,6 +44,7 @@ interface Props {
   regularResults?: RegularResult[];
   /** Sources and sinks; their intake is recipe-accounted consumption too. */
   passiveResults?: PassiveResult[];
+  reserveBalances?: ReserveBalances | null;
   contractFlows?: readonly ContractResourceFlow[];
   blockedRoutes?: BlockedSurplusRoute[];
   buildingDiagnostics?: BuildingDiagnostic[];
@@ -112,6 +115,7 @@ export const NetSummary: React.FC<Props> = ({
   hasPlannedChanges = false,
   regularResults = [],
   passiveResults = [],
+  reserveBalances,
   contractFlows = [],
   blockedRoutes = [],
   buildingDiagnostics = [],
@@ -167,6 +171,14 @@ export const NetSummary: React.FC<Props> = ({
     .map(({ flow, rootCause }) => ({ flow, capacityLimit: rootCause.detail }));
   const otherDeficits = explainedDeficits
     .filter(({ rootCause }) => rootCause.kind !== "at-capacity");
+  const storageDraws = reserveResourceCatalog.flatMap(({ key, recipeId, resourceId }) => {
+    const flow = flows.find(flow => flow.resourceId === resourceId);
+    const draw = getReserveDrawPerProductionCycle(passiveResults, recipeId, resourceId);
+    const runway = calculateReserveRunway(reserveBalances?.[key] ?? null, draw);
+
+    return flow && runway.status === "draining" && runway.balance !== null && runway.inGameYearsRemaining !== null
+      ? [{ flow, draw, balance: runway.balance, years: runway.inGameYearsRemaining }] : [];
+  });
   // A surplus that an active line could consume is unrouted, not an end product.
   const unroutedSurpluses = balanceGroups
     .find((group) => group.label === "Surplus")
@@ -322,10 +334,30 @@ export const NetSummary: React.FC<Props> = ({
           )}
           <div className="grid items-start gap-2 lg:grid-cols-2">
             {balanceGroups.map(group => (
-              <section key={group.label} className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-                <h4 className="mb-3 text-sm font-semibold text-foreground">{group.label} / cycle</h4>
-                {renderBalanceGroup(group)}
-              </section>
+              <div key={group.label} className="space-y-2">
+                <section className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+                  <h4 className="mb-3 text-sm font-semibold text-foreground">{group.label} / cycle</h4>
+                  {renderBalanceGroup(group)}
+                </section>
+                {group.label === "Deficit" && storageDraws.length > 0 && (
+                  <section aria-label="From storage" className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+                    <h4 className="mb-3 text-sm font-semibold text-foreground">From storage / cycle</h4>
+                    <ul className="space-y-1">
+                      {storageDraws.map(({ flow, draw, balance, years }) => (
+                        <li key={flow.resourceId} className="-mx-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-lg px-2 py-1 hover:bg-accent">
+                          <div className="flex min-w-0 flex-col items-start gap-0.5">
+                            {renderResourceName(flow)}
+                            <span className="text-xs leading-4 text-muted-foreground">
+                              {balance.toLocaleString("en-US", { maximumFractionDigits: 2 })} stored · {formatCapacity(years * 12)} cycles · {formatCapacity(years)} in-game years
+                            </span>
+                          </div>
+                          <span className="font-mono text-sm font-semibold leading-5 tabular-nums text-foreground">{formatCapacity(draw)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
             ))}
           </div>
         </>

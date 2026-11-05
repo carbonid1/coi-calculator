@@ -752,6 +752,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           populationCapacity={populationCapacity}
           unityBudget={unityBudget}
           groupByBalance
+          reserveBalances={snapshot.reserves}
           hasPlannedChanges={factoryHasPlannedChanges}
           regularResults={[
             ...factoryResult.calculation.regularResults,

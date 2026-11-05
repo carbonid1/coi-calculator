@@ -34,6 +34,7 @@ import { createLiveAreaModules } from '../app/helpers/live-area-modules/live-are
 import { calculatePopulationResearchBonus } from '../app/helpers/modifiers/calculate-research-efficiency'
 import { withFactoryDefinition } from '../app/helpers/planning-recipes/factory-recipes'
 import { withPlanningDefinition } from '../app/helpers/planning-recipes/planning-recipes'
+import { calculateReserveRunway, getReserveDrawPerProductionCycle } from '../app/helpers/reserves/reserves'
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
@@ -542,6 +543,15 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   }
   const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'recorded-factory' })
   const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
+  const rockDraw = getReserveDrawPerProductionCycle(factoryResult.calculation.sourceResults, 'rock-virtual-provision', 'rock')
+  const rockBalance = snapshot.reserves?.rock ?? 0
+
+  expect(rockBalance).toBeGreaterThan(0)
+  expect(rockDraw).toBeCloseTo(74.0711, 4)
+  expect(factoryResult.flows.find(flow => flow.resourceId === 'rock')?.net).toBeCloseTo(0)
+  expect(calculateReserveRunway(rockBalance, rockDraw)).toMatchObject({
+    status: 'draining', inGameYearsRemaining: rockBalance / rockDraw / 12,
+  })
   const stats = calculateBuildingStats(factoryResult.allLines, factoryResult.calculation, model.outputModifiers)
   const linkedStats = [...linkedModulesResult.moduleResults.values()].map(result => (
     calculateBuildingStats(result.lines, result, model.outputModifiers)

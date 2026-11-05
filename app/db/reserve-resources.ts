@@ -34,6 +34,14 @@ export const reserveResourceCatalog = [
     sourceAllocation: "fallback",
     storageScope: "island",
   },
+  {
+    key: "rock",
+    name: "Rock",
+    recipeId: "rock-virtual-provision",
+    resourceId: "rock",
+    sourceAllocation: "fallback",
+    storageScope: "island",
+  },
 ] as const satisfies readonly ReserveResourceDefinition[];
 
 type ReserveKey = (typeof reserveResourceCatalog)[number]["key"];

@@ -1,4 +1,5 @@
 import { type Module } from '../../db/modules/modules'
+import { reserveResourceCatalog } from '../../db/reserve-resources'
 import { getFactoryResourceRequests, resourceSupplyRules } from '../../db/resource-supply'
 import { resources, type ResourceId } from '../../db/resources'
 import { type ResourceFlow } from '../calculate/calculate'
@@ -288,6 +289,13 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
   const getModuleSupplies = (target: SupplyTarget): ModuleSupply[] => {
     const supplies: ModuleSupply[] = []
 
+    for (const line of context(target.moduleId).lines) {
+      if (!reserveResourceCatalog.some(reserve => reserve.recipeId === line.recipe.id)) continue
+      const quantity = line.actualOutputs.find(output => output.resourceId === target.resourceId)?.quantity ?? 0
+
+      if (quantity > EPSILON) supplies.push({ moduleId: line.moduleId,
+        moduleName: modulesById.get(line.moduleId)?.name ?? line.moduleId, name: 'From storage', quantity })
+    }
     for (const area of modules) {
       if (target.moduleId ? area.id !== target.moduleId : area.includedInFactoryTotals === false) continue
       const imported = getFactoryResourceRequests(getPreset(area)?.requestedImports)[target.resourceId] ?? 0

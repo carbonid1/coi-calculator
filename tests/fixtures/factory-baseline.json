@@ -78,7 +78,7 @@
     }
   ],
   "totals": {
-    "lines": 586,
+    "lines": 587,
     "workers": 7356,
     "electricityMw": 296.974,
     "computingTflops": 1357.2913,
@@ -272,6 +272,12 @@
       "resource": "fuelGas",
       "produced": 130.8898,
       "consumed": 130.8898,
+      "net": 0
+    },
+    {
+      "resource": "rock",
+      "produced": 74.0711,
+      "consumed": 74.0711,
       "net": 0
     },
     {
@@ -1131,12 +1137,6 @@
       "produced": 3.3338,
       "consumed": 3.3338,
       "net": 0
-    },
-    {
-      "resource": "rock",
-      "produced": 0,
-      "consumed": 74.0711,
-      "net": -74.0711
     },
     {
       "resource": "rubber",

@@ -26,15 +26,14 @@ it("wires every reserve catalog entry into its source recipe and module", () => 
 });
 
 const calculateReserve = (
-  resourceId: "fuelGas" | "gold",
+  resourceId: (typeof reserveResourceCatalog)[number]["resourceId"],
   balance: number | null,
   imported: number,
   demand: number,
 ) => {
-  const reservesModule = createReservesModule({
-    fuelGas: resourceId === "fuelGas" ? balance : null,
-    gold: resourceId === "gold" ? balance ?? 0 : 0,
-  });
+  const reservesModule = createReservesModule(mapReserveResources(
+    reserve => reserve.resourceId === resourceId ? balance : 0,
+  ));
   const preset = reservesModule.presets[0] ?? null;
   const result = calculateNet(
     buildModuleLines(reservesModule, preset).lines,
@@ -61,22 +60,22 @@ it("uses the synced Gold reserve only for demand left after current supply", () 
   ]);
 });
 
-it("uses the synced Fuel Gas reserve only for demand left after current supply", () => {
-  expect(calculateReserve("fuelGas", 12_000, 8, 72)?.actualOutputs).toEqual([
-    { resourceId: "fuelGas", quantity: 64 },
+it.each(["fuelGas", "sulfur", "rock"] as const)("uses the synced %s reserve only for demand left after current supply", resourceId => {
+  expect(calculateReserve(resourceId, 12_000, 8, 72)?.actualOutputs).toEqual([
+    { resourceId, quantity: 64 },
   ]);
-  expect(calculateReserve("fuelGas", 12_000, 72, 72)?.actualOutputs).toEqual([
-    { resourceId: "fuelGas", quantity: 0 },
+  expect(calculateReserve(resourceId, 12_000, 72, 72)?.actualOutputs).toEqual([
+    { resourceId, quantity: 0 },
   ]);
 });
 
-it("does not expose an unbounded reserve source when Gold is empty or unavailable", () => {
-  expect(calculateReserve("gold", 0, 0, 5)).toMatchObject({
+it.each(reserveResourceCatalog)("does not supply $name when storage is empty or unavailable", ({ resourceId }) => {
+  expect(calculateReserve(resourceId, 0, 0, 5)).toMatchObject({
     activeBuildings: 0,
-    actualOutputs: [{ resourceId: "gold", quantity: 0 }],
+    actualOutputs: [{ resourceId, quantity: 0 }],
   });
-  expect(calculateReserve("gold", null, 0, 5)).toMatchObject({
+  expect(calculateReserve(resourceId, null, 0, 5)).toMatchObject({
     activeBuildings: 0,
-    actualOutputs: [{ resourceId: "gold", quantity: 0 }],
+    actualOutputs: [{ resourceId, quantity: 0 }],
   });
 });
