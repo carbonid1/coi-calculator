@@ -520,6 +520,22 @@ export const calculateNet = (
   const lines = inputLines.map(line => ({
     ...line, recipe: withRecipeRecycling(line.recipe, outputModifiers, recyclingEfficiencyPercent),
   }));
+  // A future batch can recover materials absent from the sorter's observed batch.
+  // Declare those outputs before building the demand graph; actual amounts come
+  // from the material ledger when the batch is allocated.
+  const recycledOutputIds = new Set(lines.flatMap(line => (
+    [...typedEntries(line.recipe.recyclingSources ?? {}),
+      ...typedEntries(line.recipe.recyclingInputSources ?? {})].map(([id]) => id)
+  )));
+
+  for (const line of lines) {
+    if (!line.recipe.sortsRecyclableSources) continue;
+    const existing = new Set(line.recipe.outputs.map(output => output.resourceId));
+
+    line.recipe = { ...line.recipe, outputs: [...line.recipe.outputs,
+      ...[...recycledOutputIds].filter(id => !existing.has(id)).map(resourceId => ({ resourceId, quantity: 0 })),
+    ] };
+  }
   const resources = getResourceProducts(outputModifiers.products);
   const effectivePlannedSupportingResourceIds = new Map<string, Set<ResourceId>>();
 
@@ -995,10 +1011,10 @@ export const calculateNet = (
   const capacityTracker = createCapacityTracker(regularLines);
   const applyRegularLine = (line: ProductionLine, requestedRatio: number, additive = false) => {
     const recyclableInput = getRecyclableInput(line.recipe);
-    const inputMix = typedEntries(line.recipe.recyclingInputSources ?? {});
+    const observedMix = typedEntries(line.recipe.recyclingInputSources ?? {});
     const inputFlow = recyclableInput ? getFlow(recyclableInput.resourceId) : undefined;
     const physicalAvailable = inputFlow ? Math.max(0, inputFlow.produced - inputFlow.consumed) : 0;
-    const scrapPerInput = inputMix.reduce((sum, [, quantity]) => sum + quantity, 0);
+    const scrapPerInput = observedMix.reduce((sum, [, quantity]) => sum + quantity, 0);
     const remainingTypedScrap = inputFlow ? [...inputFlow.recyclableSourcesProduced].reduce((sum, [id, quantity]) => (
       sum + Math.max(0, quantity - (inputFlow.recyclableSourcesConsumed.get(id) ?? 0))
     ), 0) : 0;
@@ -1006,17 +1022,31 @@ export const calculateNet = (
     // plant's observed mix for that part instead of a factory-wide average.
     const untypedInput = scrapPerInput > 0 ? Math.max(0, physicalAvailable - remainingTypedScrap / scrapPerInput) : 0;
     const inputRate = recyclableInput ? getRecipeInputQuantity(recyclableInput, outputModifiers) * lineFactor(line) : 0;
+    const previousRatio = allocationRatios.get(line) ?? 0;
+    const inputMix = (() => {
+      if (requestedRatio < 0 && previousRatio > 0 && inputRate > 0) {
+        // Undo the allocated material even if later inputs changed the mix.
+        return [...(sortedRecyclableSources.get(line) ?? [])]
+          .map(([id, quantity]) => [id, quantity / (inputRate * previousRatio)] as const);
+      }
+      if (!inputFlow || remainingTypedScrap <= 0 || physicalAvailable <= 0 || scrapPerInput <= 0)
+        return observedMix;
+      // Observed proportions describe today's buffer, not a recipe requirement.
+      // Planned waste carries its own iron/copper/glass/etc.; sort that mixture.
+      const available = new Map([...inputFlow.recyclableSourcesProduced].map(([id, quantity]) => (
+        [id, Math.max(0, quantity - (inputFlow.recyclableSourcesConsumed.get(id) ?? 0))] as const
+      )));
+
+      for (const [id, quantity] of observedMix) {
+        available.set(id, (available.get(id) ?? 0) + untypedInput * quantity);
+      }
+      return [...available].map(([id, quantity]) => [id, quantity / physicalAvailable] as const);
+    })();
     const recyclingRatio = inputMix.length === 0 || inputRate <= 0 ? 0 : Math.min(
       requestedRatio,
-      inputRate > 0 ? physicalAvailable / inputRate : 0,
-      ...inputMix.filter(([, quantity]) => quantity > 0).map(([id, quantity]) => (
-        Math.max(0, (inputFlow?.recyclableSourcesProduced.get(id) ?? 0)
-          - (inputFlow?.recyclableSourcesConsumed.get(id) ?? 0) + untypedInput * quantity)
-        / (inputRate * quantity)
-      )),
+      physicalAvailable / inputRate,
     );
     const ratio = recyclableInput ? recyclingRatio : requestedRatio;
-    const previousRatio = allocationRatios.get(line) ?? 0;
 
     allocationRatios.set(
       line,
@@ -2211,10 +2241,20 @@ export const calculateNet = (
 
   settleSurplusAndFallbackRoutes();
 
+  const getAllocatedRecipe = (line: ProductionLine): Recipe => {
+    const multiplier = lineFactor(line) * (allocationRatios.get(line) ?? 0);
+
+    if (!line.recipe.sortsRecyclableSources || multiplier <= 0) return line.recipe;
+    const recovered = sortedRecyclableSources.get(line);
+
+    return { ...line.recipe, outputs: line.recipe.outputs.map(output => ({
+      ...output, quantity: (recovered?.get(output.resourceId) ?? 0) / multiplier,
+    })) };
+  };
   const finalizeAllocation = () => {
     // Regular results
     const regularResults: RegularResult[] = regularLines.map((line) => ({
-      recipe: line.recipe,
+      recipe: getAllocatedRecipe(line),
       moduleId: line.moduleId,
       dataSource: line.dataSource,
       capacityPoolId: line.capacityPoolId,

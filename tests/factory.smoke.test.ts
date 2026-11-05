@@ -549,6 +549,22 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
       .toMatchObject({ produced: 12, consumed: 12, net: 0 })
   expect(factoryResult.flows.find(flow => flow.resourceId === 'steamSuper'))
     .toMatchObject({ produced: 408, consumed: 408, net: 0 })
+  const recyclables = factoryResult.flows.find(flow => flow.resourceId === 'recyclables')
+  const sorters = factoryResult.calculation.regularResults.filter(result => result.recipe.sortsRecyclableSources)
+  const recovered = new Map<string, number>()
+
+  expect(recyclables?.net).toBeCloseTo(0)
+  for (const result of factoryResult.calculation.regularResults) {
+    const output = result.actualOutputs.find(output => output.resourceId === 'recyclables')
+    const declared = result.recipe.outputs.find(output => output.resourceId === 'recyclables')
+
+    if (!output || !declared || declared.quantity <= 0) continue
+    for (const [id, quantity] of Object.entries(result.recipe.recyclingSources ?? {}))
+      recovered.set(id, (recovered.get(id) ?? 0) + (quantity ?? 0) * output.quantity / declared.quantity)
+  }
+  for (const [id, quantity] of recovered)
+    expect(sorters.reduce((total, sorter) => total + sorter.actualOutputs.reduce(
+      (sum, output) => sum + (output.resourceId === id ? output.quantity : 0), 0), 0)).toBeCloseTo(quantity)
   const rockDraw = getReserveDrawPerProductionCycle(factoryResult.calculation.sourceResults, 'rock-virtual-provision', 'rock')
   const rockBalance = snapshot.reserves?.rock ?? 0
 
@@ -595,6 +611,13 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   // A second complete solve proves costs come from the supplied catalog, not
   // the retired tables. Resource priorities must survive a metadata change.
   const updated = structuredClone(snapshot)
+
+  // A current gold-only batch must not change future material recovery.
+  for (const sorter of updated.areaEntities.filter(entity => entity.prototypeId === 'WasteSortingPlant'))
+    for (const recipe of sorter.recipes.filter(recipe => recipe.recyclingInputSources?.length)) {
+      recipe.recyclingInputSources = [{ productId: 'Product_GoldScrap', name: 'Gold scrap', quantity: 2 }]
+      recipe.outputs = [{ productId: 'Product_GoldScrap', name: 'Gold scrap', quantity: 0 }]
+    }
   const office = updated.buildingDefinitions.find(definition => definition.id === 'OfficeBuildingT3')
 
   if (!office) throw new Error('Recorded factory must exercise Office III')
@@ -613,7 +636,9 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   expect(changedStats.electricityKw - stats.electricityKw).toBeCloseTo(300, 4)
   expect(changedStats.computingTflops - stats.computingTflops).toBeCloseTo(144, 4)
   expect(changedModel.officePlanCalculation.focusPointsCapacity).toBe(6552)
-  expect(changed.flows).toEqual(factoryResult.flows)
+  const byResource = (a: { resourceId: string }, b: { resourceId: string }) => a.resourceId.localeCompare(b.resourceId)
+
+  expect(changed.flows.toSorted(byResource)).toEqual(factoryResult.flows.toSorted(byResource))
   expect(changed.contractResults).toEqual(factoryResult.contractResults)
 }, 60_000)
 

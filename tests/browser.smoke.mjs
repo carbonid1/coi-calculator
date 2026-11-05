@@ -225,7 +225,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('open', appUrl)
     await browser('set', 'viewport', '1440', '1000')
     await ready()
-    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*\+20\.1 MW[\s\S]*\+118\.71 TFLOPS[\s\S]*-1\.08 \/ cycle[\s\S]*7,356 \/ 7,488/)
+    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*\+20\.1 MW[\s\S]*\+118\.71 TFLOPS[\s\S]*-1\.04 \/ cycle[\s\S]*7,356 \/ 7,488/)
     assert.match(await text(), /Unpause 2 Research Lab IV/)
     assert.match(await text(), /Build Space Station level 4/)
     const storedRock = await evaluate(`document.querySelector('[aria-label="From storage"] li:has([aria-label="Inspect Rock supply"])').innerText`)
@@ -243,10 +243,12 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('press', 'Escape')
 
     await click('Resource supply')
-    for (const resource of ['Core fuel', 'Core fuel (spent)']) {
+    for (const [resource, quantity] of [['Core fuel', '12'], ['Core fuel (spent)', '12'], ['Recyclables', '157.79']]) {
       await browser('fill', '[aria-label="Resource"]', resource)
       await browser('find', 'role', 'option', 'click', '--name', resource, '--exact')
-      assert.match(await text(), /Supply\s+12\s+Demand\s+12\s+Remaining\s+0/)
+      const balance = new RegExp(`Supply\\s+${quantity.replace('.', '\\.')}\\s+Demand\\s+${quantity.replace('.', '\\.')}\\s+Remaining\\s+0`)
+
+      assert.match(await text(), balance)
     }
     await click('Factory Total')
 
@@ -297,7 +299,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await area('Computing')
     assert.match(await text(), /Basic Rack[\s\S]*369 \/ 369[\s\S]*1476/)
     await area('Nuclear')
-    assert.match(await text(), /\+163\.1 MW[\s\S]*24 TFLOPS[\s\S]*711/)
+    assert.match(await text(), /\+162\.9 MW[\s\S]*24 TFLOPS[\s\S]*711/)
     await area('Population')
     assert.match(await text(), /7,488 population cap[\s\S]*Clinic I/)
     await click('Focus')

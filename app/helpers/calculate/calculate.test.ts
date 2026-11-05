@@ -1034,16 +1034,12 @@ it("uses sorted Broken Glass before fresh Glass Mix", () => {
     line => line.recipe.id === recipeId,
   );
 
-  expect(getResult("waste-sorting-recyclables")?.actualOutputs).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ resourceId: "brokenGlass", quantity: 0.6 }),
-    ]),
-  );
-  expect(getResult("arc-furnace-ii-glass-broken")?.actualInputs).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ resourceId: "brokenGlass", quantity: 0.6 }),
-    ]),
-  );
+  expect(getResult("waste-sorting-recyclables")?.actualOutputs.find(
+    output => output.resourceId === "brokenGlass",
+  )?.quantity).toBeCloseTo(0.6);
+  expect(getResult("arc-furnace-ii-glass-broken")?.actualInputs.find(
+    input => input.resourceId === "brokenGlass",
+  )?.quantity).toBeCloseTo(0.6);
   expect(result.allResourceFlows.find(flow => flow.resourceId === "brokenGlass")?.net)
     .toBeCloseTo(0);
   expect(getResult("arc-furnace-ii-glass-mix")?.actualOutputs.find(

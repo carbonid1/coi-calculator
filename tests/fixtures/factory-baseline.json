@@ -80,7 +80,7 @@
   "totals": {
     "lines": 587,
     "workers": 7356,
-    "electricityMw": 296.9724,
+    "electricityMw": 296.9609,
     "computingTflops": 1357.2913,
     "populationCapacity": 7488,
     "focus": 5460,
@@ -100,9 +100,9 @@
   "contracts": [
     {
       "id": "ammonia-for-food-pack",
-      "imported": 22.8198,
-      "requiredImported": 22.8198,
-      "exported": 2.9256
+      "imported": 22.8094,
+      "requiredImported": 22.8094,
+      "exported": 2.9243
     },
     {
       "id": "copper-ore-for-medical-supplies-iii",
@@ -112,9 +112,9 @@
     },
     {
       "id": "quartz-for-coal",
-      "imported": 188.1356,
-      "requiredImported": 188.1356,
-      "exported": 72.3598
+      "imported": 156.6368,
+      "requiredImported": 156.6368,
+      "exported": 60.2449
     },
     {
       "id": "titanium-ore-for-construction-parts-iv",
@@ -132,8 +132,8 @@
   "flows": [
     {
       "resource": "carbonDioxide",
-      "produced": 150.2605,
-      "consumed": 150.2605,
+      "produced": 148.6911,
+      "consumed": 148.6911,
       "net": 0
     },
     {
@@ -144,50 +144,50 @@
     },
     {
       "resource": "exhaust",
-      "produced": 492.5312,
-      "consumed": 492.5312,
+      "produced": 485.006,
+      "consumed": 485.0059,
       "net": 0
     },
     {
       "resource": "water",
-      "produced": 2013.8776,
-      "consumed": 2013.8776,
+      "produced": 2029.3894,
+      "consumed": 2029.3894,
       "net": 0
     },
     {
       "resource": "limestone",
-      "produced": 84.0336,
-      "consumed": 84.0336,
+      "produced": 72.416,
+      "consumed": 72.416,
       "net": 0
     },
     {
       "resource": "sulfur",
-      "produced": 53.0967,
-      "consumed": 53.0967,
+      "produced": 51.7842,
+      "consumed": 51.7842,
       "net": 0
     },
     {
       "resource": "steamLow",
-      "produced": 363.1032,
-      "consumed": 363.1032,
+      "produced": 362.7108,
+      "consumed": 362.7108,
       "net": 0
     },
     {
       "resource": "slag",
-      "produced": 258.3867,
-      "consumed": 258.3867,
+      "produced": 231.6907,
+      "consumed": 231.6907,
       "net": 0
     },
     {
       "resource": "seaWater",
-      "produced": 1341.3952,
-      "consumed": 1341.3952,
+      "produced": 1366.9533,
+      "consumed": 1366.9533,
       "net": 0
     },
     {
       "resource": "brine",
-      "produced": 499.6024,
-      "consumed": 499.6023,
+      "produced": 509.6671,
+      "consumed": 509.6671,
       "net": 0.0001
     },
     {
@@ -204,8 +204,8 @@
     },
     {
       "resource": "quartz",
-      "produced": 188.1356,
-      "consumed": 188.1356,
+      "produced": 156.6368,
+      "consumed": 156.6368,
       "net": 0
     },
     {
@@ -228,8 +228,8 @@
     },
     {
       "resource": "hydrogen",
-      "produced": 280.3448,
-      "consumed": 282.74,
+      "produced": 276.224,
+      "consumed": 278.6191,
       "net": -2.3952
     },
     {
@@ -240,9 +240,9 @@
     },
     {
       "resource": "foodPack",
-      "produced": 26.1457,
-      "consumed": 31.2185,
-      "net": -5.0728
+      "produced": 26.1458,
+      "consumed": 31.2172,
+      "net": -5.0714
     },
     {
       "resource": "medicalSuppliesIII",
@@ -252,8 +252,8 @@
     },
     {
       "resource": "coal",
-      "produced": 108.387,
-      "consumed": 108.387,
+      "produced": 96.3139,
+      "consumed": 96.3139,
       "net": 0
     },
     {
@@ -270,8 +270,8 @@
     },
     {
       "resource": "fuelGas",
-      "produced": 130.8896,
-      "consumed": 130.8896,
+      "produced": 130.8908,
+      "consumed": 130.8908,
       "net": 0
     },
     {
@@ -301,13 +301,13 @@
     {
       "resource": "recyclables",
       "produced": 157.7862,
-      "consumed": 119.7548,
-      "net": 38.0314
+      "consumed": 157.7862,
+      "net": 0
     },
     {
       "resource": "oxygen",
-      "produced": 280.3448,
-      "consumed": 280.3448,
+      "produced": 276.224,
+      "consumed": 276.224,
       "net": 0
     },
     {
@@ -325,8 +325,8 @@
     {
       "resource": "corn",
       "produced": 139.228,
-      "consumed": 138.7372,
-      "net": 0.4908
+      "consumed": 139.228,
+      "net": 0
     },
     {
       "resource": "wheat",
@@ -349,8 +349,8 @@
     {
       "resource": "vegetables",
       "produced": 56.4918,
-      "consumed": 56.4918,
-      "net": 0
+      "consumed": 56.0449,
+      "net": 0.4469
     },
     {
       "resource": "fruit",
@@ -373,8 +373,8 @@
     {
       "resource": "poppy",
       "produced": 5.6625,
-      "consumed": 3.3778,
-      "net": 2.2847
+      "consumed": 3.3338,
+      "net": 2.3287
     },
     {
       "resource": "coreFuel",
@@ -582,26 +582,26 @@
     },
     {
       "resource": "chlorine",
-      "produced": 119.3644,
-      "consumed": 119.3644,
+      "produced": 119.4899,
+      "consumed": 119.4899,
       "net": 0
     },
     {
       "resource": "salt",
-      "produced": 33.6974,
-      "consumed": 41.9871,
-      "net": -8.2897
+      "produced": 34.932,
+      "consumed": 38.0497,
+      "net": -3.1177
     },
     {
       "resource": "steamHigh",
-      "produced": 264.1369,
-      "consumed": 264.1369,
+      "produced": 264.1404,
+      "consumed": 264.1404,
       "net": 0
     },
     {
       "resource": "steamDepleted",
-      "produced": 362.2832,
-      "consumed": 362.2832,
+      "produced": 360.7378,
+      "consumed": 360.7378,
       "net": 0
     },
     {
@@ -612,8 +612,8 @@
     },
     {
       "resource": "acid",
-      "produced": 173.1249,
-      "consumed": 173.1249,
+      "produced": 165.2502,
+      "consumed": 165.2502,
       "net": 0
     },
     {
@@ -636,8 +636,8 @@
     },
     {
       "resource": "brokenGlass",
-      "produced": 9.6632,
-      "consumed": 9.6632,
+      "produced": 56.9114,
+      "consumed": 56.9114,
       "net": 0
     },
     {
@@ -654,8 +654,8 @@
     },
     {
       "resource": "ironScrap",
-      "produced": 94.3643,
-      "consumed": 94.3643,
+      "produced": 123.1789,
+      "consumed": 123.1789,
       "net": 0
     },
     {
@@ -1092,14 +1092,14 @@
     },
     {
       "resource": "sand",
-      "produced": 188.1356,
-      "consumed": 188.1356,
+      "produced": 156.6368,
+      "consumed": 156.6368,
       "net": 0
     },
     {
       "resource": "glassMix",
-      "produced": 111.9474,
-      "consumed": 111.9474,
+      "produced": 72.5739,
+      "consumed": 72.5739,
       "net": 0
     },
     {
@@ -1188,8 +1188,8 @@
     },
     {
       "resource": "quartzCrushed",
-      "produced": 188.1356,
-      "consumed": 188.1356,
+      "produced": 156.6368,
+      "consumed": 156.6368,
       "net": 0
     },
     {
@@ -1206,14 +1206,14 @@
     },
     {
       "resource": "ironOre",
-      "produced": 123.9529,
-      "consumed": 123.9529,
+      "produced": 95.1383,
+      "consumed": 95.1383,
       "net": 0
     },
     {
       "resource": "ironOreCrushed",
-      "produced": 140.6989,
-      "consumed": 140.6989,
+      "produced": 111.8843,
+      "consumed": 111.8843,
       "net": 0
     },
     {
@@ -1230,8 +1230,8 @@
     },
     {
       "resource": "sourWater",
-      "produced": 17.7972,
-      "consumed": 17.7972,
+      "produced": 17.839,
+      "consumed": 17.839,
       "net": 0
     }
   ]

@@ -36,22 +36,16 @@ it('applies recycling efficiency to settlement collection', () => {
   expect(recyclables(zero)).toBe(0)
 })
 
-it('keeps separately observed iron and copper sorter mixtures separate', () => {
-  const producer = (id: string, input: 'mechanicalParts' | 'electronicsI'): Recipe => ({
-    id, name: id, building: 'Producer', group: 'production',
-    inputs: [{ resourceId: input, quantity: 10 }],
-    outputs: [{ resourceId: 'recyclables', quantity: 0 }], recyclesInputs: true,
-  })
+it('retains each receiving plant\'s observed fallback for imports without material provenance', () => {
   const sorter = (id: string, resource: 'ironScrap' | 'copperScrap'): Recipe => ({
     id, name: id, building: 'Sorter', group: 'production', balanceBy: 'input',
-    inputs: [{ resourceId: 'recyclables', quantity: 100 }],
+    inputs: [{ resourceId: 'recyclables', quantity: 5 }],
     outputs: [{ resourceId: 'ironScrap', quantity: 0 }, { resourceId: 'copperScrap', quantity: 0 }],
     sortsRecyclableSources: true, recyclingInputSources: { [resource]: 2 },
   })
   const result = calculateNet([
-    fixedLine(producer('iron', 'mechanicalParts')), fixedLine(producer('copper', 'electronicsI')),
     fixedLine(sorter('iron-sorter', 'ironScrap')), fixedLine(sorter('copper-sorter', 'copperScrap')),
-  ], {}, 100, { recycling: testRecycling })
+  ], { recyclables: 10 }, 100, { recycling: testRecycling })
   const output = (id: string, resource: string) => result.regularResults.find(line => line.recipe.id === id)
     ?.actualOutputs.find(row => row.resourceId === resource)?.quantity ?? 0
 
@@ -96,22 +90,50 @@ it('carries source composition through pressing and sorting without another coll
   expect(flow('ironScrap')?.produced).toBeCloseTo(10)
 })
 
-it('does not turn copper sources into iron to satisfy an incompatible observed mix', () => {
+it('sorts the projected mixture through loose or pressed inputs while retaining material identity and plant capacity', () => {
+  const recycling = { ...testRecycling, products: [...testRecycling.products, {
+    productId: 'microchips', name: 'Microchip',
+    sources: [{ productId: 'goldScrap', name: 'Gold scrap', quantity: 1 }],
+  }] }
   const producer: Recipe = {
     id: 'producer', name: 'Producer', building: 'Producer', group: 'production',
-    inputs: [{ resourceId: 'mechanicalParts', quantity: 10 }, { resourceId: 'electronicsI', quantity: 10 }],
+    inputs: [{ resourceId: 'mechanicalParts', quantity: 10 }, { resourceId: 'electronicsI', quantity: 6 },
+      { resourceId: 'microchips', quantity: 4 }],
     outputs: [{ resourceId: 'recyclables', quantity: 0 }], recyclesInputs: true,
   }
-  const sorter: Recipe = {
-    id: 'sorter', name: 'Sorter', building: 'Sorter', group: 'production', balanceBy: 'input',
-    inputs: [{ resourceId: 'recyclables', quantity: 100 }],
-    outputs: [{ resourceId: 'ironScrap', quantity: 200 }], sortsRecyclableSources: true,
+  const press: Recipe = {
+    id: 'press', name: 'Press', building: 'Press', group: 'production', balanceBy: 'input',
+    inputs: [{ resourceId: 'recyclables', quantity: 10 }],
+    outputs: [{ resourceId: 'recyclablesPressed', quantity: 2 }], recyclesInputs: false,
     recyclingInputSources: { ironScrap: 2 },
   }
-  const result = calculateNet([fixedLine(producer), fixedLine(sorter)], {}, 100, { recycling: testRecycling })
 
-  expect(result.allResourceFlows.find(row => row.resourceId === 'ironScrap')?.produced).toBeCloseTo(10)
-  expect(result.allResourceFlows.find(row => row.resourceId === 'recyclables')?.net).toBeCloseTo(5)
+  for (const pressed of [false, true]) for (const secondRunning of [false, true]) {
+    const resourceId = pressed ? 'recyclablesPressed' : 'recyclables'
+    const compaction = pressed ? 5 : 1
+    const sorter: Recipe = {
+      id: 'sorter', name: 'Sorter', building: 'Sorter', group: 'production', balanceBy: 'input',
+      inputs: [{ resourceId, quantity: 6 / compaction }],
+      // The old observed batch contained only iron; the planned batch also has copper and gold.
+      outputs: [{ resourceId: 'ironScrap', quantity: 12 }], sortsRecyclableSources: true,
+      recyclingInputSources: { ironScrap: 2 * compaction },
+    }
+    const result = calculateNet([fixedLine(producer), ...(pressed ? [fixedLine(press)] : []),
+      fixedLine(sorter), { ...fixedLine({ ...sorter, id: 'second-sorter' }), activeBuildings: Number(secondRunning) }],
+    {}, 100, { recycling })
+    const processed = secondRunning ? 10 : 6
+    const flow = (id: string) => result.allResourceFlows.find(row => row.resourceId === id)
+
+    expect(flow(resourceId)?.consumed).toBeCloseTo(processed / compaction)
+    expect(flow(resourceId)?.net).toBeCloseTo((10 - processed) / compaction)
+    for (const [id, quantity] of [['ironScrap', 10], ['copperScrap', 6], ['goldScrap', 4]] as const)
+      expect(flow(id)?.produced).toBeCloseTo(quantity * processed / 10)
+    for (const line of result.regularResults.filter(line => line.recipe.sortsRecyclableSources)) {
+      expect(line.actualInputs[0].quantity).toBeLessThanOrEqual(6 / compaction)
+      expect(line.actualOutputs.reduce((sum, output) => sum + output.quantity, 0))
+        .toBeCloseTo(line.actualInputs[0].quantity * 2 * compaction)
+    }
+  }
 })
 
 it('uses the receiving sorter mix for explicit recyclable imports', () => {
