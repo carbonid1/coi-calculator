@@ -15,6 +15,7 @@ import {
 } from "../helpers/calculate/calculate";
 import { type ContractResourceFlow } from "../helpers/contracts/contract-resource-flows";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
+import { formatInGameDuration } from "../helpers/format-in-game-duration";
 import {
   type MachineAllocationIssue,
   type MachineInventorySummary,
@@ -348,7 +349,7 @@ export const NetSummary: React.FC<Props> = ({
                           <div className="flex min-w-0 flex-col items-start gap-0.5">
                             {renderResourceName(flow)}
                             <span className="text-xs leading-4 text-muted-foreground">
-                              {balance.toLocaleString("en-US", { maximumFractionDigits: 2 })} stored · {formatCapacity(years * 12)} cycles · {formatCapacity(years)} in-game years
+                              {balance.toLocaleString("en-US", { maximumFractionDigits: 2 })} stored · {formatInGameDuration(years * 12)} remaining
                             </span>
                           </div>
                           <span className="font-mono text-sm font-semibold leading-5 tabular-nums text-foreground">{formatCapacity(draw)}</span>

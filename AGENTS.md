@@ -19,6 +19,8 @@ Keep the UI dense but clear. Prefer compact counts, learnable icons, consistent 
 
 Do not narrate familiar game mechanics; show only calculated results, actionable state, and information the user explicitly requested.
 
+Show durations in in-game years or months. Keep internal cycle counts out of player-facing duration labels.
+
 ## Game data
 
 When updating database files, verify numerical values and mechanics against the current installed game or its live API for the targeted version. Keep necessary explanations with the implementation or regression tests.

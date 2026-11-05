@@ -9,6 +9,7 @@ import {
 } from '../helpers/contracts/calculate-contracts'
 import { getContractRouteBlocker } from '../helpers/contracts/contract-route-status'
 import { type SyncedContractIssue } from '../helpers/contracts/resolve-synced-contracts'
+import { formatInGameDuration } from '../helpers/format-in-game-duration'
 import { useResources } from './ResourceProducts'
 import { ResourceToken } from './ResourceToken'
 
@@ -129,6 +130,8 @@ const RouteDetails: React.FC<{
             </span>} />
         <DataRow label="Max import / month" value={result.maxImportedPerProductionCycle === null
           ? 'Not measured' : formatQuantity(result.maxImportedPerProductionCycle)} />
+        {route.ship && <DataRow label="Round trip" value={route.shipping.roundTripDurationProductionCycles === null
+          ? 'Not measured' : formatInGameDuration(route.shipping.roundTripDurationProductionCycles)} />}
       </dl>
     </section>
   )

@@ -230,7 +230,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Build Space Station level 4/)
     const storedRock = await evaluate(`document.querySelector('[aria-label="From storage"] li:has([aria-label="Inspect Rock supply"])').innerText`)
 
-    assert.match(storedRock, /Rock[\s\S]*stored · [\s\S]*cycles · [\s\S]*in-game years[\s\S]*74\.07/)
+    assert.match(storedRock, /Rock[\s\S]*stored · [\d,.]+ in-game years remaining[\s\S]*74\.07/)
+    assert.doesNotMatch(storedRock, /\bcycles\b/)
     assert.equal(await evaluate(`Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle').querySelector('[aria-label="Inspect Rock supply"]') === null`), true)
     const desktopTabs = await tabClearance('first')
 
@@ -305,7 +306,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await click('Focus')
     assert.match(await text(), /Capacity\s+5,460[\s\S]*Allocated\s+5,450[\s\S]*Available\s+10/)
     await click('General Info')
-    assert.match(await text(), /MAINTENANCE DEMAND[\s\S]*120 cycles · 10 in-game years/)
+    assert.match(await text(), /MAINTENANCE DEMAND[\s\S]*10 in-game years/)
+    assert.doesNotMatch(await text(), /\bcycles\b/)
     await screenshot('maintenance-overview')
     await click('Research')
     assert.match(await text(), /Housing Capacity/i)
@@ -344,7 +346,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(plotted[east.id].x > plotted[west.id].x, 'Positive game X must point east/right')
     assert.equal(await evaluate('document.querySelector("[aria-label=\\"North\\"]").innerText'), 'N')
     assert.doesNotMatch(await text(), /North up|source radius to scale/)
-    assert.ok(await evaluate('Array.from(document.querySelectorAll("[aria-label=\\"Weather over the next 12 cycles\\"] .h-8 span")).every(bar => bar.getBoundingClientRect().width > 30)'))
+    assert.ok(await evaluate('Array.from(document.querySelectorAll("[aria-label=\\"Weather over the next in-game year\\"] .h-8 span")).every(bar => bar.getBoundingClientRect().width > 30)'))
+    assert.doesNotMatch(await evaluate('document.querySelector("[aria-label=\\"Water planning\\"]").innerText'), /\bcycles\b/)
     const mapPageY = await evaluate('window.scrollY')
 
     await click('Select aquifer 3132, 1583 on map')
@@ -411,7 +414,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await screenshot('water-mobile')
     await browser('set', 'viewport', '1440', '1000')
     await click('Reserves')
-    assert.match(await text(), /Reserve runway[\s\S]*cycles · [\d,.]+ in-game years/i)
+    assert.match(await text(), /Reserve runway[\s\S]*[\d,.]+ in-game years/i)
+    assert.doesNotMatch(await text(), /\bcycles\b/)
     await click('Contracts')
     assert.match(await text(), /Hydrogen|Food pack/)
     const contractRows = 'details[data-contract-id]'

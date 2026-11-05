@@ -21,7 +21,7 @@ import {
 import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
 import { type GameStateSnapshot } from "../game-state";
-import { formatHistoryWindow } from "../helpers/game-history/format-history-window";
+import { formatInGameDuration } from "../helpers/format-in-game-duration";
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
@@ -115,9 +115,7 @@ export const formatSpaceStationOverview = (
     return `${stationEffect} · ${payload} · 0 launches / cycle`;
   }
 
-  return `${stationEffect} · ${payload} · every ${formatOverviewQuantity(
-    logistics.cyclesPerLaunch,
-  )} cycles (${formatOverviewQuantity(logistics.cyclesPerLaunch / 12)} in-game years)`;
+  return `${stationEffect} · ${payload} · every ${formatInGameDuration(logistics.cyclesPerLaunch)}`;
 };
 
 export const SpaceStationPlanOverview = ({
@@ -148,7 +146,7 @@ export const MaintenanceDemandOverview = ({
 }) => (
   <section className="space-y-3">
     <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-      <Tooltip label="Actual consumption across completed game cycles.">
+      <Tooltip label="Actual consumption across completed in-game months.">
         <span tabIndex={0}>Maintenance demand</span>
       </Tooltip>
     </h3>
@@ -172,7 +170,7 @@ export const MaintenanceDemandOverview = ({
                     {" / cycle"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {formatHistoryWindow(average.sampleMonths)}
+                    {formatInGameDuration(average.sampleMonths)}
                   </p>
                 </div>
               );

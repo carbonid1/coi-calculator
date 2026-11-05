@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 
 import { type GameStateSnapshot } from '../game-state';
 import { type PassiveResult, type RegularResult, type ResourceFlow } from '../helpers/calculate/calculate';
+import { formatInGameDuration } from '../helpers/format-in-game-duration';
 import { type RecipeModifierMultipliers } from '../helpers/modifiers/recipe-output';
 import { calculateFarmWaterDemand } from '../helpers/water-planning/farm-water-demand';
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../helpers/water-planning/water-planning';
@@ -37,7 +38,7 @@ const SourceDetails = ({ source, number, snapshot }: { source: WaterSource; numb
             <span tabIndex={0} aria-label="First shortfall estimate">First shortfall · estimate</span>
           </Tooltip></dt>
             <dd className="font-mono">{forecast.firstShortfallCycle === null ? 'None · 100Y'
-              : `${format(forecast.firstShortfallCycle)} cycles · ${format(forecast.firstShortfallCycle / 12)} in-game years`}</dd></div>
+              : formatInGameDuration(forecast.firstShortfallCycle)}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Min reserve · 100Y</dt>
             <dd className="font-mono">{format(forecast.minimumReserve)} Water</dd></div>
           <div><dt className="text-xs text-muted-foreground">Shortfall · 1Y</dt>
@@ -87,7 +88,7 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
   const nextRain = (() => {
     if (snapshot.weather.hasOverride) return 'Weather override';
     if (climate.nextRainCycles === 0) return 'Raining';
-    return climate.nextRainCycles === null ? 'None in 100Y' : `${format(climate.nextRainCycles)} cycles`;
+    return climate.nextRainCycles === null ? 'None in 100Y' : formatInGameDuration(climate.nextRainCycles);
   })();
   const unused = sources.filter(row => row.builtPumps === 0);
   const date = snapshot.weather.startDate;
@@ -148,13 +149,13 @@ const CurrentWaterPlanningView = ({ snapshot, sourceResults, waterFlow, rainwate
               <span tabIndex={0}>{format(rainwater.nextYearPerCycle)} Water</span>
             </Tooltip></dd></div>
           <div><dt className="text-xs text-muted-foreground">Longest dry spell · 100Y</dt>
-            <dd className="font-mono">{format(climate.longestDryCycles)} cycles</dd></div>
+            <dd className="font-mono">{formatInGameDuration(climate.longestDryCycles)}</dd></div>
         </dl>
-        <div aria-label="Weather over the next 12 cycles" className="space-y-1">
-          <div className="text-xs text-muted-foreground">Next 12 cycles</div>
+        <div aria-label="Weather over the next in-game year" className="space-y-1">
+          <div className="text-xs text-muted-foreground">Next year</div>
           <div className="grid grid-cols-12 gap-1">
             {climate.cycles.map((cycle, index) => (
-              <Tooltip key={index} label={`Cycle ${index + 1}: rain ${format(cycle.rainIntensityPercent)}%, sunlight ${format(cycle.sunIntensityPercent)}%`}>
+              <Tooltip key={index} label={`Month ${index + 1}: rain ${format(cycle.rainIntensityPercent)}%, sunlight ${format(cycle.sunIntensityPercent)}%`}>
                 <div tabIndex={0} className="w-full space-y-1 rounded bg-surface-inset p-1 inset-shadow-surface">
                   <div className="flex h-8 items-end"><span className="block w-full rounded-sm bg-primary" style={{ height: `${cycle.rainIntensityPercent}%` }} /></div>
                   <div className="flex h-4 items-end"><span className="block w-full rounded-sm bg-foreground/40" style={{ height: `${cycle.sunIntensityPercent}%` }} /></div>

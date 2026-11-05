@@ -5,6 +5,7 @@ import {
   type ReserveValues,
   reserveResourceCatalog,
 } from "../db/reserve-resources";
+import { formatInGameDuration } from "../helpers/format-in-game-duration";
 import { calculateReserveRunway } from "../helpers/reserves/reserves";
 
 interface Props {
@@ -17,10 +18,6 @@ interface Props {
 const formatQuantity = (value: number) => value.toLocaleString("en-US", {
   maximumFractionDigits: 2,
 });
-
-const formatYears = (value: number) => value > 0 && value < 0.01
-  ? "<0.01"
-  : formatQuantity(value);
 
 const statusPresentation = {
   unavailable: {
@@ -50,11 +47,9 @@ const ReserveCard: React.FC<{
   const replenishing = growth > 0.000001;
   const runway = calculateReserveRunway(balance, drawPerProductionCycle);
   const status = statusPresentation[runway.status];
-  let statusLabel = runway.status === "empty"
-    ? `No eligible ${name} is stored`
-    : status.label;
-
-  if (replenishing && balance !== null) statusLabel = "Replenishing";
+  const statusLabel = replenishing && balance !== null
+    ? "Replenishing"
+    : status.label || `No eligible ${name} is stored`;
   const metrics = [
     {
       label: `Stored ${name}`,
@@ -70,7 +65,7 @@ const ReserveCard: React.FC<{
       label: "Reserve runway",
       value: runway.inGameYearsRemaining === null
         ? "—"
-        : `${formatQuantity(runway.inGameYearsRemaining * 12)} cycles · ${formatYears(runway.inGameYearsRemaining)} in-game years`,
+        : formatInGameDuration(runway.inGameYearsRemaining * 12),
     },
   ];
 
@@ -113,7 +108,7 @@ export const ReservesView: React.FC<Props> = ({
 }) => (
   <div className="space-y-3">
     {burstCyclesRemaining !== null && burstCyclesRemaining !== undefined && (
-      <p className="text-sm text-muted-foreground">Current delivery burst: {formatQuantity(burstCyclesRemaining)} cycles · {formatYears(burstCyclesRemaining / 12)} in-game years remaining.</p>
+      <p className="text-sm text-muted-foreground">Current delivery burst: {formatInGameDuration(burstCyclesRemaining)} remaining.</p>
     )}
     <div className="grid gap-3 lg:grid-cols-2">
     {reserveResourceCatalog.map(({ key, name }) => (
