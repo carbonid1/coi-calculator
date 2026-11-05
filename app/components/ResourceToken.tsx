@@ -47,12 +47,13 @@ export const ResourceTooltip = ({ label, detail, className, children, onClick }:
 }
 
 /** Named tokens are inert by default for use inside links and menu items. */
-export const ResourceToken = ({ resourceId, named = false, interactive = !named, detail, amount, className, onInspect }: {
+export const ResourceToken = ({ resourceId, named = false, interactive = !named, detail, amount, layout = 'inline', className, onInspect }: {
   resourceId: ResourceId
   named?: boolean
   interactive?: boolean
   detail?: string
   amount?: ReactNode
+  layout?: 'inline' | 'stacked'
   className?: string
   onInspect?: () => void
 }) => {
@@ -63,22 +64,24 @@ export const ResourceToken = ({ resourceId, named = false, interactive = !named,
   const source = getProductIconUrl(resources[resourceId].productId, products?.sessionId)
   const name = resources[resourceId].name
   const showImage = source && source !== failedSource
+  const stacked = layout === 'stacked' && named && amount != null
+  const textColumn = showImage ? 'col-start-2' : 'col-start-1'
   const content = (
     <>
       {showImage && (
         // The game's icons have a fixed display size, including the loading state.
-        <span className={cn('inline-flex shrink-0', amount != null && 'px-1.5')}>
+        <span className={cn('inline-flex shrink-0', amount != null && !stacked && 'px-1.5', stacked && 'row-span-2')}>
           <img src={source} alt="" width={28} height={28} className="size-7 shrink-0 object-contain"
             decoding="async" onError={() => setFailedSource(source)} />
         </span>
       )}
-      {(named || !showImage) && <span>{name}</span>}
-      {amount != null && <span className="font-mono text-sm font-normal tabular-nums whitespace-nowrap text-foreground">{amount}</span>}
+      {(named || !showImage) && <span className={stacked ? cn(textColumn, 'row-start-2 min-w-0 text-xs wrap-break-word') : undefined}>{name}</span>}
+      {amount != null && <span className={cn('font-mono text-sm font-normal tabular-nums whitespace-nowrap text-foreground', stacked && cn(textColumn, 'row-start-1 font-semibold'))}>{amount}</span>}
     </>
   )
 
   if (!interactive || (!showImage && !detail && !onClick && amount == null)) {
-    return <span className={cn('inline-flex min-w-0 items-center gap-1.5 align-middle', className)}>{content}</span>
+    return <span className={cn('inline-flex min-w-0 items-center gap-1.5 align-middle', stacked && cn('grid gap-x-2 gap-y-0', showImage ? 'grid-cols-[1.75rem_minmax(0,1fr)]' : 'grid-cols-1'), className)}>{content}</span>
   }
 
   return (

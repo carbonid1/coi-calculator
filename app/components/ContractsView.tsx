@@ -1,4 +1,5 @@
-import { Card } from '@carbonid1/design-system'
+import { cn, Item } from '@carbonid1/design-system'
+import { Check, ChevronRight, CircleAlert, CirclePause, Ship, Unplug } from 'lucide-react'
 
 import { type Contract, type ContractRoute } from '../db/contracts'
 import {
@@ -6,16 +7,61 @@ import {
   type ContractResult,
   type ContractRouteResult,
 } from '../helpers/contracts/calculate-contracts'
+import { getContractRouteBlocker } from '../helpers/contracts/contract-route-status'
 import { type SyncedContractIssue } from '../helpers/contracts/resolve-synced-contracts'
 import { useResources } from './ResourceProducts'
+import { ResourceToken } from './ResourceToken'
 
 interface Props {
-  contracts: Contract[]
   issues: SyncedContractIssue[]
   results: ContractResult[]
 }
 
 const formatQuantity = (quantity: number) => parseFloat(quantity.toFixed(3)).toLocaleString()
+const rowColumns = 'grid grid-cols-[minmax(0,1.4fr)_1rem_minmax(0,1.1fr)_1rem] gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1.4fr)_1rem_minmax(0,1.1fr)_6rem_6.5rem_1rem]'
+const stateDefinitions = {
+  Running: { Icon: Check, className: 'text-success-foreground' },
+  Partial: { Icon: CircleAlert, className: 'text-attention-foreground' },
+  'Depot paused': { Icon: CirclePause, className: 'text-attention-foreground' },
+  'Ship paused': { Icon: CirclePause, className: 'text-attention-foreground' },
+  'Routes paused': { Icon: CirclePause, className: 'text-attention-foreground' },
+  'No ship': { Icon: Ship, className: 'text-attention-foreground' },
+  Off: { Icon: Unplug, className: 'text-muted-foreground' },
+  'No depot': { Icon: CircleAlert, className: 'text-attention-foreground' },
+}
+
+const getContractState = (routes: readonly ContractRoute[]) => {
+  if (routes.length === 0) return 'No depot'
+  const blockers = routes.map(getContractRouteBlocker)
+  const operating = blockers.filter(blocker => blocker === null).length
+
+  if (operating === routes.length) return 'Running'
+  if (operating > 0) return 'Partial'
+  if (blockers.every(blocker => blocker === 'disabled')) return 'Off'
+  if (blockers.includes('no-ship')) return 'No ship'
+  const enabledRoutes = routes.filter(route => route.enabled)
+  const depotPaused = enabledRoutes.some(route => !route.running)
+  const shipPaused = enabledRoutes.some(route => route.running && route.ship && !route.ship.running)
+
+  if (depotPaused && shipPaused) return 'Routes paused'
+  return depotPaused ? 'Depot paused' : 'Ship paused'
+}
+
+const ContractState: React.FC<{ routes: readonly ContractRoute[]; className?: string }> = ({ routes, className }) => {
+  const state = getContractState(routes)
+  const planned = routes.some(route => route.source === 'planned')
+  const { Icon, className: stateClassName } = stateDefinitions[state]
+
+  return (
+    <span className={cn('flex flex-col items-start text-xs', className)}>
+      <span className={cn('inline-flex items-center gap-1', planned ? 'text-foreground' : stateClassName)}>
+        <Icon className="size-4 shrink-0" aria-hidden="true" />
+        {state}
+      </span>
+      {planned && <span className="text-highlight-foreground">Planned</span>}
+    </span>
+  )
+}
 
 const ContractTerms: React.FC<{ contract: Contract }> = ({ contract }) => {
   const resources = useResources()
@@ -32,197 +78,117 @@ const ContractTerms: React.FC<{ contract: Contract }> = ({ contract }) => {
   )
 }
 
-const DataRow: React.FC<{
-  label: string
-  value: React.ReactNode
-}> = ({ label, value }) => (
-  <div className="flex items-baseline justify-between gap-4 rounded-lg px-2 py-1.5 hover:bg-accent">
-    <dt className="text-sm text-muted-foreground">{label}</dt>
-    <dd className="text-right font-mono text-sm font-semibold tabular-nums text-foreground">
-      {value}
-    </dd>
+const DataRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <dt className="text-xs text-muted-foreground">{label}</dt>
+    <dd className="text-right font-mono text-xs tabular-nums text-foreground">{value}</dd>
   </div>
 )
 
-const getRouteState = (route: ContractRoute, exportSurplus: boolean) => {
-  if (!route.enabled) return 'Planned off'
-  if (!route.running || !route.ship?.running) return 'Unavailable'
-  const dynamicMode = exportSurplus ? 'Surplus exports' : 'Demand-balanced'
-
-  return `${route.source === 'planned' ? 'Planned' : 'Synced'} · ${
-    route.importedPerProductionCycle === null ? dynamicMode : 'Fixed'
-  }`
-}
-
-const RouteCard: React.FC<{
-  exportedResourceId: ContractResult['contract']['exchange']['exported']['resourceId']
-  importedResourceId: ContractResult['contract']['exchange']['imported']['resourceId']
-  exportSurplus: boolean
+const RouteDetails: React.FC<{
   result: ContractRouteResult
-}> = ({ exportedResourceId, importedResourceId, exportSurplus, result }) => {
+  contract: Contract
+  exportSurplus: boolean
+  showExchange: boolean
+}> = ({ result, contract, exportSurplus, showExchange }) => {
   const resources = useResources()
   const { route } = result
-  const exportedResource = resources[exportedResourceId]
-  const importedResource = resources[importedResourceId]
   const fuelResource = resources[route.shipping.fuelResourceId]
-  const routeEnabled = route.enabled && (Boolean(route.operation) || route.running)
-  const routeWorkers = route.cargoModules.reduce(
-    (total, module) => total + (routeEnabled && (route.operation || module.running) ? module.workers : 0),
-    0,
-  ) + (routeEnabled && (route.operation || route.ship?.running) ? route.ship?.workers ?? 0 : 0)
   const zoneNames = route.zones.flatMap(zone => zone.name ? [zone.name] : [])
+  const dynamicMode = exportSurplus ? 'Surplus exports' : 'Demand-balanced'
+  const mode = route.importedPerProductionCycle !== null ? 'Fixed' : dynamicMode
 
   return (
-    <section className="space-y-3 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
+    <section className="space-y-2 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h4 className="text-sm font-semibold text-foreground">{route.depotName}</h4>
-          <p className="text-xs text-muted-foreground">
-            {route.depotPrototypeId}{zoneNames.length > 0 ? ` · ${zoneNames.join(', ')}` : ''}
-          </p>
+        <div className="min-w-0">
+          <h4 className="text-sm font-medium text-foreground">{route.depotName}</h4>
+          {zoneNames.length > 0 && <p className="text-xs text-muted-foreground">{zoneNames.join(', ')}</p>}
         </div>
-        <span className="text-xs font-medium text-foreground">{getRouteState(route, exportSurplus)}</span>
+        <span className="text-xs text-muted-foreground">
+          <span className={route.source === 'planned' ? 'text-highlight-foreground' : undefined}>
+            {route.source === 'planned' ? 'Planned' : 'Synced'}
+          </span>
+          {' · '}{mode}
+        </span>
       </div>
-
-      <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-sm font-semibold text-foreground">
-        <span>{formatQuantity(result.exported)} {exportedResource.name}</span>
-        <span className="text-muted-foreground" aria-hidden="true">→</span>
-        <span>{formatQuantity(result.imported)} {importedResource.name}</span>
-        <span className="text-xs font-normal text-muted-foreground">/ month</span>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        <dl className="space-y-1">
-          {route.ship && (
-            <DataRow
-              label={`1× ${route.ship.name}`}
-              value={`${routeEnabled && (route.operation || route.ship.running) ? route.ship.workers : 0} workers`}
-            />
-          )}
-          {route.cargoModules.map(module => {
-            const configuration = module.resourceId && module.direction
-              ? `${resources[module.resourceId].name} ${module.direction}`
-              : 'Unconfigured'
-
-            return (
-              <DataRow
-                key={module.entityId ?? module.slot}
-                label={`1× ${module.buildingName} · ${configuration}`}
-                value={`${routeEnabled && (route.operation || module.running) ? module.workers : 0} workers`}
-              />
-            )
-          })}
-          <DataRow label="Route workers" value={routeWorkers.toLocaleString()} />
-        </dl>
-
-        <dl className="space-y-1">
-          <DataRow
-            label="Ship fuel"
-            value={result.fuelUnavailable ? 'Voyage estimate unavailable' : `${formatQuantity(result.fuelPerProductionCycle)} ${fuelResource.name} / cycle`}
-          />
-          <DataRow
-            label="Max import"
-            value={result.maxImportedPerProductionCycle === null
-              ? 'Not measured'
-              : `${formatQuantity(result.maxImportedPerProductionCycle)} / month`}
-          />
-        </dl>
-      </div>
+      {showExchange && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs tabular-nums text-foreground">
+            {formatQuantity(result.exported)} <ResourceToken resourceId={contract.exchange.exported.resourceId} named />
+            {' → '}{formatQuantity(result.imported)} <ResourceToken resourceId={contract.exchange.imported.resourceId} named /> / month
+          </p>
+          <ContractState routes={[route]} />
+        </div>
+      )}
+      <dl className="grid gap-x-6 gap-y-2 md:grid-cols-2">
+        <DataRow label="Ship fuel / cycle" value={result.fuelUnavailable
+          ? 'Voyage estimate unavailable'
+          : <span className="inline-flex items-center gap-1.5">
+              {formatQuantity(result.fuelPerProductionCycle)} <ResourceToken resourceId={fuelResource.id} named />
+            </span>} />
+        <DataRow label="Max import / month" value={result.maxImportedPerProductionCycle === null
+          ? 'Not measured' : formatQuantity(result.maxImportedPerProductionCycle)} />
+      </dl>
     </section>
   )
 }
 
-const ActiveContractCard: React.FC<{ result: ContractResult }> = ({ result }) => {
+const ActiveContractRow: React.FC<{ result: ContractResult }> = ({ result }) => {
   const resources = useResources()
   const { contract, exported, imported } = result
   const exportedResource = resources[contract.exchange.exported.resourceId]
   const importedResource = resources[contract.exchange.imported.resourceId]
-  const workerBreakdown = calculateContractWorkerBreakdown(contract)
-  const variableUnityPerCycle = imported * contract.unity.per100Imported / 100
-  const recurringUnityPerCycle = contract.unity.perProductionCycle + variableUnityPerCycle
+  const workers = calculateContractWorkerBreakdown(contract).total
+  const unity = contract.unity.perProductionCycle + imported * contract.unity.per100Imported / 100
 
   return (
-    <Card.Root>
-      <Card.Content className="space-y-4">
-        <Card.Header>
-          <div className="space-y-1">
-            <Card.Title>{contract.name}</Card.Title>
-            <ContractTerms contract={contract} />
-          </div>
-          <Card.Action>
-            <span className="text-xs font-medium text-foreground">Established</span>
-          </Card.Action>
-        </Card.Header>
-
-        <div className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-          <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-base font-semibold text-foreground">
-            <span>{formatQuantity(exported)} {exportedResource.name}</span>
-            <span className="text-muted-foreground" aria-hidden="true">→</span>
-            <span>{formatQuantity(imported)} {importedResource.name}</span>
-            <span className="text-xs font-normal text-muted-foreground">/ month</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {formatQuantity(recurringUnityPerCycle)} Unity/month
-            {' · '}
-            {workerBreakdown.total.toLocaleString()} workers
-          </p>
-        </div>
-
-        {result.routes.length > 0 ? (
-          <div className="space-y-2">
-            {result.routes.map(route => (
-              <RouteCard
-                key={route.route.id}
-                exportedResourceId={contract.exchange.exported.resourceId}
-                importedResourceId={contract.exchange.imported.resourceId}
-                exportSurplus={contract.exportSurplus ?? false}
-                result={route}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            No Cargo Depot assigned.
-          </div>
-        )}
-      </Card.Content>
-    </Card.Root>
+    <Item.Root as="details" surface="raised" className="group/contract block p-0" data-contract-id={contract.gameId}>
+      <Item.Root as="summary" interactive className={cn(rowColumns, 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')}>
+        <span className="min-w-0">
+          <ResourceToken resourceId={exportedResource.id} named layout="stacked" amount={formatQuantity(exported)} />
+          <span className="sr-only">exported per month</span>
+        </span>
+        <span className="text-muted-foreground" aria-hidden="true">→</span>
+        <span className="min-w-0">
+          <ResourceToken resourceId={importedResource.id} named layout="stacked" amount={formatQuantity(imported)} />
+          <span className="sr-only">imported per month</span>
+        </span>
+        <span className="col-span-2 col-start-3 row-start-2 text-right text-xs tabular-nums sm:col-span-1 sm:col-start-4 sm:row-start-1">
+          <span>{formatQuantity(unity)}<span className="sm:sr-only"> Unity<span className="sr-only"> per month</span></span></span>
+          <span className="block text-muted-foreground">{workers.toLocaleString()} workers</span>
+        </span>
+        <ContractState routes={contract.routes} className="col-span-2 col-start-1 row-start-2 sm:col-span-1 sm:col-start-5 sm:row-start-1" />
+        <ChevronRight className="col-start-4 row-start-1 size-4 text-muted-foreground group-open/contract:rotate-90 sm:col-start-6" aria-hidden="true" />
+      </Item.Root>
+      <div className="space-y-2 px-3 pb-3">
+        {result.routes.length > 0 ? result.routes.map(route => (
+          <RouteDetails key={route.route.id} result={route} contract={contract}
+            exportSurplus={contract.exportSurplus ?? false} showExchange={result.routes.length > 1} />
+        )) : <p className="text-xs text-muted-foreground">No Cargo Depot assigned.</p>}
+        <ContractTerms contract={contract} />
+      </div>
+    </Item.Root>
   )
 }
 
-const InactiveContractCard: React.FC<{ contract: Contract }> = ({ contract }) => (
-  <Card.Root>
-    <Card.Content className="space-y-3">
-      <Card.Header>
-        <div className="space-y-1">
-          <Card.Title>{contract.name}</Card.Title>
-          <Card.Description>
-            {contract.exchange.exported.quantity.toLocaleString()} for {contract.exchange.imported.quantity.toLocaleString()}
-          </Card.Description>
-        </div>
-        <Card.Action>
-          <span className="text-xs text-muted-foreground">Not established</span>
-        </Card.Action>
-      </Card.Header>
-      <ContractTerms contract={contract} />
-    </Card.Content>
-  </Card.Root>
-)
+export const ContractsView: React.FC<Props> = ({ issues, results }) => {
+  const stateCounts = new Map<string, number>()
 
-export const ContractsView: React.FC<Props> = ({ contracts, issues, results }) => {
-  const resources = useResources()
-  const activeIdSet = new Set(results.map(result => result.contract.gameId))
-  const inactiveContracts = contracts
-    .filter(contract => !activeIdSet.has(contract.gameId ?? contract.id))
-    .toSorted((a, b) => {
-      const importedComparison = resources[a.exchange.imported.resourceId].name
-        .localeCompare(resources[b.exchange.imported.resourceId].name)
+  for (const result of results) {
+    const state = getContractState(result.contract.routes).toLowerCase()
 
-      return importedComparison || a.name.localeCompare(b.name)
-    })
+    stateCounts.set(state, (stateCounts.get(state) ?? 0) + 1)
+  }
+  const stateSummary = Object.keys(stateDefinitions).flatMap(label => {
+    const state = label.toLowerCase()
+    const count = stateCounts.get(state)
+
+    return count ? [`${count} ${state}`] : []
+  }).join(' · ')
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {issues.length > 0 && (
         <section className="space-y-2" aria-labelledby="contract-issues-heading">
           <h3 id="contract-issues-heading" className="text-sm font-semibold text-foreground">
@@ -230,40 +196,28 @@ export const ContractsView: React.FC<Props> = ({ contracts, issues, results }) =
           </h3>
           <div className="space-y-1 rounded-lg bg-surface-inset p-3 inset-shadow-surface">
             {issues.map((issue, index) => (
-              <p key={`${issue.gameId}-${index}`} className="text-sm text-muted-foreground">
-                {issue.message}
-              </p>
+              <p key={`${issue.gameId}-${index}`} className="text-sm text-muted-foreground">{issue.message}</p>
             ))}
           </div>
         </section>
       )}
-
       <section className="space-y-3" aria-labelledby="established-contracts-heading">
-        <h3 id="established-contracts-heading" className="text-sm font-semibold text-foreground">
-          Established · {results.length}
-        </h3>
-        {results.length > 0 ? (
-          <div className="grid gap-3">
-            {results.map(result => (
-              <ActiveContractCard key={result.contract.gameId} result={result} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            No established contracts.
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-3" aria-labelledby="available-contracts-heading">
-        <h3 id="available-contracts-heading" className="text-sm font-semibold text-foreground">
-          Available · {inactiveContracts.length}
-        </h3>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {inactiveContracts.map(contract => (
-            <InactiveContractCard key={contract.id} contract={contract} />
-          ))}
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h3 id="established-contracts-heading" className="text-sm font-semibold text-foreground">Established · {results.length}</h3>
+          {stateSummary && <p className="text-xs text-muted-foreground">{stateSummary}</p>}
         </div>
+        {results.length > 0 ? (
+          <div>
+            <div className={cn(rowColumns, 'items-center px-3 pb-2 text-xs text-muted-foreground')} aria-hidden="true">
+              <span>Export / month</span><span /><span>Import / month</span>
+              <span className="hidden text-right sm:block">Unity / month<br />Workers</span>
+              <span className="hidden sm:block">State</span><span />
+            </div>
+            <div className="space-y-1">
+              {results.map(result => <ActiveContractRow key={result.contract.gameId} result={result} />)}
+            </div>
+          </div>
+        ) : <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">No established contracts.</div>}
       </section>
     </div>
   )

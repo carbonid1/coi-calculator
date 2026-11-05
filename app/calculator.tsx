@@ -27,7 +27,6 @@ import { WaterPlanningView } from './components/WaterPlanningView'
 import { WorldMinesView } from './components/WorldMinesView'
 import { getBuildingData } from './db/buildings'
 import { baseConfig } from './db/config'
-import { getContractCatalog } from './db/contracts'
 import { getHousingTypes } from './db/housing'
 import { selectMaintenanceDepotLines } from './db/modules/area-maintenance'
 import {
@@ -726,7 +725,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       {isContracts && factoryResult && (
         <ContractsView
-          contracts={getContractCatalog(snapshot.planningDefinitions.factory.contracts)}
           issues={contractResolution.issues}
           results={factoryResult.contractResults}
         />

@@ -73,7 +73,6 @@ const listen = async server => {
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
   const state = { mode: 'live', inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false }
   const requests = new Set()
-  const duplicateContract = { ...fixture.contracts.established[0], gameId: 'FutureContractDuplicate' }
   const upstream = createServer((request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
 
@@ -109,9 +108,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
         ? { ...storage, quantity: 0 } : storage),
       schemaVersion: state.mode === 'old-bridge' ? fixture.schemaVersion - 1 : fixture.schemaVersion,
       planningDefinitions: state.mode === 'missing-planning-definitions' ? undefined : {
-        ...fixture.planningDefinitions, factory: state.mode === 'missing-factory-definitions' ? undefined : {
-          ...fixture.planningDefinitions.factory, contracts: [...fixture.planningDefinitions.factory.contracts, duplicateContract],
-        }, research: fixture.planningDefinitions.research.map(research => ({
+        ...fixture.planningDefinitions, factory: state.mode === 'missing-factory-definitions' ? undefined : fixture.planningDefinitions.factory,
+        research: fixture.planningDefinitions.research.map(research => ({
           ...research, costs: research.costs.map((cost, level) => cost + (level > 0 ? state.planningCostBonus : 0)),
         })),
       },
@@ -414,11 +412,29 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Reserve runway[\s\S]*cycles · [\d,.]+ in-game years/i)
     await click('Contracts')
     assert.match(await text(), /Hydrogen|Food pack/)
-    const availableCards = await evaluate('document.querySelector("[aria-labelledby=available-contracts-heading]").innerText')
-    const duplicateName = `${duplicateContract.exportedProduct.name} → ${duplicateContract.importedProduct.name}`.toLowerCase()
+    const contractRows = 'details[data-contract-id]'
 
-    assert.equal(availableCards.toLowerCase().split(duplicateName).length - 1, 1,
-      'An established native contract must not also appear as available when another prototype has the same exchange')
+    assert.doesNotMatch(await text(), /Available contracts/)
+    assert.equal(await evaluate('document.querySelector("[aria-labelledby=available-contracts-heading]")'), null)
+    assert.equal(await evaluate(`document.querySelectorAll('${contractRows}[open]').length`), 0)
+    assert.equal(await evaluate(`document.querySelectorAll('${contractRows}').length`), fixture.contracts.established.length)
+    assert.match(await text(), /\d+ running/)
+    await browser('wait', '--fn', `Array.from(document.querySelectorAll('${contractRows} > summary')).every(row => {
+      const icons = Array.from(row.querySelectorAll('img'))
+      return icons.length === 2 && icons.every(icon => icon.complete && icon.naturalWidth > 0)
+    })`)
+    await screenshot('contracts-overview')
+    await browser('focus', `${contractRows} > summary`)
+    await browser('press', 'Enter')
+    assert.equal(await evaluate(`document.querySelector('${contractRows}').open`), true)
+    assert.match(await evaluate(`document.querySelector('${contractRows}').innerText`), /Ship fuel \/ cycle[\s\S]*Max import \/ month/)
+    assert.doesNotMatch(await evaluate(`document.querySelector('${contractRows}').innerText`), /CargoDepotT|Cargo Ship|1×|Route workers/)
+    await screenshot('contracts-details')
+    await browser('press', 'Enter')
+    await browser('set', 'viewport', '375', '900')
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
+    await screenshot('contracts-mobile')
+    await browser('set', 'viewport', '1440', '1000')
     await click('Factory Total')
     await browser('find', 'role', 'button', 'click', '--name', 'Inspect Salt supply', '--exact')
     assert.match(await text(), /Island inventory[\s\S]*Total quantity[\s\S]*Stored[\s\S]*Storage capacity/)
