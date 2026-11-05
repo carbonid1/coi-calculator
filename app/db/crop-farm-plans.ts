@@ -1,22 +1,22 @@
 import { crops, type CropFarmGroup, type CropSchedule } from './crop-farming'
 
-const group = (schedule: CropSchedule, farmCount = 1): CropFarmGroup => ({
+const group = (schedule: CropSchedule, farmCount = 1, targetFertilityPercent = 140): CropFarmGroup => ({
   id: schedule.join('-'),
   name: schedule.map(id => crops[id].name).join(' / '),
   farmCount,
   tierId: 'greenhouseII',
   schedule,
-  fertilizer: { id: 'fertilizerII', targetFertilityPercent: 140 },
+  fertilizer: { id: 'fertilizerII', targetFertilityPercent },
 })
 
-/** Fixed rotations for the projected population and office plans, September 2026. */
+/** Planned rotations for Factory Total, including Station IV and two Research Lab IVs. */
 export const activeCropFarmGroups: readonly CropFarmGroup[] = [
-  group(['canola', 'corn', 'wheat']),
-  group(['corn', 'potato', 'vegetables']),
-  group(['corn', 'soybean', 'vegetables']),
-  group(['canola', 'fruit', 'poppy', 'fruit']),
-  group(['corn', 'vegetables', 'potato', 'vegetables']),
-  group(['corn', 'wheat'], 3),
-  group(['fruit', 'potato', 'soybean', 'wheat']),
-  group(['fruit', 'sugarCane', 'fruit', 'treeSapling']),
+  group(['potato', 'corn', 'soybean']),
+  group(['potato', 'corn', 'wheat', 'vegetables']),
+  group(['potato', 'corn', 'fruit', 'corn']),
+  group(['corn', 'wheat', 'corn', 'vegetables'], 3),
+  group(['wheat', 'treeSapling', 'wheat', 'fruit'], 1, 100),
+  group(['wheat', 'sugarCane', 'wheat', 'fruit'], 1, 130),
+  group(['wheat', 'fruit', 'soybean', 'fruit']),
+  group(['vegetables', 'canola', 'poppy', 'canola']),
 ]

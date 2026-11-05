@@ -16,6 +16,15 @@ separately and treat any persisted overrides as Planned. Without a compatible
 snapshot, use explicitly supplied planning inputs and identify missing inputs;
 current-state balances are unavailable.
 
+Verify fertility target increments against the installed game's
+`Farm.SetFertilityTarget` before optimizing. Installed 0.8.8 accepts targets from
+0–140% in 10 percentage-point steps: 125% becomes 130%. Evaluate and persist the
+supported target rather than the unrounded request.
+
+`Farm.AssignCropToSlot` changes the schedule while preserving the crop already
+growing. Applying a rotation does not require forcing a harvest or advancing the
+current slot; account for the existing crop when checking near-term output.
+
 Use [crop-farming.ts](../../../app/db/crop-farming.ts) for rotation simulation,
 model types, and crop data, [calculate-farm-irrigation.ts](../../../app/helpers/weather/calculate-farm-irrigation.ts)
 for water demand, and [crop-farm-areas.ts](../../../app/db/modules/crop-farm-areas.ts)

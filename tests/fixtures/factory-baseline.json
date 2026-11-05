@@ -100,9 +100,9 @@
   "contracts": [
     {
       "id": "ammonia-for-food-pack",
-      "imported": 22.4779,
-      "requiredImported": 22.4779,
-      "exported": 2.8818
+      "imported": 22.8179,
+      "requiredImported": 22.8179,
+      "exported": 2.9254
     },
     {
       "id": "copper-ore-for-medical-supplies-iii",
@@ -150,20 +150,20 @@
     },
     {
       "resource": "water",
-      "produced": 2014.4156,
-      "consumed": 2014.4156,
+      "produced": 2014.1717,
+      "consumed": 2014.1717,
       "net": 0
     },
     {
       "resource": "limestone",
-      "produced": 83.3791,
-      "consumed": 83.3791,
+      "produced": 84.1055,
+      "consumed": 84.1055,
       "net": 0
     },
     {
       "resource": "sulfur",
-      "produced": 52.4536,
-      "consumed": 52.4536,
+      "produced": 53.18,
+      "consumed": 53.18,
       "net": 0
     },
     {
@@ -180,20 +180,20 @@
     },
     {
       "resource": "seaWater",
-      "produced": 1342.1258,
-      "consumed": 1342.1258,
+      "produced": 1341.7356,
+      "consumed": 1341.7356,
       "net": 0
     },
     {
       "resource": "brine",
-      "produced": 499.8678,
-      "consumed": 499.8677,
+      "produced": 499.716,
+      "consumed": 499.716,
       "net": 0.0001
     },
     {
       "resource": "ammonia",
-      "produced": 26.9291,
-      "consumed": 26.9291,
+      "produced": 27.2691,
+      "consumed": 27.2691,
       "net": 0
     },
     {
@@ -228,8 +228,8 @@
     },
     {
       "resource": "hydrogen",
-      "produced": 280.2867,
-      "consumed": 282.6819,
+      "produced": 280.3445,
+      "consumed": 282.7397,
       "net": -2.3952
     },
     {
@@ -241,8 +241,8 @@
     {
       "resource": "foodPack",
       "produced": 26.1458,
-      "consumed": 31.1747,
-      "net": -5.0289
+      "consumed": 31.2183,
+      "net": -5.0725
     },
     {
       "resource": "medicalSuppliesIII",
@@ -300,75 +300,75 @@
     },
     {
       "resource": "oxygen",
-      "produced": 280.2867,
-      "consumed": 280.2867,
+      "produced": 280.3445,
+      "consumed": 280.3445,
+      "net": 0
+    },
+    {
+      "resource": "fertilizerII",
+      "produced": 110.8281,
+      "consumed": 110.8281,
       "net": 0
     },
     {
       "resource": "canola",
-      "produced": 30.0525,
+      "produced": 25.0892,
       "consumed": 16,
-      "net": 14.0525
-    },
-    {
-      "resource": "fertilizerII",
-      "produced": 106.4697,
-      "consumed": 106.4697,
-      "net": 0
+      "net": 9.0892
     },
     {
       "resource": "corn",
-      "produced": 129.3036,
-      "consumed": 129.3036,
-      "net": 0
+      "produced": 139.228,
+      "consumed": 138.6724,
+      "net": 0.5556
     },
     {
       "resource": "wheat",
-      "produced": 78.0809,
-      "consumed": 78.0809,
+      "produced": 82.6816,
+      "consumed": 82.6816,
       "net": 0
     },
     {
       "resource": "potato",
-      "produced": 37.739,
-      "consumed": 37.739,
-      "net": 0
-    },
-    {
-      "resource": "vegetables",
-      "produced": 58.5194,
-      "consumed": 58.5194,
+      "produced": 37.2184,
+      "consumed": 37.2184,
       "net": 0
     },
     {
       "resource": "soybean",
-      "produced": 9.1355,
-      "consumed": 9.1355,
+      "produced": 9.0252,
+      "consumed": 9.0252,
+      "net": 0
+    },
+    {
+      "resource": "vegetables",
+      "produced": 56.4918,
+      "consumed": 56.4918,
       "net": 0
     },
     {
       "resource": "fruit",
-      "produced": 47.8516,
-      "consumed": 47.8516,
-      "net": 0
-    },
-    {
-      "resource": "poppy",
-      "produced": 3.4467,
-      "consumed": 3.4467,
-      "net": 0
-    },
-    {
-      "resource": "sugarCane",
-      "produced": 16.9691,
-      "consumed": 16.9691,
+      "produced": 46.6507,
+      "consumed": 46.6507,
       "net": 0
     },
     {
       "resource": "treeSapling",
-      "produced": 5.1422,
-      "consumed": 5.1422,
+      "produced": 4.2469,
+      "consumed": 4.2469,
       "net": 0
+    },
+    {
+      "resource": "sugarCane",
+      "produced": 20.1038,
+      "consumed": 20.1038,
+      "net": 0
+    },
+    {
+      "resource": "poppy",
+      "produced": 5.6625,
+      "consumed": 3.4425,
+      "net": 2.22
     },
     {
       "resource": "coreFuel",
@@ -480,8 +480,8 @@
     },
     {
       "resource": "biomass",
-      "produced": 82.0373,
-      "consumed": 82.0373,
+      "produced": 81.142,
+      "consumed": 81.142,
       "net": 0
     },
     {
@@ -582,9 +582,9 @@
     },
     {
       "resource": "salt",
-      "produced": 33.7263,
+      "produced": 33.7073,
       "consumed": 41.9871,
-      "net": -8.2608
+      "net": -8.2798
     },
     {
       "resource": "steamHigh",
@@ -594,8 +594,8 @@
     },
     {
       "resource": "steamDepleted",
-      "produced": 362.2614,
-      "consumed": 362.2614,
+      "produced": 362.283,
+      "consumed": 362.283,
       "net": 0
     },
     {
@@ -678,9 +678,9 @@
     },
     {
       "resource": "compost",
-      "produced": 68.4628,
-      "consumed": 68.2683,
-      "net": 0.1945
+      "produced": 68.8895,
+      "consumed": 68.8895,
+      "net": 0
     },
     {
       "resource": "moltenCopper",
@@ -714,14 +714,14 @@
     },
     {
       "resource": "fertilizerI",
-      "produced": 88.7248,
-      "consumed": 88.7248,
-      "net": 0
+      "produced": 90,
+      "consumed": 92.3568,
+      "net": -2.3568
     },
     {
       "resource": "fertilizerOrganic",
-      "produced": 59.1499,
-      "consumed": 59.1499,
+      "produced": 60,
+      "consumed": 60,
       "net": 0
     },
     {
@@ -1068,8 +1068,8 @@
     },
     {
       "resource": "gravel",
-      "produced": 70.3286,
-      "consumed": 70.3286,
+      "produced": 70.7373,
+      "consumed": 70.7373,
       "net": 0
     },
     {
@@ -1135,8 +1135,8 @@
     {
       "resource": "rock",
       "produced": 0,
-      "consumed": 73.6625,
-      "net": -73.6625
+      "consumed": 74.0711,
+      "net": -74.0711
     },
     {
       "resource": "rubber",
@@ -1152,8 +1152,8 @@
     },
     {
       "resource": "dirt",
-      "produced": 106.9616,
-      "consumed": 106.9616,
+      "produced": 107.779,
+      "consumed": 107.779,
       "net": 0
     },
     {

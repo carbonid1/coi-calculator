@@ -195,138 +195,44 @@ export const NetSummary: React.FC<Props> = ({
     || unityBudget != null
   );
   const renderResourceName = (flow: ResourceFlow) => onInspectResource ? (
-    <Button variant="link" size="small" className="h-auto justify-start p-0 text-left"
+    <Button variant="link" size="small" className="h-auto justify-start border-0 p-0 text-left text-sm font-medium leading-5 whitespace-normal"
       aria-label={`Inspect ${flow.name} supply`} onClick={() => onInspectResource(flow.resourceId)}>
       {flow.name}
     </Button>
   ) : <span>{flow.name}</span>;
   const renderBalanceGroup = (group: (typeof balanceGroups)[number]) => {
-    if (group.label === "Deficit" && capacityLimitedDeficits.length > 0) {
-      return (
-        <div className="space-y-4">
-          <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
-            <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground">
-              Capacity limited
-            </h5>
-            <div className="space-y-1">
-              {capacityLimitedDeficits.map(({ flow, capacityLimit }) => (
-                <div key={flow.resourceId} className="-mx-1 flex items-start justify-between gap-3 rounded px-1 py-1 text-sm hover:bg-accent">
-                  <span className="flex flex-col text-foreground">
-                    {renderResourceName(flow)}
-                    <span className="text-xs text-muted-foreground">
-                      {capacityLimit}
-                    </span>
-                  </span>
-                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                    {formatNet(flow.net)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {otherDeficits.length > 0 && (
-            <div className="space-y-1">
-              <h5 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Other deficits
-              </h5>
-              {otherDeficits.map(({ flow, rootCause }) => (
-                <div key={flow.resourceId} className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-1 text-sm hover:bg-accent">
-                  <span className="flex flex-col text-foreground">
-                    {renderResourceName(flow)}
-                    <span className="text-xs text-muted-foreground">
-                      {rootCause.detail}
-                    </span>
-                  </span>
-                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                    {formatNet(flow.net)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    if (group.label === "Deficit" && otherDeficits.length > 0) {
-      return (
-        <div className="space-y-1">
-          {otherDeficits.map(({ flow, rootCause }) => (
-            <div key={flow.resourceId} className="-mx-2 flex items-start justify-between gap-3 rounded px-2 py-1 text-sm hover:bg-accent">
-              <span className="flex flex-col text-foreground">
-                {renderResourceName(flow)}
-                <span className="text-xs text-muted-foreground">
-                  {rootCause.detail}
-                </span>
-              </span>
-              <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                {formatNet(flow.net)}
-              </span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
     if (group.flows.length === 0) {
       return <p className="text-sm text-muted-foreground">None</p>;
     }
-
-    if (group.label === "Surplus" && unroutedSurpluses.length > 0) {
-      const otherFlows = group.flows.filter(
-        (flow) => !unroutedSurplusIds.has(flow.resourceId),
-      );
-
-      return (
-        <div className="space-y-4">
-          <div className="inset-shadow-surface rounded-lg bg-surface-inset p-3">
-            <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground">
-              Unrouted
-            </h5>
-            <div className="space-y-1">
-              {unroutedSurpluses.map(({ flow, detail }) => (
-                <div key={flow.resourceId} className="-mx-1 flex items-start justify-between gap-3 rounded px-1 py-1 text-sm hover:bg-accent">
-                  <span className="flex flex-col text-foreground">
-                    <span className="font-medium">{flow.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {detail}
-                    </span>
-                  </span>
-                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                    {formatNet(flow.net)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {otherFlows.length > 0 && (
-            <div className="space-y-1">
-              {otherFlows.map((flow) => (
-                <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
-                  <span className="text-foreground">{flow.name}</span>
-                  <span className={`font-mono font-semibold tabular-nums ${group.valueClassName}`}>
-                    {formatNet(flow.net)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
+    const sections: { label?: string; entries: { flow: ResourceFlow; detail?: string | null }[] }[] = group.label === "Deficit"
+      ? [
+          { label: "Capacity limited", entries: capacityLimitedDeficits.map(({ flow, capacityLimit }) => ({ flow, detail: capacityLimit })) },
+          { label: capacityLimitedDeficits.length > 0 ? "Other deficits" : undefined,
+            entries: otherDeficits.map(({ flow, rootCause }) => ({ flow, detail: rootCause.detail })) },
+        ]
+      : [
+          { label: "Unrouted", entries: unroutedSurpluses },
+          { entries: group.flows.filter(flow => !unroutedSurplusIds.has(flow.resourceId)).map(flow => ({ flow })) },
+        ];
 
     return (
-      <div className="space-y-1">
-        {group.flows.map((flow) => (
-          <div key={flow.resourceId} className="-mx-2 flex justify-between rounded px-2 py-0.5 text-sm hover:bg-accent">
-            <span className="text-foreground">
-              {flow.name}
-            </span>
-            <span className={`font-mono font-semibold ${group.valueClassName}`}>
-              {formatNet(flow.net)}
-            </span>
+      <div className="space-y-3">
+        {sections.filter(section => section.entries.length > 0).map(section => (
+          <div key={section.label ?? "other"}>
+            {section.label && <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{section.label}</h5>}
+            <ul className="space-y-1">
+              {section.entries.map(({ flow, detail }) => (
+                <li key={flow.resourceId} className="-mx-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-lg px-2 py-1 hover:bg-accent">
+                  <div className="flex min-w-0 flex-col items-start gap-0.5 text-sm font-medium leading-5 text-foreground">
+                    {group.label === "Deficit" ? renderResourceName(flow) : <span>{flow.name}</span>}
+                    {detail && <span className="text-xs font-normal leading-4 text-muted-foreground">{detail}</span>}
+                  </div>
+                  <span className={`font-mono text-sm font-semibold leading-5 tabular-nums ${group.valueClassName}`}>
+                    {formatNet(flow.net)}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         ))}
       </div>
@@ -414,10 +320,10 @@ export const NetSummary: React.FC<Props> = ({
               <BuildingAttentionView diagnostics={buildingDiagnostics} onOpenBuilding={onOpenBuilding} onKeepReadyChange={onKeepReadyChange} />
             </>
           )}
-          <div className="grid gap-2 lg:grid-cols-2">
+          <div className="grid items-start gap-2 lg:grid-cols-2">
             {balanceGroups.map(group => (
               <section key={group.label} className="rounded-lg bg-surface-inset p-3 inset-shadow-surface">
-                <h4 className="mb-2 text-sm font-semibold text-foreground">{group.label} / cycle</h4>
+                <h4 className="mb-3 text-sm font-semibold text-foreground">{group.label} / cycle</h4>
                 {renderBalanceGroup(group)}
               </section>
             ))}

@@ -62,7 +62,7 @@ it('applies crop plans when the saved area only contains farms under constructio
 
   expect(preset?.constructionGhosts?.[recipeId]).toBe(1)
   expect(preset?.planMismatches?.find(mismatch => mismatch.recipeId === recipeId)?.actions)
-    .toEqual([{ type: 'configure', label: 'Set 1 to Canola / Corn / Wheat · 140% fertility' }])
+    .toEqual([{ type: 'configure', label: 'Set 1 to Potato / Corn / Soybean · 140% fertility' }])
   expect(Object.values(preset?.unplacedPlannedBuildings ?? {}).reduce((sum, count) => sum + count, 0))
     .toBe(9)
 })

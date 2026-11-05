@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { activeCropFarmGroups } from '../../db/crop-farm-plans'
-import { crops, type CropFarmGroup, type CurrentCropFarmEntity } from '../../db/crop-farming'
+import { type CropFarmGroup, type CurrentCropFarmEntity } from '../../db/crop-farming'
 import { allocateCropFarmPlan } from './crop-farm-plan'
 
 const group: CropFarmGroup = {
@@ -79,12 +78,4 @@ describe('crop rotation plans', () => {
     ])
   })
 
-  it('keeps the saved plan free of repeated-crop fertility penalties across the cycle boundary', () => {
-    for (const { schedule } of activeCropFarmGroups) {
-      for (const [index, cropId] of schedule.entries()) {
-        if (crops[cropId].fertilityPercentPerDay <= 0) continue
-        expect(cropId).not.toBe(schedule[(index + 1) % schedule.length])
-      }
-    }
-  })
 })

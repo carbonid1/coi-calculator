@@ -6,6 +6,7 @@ import { type ChickenFarmDefinition } from '../app/chicken-farm-state'
 import { getCropFarmingData, type CropFarmingDefinitions } from '../app/crop-farming-state'
 import { getRackAllocation } from '../app/db/computing'
 import { getContractCatalog } from '../app/db/contracts'
+import { activeCropFarmGroups } from '../app/db/crop-farm-plans'
 import { calculateCropFarmGroupRates, type CropFarmGroup } from '../app/db/crop-farming'
 import { getEdictCatalog, mapEdictValues } from '../app/db/edicts'
 import { getHousingTypes } from '../app/db/housing'
@@ -532,6 +533,13 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   const snapshot = normalizeGameStateSnapshot(capture)
 
   if (!snapshot) throw new Error('Recorded factory no longer matches the supported Bridge schema')
+  // Installed 0.8.8 Farm.SetFertilityTarget quantizes targets to ten-percent steps.
+  for (const group of activeCropFarmGroups) if (group.fertilizer)
+    expect(group.fertilizer.targetFertilityPercent % 10).toBe(0)
+  for (const { schedule } of activeCropFarmGroups) for (const [index, cropId] of schedule.entries()) {
+    if (getCropFarmingData(snapshot.cropFarming).crop(cropId).fertilityPercentPerDay > 0)
+      expect(cropId).not.toBe(schedule[(index + 1) % schedule.length])
+  }
   const model = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'recorded-factory' })
   const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
   const stats = calculateBuildingStats(factoryResult.allLines, factoryResult.calculation, model.outputModifiers)
