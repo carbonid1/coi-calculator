@@ -2029,7 +2029,10 @@ export const calculateNet = (
           const flow = getFlow(output.resourceId);
           const moduleFlow = getActualModuleFlow(line.moduleId, output.resourceId);
           const excess = Math.min(
-            flow.produced - flow.consumed,
+            // Fallback sources are provisional until finalization. Their unused
+            // capacity must not make ordinary production look like overproduction.
+            flow.produced - flow.consumed
+              - (fallbackSourceCapacityByResource.get(output.resourceId) ?? 0),
             moduleFlow.produced - moduleFlow.consumed,
           );
 

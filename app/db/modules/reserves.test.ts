@@ -30,13 +30,21 @@ const calculateReserve = (
   balance: number | null,
   imported: number,
   demand: number,
+  production = 0,
 ) => {
   const reservesModule = createReservesModule(mapReserveResources(
     reserve => reserve.resourceId === resourceId ? balance : 0,
   ));
   const preset = reservesModule.presets[0] ?? null;
   const result = calculateNet(
-    buildModuleLines(reservesModule, preset).lines,
+    [...buildModuleLines(reservesModule, preset).lines, ...(production > 0 ? [{
+      moduleId: 'production', activeBuildings: 1, builtBuildings: 1, speedLevel: 1,
+      operatingMode: 'balanced' as const,
+      recipe: {
+        id: 'production', name: 'Production', building: 'Producer', group: 'production' as const,
+        balanceBy: 'output' as const, inputs: [], outputs: [{ resourceId, quantity: production }],
+      },
+    }] : [])],
     { [resourceId]: imported },
     90,
     {},
@@ -60,11 +68,17 @@ it("uses the synced Gold reserve only for demand left after current supply", () 
   ]);
 });
 
-it.each(["fuelGas", "sulfur", "rock"] as const)("uses the synced %s reserve only for demand left after current supply", resourceId => {
+it.each(["fuelGas", "sulfur", "rock", "dirt"] as const)("uses the synced %s reserve only for demand left after current supply", resourceId => {
   expect(calculateReserve(resourceId, 12_000, 8, 72)?.actualOutputs).toEqual([
     { resourceId, quantity: 64 },
   ]);
   expect(calculateReserve(resourceId, 12_000, 72, 72)?.actualOutputs).toEqual([
+    { resourceId, quantity: 0 },
+  ]);
+  expect(calculateReserve(resourceId, 12_000, 8, 72, 24)?.actualOutputs).toEqual([
+    { resourceId, quantity: 40 },
+  ]);
+  expect(calculateReserve(resourceId, 12_000, 8, 20, 24)?.actualOutputs).toEqual([
     { resourceId, quantity: 0 },
   ]);
 });

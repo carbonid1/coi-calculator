@@ -78,7 +78,7 @@
     }
   ],
   "totals": {
-    "lines": 587,
+    "lines": 588,
     "workers": 7356,
     "electricityMw": 296.9609,
     "computingTflops": 1357.2913,
@@ -278,6 +278,12 @@
       "resource": "rock",
       "produced": 74.0711,
       "consumed": 74.0711,
+      "net": 0
+    },
+    {
+      "resource": "dirt",
+      "produced": 107.779,
+      "consumed": 107.779,
       "net": 0
     },
     {
@@ -1148,12 +1154,6 @@
       "resource": "impureCopper",
       "produced": 242.7682,
       "consumed": 242.7682,
-      "net": 0
-    },
-    {
-      "resource": "dirt",
-      "produced": 107.779,
-      "consumed": 107.779,
       "net": 0
     },
     {

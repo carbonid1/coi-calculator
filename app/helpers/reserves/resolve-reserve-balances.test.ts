@@ -11,10 +11,11 @@ it('counts 200k+ of linked sulfur once while preserving other reserve policies',
   const sulfur = storage(1, 'Sulfur', 250123, true)
 
   const rock = storage(6, 'Rock', 12000, true)
+  const dirt = storage(7, 'Dirt', 60000, true)
 
-  expect(resolveReserveBalances([sulfur, sulfur, storage(2, 'Sulfur', 5000), rock, rock,
+  expect(resolveReserveBalances([sulfur, sulfur, storage(2, 'Sulfur', 5000), rock, rock, dirt, dirt,
     storage(3, 'Gold', 1000, true), storage(4, 'Gold', 10), storage(5, 'Fuel Gas', 50)]))
-    .toEqual({ sulfur: 255123, gold: 10, fuelGas: 50, rock: 12000 })
+    .toEqual({ sulfur: 255123, gold: 10, fuelGas: 50, rock: 12000, dirt: 60000 })
 })
 
 it('follows storage reassignment without a saved list of entity IDs', () => {
