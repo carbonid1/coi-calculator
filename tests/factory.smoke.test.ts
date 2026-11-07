@@ -35,6 +35,7 @@ import { calculatePopulationResearchBonus } from '../app/helpers/modifiers/calcu
 import { withFactoryDefinition } from '../app/helpers/planning-recipes/factory-recipes'
 import { withPlanningDefinition } from '../app/helpers/planning-recipes/planning-recipes'
 import { calculateReserveRunway, getReserveDrawPerProductionCycle } from '../app/helpers/reserves/reserves'
+import { calculateOreRequirements } from '../app/helpers/resource-requirements/ore-requirements'
 import { createSpaceResearchAttention } from '../app/helpers/space-research-attention/space-research-attention'
 import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-config/synced-production-config'
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
@@ -106,6 +107,60 @@ it('replays the complete Science expansion preset and returns to the latest live
   const scienceResult = calculateFactoryCalculation(science.factoryCalculationInput)
   const currentWater = calculateFreshwaterUse(currentResult, baseline.outputModifiers)
   const scienceWater = calculateFreshwaterUse(scienceResult, science.outputModifiers)
+  const currentOres = calculateOreRequirements(currentResult)
+  const scienceOres = calculateOreRequirements(scienceResult)
+
+  expect(currentOres.ironOre).toBeGreaterThan(0)
+  expect(currentOres.copperOre).toBeGreaterThan(0)
+  expect(scienceOres.ironOre).toBeGreaterThan(0)
+  expect(scienceOres.copperOre).toBeGreaterThan(0)
+  const extraSupply = structuredClone(currentResult)
+
+  for (const result of [extraSupply.factoryResult.calculation, ...extraSupply.linkedModulesResult.moduleResults.values()]) {
+    for (const source of [...result.regularResults, ...result.sourceResults, ...result.sinkResults]) {
+      for (const output of source.actualOutputs) {
+        if (output.resourceId === 'ironOre' || output.resourceId === 'copperOre') output.quantity += 500
+      }
+    }
+  }
+  for (const flow of extraSupply.factoryResult.contractFlows) {
+    if (flow.kind === 'import') flow.quantity += 500
+  }
+  if (extraSupply.worldMines) {
+    extraSupply.worldMines.supplies.ironOre = (extraSupply.worldMines.supplies.ironOre ?? 0) + 500
+    extraSupply.worldMines.supplies.copperOre = (extraSupply.worldMines.supplies.copperOre ?? 0) + 500
+  }
+  expect(calculateOreRequirements(extraSupply)).toEqual(currentOres)
+  const storedSupply = structuredClone(currentResult)
+
+  for (const result of [storedSupply.factoryResult.calculation, ...storedSupply.linkedModulesResult.moduleResults.values()]) {
+    for (const source of [...result.regularResults, ...result.sourceResults, ...result.sinkResults]) {
+      if (source.actualOutputs.some(output => output.resourceId === 'ironOre' || output.resourceId === 'copperOre')) {
+        source.recipe = { ...source.recipe, sourceKind: 'virtual-provision' }
+      }
+    }
+  }
+  for (const flow of storedSupply.factoryResult.contractFlows) {
+    if (flow.kind === 'import') flow.quantity = 0
+  }
+  if (storedSupply.worldMines) {
+    storedSupply.worldMines.supplies.ironOre = 0
+    storedSupply.worldMines.supplies.copperOre = 0
+  }
+  // Changing supply origin does not change material already used by production.
+  expect(calculateOreRequirements(storedSupply)).toEqual(currentOres)
+  extraSupply.linkedModulesResult.transfers.push({ id: 'ore-transfer', resourceId: 'ironOre',
+    sourceModuleId: 'ore-source', sourceModuleName: 'Ore source', targetModuleId: 'ore-consumer', targetModuleName: 'Ore consumer',
+    mode: 'produce-to-demand', quantity: 500, requestedQuantity: 500 })
+  expect(calculateOreRequirements(extraSupply)).toEqual(currentOres)
+  for (const resourceId of ['Product_IronOre', 'Product_CopperOre']) {
+    expect(snapshot.planningDefinitions.factory.recipes.filter(recipe => recipe.outputs.some(output => output.productId === resourceId))).toEqual([])
+  }
+  const payment = currentResult.factoryResult.contractFlows[0]!
+
+  extraSupply.factoryResult.contractFlows.push({ ...payment, kind: 'export', resourceId: 'ironOre', quantity: 5 },
+    { ...payment, kind: 'export', resourceId: 'copperOre', quantity: 7 })
+  expect(calculateOreRequirements(extraSupply)).toEqual({ ironOre: currentOres.ironOre + 5, copperOre: currentOres.copperOre + 7 })
 
   expect(currentWater.groundwater).toBeGreaterThan(0)
   expect(currentWater.farmRain).toBeGreaterThan(0)

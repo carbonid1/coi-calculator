@@ -47,8 +47,9 @@ export const ResourceTooltip = ({ label, detail, className, children, onClick }:
 }
 
 /** Named tokens are inert by default for use inside links and menu items. */
-export const ResourceToken = ({ resourceId, named = false, interactive = !named, detail, amount, layout = 'inline', className, onInspect }: {
+export const ResourceToken = ({ resourceId, label, named = false, interactive = !named, detail, amount, layout = 'inline', className, onInspect }: {
   resourceId: ResourceId
+  label?: string
   named?: boolean
   interactive?: boolean
   detail?: string
@@ -62,7 +63,7 @@ export const ResourceToken = ({ resourceId, named = false, interactive = !named,
   const onClick = interactive ? onInspect ?? (inspectResource ? () => inspectResource(resourceId) : undefined) : undefined
   const [failedSource, setFailedSource] = useState<string>()
   const source = getProductIconUrl(resources[resourceId].productId, products?.sessionId)
-  const name = resources[resourceId].name
+  const name = label ?? resources[resourceId].name
   const showImage = source && source !== failedSource
   const stacked = layout === 'stacked' && named && amount != null
   const textColumn = showImage ? 'col-start-2' : 'col-start-1'

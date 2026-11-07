@@ -376,7 +376,11 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     const requirements = () => evaluate(`document.querySelector('[aria-label="Resource requirements"]').innerText`)
     const scienceRequirements = await requirements()
 
-    assert.match(scienceRequirements, /Freshwater[\s\S]*Consumed per in-game month[\s\S]*Groundwater[\s\S]*World-mine deliveries[\s\S]*Farm rain/)
+    assert.match(scienceRequirements, /Consumed per in-game month[\s\S]*Freshwater[\s\S]*Iron ore[\s\S]*Copper ore[\s\S]*Groundwater[\s\S]*World-mine deliveries[\s\S]*Farm rain/i)
+    const oreValues = await evaluate(`['ironOre', 'copperOre'].map(id => Number(document.querySelector('[data-requirement-value="' + id + '"]').textContent.replaceAll(',', '')))`)
+
+    assert.ok(oreValues.every(quantity => Number.isFinite(quantity) && quantity > 0))
+    await browser('wait', '--fn', `Array.from(document.querySelectorAll('[aria-label="Resource consumption"] img')).length === 3 && Array.from(document.querySelectorAll('[aria-label="Resource consumption"] img')).every(icon => icon.complete && icon.naturalWidth > 0)`)
     assert.doesNotMatch(scienceRequirements, /Unused supply|Experiment|Reference|Reset|Research levels/)
     assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Resource requirements"] input, [aria-label="Resource requirements"] [role=slider]').length`), 0)
     assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Factory area"]').length`), 0)
