@@ -20,3 +20,19 @@ export const activeCropFarmGroups: readonly CropFarmGroup[] = [
   group(['wheat', 'fruit', 'soybean', 'fruit']),
   group(['vegetables', 'canola', 'poppy', 'canola']),
 ]
+
+/** Planned Third FBR rotations for 27 Housing III and 3,850 chickens. */
+export const thirdFbrCropFarmGroups: readonly CropFarmGroup[] = [
+  group(['corn', 'vegetables']),
+  group(['potato', 'corn', 'soybean']),
+  group(['corn', 'wheat', 'vegetables']),
+  group(['wheat', 'poppy', 'greenManure'], 1, 130),
+  group(['potato', 'corn', 'wheat', 'corn']),
+  group(['potato', 'corn', 'wheat', 'canola']),
+  group(['corn', 'wheat', 'corn', 'vegetables']),
+  group(['corn', 'vegetables', 'corn', 'fruit']),
+  group(['wheat', 'treeSapling', 'wheat', 'fruit'], 1, 100),
+  group(['wheat', 'soybean', 'fruit', 'canola'], 1, 120),
+  group(['wheat', 'sugarCane', 'wheat', 'fruit'], 1, 130),
+  group(['wheat', 'fruit', 'wheat', 'canola']),
+]

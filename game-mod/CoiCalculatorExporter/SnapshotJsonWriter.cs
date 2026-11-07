@@ -31,6 +31,11 @@ internal static partial class SnapshotJsonWriter
         appendCropFarming(json, snapshot.CropFarming);
         appendRecycling(json, snapshot.Recycling);
         appendBuildingDefinitions(json, snapshot.BuildingDefinitions);
+        appendElectricity(json, snapshot.Electricity);
+        json.Name("maintenancePlanning").BeginObject();
+        json.Field("consumptionMultiplier", snapshot.MaintenancePlanning.ConsumptionMultiplier);
+        json.Field("idleMultiplier", snapshot.MaintenancePlanning.IdleMultiplier);
+        json.EndObject();
         json.Field("gameVersion", Mafi.GameVersion.Version.ToString());
         json.Field("gameId", snapshot.GameId);
         json.Field("sessionId", snapshot.SessionId);

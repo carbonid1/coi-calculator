@@ -5,7 +5,7 @@ import { type ResourceId } from '../../db/resources'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
 import { type ResourceFlow } from '../calculate/calculate'
 import { calculateLinkedModules, type PooledLinkCalculationInput } from '../calculate-linked-modules/calculate-linked-modules'
-import { calculateFactoryTotal } from '../factory-total/factory-total'
+import { calculateFactoryTotal, type FactoryTotalOptions } from '../factory-total/factory-total'
 import { getRecipeInputQuantity, type RecipeModifierMultipliers } from '../modifiers/recipe-output'
 import { typedEntries } from '../typed-entries/typed-entries'
 import { calculateWorldMines, type WorldMineResult } from '../world-mines/calculate-world-mines'
@@ -21,13 +21,31 @@ export interface FactoryCalculationInput {
   externalSupplies?: Partial<Record<ResourceId, number>>
   externalDemands?: Partial<Record<ResourceId, number>>
   worldMinePlanning?: WorldMinePlanning
+  powerPlanning?: {
+    measuredDemandMw: number
+    bufferPercent: number
+    /** Current configuration derived from the same snapshot, without future overrides. */
+    baseline?: FactoryCalculationInput
+  }
+}
+
+export interface PowerProjection {
+  measuredDemandMw: number
+  plannedDeltaMw: number
+  demandMw: number
+  bufferPercent: number
+  bufferMw: number
+  capacityTargetMw: number
 }
 
 export interface FactoryCalculation {
   factoryResult: ReturnType<typeof calculateFactoryTotal>
   linkedModulesResult: ReturnType<typeof calculateLinkedModules>
   worldMines?: WorldMineResult
+  powerProjection?: PowerProjection
 }
+
+type ModeledFactoryInput = FactoryCalculationInput & Pick<FactoryTotalOptions, 'electricityDemandAdjustmentMw' | 'electricityDemandOverrideMw'>
 
 /**
  * Named links couple isolated ledgers to the pooled factory. Every pooled
@@ -43,7 +61,9 @@ const calculateLinkedFactory = ({
   recyclingEfficiencyPercent,
   externalSupplies,
   externalDemands,
-}: FactoryCalculationInput): FactoryCalculation => {
+  electricityDemandAdjustmentMw,
+  electricityDemandOverrideMw,
+}: ModeledFactoryInput): FactoryCalculation => {
   const modulesById = new Map(modules.map(module => [module.id, module]))
   const activeLinks = links.filter(link => (
     modulesById.get(link.sourceModuleId)?.liveArea
@@ -83,6 +103,7 @@ const calculateLinkedFactory = ({
   const factoryOptions = {
     contracts, externalSupplies, externalDemands, recyclingEfficiencyPercent,
     outputModifiers, contractsProfitMultiplier, moduleDrivingInputIds,
+    electricityDemandAdjustmentMw, electricityDemandOverrideMw,
   }
   const progress: { factoryResult?: FactoryCalculation['factoryResult']; initialContractResults?: FactoryCalculation['factoryResult']['contractResults'] } = {}
   const cache = new Map<string, FactoryCalculation['factoryResult']>()
@@ -156,7 +177,7 @@ const calculateLinkedFactory = ({
   }
 }
 
-export const calculateFactoryCalculation = (input: FactoryCalculationInput): FactoryCalculation => {
+const calculateModeledFactory = (input: ModeledFactoryInput): FactoryCalculation => {
   if (!input.worldMinePlanning) return calculateLinkedFactory(input)
   const full = calculateWorldMines(input.worldMinePlanning.world)
   const balanced = getBalancedWorldResources(input.worldMinePlanning).filter(id => (full.supplies[id] ?? 0) > 0)
@@ -189,4 +210,37 @@ export const calculateFactoryCalculation = (input: FactoryCalculationInput): Fac
     allocation.result = run(next)
   }
   return allocation.result
+}
+
+// The baseline changes with the game snapshot, not with each edit to a future
+// plan. Keep only a few numeric results in the worker, rather than full solves.
+const baselinePowerCache = new Map<string, number>()
+
+const getBaselineModeledDemand = (baseline: FactoryCalculationInput) => {
+  const key = JSON.stringify(baseline)
+  const demandMw = baselinePowerCache.get(key) ?? calculateModeledFactory(baseline).factoryResult.modeledElectricityDemandMw
+
+  baselinePowerCache.set(key, demandMw)
+  const oldest = baselinePowerCache.keys().next().value
+
+  if (baselinePowerCache.size > 3 && oldest !== undefined) baselinePowerCache.delete(oldest)
+  return demandMw
+}
+
+export const calculateFactoryCalculation = (input: FactoryCalculationInput): FactoryCalculation => {
+  const planning = input.powerPlanning
+
+  if (!planning) return calculateModeledFactory(input)
+  const { measuredDemandMw, bufferPercent, baseline } = planning
+  const baselineModeledMw = baseline ? getBaselineModeledDemand(baseline) : 0
+  const result = calculateModeledFactory({ ...input, ...(baseline
+    ? { electricityDemandAdjustmentMw: measuredDemandMw - baselineModeledMw }
+    : { electricityDemandOverrideMw: measuredDemandMw }) })
+  const demandMw = result.factoryResult.electricityDemandMw
+  const bufferMw = demandMw * bufferPercent / 100
+
+  return { ...result, powerProjection: {
+    measuredDemandMw, plannedDeltaMw: demandMw - measuredDemandMw,
+    demandMw, bufferPercent, bufferMw, capacityTargetMw: demandMw + bufferMw,
+  } }
 }

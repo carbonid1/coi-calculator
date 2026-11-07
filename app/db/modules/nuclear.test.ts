@@ -49,7 +49,6 @@ it("layers a pending operation target over exact synced inventory", () => {
     emptyPlanningBaselines,
     {
       ...plannedNuclearOperation,
-      generationTargetMw: 0,
       hydrogenReformerCount: 6,
       chlorineProcessingCount: 0,
       saltProcessingCount: 0,
@@ -91,9 +90,10 @@ it("uses the synced reactor enrichment and power configuration", () => {
     "fbr-3x": "synced",
   });
   expect(nuclearModule.gameSynced).toBe(true);
+  expect(preset?.electricityDispatchTargets).toBeUndefined();
 });
 
-it("projects turbine operation from synced reactor capacity", () => {
+it("keeps synced turbine inventory and leaves generation demand driven", () => {
   const entities = [
     reactor(0, 400),
     ...makeMany(8, 3, "TurbineSuperPress"),
@@ -115,18 +115,18 @@ it("projects turbine operation from synced reactor capacity", () => {
     "power-generator-ii-nuclear": 16,
   });
   expect(preset?.activeBuildings).toMatchObject({
-    "turbine-super": 6,
-    "turbine-high": 6,
-    "turbine-low": 6,
-    "power-generator-ii-nuclear": 12,
+    "turbine-super": 3,
+    "turbine-high": 3,
+    "turbine-low": 3,
+    "power-generator-ii-nuclear": 6,
   });
   expect(preset?.dataSources).toMatchObject({
-    "turbine-super": "planned",
-    "turbine-high": "planned",
-    "turbine-low": "planned",
-    "power-generator-ii-nuclear": "planned",
+    "turbine-super": "synced",
+    "turbine-high": "synced",
+    "turbine-low": "synced",
+    "power-generator-ii-nuclear": "synced",
   });
-  expect(preset?.electricityDispatchTargets?.["fbr-turbines"]).toBe(159);
+  expect(preset?.electricityDispatchTargets).toBeUndefined();
 });
 
 it("returns reached operation targets to synced state", () => {
@@ -168,7 +168,6 @@ it("keeps standard and tall seawater pumps at their synced running counts", () =
     emptyPlanningBaselines,
     {
       ...plannedNuclearOperation,
-      generationTargetMw: 0,
       hydrogenReformerCount: 0,
       chlorineProcessingCount: 0,
       saltProcessingCount: 0,

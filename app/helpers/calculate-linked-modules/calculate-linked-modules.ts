@@ -6,6 +6,7 @@ import { type Module, type Preset } from '../../db/modules/modules'
 import { getFactoryResourceRequests, resourceSupplyRules } from '../../db/resource-supply'
 import { type ResourceId } from '../../db/resources'
 import { buildModuleLines } from '../build-module-lines/build-module-lines'
+import { calculateBuildingStats } from '../building-stats/building-stats'
 import {
   calculateNet,
   type PassiveResult,
@@ -172,8 +173,12 @@ const getRunBoundaries = (
   run: ModuleRun,
   links: readonly ModuleResourceLink[],
   quantities: ReadonlyMap<string, number>,
+  outputModifiers: RecipeModifierMultipliers,
 ): ModuleResourceBoundary[] => {
   const resourceIds = getFlowResourceIds(moduleId, run.calculation)
+  const electricityDemandMw = calculateBuildingStats(run.lines, run.calculation, outputModifiers).electricityKw / 1000
+
+  if (electricityDemandMw > 0) resourceIds.add('electricity')
 
   for (const [resourceId] of typedEntries(run.preset?.fixedDemands ?? {})) resourceIds.add(resourceId)
   for (const [resourceId] of typedEntries(run.preset?.requestedImports ?? {})) resourceIds.add(resourceId)
@@ -183,6 +188,7 @@ const getRunBoundaries = (
 
   return [...resourceIds].map(resourceId => {
     const rule = resolveModuleResourceBoundary(moduleId, resourceId, links, run.preset)
+    const flow = getResultFlow(moduleId, run.calculation, resourceId)
     let received = 0
     let sent = 0
     let demandTriggeredSent = 0
@@ -200,7 +206,8 @@ const getRunBoundaries = (
     return {
       moduleId, resourceId, rule,
       ...calculateModuleResourceBoundary(rule, {
-        ...getResultFlow(moduleId, run.calculation, resourceId),
+        produced: flow.produced,
+        consumed: flow.consumed + (resourceId === 'electricity' ? electricityDemandMw : 0),
         fixedDemand: run.preset?.fixedDemands?.[resourceId] ?? 0,
         received, sent, demandTriggeredSent,
       }),
@@ -416,7 +423,7 @@ export const calculateLinkedModules = ({
       const boundarySupplies: Partial<Record<ResourceId, number>> = {}
 
       for (const [moduleId, run] of runs) {
-        for (const boundary of getRunBoundaries(moduleId, run, activeLinks, transferQuantities)) {
+        for (const boundary of getRunBoundaries(moduleId, run, activeLinks, transferQuantities, outputModifiers)) {
           addQuantity(boundaryDemands, boundary.resourceId, boundary.factoryDemand)
           addQuantity(boundarySupplies, boundary.resourceId, boundary.factorySupply)
         }
@@ -661,7 +668,7 @@ export const calculateLinkedModules = ({
       lines: run.lines,
     })
 
-    for (const boundary of getRunBoundaries(moduleDefinition.id, run, activeLinks, transferQuantities)) {
+    for (const boundary of getRunBoundaries(moduleDefinition.id, run, activeLinks, transferQuantities, outputModifiers)) {
       const { resourceId } = boundary
 
       boundaries.push(boundary)

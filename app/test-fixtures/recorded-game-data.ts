@@ -67,3 +67,4 @@ const snapshot = normalizeGameStateSnapshot(capture)
 
 if (!snapshot) throw new Error('Recorded factory snapshot is incompatible')
 export const testGroundwater = snapshot.groundwater
+export const testNativeBuildingDefinitions = snapshot.buildingDefinitions

@@ -5,7 +5,7 @@ import { type Module } from '../../db/modules/modules'
 import { type Recipe } from '../../db/recipes'
 import { testRecipes as recipes } from '../../test-fixtures/solver-recipes'
 import { getResourceSupplyRows } from '../resource-supply/resource-supply'
-import { calculateFactoryCalculation } from './factory-calculation'
+import { calculateFactoryCalculation, type FactoryCalculationInput } from './factory-calculation'
 
 const steamIds = ['steamSuper', 'steamHigh', 'steamLow', 'steamDepleted'] as const
 const moduleWith = (id: string, recipes: Recipe[], pooled = true): Module => ({
@@ -28,6 +28,64 @@ const recipe = (id: string, overrides: Partial<Recipe>): Recipe => ({
 const calculate = (modules: Module[], links: ModuleResourceLink[] = []) => calculateFactoryCalculation({
   modules, links, contracts: [], contractsProfitMultiplier: 1, outputModifiers: {},
   recyclingEfficiencyPercent: 100,
+})
+
+it.each([false, true])('dispatches power for separately calculated areas exactly once (linked: %s)', linked => {
+  const power = moduleWith('Power', [
+    recipe('generator', {
+      group: 'electricity', buildingData: { workers: 0, electricityKw: 0 },
+      outputs: [{ resourceId: 'electricity', quantity: 100 }],
+      electricityDispatch: { groupId: 'power', priority: 1 },
+    }),
+    recipe('water-source', {
+      buildingData: { workers: 0, electricityKw: 0 }, outputs: [{ resourceId: 'water', quantity: 1 }],
+    }),
+  ])
+  const isolated = moduleWith('Isolated', [recipe('electric-load', {
+    buildingData: { workers: 0, electricityKw: 5000 },
+    inputs: linked ? [{ resourceId: 'water', quantity: 1 }] : [],
+  })], false)
+
+  isolated.presets[0]!.fixed = ['electric-load']
+  const result = calculate([power, isolated], linked ? [{
+    id: 'water', resourceId: 'water', mode: 'produce-to-demand',
+    sourceModuleId: power.id, sourceModuleName: power.name,
+    targetModuleId: isolated.id, targetModuleName: isolated.name,
+  }] : [])
+
+  expect(result.factoryResult.electricityDemandMw).toBeCloseTo(5)
+  expect(result.factoryResult.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBeCloseTo(5)
+})
+
+it.each([3, 8])('adds the plan delta to %s MW of measured demand, including a signed model correction', demandMw => {
+  const power = moduleWith('Power', [recipe('generator', {
+    group: 'electricity', buildingData: { workers: 0, electricityKw: 0 },
+    outputs: [{ resourceId: 'electricity', quantity: 100 }],
+    electricityDispatch: { groupId: 'power', priority: 1 },
+  })])
+  const load = moduleWith('Factory', [recipe('load', { buildingData: { workers: 0, electricityKw: 5000 } })])
+
+  load.presets[0]!.fixed = ['load']
+  const baseline: FactoryCalculationInput = {
+    modules: [power, load], links: [], contracts: [], contractsProfitMultiplier: 1,
+    outputModifiers: {}, recyclingEfficiencyPercent: 100,
+  }
+  const addition = moduleWith('Planned', [recipe('addition', { buildingData: { workers: 0, electricityKw: 4000 } })], false)
+
+  addition.presets[0]!.fixed = ['addition']
+  const current = calculateFactoryCalculation({ ...baseline, powerPlanning: { measuredDemandMw: demandMw, bufferPercent: 20 } })
+  const planned = calculateFactoryCalculation({ ...baseline, modules: [...baseline.modules, addition],
+    powerPlanning: { measuredDemandMw: demandMw, bufferPercent: 20, baseline },
+  })
+
+  expect(current.factoryResult.electricityDemandMw).toBeCloseTo(demandMw)
+  expect(current.powerProjection?.plannedDeltaMw).toBeCloseTo(0)
+  expect(planned.powerProjection).toMatchObject({ measuredDemandMw: demandMw, bufferPercent: 20 })
+  expect(planned.powerProjection?.plannedDeltaMw).toBeCloseTo(4)
+  expect(planned.powerProjection?.capacityTargetMw).toBeCloseTo((demandMw + 4) * 1.2)
+  expect(planned.factoryResult.electricityDemandMw).toBeCloseTo(demandMw + 4)
+  // Reserve is a capacity target, never a reason to burn more steam.
+  expect(planned.factoryResult.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBeCloseTo(demandMw + 4)
 })
 
 it.each([200, 300, 408, 500])('allocates %s Super Steam to turbines, Hydrogen, desalination, then cooling', steam => {

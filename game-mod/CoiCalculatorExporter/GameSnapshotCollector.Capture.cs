@@ -36,7 +36,7 @@ internal sealed partial class GameSnapshotCollector
             .Value
             .ToIntPercentRounded();
 
-        return new SnapshotDocument(
+        SnapshotDocument snapshot = new SnapshotDocument(
             m_gameNameConfig.GameName,
             m_gameIdProvider.GameId.ToString(CultureInfo.InvariantCulture),
             m_gameIdProvider.SessionId.ToString(CultureInfo.InvariantCulture),
@@ -69,5 +69,11 @@ internal sealed partial class GameSnapshotCollector
             getGroundwaterAquifers(),
             getOfficeFocusDefinitions(),
             getPlanningDefinitions());
+        snapshot.Electricity = getElectricitySnapshot();
+        snapshot.MaintenancePlanning = new MaintenancePlanningSnapshot {
+            ConsumptionMultiplier = m_maintenanceManager.ConsumptionMultiplier.ToDouble(),
+            IdleMultiplier = m_maintenanceManager.Config.IdleMaintenanceMultiplier.ToDouble(),
+        };
+        return snapshot;
     }
 }

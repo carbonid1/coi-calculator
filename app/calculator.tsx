@@ -20,6 +20,7 @@ import { InfiniteResearchSettings, ResearchSettings } from './components/Researc
 import { ReservesView } from './components/ReservesView'
 import { ResourceNavigationProvider } from './components/ResourceNavigation'
 import { ResourceProductsProvider } from './components/ResourceProducts'
+import { ResourceRequirementsView } from './components/ResourceRequirementsView'
 import { ResourceSupplyView } from './components/ResourceSupplyView'
 import { SharedRecipeCard } from './components/SharedRecipeCard'
 import { SinkCard } from './components/SinkCard'
@@ -61,7 +62,6 @@ import { getPresetResourceDemands } from './helpers/preset-resource-demands/pres
 import { groupProductionCardLines, hasBuildingInventory } from './helpers/production-card-groups/production-card-groups'
 import { getReserveDrawPerProductionCycle } from './helpers/reserves/reserves'
 import { createSpaceResearchAttention } from './helpers/space-research-attention/space-research-attention'
-import { calculateFreshwaterUse } from './helpers/water-planning/freshwater-use'
 import { useFactoryCalculation } from './hooks/use-factory-calculation'
 import { useFactoryPreset } from './hooks/use-factory-preset'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
@@ -79,6 +79,7 @@ const groupOrder: RecipeGroup[] = ['source', 'electricity', 'production', 'waste
 
 const FACTORY_TOTAL_ID = 'factory-total'
 const RESOURCE_SUPPLY_ID = 'resource-supply'
+const REQUIREMENTS_ID = 'requirements'
 const CONTRACTS_ID = 'contracts'
 const MODIFIERS_ID = 'modifiers'
 const VIEW_MODULE_IDS = [MINES_MODULE_ID, RESERVES_MODULE_ID] as const
@@ -316,6 +317,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     housingCount,
     housingIiCount,
     maintenanceOutputLevel,
+    maintenanceProjection,
     maintenanceStatueCount,
     focusAllocations,
     officePlanCalculation,
@@ -352,10 +354,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const isContracts = activeModuleId === CONTRACTS_ID
   const isFactoryTotal = activeModuleId === FACTORY_TOTAL_ID
   const isResourceSupply = activeModuleId === RESOURCE_SUPPLY_ID
+  const isRequirements = activeModuleId === REQUIREMENTS_ID
   const isFocus = activeModuleId === FOCUS_DASHBOARD_ID
   const isResearch = activeModuleId === RESEARCH_MODULE_ID
   const activeModule =
-    isModifiers || isContracts || isFactoryTotal || isFocus || isResearch || isResourceSupply
+    isModifiers || isContracts || isFactoryTotal || isFocus || isResearch || isResourceSupply || isRequirements
       ? null
       : (configuredModules.find(m => m.id === activeModuleId) ?? configuredModules[0])
   const preset =
@@ -505,11 +508,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
       return {
         computingTflops: total.computingTflops + stats.computingTflops,
-        electricityKw: total.electricityKw + stats.electricityKw,
         workers: total.workers + stats.workers,
       }
     },
-    { computingTflops: 0, electricityKw: 0, workers: 0 },
+    { computingTflops: 0, workers: 0 },
   )
   const linkedRegularResults = [...linkedModulesResult.moduleResults.values()]
     .flatMap(result => result.regularResults)
@@ -631,13 +633,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         factoryResult.allLines.filter(line => line.moduleId === activeModule.id),
     )
     : undefined
-  const isActiveNuclearPlant = moduleResult?.lines.some(
-    line => line.recipe.gameBuildingId === 'FastBreederReactor',
-  ) ?? false
-  const nuclearGenerationCapacityMw =
-    isActiveNuclearPlant && moduleResult
-      ? calculateGenerationCapacityMw(moduleResult.lines)
-      : undefined
   const stationSections = moduleResult
     ? partitionStationLines(displayedModuleLines)
     : { input: [], unconfigured: [], content: [], export: [] }
@@ -687,6 +682,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         contractsId={CONTRACTS_ID}
         factoryTotalId={FACTORY_TOTAL_ID}
         resourceSupplyId={RESOURCE_SUPPLY_ID}
+        requirementsId={REQUIREMENTS_ID}
         focusId={FOCUS_DASHBOARD_ID}
         onChange={id => {
           if (id === RESOURCE_SUPPLY_ID && activeModuleId !== RESOURCE_SUPPLY_ID) setSupplyOriginId(activeModuleId)
@@ -722,10 +718,10 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
             : undefined}
           electricityGenerationCapacityMw={factoryGenerationCapacityMw}
           maintenanceHistory={hasMaintenanceHistory ? (syncedMaintenance ?? null) : null}
+          maintenanceProjection={maintenanceProjection}
           edictLevels={edictLevels}
           edictSources={edictSources}
           unityBudget={unityBudget}
-          freshwaterUse={calculateFreshwaterUse(settled.calculation, outputModifiers, worldMines)}
           maintenanceStatueCount={maintenanceStatueCount}
           maintenanceOutputLevel={maintenanceOutputLevel}
           solarPowerLevel={solarPowerLevel}
@@ -760,10 +756,9 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           flows={factoryResult.flows}
           contractFlows={factoryResult.contractFlows}
           workers={factoryWorkers}
-          electricityConsumptionKw={
-            factoryResult.electricityDemandMw * 1000 + linkedFactoryStats.electricityKw
-          }
-          electricityGenerationCapacityMw={factoryGenerationCapacityMw}
+          electricityConsumptionKw={factoryResult.electricityDemandMw * 1000}
+          powerProjection={settled.calculation.powerProjection}
+          syncedElectricity={snapshot.electricity}
           computingConsumptionTflops={
             factoryResult.computingDemandTflops + linkedFactoryStats.computingTflops
           }
@@ -794,6 +789,8 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           onInspectResource={inspectResource}
         />
       )}
+
+      {isRequirements && <ResourceRequirementsView current={settled} updating={settled.isStale} />}
 
       {isResourceSupply && (
         <ResourceSupplyView
@@ -873,7 +870,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
               resourceTransfers={linkedModulesResult.transfers}
               workers={buildingStats.workers}
               electricityConsumptionKw={buildingStats.electricityKw}
-              electricityGenerationCapacityMw={nuclearGenerationCapacityMw}
               computingConsumptionTflops={buildingStats.computingTflops}
               computingGenerationCapacityTflops={activeComputingCapacityTflops}
             />

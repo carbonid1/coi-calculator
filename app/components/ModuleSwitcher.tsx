@@ -1,7 +1,7 @@
 "use client";
 
 import { Autocomplete, Button, Tooltip } from "@carbonid1/design-system";
-import { ArrowLeft, ArrowLeftRight, ChartPie, Factory, FlaskConical, Handshake, Info } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, ChartPie, Factory, FlaskConical, Handshake, Info, Layers3 } from "lucide-react";
 
 import { type Module } from "../db/modules/modules";
 import { getModuleIcon } from "./module-icons";
@@ -13,6 +13,7 @@ interface Props {
   contractsId: string;
   factoryTotalId: string;
   resourceSupplyId: string;
+  requirementsId?: string;
   focusId: string;
   modifiersId: string;
   onChange: (id: string) => void;
@@ -24,11 +25,12 @@ interface Props {
 
 export const ModuleSwitcher = ({
   modules, active, contractsId, factoryTotalId, resourceSupplyId, focusId,
-  modifiersId, onChange, researchId, viewModuleIds, backId, onBack,
+  modifiersId, onChange, researchId, viewModuleIds, backId, onBack, requirementsId,
 }: Props) => {
   const { presetModules, syncedModules, viewModules } = getModuleTabGroups(modules, new Set(viewModuleIds));
   const views = [
     { id: factoryTotalId, name: "Factory Total", icon: Factory },
+    ...(requirementsId ? [{ id: requirementsId, name: 'Requirements', icon: Layers3 }] : []),
     { id: resourceSupplyId, name: "Resource supply", icon: ArrowLeftRight },
     { id: modifiersId, name: "General Info", icon: Info },
     { id: focusId, name: "Focus", icon: ChartPie },
@@ -38,7 +40,7 @@ export const ModuleSwitcher = ({
   ];
   const areaOptions = [...syncedModules, ...presetModules];
   const area = areaOptions.find(module => module.id === active);
-  const title = area?.name ?? views.find(view => view.id === active)?.name;
+  const title = active === requirementsId ? 'Resource requirements' : area?.name ?? views.find(view => view.id === active)?.name;
   const backLabel = modules.find(module => module.id === backId)?.name
     ?? views.find(view => view.id === backId)?.name;
 
@@ -67,7 +69,7 @@ export const ModuleSwitcher = ({
           )}
           <h2 className="truncate text-lg font-semibold text-foreground">{title}</h2>
         </div>
-        {areaOptions.length > 0 && (
+        {areaOptions.length > 0 && active !== requirementsId && (
           <Autocomplete.Root items={areaOptions} value={area ?? null}
             itemToStringLabel={selectedModule => selectedModule.name}
             isItemEqualToValue={(left, right) => left.id === right.id}

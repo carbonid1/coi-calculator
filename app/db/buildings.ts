@@ -10,6 +10,7 @@ export interface BuildingData {
   computingTflops?: number;
   /** Recurring Unity demand while the building is operating. */
   unityPerCycle?: number;
+  maintenance?: BuildingDefinition['maintenance'];
 }
 
 const syntheticBuildings: Record<string, BuildingData> = {

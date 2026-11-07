@@ -192,6 +192,8 @@ export const createChickenFarmAreaModule = (
   currentEntities: readonly CurrentChickenFarmEntity[],
   areaEntities: readonly SyncedAreaEntity[],
   chickenFarm: ChickenFarmDefinition,
+  settings: ChickenFarmSettings | null = null,
+  foodPackProduction?: Partial<Record<'eggs' | 'meat', number>>,
 ): Module => {
   if (!module.liveArea) return module;
   const zoneId = module.liveArea.zoneId;
@@ -205,5 +207,20 @@ export const createChickenFarmAreaModule = (
 
   if (farms.length === 0 && ghosts.length === 0) return module;
 
-  return createChickenFarmsModule(chickenFarm, null, farms, undefined, module, ghosts.length);
+  const planned = createChickenFarmsModule(chickenFarm, settings, farms, undefined, module, ghosts.length);
+
+  if (!foodPackProduction) return planned;
+  const targetByGameRecipeId = new Map([
+    ['FoodPackEggsAssembly', foodPackProduction.eggs],
+    ['FoodPackMeatAssembly', foodPackProduction.meat],
+  ]);
+  const recipeOutputTargets = Object.fromEntries((planned.recipes ?? []).flatMap(recipe => {
+    const quantity = targetByGameRecipeId.get(recipe.gameRecipeId ?? '');
+
+    return quantity == null ? [] : [[recipe.id, { foodPack: quantity }]];
+  }));
+
+  return { ...planned, presets: planned.presets.map(preset => ({
+    ...preset, recipeOutputTargets: { ...preset.recipeOutputTargets, ...recipeOutputTargets },
+  })) };
 };

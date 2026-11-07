@@ -1242,6 +1242,7 @@ const recipePolicies: Recipe[] = [
     name: 'Liquid Dump (Water)',
     building: 'Liquid Dump',
     group: 'sink',
+    sinkPriority: 100,
     inputs: [{ resourceId: 'water', quantity: 0 }],
     outputs: [],
   },

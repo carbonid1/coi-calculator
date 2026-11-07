@@ -50,6 +50,7 @@ import { hasModuleCapability, type Module } from '../../db/modules/modules'
 import {
   createNuclearModule,
   plannedNuclearOperation,
+  thirdFbrNuclearOperation,
 } from '../../db/modules/nuclear'
 import {
   applySyncedOfficeInventory,
@@ -62,6 +63,8 @@ import {
 import {
   createPopulationModule,
   resolvePopulationHousingPlanTargets,
+  thirdFbrBiomassMixerCount,
+  thirdFbrHousingCount,
 } from '../../db/modules/population'
 import { createReservesModule } from '../../db/modules/reserves'
 import {
@@ -113,6 +116,7 @@ import {
   allocateSharedMachines,
   type MachineZoneAssignments,
 } from '../machine-allocation/machine-allocation'
+import { projectMaintenance } from '../maintenance-planning/maintenance-planning'
 import { calculateCropFarmingModifiers } from '../modifiers/calculate-crop-farming'
 import { calculateFoodConsumption } from '../modifiers/calculate-food-consumption'
 import { calculateHousingCapacity } from '../modifiers/calculate-housing-capacity'
@@ -152,7 +156,7 @@ export interface DeriveCalculatorModelOptions {
  * snapshot. Cheap enough for the main thread; the expensive factory solve runs
  * separately on `factoryCalculationInput`.
  */
-export const deriveCalculatorModel = ({
+const deriveUncalibratedCalculatorModel = ({
   presetId = 'current',
   operatingOverrides = false,
   machineZoneAssignments,
@@ -164,6 +168,7 @@ export const deriveCalculatorModel = ({
 }: DeriveCalculatorModelOptions) => {
   const plan = getFactoryPreset(presetId)
   const targets = new Set<PlanLayerId>(plan.layers)
+  const nuclearOperation = targets.has('third-fbr') ? thirdFbrNuclearOperation : plannedNuclearOperation
   const resourcePriorityOverrides = operatingOverrides ? savedResourcePriorities : {}
   const contractFullThrottlePreferences = operatingOverrides ? savedContractModes : {}
   const worldMineFullThrottlePreferences = operatingOverrides ? savedWorldMineModes : {}
@@ -314,11 +319,6 @@ export const deriveCalculatorModel = ({
   const planningBaselines = resolvePlanningBaselines(snapshot, true)
   const syncedHistory = snapshot.history
   const syncedMaintenance = syncedHistory.maintenance
-  const maintenanceDemand = {
-    maintenanceI: syncedMaintenance.maintenanceI.averagePerCycle,
-    maintenanceII: syncedMaintenance.maintenanceII.averagePerCycle,
-    maintenanceIII: syncedMaintenance.maintenanceIII.averagePerCycle,
-  }
   const hasMaintenanceHistory = Object.values(syncedMaintenance).some(
     average => average.sampleMonths > 0,
   )
@@ -422,6 +422,7 @@ export const deriveCalculatorModel = ({
 
       return syncedInventory ? [{ generatedArea: module, syncedInventory }] : []
     }),
+    targets.has('third-fbr') ? thirdFbrHousingCount : undefined,
   ) : new Map<number, number>()
   const configuredLiveAreaModules = unconfiguredLiveAreaModules.map(module => {
     if (!module.liveArea) return module
@@ -432,6 +433,8 @@ export const deriveCalculatorModel = ({
       configured.module = createDefaultCropFarmModule(
         applyDefaultAreaPlan(planningDefinitions.factory, module, baseConfig.researchMode, {
           science: targets.has('science'), refining: targets.has('refining'),
+          uranium: targets.has('third-fbr'),
+          food: targets.has('third-fbr'),
         }),
         currentCropFarmEntities,
         snapshot.cropFarming,
@@ -442,7 +445,7 @@ export const deriveCalculatorModel = ({
 
       configured.module = createNuclearModule(
         appliesPlan ? planningBaselines : emptyPlanningBaselines,
-        appliesPlan && targets.has('power-water') ? plannedNuclearOperation : undefined,
+        appliesPlan && targets.has('power-water') ? nuclearOperation : undefined,
         productionEntities,
         module,
       )
@@ -462,6 +465,7 @@ export const deriveCalculatorModel = ({
           housingCapacityLevel,
           populationHousingPlanTargets.get(module.liveArea.zoneId) ?? null,
           targets.has('settlement'),
+          targets.has('third-fbr') ? thirdFbrBiomassMixerCount : null,
         ), snapshot.settlement, productionEntities)
       }
     } else if (hasModuleCapability(module, 'computing')) {
@@ -487,6 +491,8 @@ export const deriveCalculatorModel = ({
       currentChickenFarmEntities,
       areaEntities,
       snapshot.chickenFarmDefinition,
+      liveAreaPlans[module.liveArea.zoneId]?.chickenFarms,
+      liveAreaPlans[module.liveArea.zoneId]?.foodPackProduction,
     )
 
     if (cropFarmRelatedZoneIds.has(module.liveArea.zoneId) || liveAreaPlans[module.liveArea.zoneId]?.cropFarms) {
@@ -555,23 +561,7 @@ export const deriveCalculatorModel = ({
     ...officeFallbackModules,
     ...configuredLiveAreaModules,
   ]
-  const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
-    definitions: planningDefinitions,
-    defaultModuleId: DEFAULT_MODULE_ID,
-    demand: maintenanceDemand,
-    modules: modulesWithLiveAreas,
-    productionEntities,
-  })
-  const configuredModulesWithoutSolar = modulesWithLiveAreas.map(module => {
-    const assignment = maintenanceAssignments[module.id]
-
-    return assignment
-      ? attachMaintenanceDepotsToModule(
-          module,
-          assignment,
-        )
-      : module
-  })
+  const configuredModulesWithoutSolar = modulesWithLiveAreas
   const solarAssignments = resolveSolarPanelModuleAssignments({
     defaultModuleId: DEFAULT_MODULE_ID,
     fallbackInventory: {
@@ -609,7 +599,7 @@ export const deriveCalculatorModel = ({
     productionEntities,
     runningConfig: staticInfrastructureRunningConfig,
   })
-  const configuredModules = configuredBaseModules.map(module => {
+  const configuredModulesWithoutMaintenance = configuredBaseModules.map(module => {
     const assignment = staticInfrastructureAssignments[module.id]
     const configured = assignment
       ? attachStaticInfrastructureToModule(
@@ -627,6 +617,22 @@ export const deriveCalculatorModel = ({
       ...configured,
       presets: configured.presets.map(preset => ({ ...preset, resourceProcessingPriorities: priorities })),
     }
+  })
+  const maintenanceProjection = projectMaintenance(syncedMaintenance, configuredModulesWithoutMaintenance, {
+    planningDefinitions, buildingDefinitions: snapshot.buildingDefinitions,
+    officeFocusDefinitions: snapshot.officeFocusDefinitions,
+  }, snapshot.maintenancePlanning)
+  const maintenanceAssignments = resolveMaintenanceDepotModuleAssignments({
+    definitions: planningDefinitions,
+    defaultModuleId: DEFAULT_MODULE_ID,
+    demand: maintenanceProjection.projected ?? maintenanceProjection.synced,
+    modules: configuredModulesWithoutMaintenance,
+    productionEntities,
+  })
+  const configuredModules = configuredModulesWithoutMaintenance.map(module => {
+    const assignment = maintenanceAssignments[module.id]
+
+    return assignment ? attachMaintenanceDepotsToModule(module, assignment) : module
   })
   const configuredComputingModules = configuredModules.filter(module => (
     hasModuleCapability(module, 'computing') && module.liveArea
@@ -790,6 +796,7 @@ export const deriveCalculatorModel = ({
     housingCount,
     housingIiCount,
     maintenanceOutputLevel,
+    maintenanceProjection,
     maintenanceStatueCount,
     officePlan,
     officePlanCalculation,
@@ -813,6 +820,22 @@ export const deriveCalculatorModel = ({
     unityCapacity,
     worldMineOutputLevel,
   }
+}
+
+export const deriveCalculatorModel = (options: DeriveCalculatorModelOptions) => {
+  const model = deriveUncalibratedCalculatorModel(options)
+  const electricity = options.snapshot.electricity
+
+  if (electricity) {
+    model.factoryCalculationInput.powerPlanning = {
+      measuredDemandMw: electricity.demandMw,
+      bufferPercent: 20,
+      ...((model.presetId !== 'current' || model.operatingOverrides) ? {
+        baseline: deriveUncalibratedCalculatorModel({ ...options, presetId: 'current', operatingOverrides: false }).factoryCalculationInput,
+      } : {}),
+    }
+  }
+  return model
 }
 
 export type CalculatorModel = ReturnType<typeof deriveCalculatorModel>

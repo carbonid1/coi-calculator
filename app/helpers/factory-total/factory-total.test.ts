@@ -25,6 +25,79 @@ const baselineFactoryOptions = {
   recyclingEfficiencyPercent: baseConfig.recyclingEfficiencyPercent,
 };
 
+it('reports operating electricity demand separately from planned generation targets', () => {
+  const generator: Recipe = {
+    id: 'power-target-generator', name: 'Generator', building: 'Generator', group: 'electricity',
+    buildingData: { workers: 0, electricityKw: 0 }, inputs: [],
+    outputs: [{ resourceId: 'electricity', quantity: 100 }],
+    electricityDispatch: { groupId: 'planned-power', priority: 1 },
+  }
+  const consumer: Recipe = {
+    id: 'power-target-consumer', name: 'Consumer', building: 'Consumer', group: 'production',
+    buildingData: { workers: 0, electricityKw: 5000 }, inputs: [],
+    outputs: [{ resourceId: 'steel', quantity: 1 }],
+  }
+  const calculate = (active: number) => calculateFactoryTotal([{
+    id: 'power-target', name: 'Power target', description: '', recipes: [generator, consumer],
+    builtBuildings: { [generator.id]: 1, [consumer.id]: 1 }, defaultPresetId: 'plan',
+    presets: [{ id: 'plan', name: 'Plan', description: '',
+      activeBuildings: { [generator.id]: 1, [consumer.id]: active }, fixed: [consumer.id],
+      electricityDispatchTargets: { 'planned-power': 50 } }],
+  }], { ...baselineFactoryOptions, externalDemands: { electricity: 3 } })
+  const planned = calculate(1)
+  const removed = calculate(0)
+
+  expect(planned.electricityDemandMw).toBe(8)
+  expect(removed.electricityDemandMw).toBe(3)
+  expect(planned.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBe(50)
+  expect(removed.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBe(50)
+})
+
+it('dispatches power to demand before hydrogen and limits generation to available steam', () => {
+  const source: Recipe = {
+    id: 'steam-source', name: 'Reactor', building: 'Reactor', group: 'electricity',
+    buildingData: { workers: 0, electricityKw: 0 }, inputs: [],
+    outputs: [{ resourceId: 'steamSuper', quantity: 100 }],
+  }
+  const generator: Recipe = {
+    id: 'steam-power', name: 'Turbine', building: 'Turbine', group: 'electricity',
+    buildingData: { workers: 0, electricityKw: 0 },
+    inputs: [{ resourceId: 'steamSuper', quantity: 100 }],
+    outputs: [{ resourceId: 'electricity', quantity: 100 }],
+    electricityDispatch: { groupId: 'steam-power', priority: 1 },
+  }
+  const hydrogen: Recipe = {
+    id: 'steam-hydrogen', name: 'Hydrogen', building: 'Reformer', group: 'production', balanceBy: 'output',
+    buildingData: { workers: 0, electricityKw: 0 },
+    inputs: [{ resourceId: 'steamSuper', quantity: 100 }],
+    outputs: [{ resourceId: 'hydrogen', quantity: 100 }],
+  }
+  const steamModule: Module = {
+    id: 'steam-priority', name: 'Steam priority', description: '', recipes: [source, generator, hydrogen],
+    builtBuildings: { [source.id]: 1, [generator.id]: 1, [hydrogen.id]: 1 }, defaultPresetId: 'plan',
+    presets: [{ id: 'plan', name: 'Plan', description: '',
+      activeBuildings: { [source.id]: 1, [generator.id]: 1, [hydrogen.id]: 1 }, fixed: [source.id] }],
+  }
+  const calculate = (steam: number, electricity = 40) => calculateFactoryTotal([{
+    ...steamModule, presets: steamModule.presets.map(preset => ({
+      ...preset, activeBuildings: { ...preset.activeBuildings, [source.id]: steam / 100 },
+    })),
+  }], {
+    ...baselineFactoryOptions,
+    externalDemands: { electricity, hydrogen: 100 },
+  })
+  const shared = calculate(100)
+  const starved = calculate(20)
+  const lowerDemand = calculate(100, 10)
+
+  expect(shared.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBeCloseTo(40)
+  expect(shared.flows.find(flow => flow.resourceId === 'hydrogen')?.produced).toBeCloseTo(60)
+  expect(starved.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBeCloseTo(20)
+  expect(starved.flows.find(flow => flow.resourceId === 'hydrogen')?.produced ?? 0).toBeCloseTo(0)
+  expect(lowerDemand.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBeCloseTo(10)
+  expect(lowerDemand.flows.find(flow => flow.resourceId === 'hydrogen')?.produced).toBeCloseTo(90)
+})
+
 it("dispatches a secondary input shortage when a larger packing shortage masks it", () => {
   const salt: Recipe = {
     id: "test-salt", name: "Salt", building: "Pond", group: "production", balanceBy: "output",

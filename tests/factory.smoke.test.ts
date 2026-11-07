@@ -40,6 +40,7 @@ import { getSyncedCropFarmEntities } from '../app/helpers/synced-production-conf
 import { resolveSyncedResourceId } from '../app/helpers/synced-resources/synced-resources'
 import { getConnectedWaterBuffer } from '../app/helpers/water-planning/connected-water-buffer'
 import { calculateFarmWaterDemand } from '../app/helpers/water-planning/farm-water-demand'
+import { calculateFreshwaterUse } from '../app/helpers/water-planning/freshwater-use'
 import { buildWaterSourceInventory, getRainwaterHarvesterPotential, simulateWaterSource, summarizeWeather } from '../app/helpers/water-planning/water-planning'
 import { calculateFarmIrrigationRates } from '../app/helpers/weather/calculate-farm-irrigation'
 import { getAverageSunIntensityPercent } from '../app/helpers/weather/planning-weather'
@@ -103,6 +104,13 @@ it('replays the complete Science expansion preset and returns to the latest live
   expect(science.recyclingEfficiencyPercent).toBeCloseTo(37.25 + 2 * (recyclingBonus ?? 0))
   const currentResult = calculateFactoryCalculation(baseline.factoryCalculationInput)
   const scienceResult = calculateFactoryCalculation(science.factoryCalculationInput)
+  const currentWater = calculateFreshwaterUse(currentResult, baseline.outputModifiers)
+  const scienceWater = calculateFreshwaterUse(scienceResult, science.outputModifiers)
+
+  expect(currentWater.groundwater).toBeGreaterThan(0)
+  expect(currentWater.farmRain).toBeGreaterThan(0)
+  expect(scienceWater.farmRain).not.toBeCloseTo(currentWater.farmRain)
+  expect(currentWater.total).toBeLessThan(currentResult.factoryResult.flows.find(flow => flow.resourceId === 'water')!.consumed)
   const labCount = (result: typeof scienceResult) => result.factoryResult.allLines.filter(line =>
     line.recipe.gameBuildingId === 'ResearchLab4' || line.recipe.gameBuildingId === 'ResearchLab5')
     .reduce((sum, line) => sum + line.activeBuildings, 0)
@@ -146,6 +154,179 @@ it('replays the complete Science expansion preset and returns to the latest live
   expect(updated.factoryCalculationInput).not.toEqual(baseline.factoryCalculationInput)
   expect(JSON.stringify(snapshot)).toBe(original)
 }, 60_000)
+
+it('extends Science expansion with third FBR support, housing and a closed fuel loop', () => {
+  const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
+
+  if (!snapshot) throw new Error('Recorded factory is incompatible')
+  const original = JSON.stringify(snapshot)
+  const science = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'science' })
+  const expanded = deriveCalculatorModel({ presetId: 'third-fbr', snapshot, machineZoneAssignments: {}, revision: 'third-fbr' })
+  const nuclear = expanded.configuredModules.find(module => module.capabilities?.includes('nuclear'))
+  const scienceNuclear = science.configuredModules.find(module => module.capabilities?.includes('nuclear'))
+
+  if (!nuclear || !scienceNuclear) throw new Error('Recorded Nuclear module required')
+  const preset = nuclear.presets[0]
+  const sciencePreset = scienceNuclear.presets[0]
+
+  const unchangedAreas = (modules: typeof expanded.configuredModules) => modules.filter(module => (
+    module.id !== nuclear.id && module.id !== 'general'
+    && !module.capabilities?.some(capability => capability === 'crop-farming' || capability === 'chicken-farming' || capability === 'population')
+  ))
+
+  expect(unchangedAreas(expanded.configuredModules)).toEqual(unchangedAreas(science.configuredModules))
+  expect(expanded.housingCount).toBe(science.housingCount + 1)
+  expect(expanded.edictLevels).toEqual(science.edictLevels)
+  expect(expanded.focusAllocations).toEqual(science.focusAllocations)
+  expect(expanded.projectedSpaceStationLevel).toEqual(science.projectedSpaceStationLevel)
+  const supportCounts = { 'fbr-0x': 2, 'nuclear-reprocessing': 2, 'enrichment-plant': 3,
+    'radioactive-waste-storage': 2, 'seawater-pump': 8, 'thermal-desalinator-super': 15,
+    ...Object.fromEntries(nuclear.recipes
+      ?.filter(recipe => recipe.gameBuildingId === 'CoolingTowerT2').map(recipe => [recipe.id, 7]) ?? []) }
+
+  expect(preset.activeBuildings).toEqual({ ...sciencePreset.activeBuildings, ...supportCounts })
+  expect(preset.speedLevels).toEqual({ ...sciencePreset.speedLevels, 'fbr-3x': 2 })
+  expect(preset.builtBuildings).toEqual(sciencePreset.builtBuildings)
+  expect(preset.currentActiveBuildings).toEqual(sciencePreset.currentActiveBuildings)
+  expect(preset.unplacedPlannedBuildings).toEqual({ ...sciencePreset.unplacedPlannedBuildings,
+    ...Object.fromEntries(Object.entries(supportCounts).map(([id, count]) => [id, count - (preset.builtBuildings?.[id] ?? 0)])) })
+  expect(preset.dataSources).toEqual({ ...sciencePreset.dataSources, 'fbr-3x': 'planned',
+    ...Object.fromEntries(Object.keys(supportCounts).map(id => [id, 'planned'])) })
+  expect(preset.fixed).toEqual(sciencePreset.fixed)
+  expect(preset.electricityDispatchTargets).toBeUndefined()
+  expect(sciencePreset.electricityDispatchTargets).toBeUndefined()
+  expect(preset.planMismatches).toEqual(expect.arrayContaining([
+    expect.objectContaining({ recipeId: 'fbr-3x', currentLabel: '100% power', targetLabel: '200% power',
+      actions: [{ type: 'configure', label: 'Set 3× enrichment FBR power to 200%' }] }),
+    expect.objectContaining({ recipeId: 'fbr-0x', current: 1, target: 2 }),
+    expect.objectContaining({ recipeId: 'nuclear-reprocessing', current: 1, target: 2 }),
+    expect.objectContaining({ recipeId: 'enrichment-plant', current: 2, target: 3 }),
+    expect.objectContaining({ recipeId: 'radioactive-waste-storage', current: 1, target: 2 }),
+    expect.objectContaining({ recipeId: 'cooling-tower-large-depleted', current: 4, target: 7 }),
+  ]))
+  const result = calculateFactoryCalculation(expanded.factoryCalculationInput)
+
+  expect(result.factoryResult.flows.find(flow => flow.resourceId === 'electricity')?.produced)
+    .toBeCloseTo(result.factoryResult.electricityDemandMw, 3)
+  expect(result.factoryResult.flows.find(flow => flow.resourceId === 'water')?.net).toBeCloseTo(0, 3)
+  const reactor = result.factoryResult.allLines.find(line => line.recipe.id === 'fbr-0x')
+
+  expect(reactor).toMatchObject({ activeBuildings: 2, builtBuildings: 1, speedLevel: 4, operatingMode: 'fixed' })
+  expect(result.factoryResult.allLines.find(line => line.recipe.id === 'fbr-3x'))
+    .toMatchObject({ activeBuildings: 1, builtBuildings: 1, speedLevel: 2, dataSource: 'planned', operatingMode: 'fixed' })
+  for (const id of ['coreFuel', 'coreFuelSpent', 'blanketFuel', 'blanketFuelEnriched']) {
+    expect(result.factoryResult.flows.find(flow => flow.resourceId === id))
+      .toMatchObject({ produced: 24, consumed: 24, net: 0 })
+  }
+  expect(result.factoryResult.flows.find(flow => flow.resourceId === 'fissionProduct'))
+    .toMatchObject({ produced: 3, consumed: 3, net: 0 })
+  const cooling = result.factoryResult.allLines.filter(line => line.moduleId === nuclear.id && line.recipe.gameBuildingId === 'CoolingTowerT2')
+
+  expect(cooling.every(line => line.capacityPoolActiveBuildings === 7 && line.capacityPoolBuiltBuildings === 4)).toBe(true)
+  const completed = structuredClone(snapshot)
+
+  for (const entity of completed.productionEntities) {
+    if (entity.nuclearReactor?.enrichmentStep === 2) entity.nuclearReactor.targetPowerPercent = 200
+  }
+  const reached = deriveCalculatorModel({ presetId: 'third-fbr', snapshot: completed, machineZoneAssignments: {}, revision: 'breeder-complete' })
+    .configuredModules.find(module => module.id === nuclear.id)?.presets[0]
+
+  expect(reached?.speedLevels?.['fbr-3x']).toBe(2)
+  expect(reached?.dataSources?.['fbr-3x']).toBe('synced')
+  expect(reached?.planMismatches?.some(mismatch => mismatch.recipeId === 'fbr-3x')).toBe(false)
+  expect(JSON.stringify(snapshot)).toBe(original)
+}, 60_000)
+
+it('calibrates the recorded factory to native demand and adds only the modeled plan increase', () => {
+  const recorded = structuredClone(capture)
+
+  recorded.electricity = {
+    demandMw: 150, surplusDemandMw: 2, consumedMw: 140, generationMw: 140,
+    generationCapacityMw: 280, maximumGenerationCapacityMw: 400,
+    byType: [{ prototypeId: 'TransportFlatT3', name: 'Flat conveyor III', demandMw: 7,
+      consumedMw: 6, maximumDemandMw: 10, entities: 300, transport: true }],
+  }
+  const snapshot = normalizeGameStateSnapshot(recorded)
+
+  if (!snapshot) throw new Error('Recorded factory with native electricity required')
+  expect(snapshot.electricity).toEqual(recorded.electricity)
+  const current = deriveCalculatorModel({ snapshot, machineZoneAssignments: {}, revision: 'power-current' })
+  const planned = deriveCalculatorModel({ snapshot, presetId: 'third-fbr', machineZoneAssignments: {}, revision: 'power-planned' })
+  const baseline = planned.factoryCalculationInput.powerPlanning?.baseline
+
+  expect(current.factoryCalculationInput.powerPlanning?.baseline).toBeUndefined()
+  expect(baseline).toEqual({ ...current.factoryCalculationInput, powerPlanning: undefined })
+  expect(baseline?.powerPlanning).toBeUndefined()
+  const result = calculateFactoryCalculation(planned.factoryCalculationInput)
+  const raw = calculateFactoryCalculation(baseline!)
+  const projection = result.powerProjection!
+
+  expect(projection.measuredDemandMw).toBe(150)
+  expect(projection.plannedDeltaMw).toBeCloseTo(result.factoryResult.modeledElectricityDemandMw - raw.factoryResult.modeledElectricityDemandMw)
+  expect(projection.demandMw).toBeCloseTo(150 + projection.plannedDeltaMw)
+  expect(projection.plannedDeltaMw).toBeGreaterThan(0)
+  expect(projection.capacityTargetMw).toBeCloseTo(projection.demandMw * 1.2)
+  expect(result.factoryResult.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBeCloseTo(projection.demandMw, 3)
+  expect(result.factoryResult.flows.find(flow => flow.resourceId === 'hydrogen')!.net).toBeGreaterThanOrEqual(-0.001)
+  expect(result.factoryResult.flows.find(flow => flow.resourceId === 'water')!.net).toBeGreaterThanOrEqual(-0.001)
+  expect(recorded.electricity).toEqual(snapshot.electricity)
+
+  for (const invalid of [
+    { ...recorded.electricity, demandMw: -1 },
+    { ...recorded.electricity, consumedMw: null },
+    { ...recorded.electricity, byType: [...recorded.electricity.byType, ...recorded.electricity.byType] },
+  ]) expect(normalizeGameStateSnapshot({ ...recorded, electricity: invalid })).toBeNull()
+  expect(normalizeGameStateSnapshot({ ...recorded, electricity: undefined })?.electricity).toBeUndefined()
+}, 60_000)
+
+it('projects native maintenance for planned builds and unpauses without duplicating shared physical machines', () => {
+  const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
+
+  if (!snapshot) throw new Error('Recorded factory is incompatible')
+  const derive = (presetId: 'current' | 'third-fbr') => deriveCalculatorModel({
+    snapshot, presetId, machineZoneAssignments: {}, revision: 'maintenance-projection',
+  })
+
+  expect(derive('third-fbr').maintenanceProjection.planned).toBeNull()
+  // Synthetic native rates isolate physical counting across the recorded factory.
+  for (const building of snapshot.buildingDefinitions) building.maintenance = { productId: null, perMonth: 0 }
+  const rates: Record<string, { productId: string; perMonth: number }> = {
+    FastBreederReactor: { productId: 'Product_Virtual_MaintenanceT3', perMonth: 10 },
+    ArcFurnace2: { productId: 'Product_Virtual_MaintenanceT2', perMonth: 4 },
+    GlassMakerT2: { productId: 'Product_Virtual_MaintenanceT1', perMonth: 2 },
+    CoolingTowerT2: { productId: 'Product_Virtual_MaintenanceT1', perMonth: 5 },
+    ResearchLab5: { productId: 'Product_Virtual_MaintenanceT1', perMonth: 3 },
+    MicrochipMachineT2: { productId: 'Product_Virtual_MaintenanceT3', perMonth: 1 },
+  }
+
+  for (const building of snapshot.buildingDefinitions) if (rates[building.id]) building.maintenance = rates[building.id]
+  snapshot.maintenancePlanning = { consumptionMultiplier: 0.5, idleMultiplier: 0.1 }
+  expect(normalizeGameStateSnapshot(snapshot)).not.toBeNull()
+  expect(derive('current').maintenanceProjection.planned)
+    .toEqual({ maintenanceI: 0, maintenanceII: 0, maintenanceIII: 0 })
+  const planned = derive('third-fbr')
+  const projection = planned.maintenanceProjection
+
+  // Unpaused labs already contribute idle upkeep to the synced baseline. Twelve
+  // chip recipes share three added machines. Breeder speed adds no buildings.
+  expect(projection.planned).toEqual({ maintenanceI: 11.2, maintenanceII: 2, maintenanceIII: 6.5 })
+  for (const tier of ['maintenanceI', 'maintenanceII', 'maintenanceIII'] as const) {
+    expect(projection.projected?.[tier]).toBeCloseTo(snapshot.history.maintenance[tier].averagePerCycle + (projection.planned?.[tier] ?? 0))
+    const assigned = planned.configuredModules.flatMap(mod => Object.values(mod.presets[0].recipeOutputTargets ?? {}))
+      .reduce((sum, target) => sum + (target[tier] ?? 0), 0)
+
+    expect(assigned).toBeCloseTo(projection.projected?.[tier] ?? 0)
+  }
+  const invalid = structuredClone(snapshot)
+
+  invalid.buildingDefinitions[0].maintenance = { productId: 'Product_Virtual_MaintenanceT1', perMonth: -1 }
+  expect(normalizeGameStateSnapshot(invalid)).toBeNull()
+  // Native MaintenanceCosts.Empty uses this placeholder product for zero upkeep.
+  invalid.buildingDefinitions[0].maintenance = { productId: '__PHANTOM__VIRTUAL__', perMonth: 0 }
+  expect(normalizeGameStateSnapshot(invalid)).not.toBeNull()
+  invalid.buildingDefinitions[0].maintenance.perMonth = 1
+  expect(normalizeGameStateSnapshot(invalid)).toBeNull()
+})
 
 it('replays connected tank and pipe reserves, refill and shared-source exclusions through the existing shortfall forecast', () => {
   const original = normalizeGameStateSnapshot(capture)
@@ -505,7 +686,8 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
   expect(getRainwaterHarvesterPotential(summary, 1.5, snapshot.planningDefinitions.factory.rainwaterPerDay)).toEqual({ nextYearPerCycle: 5.625, averagePerCycle: 5.625 })
 
   const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'water-replay' })
-  const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
+  const calculation = calculateFactoryCalculation(model.factoryCalculationInput)
+  const { factoryResult, linkedModulesResult } = calculation
   const sourceResults = [...factoryResult.calculation.sourceResults,
     ...[...linkedModulesResult.moduleResults.values()].flatMap(result => result.sourceResults)]
   const inventory = buildWaterSourceInventory(snapshot, sourceResults)
@@ -551,6 +733,36 @@ it('replays native climate, all aquifers, shared withdrawal and dry-period upgra
     .reduce((total, result) => total + (result.actualOutputs.find(output => output.resourceId === 'water')?.quantity ?? 0), 0)
 
   expect(inventory.reduce((sum, row) => sum + row.projectedWithdrawalPerCycle, 0)).toBeCloseTo(actualWithdrawal, 8)
+  const freshwater = calculateFreshwaterUse(calculation, model.outputModifiers)
+
+  expect(freshwater.groundwater).toBeCloseTo(actualWithdrawal, 8)
+  expect(freshwater.farmRain).toBeGreaterThan(0)
+  expect(freshwater.worldMines).toBe(calculation.worldMines?.supplies.water ?? 0)
+  expect(freshwater.total).toBeCloseTo(actualWithdrawal + freshwater.worldMines - freshwater.unused, 8)
+  // Unused world-mine deliveries must not increase freshwater consumption.
+  const overdelivered = structuredClone(calculation)
+  const deliveredWater = overdelivered.factoryResult.flows.find(flow => flow.resourceId === 'water')!
+
+  if (!overdelivered.worldMines) throw new Error('World-mine accounting required')
+  overdelivered.worldMines.supplies.water = (overdelivered.worldMines.supplies.water ?? 0) + 500
+  deliveredWater.produced += 500
+  deliveredWater.net += 500
+  expect(calculateFreshwaterUse(overdelivered, model.outputModifiers).total).toBeCloseTo(freshwater.total, 8)
+  // A process return or a storage withdrawal is not another environmental input.
+  const internalWater = structuredClone(calculation)
+  const pumpResult = internalWater.factoryResult.calculation.sourceResults.find(result => result.recipe.sourceKind === 'groundwater')!
+
+  internalWater.factoryResult.calculation.sourceResults.push({ ...pumpResult,
+    recipe: { ...pumpResult.recipe, id: 'stored-water', sourceKind: 'virtual-provision' },
+    actualOutputs: [{ resourceId: 'water', quantity: 100_000 }],
+  })
+  const process = internalWater.factoryResult.calculation.regularResults[0]!
+
+  internalWater.factoryResult.calculation.regularResults.push({ ...process,
+    recipe: { ...process.recipe, id: 'water-return', inputs: [], outputs: [{ resourceId: 'water', quantity: 100_000 }] },
+    actualInputs: [], actualOutputs: [{ resourceId: 'water', quantity: 100_000 }],
+  })
+  expect(calculateFreshwaterUse(internalWater, model.outputModifiers)).toEqual(freshwater)
   const source = inventory.find(row => row.projectedWithdrawalPerCycle > 0)?.source
   const pump = snapshot.machines[0]
 
@@ -664,7 +876,9 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   const rockBalance = snapshot.reserves?.rock ?? 0
 
   expect(rockBalance).toBeGreaterThan(0)
-  expect(rockDraw).toBeCloseTo(74.0711, 4)
+  // Demand-driven turbines leave less surplus Compost → Dirt production than
+  // the former 159 MW generation target, reducing the route's Gravel demand.
+  expect(rockDraw).toBeCloseTo(71.9216, 4)
   expect(factoryResult.flows.find(flow => flow.resourceId === 'rock')?.net).toBeCloseTo(0)
   expect(calculateReserveRunway(rockBalance, rockDraw)).toMatchObject({
     status: 'draining', inGameYearsRemaining: rockBalance / rockDraw / 12,
@@ -681,7 +895,8 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
       lines: factoryResult.allLines.length,
       workers: stats.workers + linkedStats.reduce((sum, value) => sum + value.workers, 0)
         + calculateContractWorkers(model.enabledContracts) + model.worldMines.workers,
-      electricityMw: round(factoryResult.electricityDemandMw + linkedStats.reduce((sum, value) => sum + value.electricityKw, 0) / 1000),
+      // Isolated areas already contribute through their factory power boundary.
+      electricityMw: round(factoryResult.electricityDemandMw),
       computingTflops: round(factoryResult.computingDemandTflops + linkedStats.reduce((sum, value) => sum + value.computingTflops, 0)),
       populationCapacity: model.populationCapacity,
       focus: model.officePlanCalculation.focusPointsCapacity,
@@ -731,9 +946,25 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
   expect(changedStats.electricityKw - stats.electricityKw).toBeCloseTo(300, 4)
   expect(changedStats.computingTflops - stats.computingTflops).toBeCloseTo(144, 4)
   expect(changedModel.officePlanCalculation.focusPointsCapacity).toBe(6552)
-  const byResource = (a: { resourceId: string }, b: { resourceId: string }) => a.resourceId.localeCompare(b.resourceId)
+  // The extra 0.3 MW is generated through the existing turbine stages. Steam
+  // and cooling Water follow that load; unrelated material priorities stay put.
+  const powerFlowDeltas: Record<string, { produced: number; consumed: number }> = {
+    electricity: { produced: 0.3, consumed: 0 },
+    steamHigh: { produced: 0.48, consumed: 0.48 },
+    steamLow: { produced: 0.48, consumed: 0.48 },
+    steamDepleted: { produced: 0.48, consumed: 0.48 },
+    water: { produced: 0.12, consumed: 0.12 },
+  }
 
-  expect(changed.flows.toSorted(byResource)).toEqual(factoryResult.flows.toSorted(byResource))
+  expect(changed.flows.map(flow => flow.resourceId).toSorted()).toEqual(factoryResult.flows.map(flow => flow.resourceId).toSorted())
+  for (const flow of factoryResult.flows) {
+    const actual = changed.flows.find(candidate => candidate.resourceId === flow.resourceId)!
+    const delta = powerFlowDeltas[flow.resourceId] ?? { produced: 0, consumed: 0 }
+
+    expect(actual.produced - flow.produced, `${flow.resourceId} production`).toBeCloseTo(delta.produced, 6)
+    expect(actual.consumed - flow.consumed, `${flow.resourceId} consumption`).toBeCloseTo(delta.consumed, 6)
+    expect(actual.net - flow.net, `${flow.resourceId} balance`).toBeCloseTo(delta.produced - delta.consumed, 6)
+  }
   expect(changed.contractResults).toEqual(factoryResult.contractResults)
 }, 60_000)
 

@@ -20,6 +20,14 @@ internal sealed class BuildingDefinitionSnapshot
     public int ElectricityKw;
     public double ComputingTflops;
     public double UnityPerCycle;
+    public string MaintenanceProductId;
+    public double MaintenancePerMonth;
+}
+
+internal sealed class MaintenancePlanningSnapshot
+{
+    public double ConsumptionMultiplier;
+    public double IdleMultiplier;
 }
 
 internal sealed partial class GameSnapshotCollector
@@ -31,6 +39,10 @@ internal sealed partial class GameSnapshotCollector
         if (m_buildingDefinitions != null) return m_buildingDefinitions;
         List<BuildingDefinitionSnapshot> definitions = new List<BuildingDefinitionSnapshot>();
         ProtosDb protos = m_protosDb;
+        string rackMaintenanceProductId = null;
+        foreach (DataCenterProto center in protos.All<DataCenterProto>())
+            if (center.Id.ToString() == "DataCenter" && center.Costs.Maintenance.Product != null)
+                rackMaintenanceProductId = center.Costs.Maintenance.Product.Id.ToString();
         foreach (Proto proto in protos.All<Proto>())
         {
             EntityProto entity = proto as EntityProto;
@@ -51,6 +63,12 @@ internal sealed partial class GameSnapshotCollector
                     : depot != null ? depot.ConsumedComputingPerTick.Value
                     : office == null ? 0 : office.GetComputingPerLevel(1).Value,
                 UnityPerCycle = unity == null ? 0 : unity.UnityMonthlyCost.Value.ToDouble(),
+                MaintenanceProductId = entity == null ? rackMaintenanceProductId
+                    : entity.Costs.Maintenance.Product == null ? null : entity.Costs.Maintenance.Product.Id.ToString(),
+                // Native EntityMaintenanceProvider.updateCost applies the global
+                // ConsumptionMultiplier to this raw monthly cost at runtime.
+                MaintenancePerMonth = entity == null ? rack.Maintenance.Value.ToDouble()
+                    : entity.Costs.Maintenance.MaxMaintenancePerMonth.Value.ToDouble(),
             });
         }
         definitions.Sort(delegate(BuildingDefinitionSnapshot left, BuildingDefinitionSnapshot right) {
@@ -99,6 +117,10 @@ internal static partial class SnapshotJsonWriter
             json.Field("electricityKw", definition.ElectricityKw);
             appendDecimal(json, "computingTflops", definition.ComputingTflops);
             appendDecimal(json, "unityPerCycle", definition.UnityPerCycle);
+            json.Name("maintenance").BeginObject();
+            json.Field("productId", definition.MaintenanceProductId);
+            appendDecimal(json, "perMonth", definition.MaintenancePerMonth);
+            json.EndObject();
             json.EndObject();
         }
         json.EndArray();

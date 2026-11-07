@@ -1,5 +1,6 @@
 import { type ValueSource } from "../../data-source";
 import { calculateHousingCapacity } from "../../helpers/modifiers/calculate-housing-capacity";
+import { applyNuclearOperationTargets } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets';
 import {
   ignoredPopulationPrototypeIds,
   populationEntityMatchers,
@@ -15,6 +16,9 @@ import { type Module, type PlanMismatch, type PlanMismatchAction } from "./modul
 
 // Fixed total: 18 existing blocks plus 8 at 288 residents each (+2,304).
 const plannedHousingCount = 26;
+
+export const thirdFbrHousingCount = 27;
+export const thirdFbrBiomassMixerCount = 4;
 const householdGoodsModuleName = "Household Goods Module";
 /** One unpaused module covers the settlement's whole Household Goods need. */
 const plannedHouseholdGoodsModuleCount = 1;
@@ -79,6 +83,7 @@ export const createPopulationModule = (
   housingCapacityLevel: number,
   plannedHousingTarget: number | null = plannedHousingCount,
   includeHouseholdGoodsPlan = true,
+  plannedBiomassMixerTarget: number | null = null,
 ): Module => {
   const housingTypes = getHousingTypes(planningDefinitions);
   const activeHousingType = housingTypes.housingIII;
@@ -332,6 +337,10 @@ export const createPopulationModule = (
       : rawGeneratedPreset.planMismatches,
   };
 
+  const biomassRecipe = generatedArea.recipes?.find(recipe => (
+    recipe.gameBuildingId === 'IndustrialMixerT2' && recipe.gameRecipeId === 'BiomassCompost'
+  ));
+
   return {
     ...generatedArea,
     description: "",
@@ -343,7 +352,11 @@ export const createPopulationModule = (
     recipes: generatedArea.recipes?.filter(recipe => (
       !isReplacedGeneratedRecipeId(recipe.id)
     )),
-    presets: [generatedPreset],
+    presets: [biomassRecipe && plannedBiomassMixerTarget != null
+      ? applyNuclearOperationTargets(generatedPreset, generatedArea.recipes ?? [], [{
+          recipeId: biomassRecipe.id, name: 'Mixer II', target: plannedBiomassMixerTarget,
+        }])
+      : generatedPreset],
     defaultPresetId: generatedPreset.id,
     liveArea: generatedArea.liveArea
       ? {

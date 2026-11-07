@@ -6,6 +6,7 @@ import { type Module } from "../db/modules/modules";
 import { type ReserveBalances, reserveResourceCatalog } from "../db/reserve-resources";
 import { type ResourceId } from "../db/resources";
 import { type UnityBudget } from "../db/unity";
+import { type ElectricityState } from "../electricity-state";
 import { type BuildingDiagnostic } from "../helpers/building-diagnostics/building-diagnostics";
 import {
   type BlockedSurplusRoute,
@@ -15,6 +16,7 @@ import {
 } from "../helpers/calculate/calculate";
 import { type ContractResourceFlow } from "../helpers/contracts/contract-resource-flows";
 import { getDeficitRootCause } from "../helpers/deficit-root-cause/deficit-root-cause";
+import { type PowerProjection } from "../helpers/factory-calculation/factory-calculation";
 import { formatInGameDuration } from "../helpers/format-in-game-duration";
 import {
   type MachineAllocationIssue,
@@ -36,7 +38,8 @@ interface Props {
   flows: ResourceFlow[];
   workers?: number;
   electricityConsumptionKw?: number;
-  electricityGenerationCapacityMw?: number;
+  powerProjection?: PowerProjection;
+  syncedElectricity?: ElectricityState;
   computingConsumptionTflops?: number;
   computingGenerationCapacityTflops?: number;
   populationCapacity?: number;
@@ -87,18 +90,25 @@ const formatPowerMargin = (value: number) => `${value > BALANCE_THRESHOLD ? "+" 
 const SummaryMetric = ({ label, detail, breakdown, children }: {
   label: string;
   detail?: string;
-  breakdown?: string;
+  breakdown?: ReactNode;
   children: ReactNode;
 }) => (
-  <div className="min-w-0 rounded-lg bg-surface-inset p-2.5 inset-shadow-surface">
+  <div data-summary-metric={label} className="min-w-0 rounded-lg bg-surface-inset p-2.5 inset-shadow-surface">
     <dt className="flex min-h-9 flex-wrap items-baseline gap-x-2 text-sm font-medium text-foreground sm:min-h-0">
       {label}
       {detail && <span className="text-xs font-normal text-muted-foreground">{detail}</span>}
     </dt>
     <dd className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground sm:text-base">
-      {breakdown ? <Tooltip label={breakdown} maxWidth={320}>
-        <span tabIndex={0} className="rounded outline-hidden focus-visible:ring-2 focus-visible:ring-ring">{children}</span>
-      </Tooltip> : children}
+      {breakdown ? <Tooltip.Root>
+        <Tooltip.Trigger render={<span tabIndex={0} className="block w-full cursor-help rounded outline-hidden focus-visible:ring-2 focus-visible:ring-ring" />}>
+          {children}
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Positioner side="top">
+            <Tooltip.Popup className="w-max whitespace-normal" style={{ maxWidth: 320 }}>{breakdown}</Tooltip.Popup>
+          </Tooltip.Positioner>
+        </Tooltip.Portal>
+      </Tooltip.Root> : children}
     </dd>
   </div>
 );
@@ -107,7 +117,8 @@ export const NetSummary: React.FC<Props> = ({
   flows,
   workers,
   electricityConsumptionKw,
-  electricityGenerationCapacityMw,
+  powerProjection,
+  syncedElectricity,
   computingConsumptionTflops,
   computingGenerationCapacityTflops,
   populationCapacity,
@@ -199,7 +210,6 @@ export const NetSummary: React.FC<Props> = ({
   );
   const hasOperationalSummary = (
     electricityFlow != null
-    || electricityGenerationCapacityMw != null
     || (electricityConsumptionKw ?? 0) > 0
     || computingFlow != null
     || computingGenerationCapacityTflops != null
@@ -254,7 +264,7 @@ export const NetSummary: React.FC<Props> = ({
 
   if (
     materialFlows.length === 0 && !electricityFlow && !computingFlow
-    && electricityGenerationCapacityMw == null && !electricityConsumptionKw
+    && !electricityConsumptionKw
     && !computingConsumptionTflops && computingGenerationCapacityTflops == null
     && !workers && !unityBudget && Object.keys(requestedImports).length === 0
     && Object.keys(requestedExports).length === 0
@@ -263,7 +273,35 @@ export const NetSummary: React.FC<Props> = ({
 
   const consumptionMw = (electricityConsumptionKw ?? 0) / 1000;
   const computingDemand = computingConsumptionTflops ?? 0;
-  const generationMw = electricityFlow?.net ?? 0;
+  const generationMw = electricityFlow?.produced ?? 0;
+  const transportDemandMw = syncedElectricity?.byType.reduce((sum, consumer) => sum + (consumer.transport ? consumer.demandMw : 0), 0) ?? 0;
+  const powerMarginMw = powerProjection && syncedElectricity
+    ? syncedElectricity.generationCapacityMw - powerProjection.capacityTargetMw
+    : null;
+  const powerStatus = (powerMarginMw ?? 0) < -BALANCE_THRESHOLD ? "short" : "spare";
+  const powerBreakdown = powerProjection && syncedElectricity ? (
+    <div className="min-w-56 space-y-2">
+      <p className="font-medium">Current running capacity at synced sunlight</p>
+      <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
+        <dt>Synced demand</dt><dd className="text-right font-mono tabular-nums">{formatPower(powerProjection.measuredDemandMw)}</dd>
+        {hasPlannedChanges && <>
+          <dt>Plan increase</dt><dd className="text-right font-mono tabular-nums">{formatPowerMargin(powerProjection.plannedDeltaMw)}</dd>
+          <dt>Projected demand</dt><dd className="text-right font-mono tabular-nums">{formatPower(powerProjection.demandMw)}</dd>
+        </>}
+        <dt>Reserve · {powerProjection.bufferPercent}%</dt><dd className="text-right font-mono tabular-nums">{formatPower(powerProjection.bufferMw)}</dd>
+        <dt>Generation now</dt><dd className="text-right font-mono tabular-nums">{formatPower(syncedElectricity.generationMw)}</dd>
+        <dt>Transports · included in demand</dt><dd className="text-right font-mono tabular-nums">{formatPower(transportDemandMw)}</dd>
+      </dl>
+    </div>
+  ) : "Measured power demand is unavailable. Restart the game with the updated Bridge and sync.";
+  const moduleElectricityMetric = electricityFlow ? (
+    <SummaryMetric label="Electricity" detail="Net"
+      breakdown={`${formatPower(generationMw)} generation / ${formatPower(consumptionMw)} demand.`}>
+      {formatPowerMargin(generationMw - consumptionMw)}
+    </SummaryMetric>
+  ) : consumptionMw > 0 && (
+    <SummaryMetric label="Electricity" detail="Demand">{formatPower(consumptionMw)}</SummaryMetric>
+  );
 
   return (
     <div className="space-y-3 rounded-lg bg-card p-3 shadow-card">
@@ -282,22 +320,18 @@ export const NetSummary: React.FC<Props> = ({
 
       {hasOperationalSummary && (
         <dl className="grid grid-cols-2 gap-2 lg:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
-          {electricityGenerationCapacityMw != null ? (
-            <SummaryMetric label="Electricity" detail="Capacity margin"
-              breakdown={`${formatPower(consumptionMw)} demand / ${formatPower(electricityGenerationCapacityMw)} generation capacity.`}>
-              {formatPowerMargin(electricityGenerationCapacityMw - consumptionMw)}
+          {groupByBalance ? (
+            <SummaryMetric label="Electricity" detail={powerProjection ? `${powerProjection.bufferPercent}% reserve` : "Modeled demand"}
+              breakdown={powerBreakdown}>
+              {powerMarginMw == null ? formatPower(consumptionMw) : `${formatPower(Math.abs(powerMarginMw))} ${powerStatus}`}
+              {powerMarginMw != null && powerProjection && syncedElectricity ? (
+                <span className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 font-sans text-xs font-normal text-muted-foreground">
+                  <span>Capacity now</span><span className="text-right font-mono tabular-nums">{formatPower(syncedElectricity.generationCapacityMw)}</span>
+                  <span>Required</span><span className="text-right font-mono tabular-nums">{formatPower(powerProjection.capacityTargetMw)}</span>
+                </span>
+              ) : <span className="mt-1 block font-sans text-xs font-normal text-muted-foreground">Measured load unavailable</span>}
             </SummaryMetric>
-          ) : <>
-            {consumptionMw > 0 && (
-              <SummaryMetric label="Electricity" detail="Demand">{formatPower(consumptionMw)}</SummaryMetric>
-            )}
-            {electricityFlow && (
-              <SummaryMetric label="Electricity" detail="Net"
-                breakdown={`${formatPower(generationMw)} generation / ${formatPower(consumptionMw)} demand.`}>
-                {formatPowerMargin(generationMw - consumptionMw)}
-              </SummaryMetric>
-            )}
-          </>}
+          ) : moduleElectricityMetric}
           {(computingGenerationCapacityTflops != null || computingDemand > 0) && (
             <SummaryMetric label="Computing" detail={computingGenerationCapacityTflops != null ? "Capacity margin" : "Demand"}
               breakdown={computingGenerationCapacityTflops != null

@@ -1,6 +1,7 @@
 import { getLabSpacePoints, type FactoryDefinitions } from '../../factory-definitions'
 import { type GroundwaterSourceConstraint } from '../../helpers/groundwater/calculate-groundwater-production'
 import { type SharedMachineClaimResolution } from '../../helpers/machine-allocation/machine-allocation'
+import { applyNuclearOperationTargets } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets'
 import { baseConfig, type ResearchMode } from '../config'
 import {
   createGroundwaterPumpRecipe,
@@ -389,16 +390,68 @@ const applyResearchLabPlan = (
   }
 }
 
+const applyThirdFbrSupplyPlan = (module: Module): Module => {
+  const targets = [
+    { buildingId: 'SettlingTank', gameRecipeId: 'UraniumLeaching', name: 'Settling tank', target: 3 },
+    { buildingId: 'CrusherLarge', gameRecipeId: 'UraniumCrushing', name: 'Crusher (large)', target: 2 },
+    { buildingId: 'ArcFurnace2', gameRecipeId: 'GlassSmeltingArc', name: 'Arc furnace II', target: 3 },
+    { buildingId: 'GlassMakerT2', gameRecipeId: 'GlassCastingT2', name: 'Glass maker II', target: 5 },
+    { buildingId: 'ChemicalPlant2', gameRecipeId: 'FertilizerProductionFromOrganic', name: 'Chemical plant II', target: 2 },
+    { buildingId: 'PolymerizationPlant', gameRecipeId: 'PlasticMakingEthanol', name: 'Polymerization plant', target: 4 },
+    { buildingId: 'SiliconReactor', gameRecipeId: 'SiliconTreatment', name: 'Silicon reactor', target: 7 },
+    // Each physical machine cycles through four enabled stages. Raise each of
+    // the three native recipe pools once, adding one complete group of three.
+    { buildingId: 'MicrochipMachineT2', gameRecipeId: 'MicrochipMachineT2_MicrochipProdStage1A', name: 'Microchip machine II', target: 4 },
+    { buildingId: 'MicrochipMachineT2', gameRecipeId: 'MicrochipMachineT2_MicrochipProdStage2A', name: 'Microchip machine II', target: 4 },
+    { buildingId: 'MicrochipMachineT2', gameRecipeId: 'MicrochipMachineT2_MicrochipProdStage3A', name: 'Microchip machine II', target: 4 },
+  ].flatMap(target => {
+    const recipe = module.recipes?.find(recipe => matchesGameRecipe(recipe, target.buildingId, target.gameRecipeId))
+
+    return recipe ? [{ recipeId: recipe.id, name: target.name, target: target.target }] : []
+  })
+
+  return { ...module, presets: module.presets.map(preset => applyNuclearOperationTargets(
+    preset, module.recipes ?? [], targets,
+  )) }
+}
+
+const applyFoodProcessingPlan = (module: Module): Module => {
+  const targets = [
+    { buildingId: 'BakingUnit', gameRecipeId: 'BreadProduction', name: 'Baking unit', target: 5 },
+    { buildingId: 'FoodMill', gameRecipeId: 'WheatMilling', name: 'Mill', target: 7 },
+    { buildingId: 'FoodMill', gameRecipeId: 'CanolaMilling', name: 'Mill', target: 2 },
+    { buildingId: 'FoodProcessor', gameRecipeId: 'MeatProcessing', name: 'Food processor', target: 3 },
+    { buildingId: 'FoodProcessor', gameRecipeId: 'TofuProduction', name: 'Food processor', target: 2 },
+  ].flatMap(target => {
+    const recipe = module.recipes?.find(recipe => matchesGameRecipe(recipe, target.buildingId, target.gameRecipeId))
+
+    return recipe ? [{ recipeId: recipe.id, name: target.name, target: target.target }] : []
+  })
+
+  const meatRecipe = module.recipes?.find(recipe => matchesGameRecipe(recipe, 'FoodProcessor', 'MeatProcessing'))
+
+  return { ...module, presets: module.presets.map(preset => {
+    const planned = applyNuclearOperationTargets(preset, module.recipes ?? [], targets)
+
+    // Reserve Meat for housing and the planned egg/meat food-pack split.
+    return meatRecipe ? { ...planned, recipeOutputTargets: {
+      ...planned.recipeOutputTargets, [meatRecipe.id]: { meat: 32.773 },
+    } } : planned
+  }) }
+}
+
 /** Applies calculator-owned Default plans over the current synced inventory. */
 export const applyDefaultAreaPlan = (
   definitions: FactoryDefinitions | undefined,
   module: Module,
   researchMode: ResearchMode = baseConfig.researchMode,
-  plans: { science: boolean; refining: boolean; crackingUnitTarget?: number } = {
+  plans: { science: boolean; refining: boolean; crackingUnitTarget?: number; uranium?: boolean; food?: boolean } = {
     science: true, refining: true, crackingUnitTarget: plannedCrackingUnitDieselTarget,
   },
 ) => {
-  const production = plans.refining ? applyCookingOilDieselPlan(module) : module
+  const supplies = plans.uranium ? applyThirdFbrSupplyPlan(module) : module
+  const food = plans.food ? applyFoodProcessingPlan(supplies) : supplies
+  const production = plans.refining ? applyCookingOilDieselPlan(food) : food
 
   return applyResearchLabPlan(
     definitions,

@@ -22,6 +22,7 @@ import { type UnityBudget } from "../db/unity";
 import { planningWeather } from "../db/weather";
 import { type GameStateSnapshot } from "../game-state";
 import { formatInGameDuration } from "../helpers/format-in-game-duration";
+import { type MaintenanceProjection } from '../helpers/maintenance-planning/maintenance-planning';
 import { calculateCropFarmingModifiers } from "../helpers/modifiers/calculate-crop-farming";
 import { calculateFoodConsumption } from "../helpers/modifiers/calculate-food-consumption";
 import { calculateMaintenanceDemandReduction } from "../helpers/modifiers/calculate-maintenance-demand";
@@ -42,6 +43,7 @@ interface Props {
   electricityGenerationCapacityMw: number;
   recyclingEfficiencyPercent: number;
   maintenanceHistory: GameStateSnapshot["history"]["maintenance"] | null;
+  maintenanceProjection: MaintenanceProjection;
   edictLevels: Record<EdictId, EdictLevel>;
   edictSources: Record<EdictId, ValueSource>;
   unityBudget: UnityBudget;
@@ -141,41 +143,46 @@ const maintenanceTiers = [
 
 export const MaintenanceDemandOverview = ({
   history,
+  projection,
 }: {
   history: GameStateSnapshot["history"]["maintenance"];
+  projection: MaintenanceProjection;
 }) => (
   <section className="space-y-3">
     <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-      <Tooltip label="Actual consumption across completed in-game months.">
-        <span tabIndex={0}>Maintenance demand</span>
+      <Tooltip label="Synced consumption plus estimated upkeep for buildings planned to be built or unpaused, at full operation.">
+        <span tabIndex={0}>Maintenance demand / month</span>
       </Tooltip>
     </h3>
-    <Card.Root
-      className={getDataSourceSurfaceClassName("synced")}
-    >
+    <Card.Root>
       <Card.Content>
         <div className="grid gap-3 sm:grid-cols-3">
           {maintenanceTiers
             .filter(([id]) => history[id].sampleMonths > 0)
             .map(([id, label]) => {
               const average = history[id];
+              const increase = projection.planned?.[id];
+              const total = projection.projected?.[id];
+              const format = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
               return (
                 <div key={id} className="rounded-lg bg-surface-inset px-3 py-2 inset-shadow-surface">
                   <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="font-mono font-semibold tabular-nums text-foreground">
-                    {average.averagePerCycle.toLocaleString("en-US", {
-                      maximumFractionDigits: 2,
-                    })}
-                    {" / cycle"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatInGameDuration(average.sampleMonths)}
-                  </p>
+                  <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
+                    <dt className="text-muted-foreground">Synced</dt>
+                    <dd className="font-mono tabular-nums">{format(average.averagePerCycle)}</dd>
+                    <dt className="text-muted-foreground">Planned increase</dt>
+                    <dd className="font-mono tabular-nums">{increase == null ? '—' : `+${format(increase)}`}</dd>
+                    <dt>Projected</dt>
+                    <dd className="font-mono font-semibold tabular-nums">{total == null ? '—' : format(total)}</dd>
+                  </dl>
                 </div>
               );
             })}
         </div>
+        {projection.planned === null && (
+          <p className="mt-3 text-xs text-muted-foreground">Sync the updated Bridge to estimate planned maintenance.</p>
+        )}
       </Card.Content>
     </Card.Root>
   </section>
@@ -237,6 +244,7 @@ export const ModifiersView: React.FC<Props> = ({
   electricityGenerationCapacityMw,
   recyclingEfficiencyPercent,
   maintenanceHistory,
+  maintenanceProjection,
   edictLevels,
   edictSources,
   unityBudget,
@@ -317,7 +325,7 @@ export const ModifiersView: React.FC<Props> = ({
         </Card.Root>
       </section>
 
-      {maintenanceHistory && <MaintenanceDemandOverview history={maintenanceHistory} />}
+      {maintenanceHistory && <MaintenanceDemandOverview history={maintenanceHistory} projection={maintenanceProjection} />}
 
       <section className="space-y-3">
         <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Unity budget</h3>

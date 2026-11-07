@@ -1,5 +1,6 @@
+import { type ChickenFarmSettings } from './chicken-farm'
 import { type ComputingConfig } from './computing'
-import { activeCropFarmGroups } from './crop-farm-plans'
+import { activeCropFarmGroups, thirdFbrCropFarmGroups } from './crop-farm-plans'
 import { type CropFarmGroup } from './crop-farming'
 import { plannedOfficePlan, type OfficeConfigurationCount } from './offices'
 import { type ResourceProcessingPriorities } from './resource-supply'
@@ -7,6 +8,9 @@ import { type ResourceId } from './resources'
 
 interface LiveAreaPlan {
   cropFarms?: readonly CropFarmGroup[]
+  chickenFarms?: ChickenFarmSettings
+  foodPackProduction?: Partial<Record<'eggs' | 'meat', number>>
+  thirdFbr?: Pick<LiveAreaPlan, 'cropFarms' | 'chickenFarms' | 'foodPackProduction'>
   resourceProcessingPriorities?: ResourceProcessingPriorities
   /** Minimum running computing inventory, including installed server racks. */
   computing?: ComputingConfig
@@ -23,7 +27,7 @@ export type LiveAreaPlans = Readonly<Record<number, LiveAreaPlan>>
 /** Save-scoped operating requests. Area names are labels and never identity. */
 const liveAreaPlansBySave: Readonly<Record<string, LiveAreaPlans>> = {
   'Last-Stop Waters': {
-    10: { cropFarms: activeCropFarmGroups },
+    10: { cropFarms: activeCropFarmGroups, thirdFbr: { cropFarms: thirdFbrCropFarmGroups } },
     12: {
       resourceProcessingPriorities: { brine: 'local-first' },
     },
@@ -39,6 +43,10 @@ const liveAreaPlansBySave: Readonly<Record<string, LiveAreaPlans>> = {
     23: {
       offices: [{ tierId: 'officeIII', ...plannedOfficePlan.offices.officeIII }],
     },
+    26: { thirdFbr: {
+      chickenFarms: { totalChickenCount: 3_850, slaughtering: true },
+      foodPackProduction: { eggs: 41.499, meat: 19.201 },
+    } },
   },
 }
 

@@ -1,4 +1,4 @@
-import { isBuildingDefinitions, type BuildingDefinition } from './building-state'
+import { isBuildingDefinitions, isMaintenancePlanningData, type BuildingDefinition, type MaintenancePlanningData } from './building-state'
 import { isChickenFarmDefinition, type ChickenFarmDefinition } from './chicken-farm-state'
 import { isCropFarmRuntime, type CropFarmRuntime } from './crop-farm-runtime'
 import { isCropFarmingDefinitions, type CropFarmingDefinitions } from './crop-farming-state'
@@ -10,6 +10,7 @@ import {
 } from './db/research'
 import { type ReserveBalances } from './db/reserve-resources'
 import { isWeatherConfig, type WeatherConfig } from './db/weather'
+import { isElectricityState, type ElectricityState } from './electricity-state'
 import { normalizeFocusStates, type SyncedFocusStates } from './focus-state'
 import { isRecyclingData, isRecyclingSources, type RecyclingData, type RecyclingSource } from './helpers/recycling/recycling'
 import { resolveReserveBalances } from './helpers/reserves/resolve-reserve-balances'
@@ -322,6 +323,8 @@ export interface GameStateSnapshot {
   officeFocusDefinitions: OfficeFocusDefinitions
   planningDefinitions: PlanningDefinitions
   buildingDefinitions: BuildingDefinition[]
+  maintenancePlanning?: MaintenancePlanningData
+  electricity?: ElectricityState
   products?: NativeProducts
   recycling: RecyclingData
   schemaVersion: typeof CURRENT_GAME_STATE_SCHEMA_VERSION
@@ -1103,6 +1106,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
 
   if (schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) return null
   if (!isBuildingDefinitions(snapshot.buildingDefinitions)) return null
+  if (snapshot.maintenancePlanning !== undefined && !isMaintenancePlanningData(snapshot.maintenancePlanning)) return null
+  if (snapshot.electricity !== undefined && !isElectricityState(snapshot.electricity)) return null
   if (!isChickenFarmDefinition(snapshot.chickenFarmDefinition)) return null
   if (!isRocketIiDefinition(snapshot.rocketIiDefinition)) return null
   if (!isSpaceStationLevels(snapshot.spaceStationLevels)) return null
@@ -1263,6 +1268,8 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
     officeFocusDefinitions: snapshot.officeFocusDefinitions,
     planningDefinitions: snapshot.planningDefinitions,
     buildingDefinitions: snapshot.buildingDefinitions,
+    ...(snapshot.maintenancePlanning === undefined ? {} : { maintenancePlanning: snapshot.maintenancePlanning }),
+    ...(snapshot.electricity === undefined ? {} : { electricity: snapshot.electricity }),
     ...(snapshot.products === undefined ? {} : { products: snapshot.products }),
     recycling: snapshot.recycling,
     gameVersion: snapshot.gameVersion,

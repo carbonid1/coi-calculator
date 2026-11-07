@@ -1146,7 +1146,7 @@ it("keeps module-scoped source capacity out of other modules", () => {
     .toBe(0);
 });
 
-it("uses recovered Water before Groundwater Pumps or Liquid Dumps", () => {
+it.each([false, true])("uses recovered Water before Groundwater Pumps or Liquid Dumps (dump listed first: %s)", dumpFirst => {
   const groundwaterPump: Recipe = {
     id: "test-factory-groundwater-pump",
     name: "Test Groundwater Pump",
@@ -1177,14 +1177,15 @@ it("uses recovered Water before Groundwater Pumps or Liquid Dumps", () => {
     name: "Test Water Dump",
     building: "Liquid Dump",
     group: "sink",
+    sinkPriority: recipes.find(recipe => recipe.id === 'nuclear-liquid-dump-water')?.sinkPriority,
     inputs: [{ resourceId: "water", quantity: 100 }],
     outputs: [],
   };
   const result = calculateNet([
     fixedLine(groundwaterPump, "general"),
     fixedLine(waterConsumer, "general"),
-    balancedLine(coolingTower, "nuclear"),
-    balancedLine(liquidDump, "nuclear"),
+    ...(dumpFirst ? [liquidDump, coolingTower] : [coolingTower, liquidDump])
+      .map(recipe => balancedLine(recipe, "nuclear")),
   ], { steamLow: 20 });
   const groundwater = result.sourceResults.find(
     candidate => candidate.recipe.id === groundwaterPump.id,

@@ -26,7 +26,7 @@ const create = (entities: SyncedAreaEntity[], plan?: NuclearOperationPlan) => {
   return createNuclearModule(emptyPlanningBaselines, plan, inventory, area)
 }
 const reformerPlan = (count: number): NuclearOperationPlan => ({
-  ...plannedNuclearOperation, generationTargetMw: 0, hydrogenReformerCount: count,
+  ...plannedNuclearOperation, hydrogenReformerCount: count,
   chlorineProcessingCount: 0, saltProcessingCount: 0, superDesalinatorCount: 0,
 })
 

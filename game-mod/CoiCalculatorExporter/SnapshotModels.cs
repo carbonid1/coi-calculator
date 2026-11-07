@@ -28,6 +28,8 @@ internal sealed class SnapshotDocument
     public readonly WeatherConfigSnapshot Weather;
     public readonly RecyclingSnapshot Recycling;
     public readonly List<BuildingDefinitionSnapshot> BuildingDefinitions;
+    public MaintenancePlanningSnapshot MaintenancePlanning;
+    public ElectricitySnapshot Electricity;
     public readonly ChickenFarmDefinitionSnapshot ChickenFarmDefinition;
     public readonly RocketDefinitionSnapshot RocketIiDefinition;
     public readonly List<SpaceStationLevelSnapshot> SpaceStationLevels;

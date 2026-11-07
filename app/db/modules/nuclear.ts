@@ -5,6 +5,7 @@ import {
   resolveNuclearEntityInventory,
 } from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
 import { applyNuclearOperationTargets, type NuclearOperationTarget } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets';
+import { resolveDirectionalPlan } from '../../helpers/resolve-directional-plan';
 import { type PlanningBaselines } from "../planning-baselines";
 import {
   type Module,
@@ -14,20 +15,34 @@ import {
 const NUCLEAR_MODULE_ID = "nuclear";
 
 export interface NuclearOperationPlan {
-  generationTargetMw: number;
   hydrogenReformerCount: number;
   chlorineProcessingCount: number;
   saltProcessingCount: number;
   superDesalinatorCount: number;
+  powerReactorCount?: number;
+  breederPowerLevel?: number;
+  supportTargets?: readonly NuclearOperationTarget[];
 }
 
 export const plannedNuclearOperation: NuclearOperationPlan = {
-  // Use the installed turbine trains before adding another generator build.
-  generationTargetMw: 159,
   hydrogenReformerCount: 8,
   chlorineProcessingCount: 2,
   saltProcessingCount: 2,
   superDesalinatorCount: 9,
+};
+
+export const thirdFbrNuclearOperation: NuclearOperationPlan = {
+  ...plannedNuclearOperation,
+  powerReactorCount: 2,
+  breederPowerLevel: 2,
+  superDesalinatorCount: 15,
+  supportTargets: [
+    { recipeId: 'nuclear-reprocessing', name: 'Nuclear reprocessing plant', target: 2 },
+    { recipeId: 'enrichment-plant', name: 'Enrichment plant', target: 3 },
+    { recipeId: 'radioactive-waste-storage', name: 'Nuclear waste storage', target: 2 },
+    { recipeId: 'cooling-tower-large-depleted', name: 'Cooling tower (large)', target: 7 },
+    { recipeId: 'seawater-pump', name: 'Seawater pump', target: 8 },
+  ],
 };
 
 export const createNuclearModule = (
@@ -40,23 +55,8 @@ export const createNuclearModule = (
     syncedEntities,
     generatedArea?.liveArea?.zoneId,
   );
-  const nonBreederReactors = syncedInventory.counts["fbr-0x"]?.running ?? 0;
   const nonBreederPowerLevel = syncedInventory.speedLevels["fbr-0x"] ?? 0;
-  const powerReactorSuperSteam = nonBreederReactors * 96 * nonBreederPowerLevel;
-  const syncedGenerationCapacityMw = powerReactorSuperSteam
-    * (15 + 10 + 5)
-    / 48;
-  const generationTargetMw = Math.max(
-    0,
-    plan?.generationTargetMw ?? baselines.averageGeneratorOutputMw,
-  );
-  const dispatchedGenerationMw = Math.min(
-    syncedGenerationCapacityMw,
-    generationTargetMw,
-  );
-  const turbineSteamPerCycle = dispatchedGenerationMw * 48 / (15 + 10 + 5);
   const hydrogenDemandPerCycle = Math.max(0, baselines.hydrogenFuelDemandPerCycle);
-  const activeTurbineCount = Math.ceil(turbineSteamPerCycle / 48);
   const liveRecipes = generatedArea?.recipes ? resolveNuclearAreaRecipes(generatedArea) : undefined;
   const recipeIds = Object.keys(syncedInventory.counts).filter(id => (
     !liveRecipes || !nuclearOrdinaryRecipeIds.has(id)
@@ -74,8 +74,29 @@ export const createNuclearModule = (
   const dataSources: NonNullable<Preset["dataSources"]> = { ...Object.fromEntries(
     recipeIds.map(recipeId => [recipeId, "synced" as const]),
   ), ...liveRecipes?.preset.dataSources };
+  const planMismatches = [...(liveRecipes?.preset.planMismatches ?? [])];
+
+  if (plan?.breederPowerLevel != null && (syncedInventory.counts['fbr-3x']?.built ?? 0) > 0) {
+    const current = syncedInventory.speedLevels['fbr-3x'] ?? 1;
+    const power = resolveDirectionalPlan(current, { direction: 'at-least', target: plan.breederPowerLevel });
+
+    speedLevels['fbr-3x'] = power.value;
+    dataSources['fbr-3x'] = power.source;
+    if (!power.satisfied) planMismatches.push({
+      recipeId: 'fbr-3x', current, target: power.target,
+      direction: power.direction, format: 'configuration',
+      currentLabel: `${current * 100}% power`, targetLabel: `${power.target * 100}% power`,
+      actions: [{ type: 'configure', label: `Set 3× enrichment FBR power to ${power.target * 100}%` }],
+    });
+  }
   const operationTargets: NuclearOperationTarget[] = plan
     ? [
+        ...(plan.powerReactorCount == null ? [] : [{
+          recipeId: 'fbr-0x',
+          name: `Fast breeder reactor (0× enrichment, ${nonBreederPowerLevel * 100}% power)`,
+          target: plan.powerReactorCount,
+        }]),
+        ...(plan.supportTargets ?? []),
         {
           name: "Hydrogen Reformer",
           recipeId: "hydrogen-reformer-super",
@@ -97,29 +118,6 @@ export const createNuclearModule = (
           name: "Thermal Desalinator",
           recipeId: "thermal-desalinator-super",
           target: plan.superDesalinatorCount,
-        },
-        {
-          name: "Super-Pressure Turbine",
-          recipeId: "turbine-super",
-          target: activeTurbineCount,
-        },
-        {
-          name: "High-Pressure Turbine II",
-          pluralName: "High-Pressure Turbines II",
-          recipeId: "turbine-high",
-          target: activeTurbineCount,
-        },
-        {
-          name: "Low-Pressure Turbine II",
-          pluralName: "Low-Pressure Turbines II",
-          recipeId: "turbine-low",
-          target: activeTurbineCount,
-        },
-        {
-          name: "Power Generator II",
-          pluralName: "Power Generators II",
-          recipeId: "power-generator-ii-nuclear",
-          target: activeTurbineCount * 2,
         },
       ]
     : [];
@@ -153,6 +151,7 @@ export const createNuclearModule = (
         builtBuildings,
         activeBuildings,
         currentActiveBuildings,
+        planMismatches,
         dataSources: Object.keys(dataSources).length > 0 ? dataSources : undefined,
         fixed: [
           ...(liveRecipes?.preset.fixed ?? []),
@@ -166,9 +165,6 @@ export const createNuclearModule = (
         },
         // Vehicles refuel from what production leaves; a shortfall shows on fuel.
         deferredDemandIds: ["hydrogen"],
-        electricityDispatchTargets: {
-          "fbr-turbines": generationTargetMw,
-        },
       }, liveRecipes?.recipes ?? [], operationTargets, liveRecipes?.recipeIdsByPolicyId, liveRecipes?.unavailableRecipeIds),
     ],
     defaultPresetId: "configured-target",

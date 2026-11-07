@@ -24,6 +24,7 @@ export interface FactoryTotalResult {
   contractFlows: ContractResourceFlow[];
   calculation: ReturnType<typeof calculateNet>;
   electricityDemandMw: number;
+  modeledElectricityDemandMw: number;
   computingDemandTflops: number;
 }
 
@@ -37,6 +38,10 @@ export interface FactoryTotalOptions {
   /** Synced world-cargo projections and their operating costs. */
   externalSupplies?: Partial<Record<ResourceId, number>>;
   externalDemands?: Partial<Record<ResourceId, number>>;
+  /** Signed calibration against the same factory's measured current demand. */
+  electricityDemandAdjustmentMw?: number;
+  /** Current-state view uses the measured demand directly. */
+  electricityDemandOverrideMw?: number;
   /** Unlinked output crossing into the factory from isolated live modules. */
   boundarySupplies?: Partial<Record<ResourceId, number>>;
   /** Unlinked input drawn by isolated live modules from the global factory. */
@@ -107,7 +112,12 @@ const calculateWithDispatch = (
     Partial<Record<ResourceId, number>>
   > = new Map(),
   deferredDemands: Partial<Record<ResourceId, number>> = {},
+  electricityDemandAdjustmentMw = 0,
+  electricityDemandOverrideMw?: number,
 ) => {
+  const getDemandMw = (modeledMw: number) => Math.max(0, electricityDemandOverrideMw ?? (modeledMw + electricityDemandAdjustmentMw));
+  const fixedElectricityDemandMw = Math.max(0, fixedDemands.electricity ?? 0)
+    + [...moduleFixedDemands.values()].reduce((sum, demands) => sum + Math.max(0, demands.electricity ?? 0), 0);
   const locallyPrioritizedIds = new Set(inputLines.flatMap(line => line.localFirstInputIds ?? []));
   // Include competing primary consumers in the same allocation. Otherwise an
   // output-balanced consumer can request already-reserved input as a deficit.
@@ -256,9 +266,9 @@ const calculateWithDispatch = (
       currentCalculation,
       outputModifiers,
     );
-    const modeledDemandMw = buildingStats.electricityKw / 1000;
+    const modeledDemandMw = buildingStats.electricityKw / 1000 + fixedElectricityDemandMw;
     let remainingDemandMw = Math.max(
-      modeledDemandMw,
+      getDemandMw(modeledDemandMw),
       minimumElectricityDemandMw,
     );
     const nextElectricityRatios = new Map<string, number>();
@@ -644,12 +654,14 @@ const calculateWithDispatch = (
     );
   }
 
-  const modeledDemandMw = buildingStats.electricityKw / 1000;
+  const modeledDemandMw = buildingStats.electricityKw / 1000 + fixedElectricityDemandMw;
 
   return {
     lines: dispatchedLines,
     calculation,
-    electricityDemandMw: Math.max(modeledDemandMw, minimumElectricityDemandMw),
+    // Generation targets control dispatch, not the factory's actual demand.
+    electricityDemandMw: getDemandMw(modeledDemandMw),
+    modeledElectricityDemandMw: modeledDemandMw,
     computingDemandTflops: buildingStats.computingTflops,
   };
 };
@@ -663,6 +675,8 @@ export const calculateFactoryTotal = (
     contractsProfitMultiplier = 1,
     externalSupplies = {},
     externalDemands = {},
+    electricityDemandAdjustmentMw = 0,
+    electricityDemandOverrideMw,
     boundarySupplies = {},
     boundaryDemands = {},
     moduleFixedDemands: initialModuleFixedDemands = new Map(),
@@ -851,6 +865,8 @@ export const calculateFactoryTotal = (
       moduleFixedDemands,
       resolvedModuleSuppliedResources,
       deferredDemands,
+      electricityDemandAdjustmentMw,
+      electricityDemandOverrideMw,
     );
     const demandSourceProduction = getDemandSourceProduction(
       withoutContracts.calculation,
@@ -911,6 +927,8 @@ export const calculateFactoryTotal = (
       moduleFixedDemands,
       resolvedModuleSuppliedResources,
       deferredDemands,
+      electricityDemandAdjustmentMw,
+      electricityDemandOverrideMw,
     );
   };
   const calculatePlanningFlowsWithContractExports = (
@@ -941,6 +959,8 @@ export const calculateFactoryTotal = (
       moduleFixedDemands,
       resolvedModuleSuppliedResources,
       deferredDemands,
+      electricityDemandAdjustmentMw,
+      electricityDemandOverrideMw,
     );
     const planningDemandSources = getDemandSourceProduction(
       planningDispatch.calculation,
@@ -1074,6 +1094,7 @@ export const calculateFactoryTotal = (
     contractFlows: getContractResourceFlows(contractResults),
     calculation,
     electricityDemandMw: dispatched.electricityDemandMw,
+    modeledElectricityDemandMw: dispatched.modeledElectricityDemandMw,
     computingDemandTflops: dispatched.computingDemandTflops,
   };
 };
