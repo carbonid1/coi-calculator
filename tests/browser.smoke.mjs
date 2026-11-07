@@ -73,10 +73,12 @@ const listen = async server => {
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
   const state = { mode: 'live', powerMeter: false, inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false, limitedConnections: false, worldMining: false }
   const requests = new Set()
+  const snapshotRequests = { count: 0 }
   const upstream = createServer((request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
 
     requests.add(url.pathname)
+    if (url.pathname === '/api/mods/CoiCalculatorExporter/snapshot') snapshotRequests.count++
     const json = (value, status = 200) => {
       response.writeHead(status, { 'Content-Type': 'application/json' })
       const body = JSON.stringify(value)
@@ -258,7 +260,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     mkdirSync(process.env.COI_SMOKE_SCREENSHOTS, { recursive: true })
     await browser('screenshot', `${process.env.COI_SMOKE_SCREENSHOTS}/${name}.png`)
   }
-  const ready = () => browser('wait', '--fn', 'document.body.innerText.includes("Game sync: Live") && document.querySelector("nav") !== null', '--timeout', '45000')
+  const ready = () => browser('wait', '--fn', 'document.querySelector("[data-game-sync=available]") !== null && document.querySelector("[data-plan-calculation=ready]") !== null && document.querySelector("nav") !== null', '--timeout', '45000')
 
   t.after(() => browser('close'))
 
@@ -281,8 +283,17 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal(await evaluate('document.querySelectorAll("[role=listbox] [role=switch]").length'), 0)
     await screenshot('factory-presets')
     await browser('press', 'ArrowDown')
+    const readsBeforePlanChange = snapshotRequests.count
+
     await browser('press', 'Enter')
+    await browser('wait', '[data-plan-calculation="updating"]')
+    assert.equal(await evaluate('document.querySelector("[data-plan-calculation]").innerText'), 'Calculating plan…')
+    assert.match(await evaluate('document.querySelector("[data-game-sync]").innerText'), /^Synced · /)
+    assert.equal(await evaluate('document.querySelector("[data-previous-result]").innerText'), 'Previous result')
+    assert.equal(snapshotRequests.count, readsBeforePlanChange, 'Changing the plan recalculates locally without a game sync')
     await ready()
+    assert.equal(await evaluate('document.querySelector("[data-plan-calculation]").innerText'), '')
+    assert.equal(await evaluate('document.querySelectorAll("[data-previous-result]").length'), 0)
     assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Build Space Station level 4/)
     assert.match(await text(), /Unpause 1 Household Goods Module/)
     assert.notDeepEqual(await summary(), baseline)
@@ -298,6 +309,10 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Build 1 Nuclear waste storage/)
     assert.match(await text(), /Cooling tower \(large\)[\s\S]*3 to build/)
     assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Build Space Station level 4/)
+    await browser('set', 'viewport', '375', '900')
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Third FBR checklist must fit the mobile viewport')
+    await screenshot('third-fbr-mobile')
+    await browser('set', 'viewport', '1440', '1000')
     state.powerMeter = true
     await click('Sync now')
     await browser('wait', '[aria-label="Sync now"]:not([disabled])')
@@ -646,11 +661,13 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('press', 'Tab')
     await browser('press', 'Shift+Tab')
     assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Sync now')
-    await browser('wait', '--text', 'Next automatic sync in 1 minute')
+    await browser('wait', '--text', 'Automatic sync every minute')
     state.inventoryBonus = 17
     state.syncDelayMs = 2500
     await browser('press', 'Enter')
     await browser('wait', '[aria-label="Sync now"][disabled][aria-busy="true"]')
+    assert.match(await evaluate('document.querySelector("[data-game-sync=syncing]").innerText'), /^Syncing game…/)
+    assert.equal(await evaluate('document.querySelector("[data-plan-calculation]").innerText'), '')
     await browser('wait', '[aria-label="Sync now"]:not([disabled])')
     state.syncDelayMs = 0
     await ready()
@@ -660,7 +677,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(inventory.includes((fixture.products.inventory.Product_Gold.quantity + 17).toLocaleString('en-US', { maximumFractionDigits: 2 })))
     await click('Back to Factory Total')
     await screenshot('manual-sync')
-    // An unchanged response (304) must also settle the button and remain Live.
+    // An unchanged response (304) must also settle the button and remain synced.
     await click('Sync now')
     await browser('wait', '[aria-label="Sync now"]:not([disabled])')
     await ready()
@@ -777,8 +794,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       assert.ok((await response.json()).error)
     }
     await browser('reload')
-    await browser('wait', '--fn', 'document.body.innerText.includes("Game sync: Last sync")', '--timeout', '45000')
-    assert.doesNotMatch(await text(), /Game sync: Live/)
+    await browser('wait', '[data-game-sync="error"]', '--timeout', '45000')
+    assert.match(await evaluate('document.querySelector("[data-game-sync]").innerText'), /^Last sync · /)
     assert.equal(await evaluate('document.querySelectorAll("[data-source=synced]").length'), 0)
     await click('Mines')
     assert.match(await text(), /Current water data unavailable/)

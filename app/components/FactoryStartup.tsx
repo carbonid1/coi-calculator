@@ -6,23 +6,25 @@ interface Props {
   onRetry: () => void
 }
 
+const getLabel = (failed: boolean, hasSnapshot: boolean) => {
+  if (failed) return 'Could not calculate plan.'
+  if (hasSnapshot) return 'Calculating plan…'
+
+  return 'Waiting for game sync'
+}
+
 /** A single calm first-visit state; never fabricate partial factory totals. */
 export const FactoryStartup = ({ failed, hasSnapshot, onRetry }: Props) => {
-  let label = 'Waiting for game sync'
-
-  if (hasSnapshot) label = 'Calculating factory…'
-  if (failed) label = 'Could not calculate factory.'
-
   return (
   <div className="flex min-h-[60svh] items-center justify-center">
     <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
       {hasSnapshot && !failed && (
         <div className="size-5">
-          <ProgressRing progress={null} label="Calculating factory" />
+          <ProgressRing progress={null} label="Calculating plan" />
         </div>
       )}
       <p role="status">
-        {label}
+        {getLabel(failed, hasSnapshot)}
       </p>
       {failed && <Button variant="ghost" onClick={onRetry}>Retry</Button>}
     </div>

@@ -283,6 +283,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
               return (
                 <Tooltip
                   key={mismatch.key}
+                  className="w-full min-w-0"
                   label={`Factory Total keeps the planned target until the live value is ${mismatch.direction === "at-least" ? "at least" : "at most"} ${mismatch.target}. ${actionLabel}.`}
                   maxWidth={320}
                 >
@@ -330,6 +331,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
               return (
                 <Tooltip
                   key={planned.key}
+                  className="w-full min-w-0"
                   label={`Factory Total assumes this capacity is available. Remaining to build: ${planned.count} × ${planned.buildingName} ${getChecklistLocation(planned)}.`}
                   maxWidth={320}
                 >
@@ -376,6 +378,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
             {plannedConfigurations.map((planned) => (
               <Tooltip
                 key={planned.key}
+                className="w-full min-w-0"
                 label={`Factory Total uses planned settings for ${planned.count} × ${planned.buildingName} ${getChecklistLocation(planned)}.`}
                 maxWidth={320}
               >
@@ -421,7 +424,7 @@ export const PlannedBuildsView: React.FC<Props> = ({
           </h5>
           <div className="mt-1 grid gap-1 md:grid-cols-2">
             {plannedFollowUps.map((planned) => (
-              <Tooltip key={planned.key} label={planned.note} maxWidth={320}>
+              <Tooltip key={planned.key} label={planned.note} maxWidth={320} className="w-full min-w-0">
                 <Button
                   variant="ghost"
                   size="small"

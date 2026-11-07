@@ -8,14 +8,23 @@ interface Props {
   selected: FactoryPresetId
   modified: boolean
   disabled?: boolean
+  calculationStatus?: 'loading' | 'updating' | 'error' | 'ready'
   onChange: (id: FactoryPresetId) => void
 }
 
 const items = factoryPresets.map(preset => ({ value: preset.id, label: preset.name }))
+const calculationLabels = {
+  loading: 'Calculating plan…', updating: 'Calculating plan…', error: 'Calculation failed', ready: '',
+}
 
-export const FactoryPresetPicker = ({ selected, modified, disabled, onChange }: Props) => (
-  <Select aria-label="Factory preset" value={modified ? '' : selected} options={items}
-    disabled={disabled} className="w-40 text-xs sm:w-52" menuAlign="end"
-    placeholder={selected === 'current' ? 'Modified setup' : `${getFactoryPreset(selected).name} · modified`}
-    onChange={id => onChange(getFactoryPreset(id).id)} />
+export const FactoryPresetPicker = ({ selected, modified, disabled, onChange, calculationStatus = 'ready' }: Props) => (
+  <div className="flex items-center gap-2">
+    <Select aria-label="Factory preset" value={modified ? '' : selected} options={items}
+      disabled={disabled} className="w-40 text-xs sm:w-52" menuAlign="end"
+      placeholder={selected === 'current' ? 'Modified setup' : `${getFactoryPreset(selected).name} · modified`}
+      onChange={id => onChange(getFactoryPreset(id).id)} />
+    <span role="status" data-plan-calculation={calculationStatus} className="w-28 text-xs text-muted-foreground">
+      {calculationLabels[calculationStatus]}
+    </span>
+  </div>
 )

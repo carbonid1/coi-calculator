@@ -8,9 +8,7 @@ import {
 } from "../game-state";
 
 interface Props {
-  calculationStatus?: "loading" | "updating" | "error" | "ready";
   exportedAtUtc: string | null;
-  isFresh: boolean;
   isSyncing: boolean;
   onSync: () => void;
   snapshot: GameStateSnapshot | null;
@@ -27,43 +25,37 @@ export const formatSnapshotTime = (value: string) => new Intl.DateTimeFormat("uk
 
 const getStatusLabel = (
   hasSnapshot: boolean,
-  isLive: boolean,
+  hasCurrentSync: boolean,
   status: GameStateConnectionStatus,
+  isSyncing: boolean,
 ) => {
-  if (hasSnapshot) return isLive ? "Game sync: Live" : "Game sync: Last sync";
-  if (status === "loading") return "Checking game sync";
-  if (status === "missing") return "No game snapshot";
+  if (isSyncing) return "Syncing game…";
+  if (hasSnapshot) return hasCurrentSync ? "Synced" : "Last sync";
+  if (status === "loading") return "Checking game…";
+  if (status === "missing") return "Bridge unavailable";
 
-  return "Game sync unavailable";
+  return "Game data unavailable";
 };
 
 export const GameSyncStatus: React.FC<Props> = ({
-  calculationStatus = "ready",
   exportedAtUtc,
-  isFresh,
   isSyncing,
   onSync,
   snapshot,
   source,
   status,
 }) => {
-  const isLive = source === "live" && isFresh && calculationStatus === "ready";
-  let label = getStatusLabel(Boolean(snapshot), isLive, status);
-
-  if (calculationStatus === "loading") label = "Loading factory";
-  if (calculationStatus === "updating" || calculationStatus === "error") label = "Last result";
-  if (calculationStatus === "error" && !snapshot) label = "Factory unavailable";
+  const label = getStatusLabel(Boolean(snapshot), source === "live" && status === "available", status, isSyncing);
 
   return (
     <div className="flex items-center gap-1 sm:justify-end">
       <p
         role="status"
-        className={isLive
-          ? "min-h-4 whitespace-nowrap text-xs font-medium tabular-nums text-success sm:text-right"
-          : "min-h-4 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:text-right"}
+        data-game-sync={isSyncing ? "syncing" : status}
+        className="min-h-4 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:text-right"
       >
         {label}
-        {calculationStatus !== "loading" && snapshot && exportedAtUtc && (
+        {snapshot && exportedAtUtc && (
           <>
             {" · "}
             <time dateTime={exportedAtUtc} suppressHydrationWarning>
@@ -71,10 +63,8 @@ export const GameSyncStatus: React.FC<Props> = ({
             </time>
           </>
         )}
-        {calculationStatus === "updating" && " · Updating…"}
-        {calculationStatus === "error" && snapshot && " · Update failed"}
       </p>
-      <Tooltip label="Sync now · Next automatic sync in 1 minute" position="bottom">
+      <Tooltip label="Sync now · Automatic sync every minute" position="bottom">
         <Button type="button" variant="ghost" size="smallIcon" aria-label="Sync now"
           loading={isSyncing} onClick={onSync} className="text-muted-foreground">
           <RefreshCw aria-hidden="true" className="size-4" />

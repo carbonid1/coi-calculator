@@ -14,6 +14,7 @@ interface Props {
   factoryTotalId: string;
   resourceSupplyId: string;
   requirementsId?: string;
+  resultStale?: boolean;
   focusId: string;
   modifiersId: string;
   onChange: (id: string) => void;
@@ -25,7 +26,7 @@ interface Props {
 
 export const ModuleSwitcher = ({
   modules, active, contractsId, factoryTotalId, resourceSupplyId, focusId,
-  modifiersId, onChange, researchId, viewModuleIds, backId, onBack, requirementsId,
+  modifiersId, onChange, researchId, viewModuleIds, backId, onBack, requirementsId, resultStale = false,
 }: Props) => {
   const { presetModules, syncedModules, viewModules } = getModuleTabGroups(modules, new Set(viewModuleIds));
   const views = [
@@ -67,7 +68,10 @@ export const ModuleSwitcher = ({
               </Button>
             </Tooltip>
           )}
-          <h2 className="truncate text-lg font-semibold text-foreground">{title}</h2>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-foreground">{title}</h2>
+            {resultStale && <p role="status" data-previous-result className="text-xs text-muted-foreground">Previous result</p>}
+          </div>
         </div>
         {areaOptions.length > 0 && active !== requirementsId && (
           <Autocomplete.Root items={areaOptions} value={area ?? null}

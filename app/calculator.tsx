@@ -263,7 +263,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
     return 'ready'
   })()
-  const displayedSnapshot = settled?.model.snapshot ?? gameState.snapshot
 
   const header = (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
@@ -273,14 +272,13 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <FactoryPresetPicker selected={factoryPreset.presetId} modified={factoryPreset.isModified} disabled={!factoryPreset.canSave}
+          calculationStatus={calculationStatus}
           onChange={id => { if (!factoryPreset.selectPreset(id)) toast.error('Could not save preset. Check browser storage and try again.') }} />
         <GameSyncStatus
-          calculationStatus={calculationStatus}
-          exportedAtUtc={settled?.isStale ? settled.model.snapshot.exportedAtUtc : gameState.exportedAtUtc}
-          isFresh={gameState.isFresh}
+          exportedAtUtc={gameState.exportedAtUtc}
           isSyncing={gameState.isSyncing}
           onSync={gameState.syncNow}
-          snapshot={failed && !settled ? null : displayedSnapshot}
+          snapshot={gameState.snapshot}
           source={gameState.source}
           status={gameState.status}
         />
@@ -673,7 +671,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-5">
       <Toaster />
       {header}
-      {failed && <Button variant="ghost" onClick={retry}>Retry update</Button>}
+      {failed && <Button variant="ghost" onClick={retry}>Retry calculation</Button>}
 
       <ModuleSwitcher
         modules={configuredModules}
@@ -683,6 +681,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         factoryTotalId={FACTORY_TOTAL_ID}
         resourceSupplyId={RESOURCE_SUPPLY_ID}
         requirementsId={REQUIREMENTS_ID}
+        resultStale={settled.isStale || failed}
         focusId={FOCUS_DASHBOARD_ID}
         onChange={id => {
           if (id === RESOURCE_SUPPLY_ID && activeModuleId !== RESOURCE_SUPPLY_ID) setSupplyOriginId(activeModuleId)
