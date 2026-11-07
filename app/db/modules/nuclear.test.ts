@@ -7,13 +7,15 @@ import { emptyPlanningBaselines } from "../planning-baselines";
 import { type Module } from "./modules";
 import { createNuclearModule, plannedNuclearOperation } from "./nuclear";
 
-let nextEntityId = 1;
+const sequence = {
+  nextEntityId: 1,
+};
 const syncedEntity = (
   prototypeId: string,
   recipeIds: string[] = [],
   running = true,
 ): SyncedProductionEntity => ({
-  entityId: nextEntityId++,
+  entityId: sequence.nextEntityId++,
   prototypeId,
   running,
   recipeIds,

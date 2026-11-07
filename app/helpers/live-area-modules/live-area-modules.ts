@@ -383,8 +383,10 @@ export const createLiveAreaModules = (
 
       return mix && Object.values(mix).some(quantity => quantity > 0) ? [group.capacityPoolId] : []
     }))
-    let terrainSorterSourceCount = 0
-    let forestrySourceCount = 0
+    const sourceCounts = {
+      terrainSorterSourceCount: 0,
+      forestrySourceCount: 0,
+    }
 
     for (const group of fixedGroups.values()) {
       const recipeId = `${moduleIdForZone(zone.id)}:${group.prototypeId}:${group.recipe.id}`
@@ -579,7 +581,7 @@ export const createLiveAreaModules = (
       currentActiveBuildings[recipeId] = running
       constructionGhosts[recipeId] = planned
       dataSources[recipeId] = 'synced'
-      forestrySourceCount++
+      sourceCounts.forestrySourceCount++
     }
 
     for (const sorter of terrainSorterEntities) {
@@ -658,7 +660,7 @@ export const createLiveAreaModules = (
         currentActiveBuildings[recipeId] = running
         constructionGhosts[recipeId] = planned
         dataSources[recipeId] = 'synced'
-        terrainSorterSourceCount++
+        sourceCounts.terrainSorterSourceCount++
       }
     }
 
@@ -802,9 +804,9 @@ export const createLiveAreaModules = (
     const usesFactoryPool =
       isDefaultArea ||
       plan?.resourcePool === 'factory' ||
-      forestrySourceCount > 0 ||
+      sourceCounts.forestrySourceCount > 0 ||
       (mineTowers
-        ? terrainSorterSourceCount > 0
+        ? sourceCounts.terrainSorterSourceCount > 0
         : hasOreSortingPlant && terrainSourceResourceIds.length > 0)
 
     const liveModule: Module = {

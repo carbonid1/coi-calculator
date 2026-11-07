@@ -61,9 +61,7 @@ export const MinesView: React.FC<Props> = ({
                   * result.activeBuildings;
                 const targetKey = result.capacityPoolId
                   ?? `${result.moduleId}:${result.recipe.id}`;
-                let title = result.recipe.building;
-
-                if (!isGroundwater && output) title = resources[output.resourceId].name;
+                const title = !isGroundwater && output ? resources[output.resourceId].name : result.recipe.building;
 
                 return (
                   <BuildingCardTarget

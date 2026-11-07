@@ -152,13 +152,15 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
             const quantity = actualInputs?.find(actual => actual.resourceId === input.resourceId)?.quantity
               ?? getRecipeInputQuantity(input, outputModifiers) * ioMultiplier;
             const grossQuantity = getRecipeGrossInputQuantity(input, outputModifiers) * ioMultiplier;
-            let detail: string | undefined;
-
-            if (input.weatherAdjustedFarmId) {
-              detail = `Import after rain · ${parseFloat(quantity.toFixed(2))}\nGross demand · ${parseFloat(grossQuantity.toFixed(2))}`;
-            } else if (sustainableInput != null) {
-              detail = `Input · ${parseFloat(quantity.toFixed(2))}\nSustainable limit · ${parseFloat(sustainableInput.toFixed(2))}`;
-            }
+            const detail = (() => {
+              if (input.weatherAdjustedFarmId) {
+                return `Import after rain · ${parseFloat(quantity.toFixed(2))}\nGross demand · ${parseFloat(grossQuantity.toFixed(2))}`;
+              }
+              if (sustainableInput != null) {
+                return `Input · ${parseFloat(quantity.toFixed(2))}\nSustainable limit · ${parseFloat(sustainableInput.toFixed(2))}`;
+              }
+              return undefined;
+            })();
 
             return {
               resourceId: input.resourceId, quantity, detail,

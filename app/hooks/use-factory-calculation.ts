@@ -70,34 +70,36 @@ export const useFactoryCalculation = (model: CalculatorModel | null, version: st
 
   useEffect(() => {
     if (!saveId) return
-    let worker: Worker | undefined
-    let disposed = false
+    const lifecycle: { worker: Worker | undefined; disposed: boolean } = {
+      worker: undefined,
+      disposed: false,
+    }
     const controller = new AbortController()
     const reportError = (error: unknown) => {
-      if (disposed) return
+      if (lifecycle.disposed) return
       console.error('Factory calculation failed.', error)
       schedulerRef.current?.dispose()
       setFailureKey(requestKey)
     }
 
     try {
-      worker = new Worker(
+      lifecycle.worker = new Worker(
         new URL('../helpers/factory-calculation/factory-calculation.worker.ts', import.meta.url),
       )
     } catch (error) {
       // Do not fall back to freezing the main thread if workers are unavailable.
       const timer = setTimeout(() => reportError(error), 0)
 
-      return () => { disposed = true; clearTimeout(timer) }
+      return () => { lifecycle.disposed = true; clearTimeout(timer) }
     }
 
-    const activeWorker = worker
+    const activeWorker = lifecycle.worker
     const scheduler = createCalculationScheduler<CalculatorModel, SavedFactoryCalculation>({
       calculate: (jobRevision, jobModel) => calculateInWorker(
         activeWorker,
         { model: jobModel, revision: jobRevision, version },
         preview => {
-          if (!disposed) setSettled(current => current?.model.snapshot.saveId === saveId && current.version === version ? current : preview)
+          if (!lifecycle.disposed) setSettled(current => current?.model.snapshot.saveId === saveId && current.version === version ? current : preview)
         },
         controller.signal,
       ),
@@ -110,7 +112,7 @@ export const useFactoryCalculation = (model: CalculatorModel | null, version: st
 
     schedulerRef.current = scheduler
     return () => {
-      disposed = true
+      lifecycle.disposed = true
       scheduler.dispose()
       schedulerRef.current = null
       controller.abort()

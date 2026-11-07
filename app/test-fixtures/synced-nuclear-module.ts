@@ -2,13 +2,15 @@ import { createNuclearModule } from "../db/modules/nuclear";
 import { type SyncedProductionEntity } from "../game-state";
 import { withTestBuildingRequirements } from './building-requirements';
 
-let entityId = 1;
+const sequence = {
+  entityId: 1,
+};
 const entity = (
   prototypeId: string,
   recipeIds: string[] = [],
   running = true,
 ): SyncedProductionEntity => ({
-  entityId: entityId++,
+  entityId: sequence.entityId++,
   prototypeId,
   running,
   recipeIds,

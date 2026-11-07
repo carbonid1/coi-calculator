@@ -15,7 +15,8 @@ vi.mock('./factory-calculation-cache', () => ({
   writeSavedFactoryCalculation: write,
 }))
 
-let receive: (event: { data: FactoryCalculationRequest }) => Promise<void>
+type Receiver = (event: { data: FactoryCalculationRequest }) => Promise<void>
+const receive = vi.fn<Receiver>()
 const postMessage = vi.fn()
 const model = createCacheTestModel()
 const request = { model, revision: 'new', version: 'code-a' }
@@ -28,7 +29,7 @@ beforeEach(async () => {
   write.mockResolvedValue(undefined)
   vi.stubGlobal('self', {
     postMessage,
-    addEventListener: (_name: string, handler: typeof receive) => { receive = handler },
+    addEventListener: (_name: string, handler: Receiver) => { receive.mockImplementation(handler) },
   })
   await import('./factory-calculation.worker')
 })

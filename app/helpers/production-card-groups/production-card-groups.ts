@@ -51,8 +51,8 @@ const sortByDependencies = (groups: ProductionCardGroup[]) => {
   const dependents = baseline.map(() => new Set<number>())
   const indegrees = baseline.map(() => 0)
 
-  for (let producerIndex = 0; producerIndex < baseline.length; producerIndex += 1) {
-    for (let consumerIndex = 0; consumerIndex < baseline.length; consumerIndex += 1) {
+  for (const producerIndex of baseline.keys()) {
+    for (const consumerIndex of baseline.keys()) {
       if (
         producerIndex === consumerIndex ||
         !hasSharedResource(outputs[producerIndex] ?? new Set(), inputs[consumerIndex] ?? new Set())

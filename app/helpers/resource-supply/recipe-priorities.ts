@@ -78,10 +78,11 @@ export const getRecipePriorityNotes = (
       detail: 'Preference between these recipes on the same machines, within the same production stage.' })
   }
   if (recipe.consumeSurplusInputIds?.length && (side === 'outputs' || recipe.consumeSurplusInputIds.includes(resourceId))) {
-    let label = 'Extra after surplus production'
-
-    if (recipe.surplusConsumptionPhase === 'before-fallback') label = 'Extra before fallbacks'
-    else if (recipe.surplusConsumptionPhase === 'before-disposal') label = 'Extra after fallbacks'
+    const label = (() => {
+      if (recipe.surplusConsumptionPhase === 'before-fallback') return 'Extra before fallbacks'
+      if (recipe.surplusConsumptionPhase === 'before-disposal') return 'Extra after fallbacks'
+      return 'Extra after surplus production'
+    })()
     const outputCondition = recipe.consumeSurplusOutputIds?.length
       ? ` Extra ${recipe.consumeSurplusOutputIds.map(id => resources[id].name).join(', ')} must have downstream use.` : ''
 

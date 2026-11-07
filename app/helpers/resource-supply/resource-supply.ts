@@ -38,9 +38,11 @@ export const getResourceSupplyRows = (
     const result = localResult ?? factoryResult.calculation
     const preset = module.presets.find(candidate => candidate.id === module.defaultPresetId)
     const uses = new Map<string, number>()
-    let produced = 0
-    let used = 0
-    let disposed = 0
+    const totals = {
+      produced: 0,
+      used: 0,
+      disposed: 0,
+    }
 
     for (const line of [...result.regularResults, ...result.sourceResults, ...result.sinkResults]) {
       if (line.moduleId !== module.id) continue
@@ -49,14 +51,14 @@ export const getResourceSupplyRows = (
         sum + (input.resourceId === resourceId ? input.quantity : 0)
       ), 0)
 
-      produced += line.actualOutputs.reduce((sum, output) => (
+      totals.produced += line.actualOutputs.reduce((sum, output) => (
         sum + (output.resourceId === resourceId ? output.quantity : 0)
       ), 0)
       // Cooling/recovery is useful consumption; only terminal sinks are disposal.
       if (line.recipe.group === 'sink' && line.recipe.outputs.length === 0) {
-        disposed += consumed
+        totals.disposed += consumed
       } else {
-        used += consumed
+        totals.used += consumed
         const product = line.actualOutputs.find(output => (
           output.quantity > 0 && line.recipe.balanceOutputIds?.includes(output.resourceId)
         )) ?? line.actualOutputs.find(output => output.quantity > 0)
@@ -68,7 +70,7 @@ export const getResourceSupplyRows = (
 
     const fixedDemand = Math.max(0, preset?.fixedDemands?.[resourceId] ?? 0)
 
-    used += fixedDemand
+    totals.used += fixedDemand
     if (fixedDemand > 0) uses.set('Module demand', fixedDemand)
 
     const incoming = linkedModulesResult.transfers.filter(transfer => (
@@ -77,7 +79,7 @@ export const getResourceSupplyRows = (
     const outgoing = linkedModulesResult.transfers.filter(transfer => (
       transfer.resourceId === resourceId && transfer.sourceModuleId === module.id
     ))
-    const balance = produced - used - disposed
+    const balance = totals.produced - totals.used - totals.disposed
       + incoming.reduce((sum, transfer) => sum + transfer.quantity, 0)
       - outgoing.reduce((sum, transfer) => sum + transfer.quantity, 0)
     const boundary = linkedModulesResult.boundaries.find(candidate => (
@@ -87,15 +89,15 @@ export const getResourceSupplyRows = (
     const exported = outgoing.reduce((sum, transfer) => sum + transfer.quantity, 0)
       + (boundary?.factorySupply ?? (factoryAccess ? Math.max(0, balance) : 0))
 
-    if (produced + used + disposed < 0.001 && incoming.length === 0 && outgoing.length === 0
+    if (totals.produced + totals.used + totals.disposed < 0.001 && incoming.length === 0 && outgoing.length === 0
       && !boundary?.factoryDemand && !boundary?.factorySupply) return []
 
     return [{
       moduleId: module.id,
       moduleName: module.name,
-      produced,
-      used,
-      disposed,
+      produced: totals.produced,
+      used: totals.used,
+      disposed: totals.disposed,
       exported,
       balance,
       uses: [...uses].map(([name, quantity]) => ({ name, quantity }))

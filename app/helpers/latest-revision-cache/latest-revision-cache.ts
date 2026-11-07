@@ -1,12 +1,14 @@
 export const createLatestRevisionCache = <Value>() => {
-  let cached: { revision: string; value: Value } | null = null
+  const cache: { cached: { revision: string; value: Value } | null } = {
+    cached: null,
+  }
 
   return (revision: string, calculate: () => Value): Value => {
-    if (cached?.revision === revision) return cached.value
+    if (cache.cached?.revision === revision) return cache.cached.value
 
     const value = calculate()
 
-    cached = { revision, value }
+    cache.cached = { revision, value }
 
     return value
   }

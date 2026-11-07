@@ -49,18 +49,20 @@ export const applyNuclearOperationTargets = (
   for (const target of targets) {
     if (unavailableRecipeIds.has(target.recipeId)) continue
     const ids = recipeIdsByPolicyId.get(target.recipeId) ?? [target.recipeId]
-    let needed = Math.max(0, target.target - ids.reduce((sum, id) => sum + active(id), 0))
+    const remaining = {
+      needed: Math.max(0, target.target - ids.reduce((sum, id) => sum + active(id), 0)),
+    }
 
     // Reuse paused buildings in any matching configuration before adding new ones.
     for (const id of ids) {
-      const reused = Math.min(needed, Math.max(0, built(id) + ghosts(id) - active(id)))
+      const reused = Math.min(remaining.needed, Math.max(0, built(id) + ghosts(id) - active(id)))
 
       activate(id, reused)
-      needed -= reused
+      remaining.needed -= reused
     }
     const leadId = ids[0]
 
-    if (leadId) activate(leadId, needed)
+    if (leadId) activate(leadId, remaining.needed)
     for (const id of ids) {
       const actions = createAtLeastBuildingActions({
         built: built(id), running: current(id), target: active(id) - ghosts(id),

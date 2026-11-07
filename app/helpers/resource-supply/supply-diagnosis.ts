@@ -101,34 +101,36 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
 
     if (cached) return cached
     const { resourceId, moduleId } = target
-    let produced = 0
-    let consumed = 0
+    const totals = {
+      produced: 0,
+      consumed: 0,
+    }
 
     if (!moduleId) {
       const flow = factory.allResourceFlows.find(flow => flow.resourceId === resourceId)
 
-      produced = flow?.produced ?? 0
-      consumed = flow?.consumed ?? 0
+      totals.produced = flow?.produced ?? 0
+      totals.consumed = flow?.consumed ?? 0
     } else {
       for (const line of context(moduleId).lines) {
-        produced += line.actualOutputs.find(output => output.resourceId === resourceId)?.quantity ?? 0
-        consumed += line.actualInputs.find(input => input.resourceId === resourceId)?.quantity ?? 0
+        totals.produced += line.actualOutputs.find(output => output.resourceId === resourceId)?.quantity ?? 0
+        totals.consumed += line.actualInputs.find(input => input.resourceId === resourceId)?.quantity ?? 0
       }
       const area = modulesById.get(moduleId)
       const preset = getPreset(area)
       const demands = getModuleDemands(area)
 
-      produced += Math.max(0, getFactoryResourceRequests(preset?.requestedImports)[resourceId] ?? 0)
-      consumed += demands?.[resourceId] ?? 0
+      totals.produced += Math.max(0, getFactoryResourceRequests(preset?.requestedImports)[resourceId] ?? 0)
+      totals.consumed += demands?.[resourceId] ?? 0
       for (const transfer of linkedModulesResult.transfers) {
         if (transfer.resourceId !== resourceId) continue
-        if (transfer.targetModuleId === moduleId) produced += transfer.quantity
+        if (transfer.targetModuleId === moduleId) totals.produced += transfer.quantity
         if (transfer.sourceModuleId === moduleId) {
-          consumed += transfer.mode === 'produce-to-demand' ? transfer.requestedQuantity : transfer.quantity
+          totals.consumed += transfer.mode === 'produce-to-demand' ? transfer.requestedQuantity : transfer.quantity
         }
       }
     }
-    const flow = { resourceId, name: resources[resourceId].name, produced, consumed, net: produced - consumed }
+    const flow = { resourceId, name: resources[resourceId].name, produced: totals.produced, consumed: totals.consumed, net: totals.produced - totals.consumed }
 
     flowCache.set(key, flow)
     return flow
@@ -194,13 +196,14 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
           limits.push({ target: next, kind: 'exhausted' })
         }
       }
-      let status: SupplyProducer['status'] = 'unexplained'
-
-      if (line.activeBuildings === 0) status = 'paused'
-      else if (mainProducts.length > 0 && !recipe.balanceOutputIds?.includes(target.resourceId)) status = 'byproduct'
-      else if (pool?.atCapacity) status = 'capacity'
-      else if ('operatingMode' in line && line.operatingMode === 'fixed') status = 'fixed'
-      else if (limits.length > 0) status = 'inputs'
+      const status = ((): SupplyProducer['status'] => {
+        if (line.activeBuildings === 0) return 'paused'
+        if (mainProducts.length > 0 && !recipe.balanceOutputIds?.includes(target.resourceId)) return 'byproduct'
+        if (pool?.atCapacity) return 'capacity'
+        if ('operatingMode' in line && line.operatingMode === 'fixed') return 'fixed'
+        if (limits.length > 0) return 'inputs'
+        return 'unexplained'
+      })()
 
       return {
         key: `${line.moduleId}:${recipe.id}`, moduleId: line.moduleId,
@@ -335,10 +338,12 @@ export const createSupplyInspector = (modules: readonly Module[], calculation: F
     const upstream = [...producers.flatMap(producer => producer.limits), ...deliveries]
 
     if (upstream.length === 0) {
-      let kind: SupplyTrace['kind'] = 'exhausted'
+      const kind = ((): SupplyTrace['kind'] => {
+        if (producers.length > 0 && producers.every(producer => producer.status === 'paused')) return 'paused'
+        if (producers.length > 0 && producers.every(producer => producer.status === 'capacity')) return 'capacity'
+        return 'exhausted'
+      })()
 
-      if (producers.length > 0 && producers.every(producer => producer.status === 'paused')) kind = 'paused'
-      else if (producers.length > 0 && producers.every(producer => producer.status === 'capacity')) kind = 'capacity'
       return [{ path: nextPath, kind }]
     }
     return upstream.flatMap(next => trace(next, nextPath))

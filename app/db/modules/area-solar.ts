@@ -135,9 +135,11 @@ export const resolveSolarPanelModuleAssignments = ({
       (total, moduleId) => total + (assignments[moduleId]?.runningCounts[panel] ?? 0),
       0,
     );
-    let remaining = Math.max(0, target - totalRunning);
+    const budget = {
+      remaining: Math.max(0, target - totalRunning),
+    };
 
-    if (remaining === 0) continue;
+    if (budget.remaining === 0) continue;
 
     const capacityOrder = moduleIds.toSorted((leftId, rightId) => {
       const left = assignments[leftId];
@@ -158,17 +160,17 @@ export const resolveSolarPanelModuleAssignments = ({
       if (!assignment) continue;
 
       const paused = assignment.builtCounts[panel] - assignment.runningCounts[panel];
-      const toStart = Math.min(paused, remaining);
+      const toStart = Math.min(paused, budget.remaining);
 
       if (toStart <= 0) continue;
 
       assignment.plannedTargets[panel] = assignment.runningCounts[panel] + toStart;
-      remaining -= toStart;
+      budget.remaining -= toStart;
 
-      if (remaining === 0) break;
+      if (budget.remaining === 0) break;
     }
 
-    if (remaining === 0) continue;
+    if (budget.remaining === 0) continue;
 
     const buildOwnerId = moduleIds.toSorted((leftId, rightId) => {
       const left = assignments[leftId];
@@ -188,7 +190,7 @@ export const resolveSolarPanelModuleAssignments = ({
     buildOwner.plannedTargets[panel] = (
       buildOwner.plannedTargets[panel]
       ?? buildOwner.runningCounts[panel]
-    ) + remaining;
+    ) + budget.remaining;
   }
 
   return assignments;

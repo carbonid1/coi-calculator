@@ -232,22 +232,31 @@ const calculateWithDispatch = (
         }
       : line;
   });
-  let electricityRatios = new Map(groups.map((group) => [group.id, 0]));
-  let resourceRatios = new Map(
-    prioritizedLines.map((line) => [prioritizedLineId(line), 0]),
-  );
-  let dispatchedLines: ProductionLine[] = [];
-  let calculation: ReturnType<typeof calculateNet> | null = null;
-  let buildingStats: ReturnType<typeof calculateBuildingStats> | null = null;
-  let calculationMatchesDispatchRatios = false;
+  const dispatchState: {
+    electricityRatios: Map<string, number>;
+    resourceRatios: Map<string, number>;
+    dispatchedLines: ProductionLine[];
+    calculation: ReturnType<typeof calculateNet> | null;
+    buildingStats: ReturnType<typeof calculateBuildingStats> | null;
+    calculationMatchesDispatchRatios: boolean;
+  } = {
+    electricityRatios: new Map(groups.map((group) => [group.id, 0])),
+    resourceRatios: new Map(
+      prioritizedLines.map((line) => [prioritizedLineId(line), 0]),
+    ),
+    dispatchedLines: [],
+    calculation: null,
+    buildingStats: null,
+    calculationMatchesDispatchRatios: false,
+  };
 
   // Steam routing changes both electricity demand and Brine supply. Resource
   // priorities likewise depend on final byproduct totals, so dispatch both
   // feedback loops together until the monthly plan reaches a steady state.
-  for (let iteration = 0; iteration < MAX_DISPATCH_ITERATIONS; iteration += 1) {
-    dispatchedLines = applyDispatchRatios(electricityRatios, resourceRatios);
+  for (const pass = { iteration: 0 }; pass.iteration < MAX_DISPATCH_ITERATIONS; pass.iteration += 1) {
+    dispatchState.dispatchedLines = applyDispatchRatios(dispatchState.electricityRatios, dispatchState.resourceRatios);
     const currentCalculation = calculateNet(
-      dispatchedLines,
+      dispatchState.dispatchedLines,
       suppliedResources,
       recyclingEfficiencyPercent,
       outputModifiers,
@@ -259,27 +268,29 @@ const calculateWithDispatch = (
       deferredDemands,
     );
 
-    calculation = currentCalculation;
+    dispatchState.calculation = currentCalculation;
 
-    buildingStats = calculateBuildingStats(
-      dispatchedLines,
+    dispatchState.buildingStats = calculateBuildingStats(
+      dispatchState.dispatchedLines,
       currentCalculation,
       outputModifiers,
     );
-    const modeledDemandMw = buildingStats.electricityKw / 1000 + fixedElectricityDemandMw;
-    let remainingDemandMw = Math.max(
-      getDemandMw(modeledDemandMw),
-      minimumElectricityDemandMw,
-    );
+    const modeledDemandMw = dispatchState.buildingStats.electricityKw / 1000 + fixedElectricityDemandMw;
+    const remaining2 = {
+      remainingDemandMw: Math.max(
+        getDemandMw(modeledDemandMw),
+        minimumElectricityDemandMw,
+      ),
+    };
     const nextElectricityRatios = new Map<string, number>();
 
     for (const group of groups) {
       const ratio = group.capacityMw > 0
-        ? Math.min(1, Math.max(0, remainingDemandMw / group.capacityMw))
+        ? Math.min(1, Math.max(0, remaining2.remainingDemandMw / group.capacityMw))
         : 0;
 
       nextElectricityRatios.set(group.id, ratio);
-      remainingDemandMw = Math.max(0, remainingDemandMw - group.capacityMw * ratio);
+      remaining2.remainingDemandMw = Math.max(0, remaining2.remainingDemandMw - group.capacityMw * ratio);
     }
 
     const desiredResourceRatios = new Map<string, number>();
@@ -289,7 +300,9 @@ const calculateWithDispatch = (
         candidate.moduleId === line.moduleId && candidate.recipe.id === line.recipe.id
       ));
       const factor = line.activeBuildings * line.speedLevel;
-      let desiredRatio = 0;
+      const allocation2 = {
+        desiredRatio: 0,
+      };
 
       if (line.recipe.balanceBy === "output") {
         const balanceOutputIds = line.recipe.balanceOutputIds
@@ -321,7 +334,7 @@ const calculateWithDispatch = (
           ];
         });
 
-        desiredRatio = outputRatios.length > 0 ? Math.max(...outputRatios) : 0;
+        allocation2.desiredRatio = outputRatios.length > 0 ? Math.max(...outputRatios) : 0;
       } else {
         const balanceInputIds = line.recipe.balanceInputIds
           ? new Set(line.recipe.balanceInputIds)
@@ -334,7 +347,7 @@ const calculateWithDispatch = (
           line.recipe.inputPriorities?.[input.resourceId] != null
         ));
 
-        desiredRatio = drivingInputs.length > 0 || hasPrioritizedInput ? 1 : 0;
+        allocation2.desiredRatio = drivingInputs.length > 0 || hasPrioritizedInput ? 1 : 0;
 
         for (const input of drivingInputs) {
           const flow = currentCalculation.allResourceFlows.find(
@@ -346,19 +359,19 @@ const calculateWithDispatch = (
           const capacity = getRecipeInputQuantity(input, outputModifiers) * factor;
 
           if (!flow || capacity <= 0) {
-            desiredRatio = 0;
+            allocation2.desiredRatio = 0;
             continue;
           }
 
           const available = flow.produced - (flow.consumed - currentConsumed);
 
-          desiredRatio = Math.min(desiredRatio, Math.max(0, available / capacity));
+          allocation2.desiredRatio = Math.min(allocation2.desiredRatio, Math.max(0, available / capacity));
         }
       }
 
       desiredResourceRatios.set(
         prioritizedLineId(line),
-        Math.min(1, Math.max(0, desiredRatio)),
+        Math.min(1, Math.max(0, allocation2.desiredRatio)),
       );
     }
 
@@ -374,7 +387,9 @@ const calculateWithDispatch = (
         candidate.moduleId === line.moduleId && candidate.recipe.id === line.recipe.id
       ));
       const factor = line.activeBuildings * line.speedLevel;
-      let desiredRatio = desiredResourceRatios.get(prioritizedLineId(line)) ?? 0;
+      const allocation3 = {
+        desiredRatio: desiredResourceRatios.get(prioritizedLineId(line)) ?? 0,
+      };
 
       for (const output of line.recipe.outputs) {
         if (
@@ -428,15 +443,15 @@ const calculateWithDispatch = (
           + desiredPrioritizedConsumption;
         const producedByOtherLines = flow.produced - currentProduced;
 
-        desiredRatio = Math.max(
-          desiredRatio,
+        allocation3.desiredRatio = Math.max(
+          allocation3.desiredRatio,
           Math.max(0, effectiveConsumption - producedByOtherLines) / capacity,
         );
       }
 
       desiredResourceRatios.set(
         prioritizedLineId(line),
-        Math.min(1, Math.max(0, desiredRatio)),
+        Math.min(1, Math.max(0, allocation3.desiredRatio)),
       );
     }
 
@@ -487,7 +502,9 @@ const calculateWithDispatch = (
         0,
       );
       const remainingByScope = new Map<string, number>();
-      let reservedModuleSupply = 0;
+      const reservation = {
+        reservedModuleSupply: 0,
+      };
 
       for (const [key, scopedConsumers] of consumersByScope) {
         if (!key.startsWith("module:")) continue;
@@ -518,7 +535,7 @@ const calculateWithDispatch = (
         );
 
         remainingByScope.set(key, remaining);
-        reservedModuleSupply += remaining;
+        reservation.reservedModuleSupply += remaining;
       }
 
       const globallyConsumed = (consumersByScope.get("global") ?? []).reduce(
@@ -530,7 +547,7 @@ const calculateWithDispatch = (
         0,
         (flow?.produced ?? 0) - (
           (flow?.consumed ?? 0) - globallyConsumed - consumedByFallbackSinks
-        ) - reservedModuleSupply,
+        ) - reservation.reservedModuleSupply,
       ));
 
       const inputCapacity = (line: ProductionLine) => {
@@ -566,7 +583,7 @@ const calculateWithDispatch = (
         })),
         localSupply,
         remainingByScope.get("global") ?? 0,
-        Math.max(0, (flow?.produced ?? 0) - reservedModuleSupply - fixedConsumption - committedModuleDemand
+        Math.max(0, (flow?.produced ?? 0) - reservation.reservedModuleSupply - fixedConsumption - committedModuleDemand
           - Math.max(0, (fixedDemands[resourceId] ?? 0) - (deferredDemands[resourceId] ?? 0))),
       );
 
@@ -593,7 +610,7 @@ const calculateWithDispatch = (
     // priority and installed-capacity limits.
     for (const line of prioritizedLines) {
       const id = prioritizedLineId(line);
-      const previousRatio = resourceRatios.get(id) ?? 0;
+      const previousRatio = dispatchState.resourceRatios.get(id) ?? 0;
       const desiredRatio = desiredResourceRatios.get(id) ?? 0;
 
       desiredResourceRatios.set(
@@ -606,37 +623,37 @@ const calculateWithDispatch = (
     const electricityConverged = groups.every((group) => (
       Math.abs(
         (nextElectricityRatios.get(group.id) ?? 0)
-        - (electricityRatios.get(group.id) ?? 0),
+        - (dispatchState.electricityRatios.get(group.id) ?? 0),
       ) <= DISPATCH_TOLERANCE
     ));
     const resourcesConverged = prioritizedLines.every((line) => {
       const id = prioritizedLineId(line);
 
       return Math.abs(
-        (desiredResourceRatios.get(id) ?? 0) - (resourceRatios.get(id) ?? 0),
+        (desiredResourceRatios.get(id) ?? 0) - (dispatchState.resourceRatios.get(id) ?? 0),
       ) <= DISPATCH_TOLERANCE;
     });
     const ratiosAreIdentical = groups.every((group) => (
-      nextElectricityRatios.get(group.id) === electricityRatios.get(group.id)
+      nextElectricityRatios.get(group.id) === dispatchState.electricityRatios.get(group.id)
     )) && prioritizedLines.every((line) => {
       const id = prioritizedLineId(line);
 
-      return desiredResourceRatios.get(id) === resourceRatios.get(id);
+      return desiredResourceRatios.get(id) === dispatchState.resourceRatios.get(id);
     });
 
-    electricityRatios = nextElectricityRatios;
-    resourceRatios = desiredResourceRatios;
+    dispatchState.electricityRatios = nextElectricityRatios;
+    dispatchState.resourceRatios = desiredResourceRatios;
 
     if (electricityConverged && resourcesConverged) {
-      calculationMatchesDispatchRatios = ratiosAreIdentical;
+      dispatchState.calculationMatchesDispatchRatios = ratiosAreIdentical;
       break;
     }
   }
 
-  if (!calculationMatchesDispatchRatios || !calculation || !buildingStats) {
-    dispatchedLines = applyDispatchRatios(electricityRatios, resourceRatios);
-    calculation = calculateNet(
-      dispatchedLines,
+  if (!dispatchState.calculationMatchesDispatchRatios || !dispatchState.calculation || !dispatchState.buildingStats) {
+    dispatchState.dispatchedLines = applyDispatchRatios(dispatchState.electricityRatios, dispatchState.resourceRatios);
+    dispatchState.calculation = calculateNet(
+      dispatchState.dispatchedLines,
       suppliedResources,
       recyclingEfficiencyPercent,
       outputModifiers,
@@ -647,22 +664,22 @@ const calculateWithDispatch = (
       moduleSuppliedResources,
       deferredDemands,
     );
-    buildingStats = calculateBuildingStats(
-      dispatchedLines,
-      calculation,
+    dispatchState.buildingStats = calculateBuildingStats(
+      dispatchState.dispatchedLines,
+      dispatchState.calculation,
       outputModifiers,
     );
   }
 
-  const modeledDemandMw = buildingStats.electricityKw / 1000 + fixedElectricityDemandMw;
+  const modeledDemandMw = dispatchState.buildingStats.electricityKw / 1000 + fixedElectricityDemandMw;
 
   return {
-    lines: dispatchedLines,
-    calculation,
+    lines: dispatchState.dispatchedLines,
+    calculation: dispatchState.calculation,
     // Generation targets control dispatch, not the factory's actual demand.
     electricityDemandMw: getDemandMw(modeledDemandMw),
     modeledElectricityDemandMw: modeledDemandMw,
-    computingDemandTflops: buildingStats.computingTflops,
+    computingDemandTflops: dispatchState.buildingStats.computingTflops,
   };
 };
 
@@ -993,17 +1010,19 @@ export const calculateFactoryTotal = (
   };
   const paymentAvailability = new Map<ResourceId, number>();
   const rebalanceContracts = (startingPlan: ReturnType<typeof applyContracts>) => {
-    let plan = startingPlan;
+    const balance = {
+      plan: startingPlan,
+    };
 
-    for (let iteration = 0; iteration < MAX_CONTRACT_BALANCE_ITERATIONS; iteration += 1) {
+    for (const pass2 = { iteration: 0 }; pass2.iteration < MAX_CONTRACT_BALANCE_ITERATIONS; pass2.iteration += 1) {
       const nextPlan = balanceContractExports(
-        calculatePlanningFlowsWithContractExports(plan),
+        calculatePlanningFlowsWithContractExports(balance.plan),
         contracts,
-        plan.contractResults,
+        balance.plan.contractResults,
         contractsProfitMultiplier,
         paymentAvailability,
       );
-      const priorById = new Map(plan.contractResults.map(result => (
+      const priorById = new Map(balance.plan.contractResults.map(result => (
         [result.contract.id, result] as const
       )));
       const converged = nextPlan.contractResults.every((result) => {
@@ -1014,28 +1033,33 @@ export const calculateFactoryTotal = (
           && Math.abs(result.imported - prior.imported) <= CONTRACT_BALANCE_TOLERANCE;
       });
 
-      plan = nextPlan;
+      balance.plan = nextPlan;
       if (converged) break;
     }
-    return plan;
+    return balance.plan;
   };
   // With no contracts, planning and delivery have identical inputs. Go
   // straight to delivery instead of solving that factory three times.
-  let contractPlan = contracts.length === 0
+  const initialContractPlan = contracts.length === 0
     ? { flows: [], contractResults: [] }
     : rebalanceContracts(initialContractResults
         ? { flows: [], contractResults: initialContractResults }
         : getInitialContractPlan());
-  let dispatched = calculateWithContractPlan(contractPlan);
+  const contractState = {
+    plan: initialContractPlan,
+    dispatched: calculateWithContractPlan(initialContractPlan),
+  };
 
   // Planning seeds reveal demand even behind unavailable imports. They cannot
   // fund surplus shipments: validate payment goods against actual deliveries.
   // The usual feasible plan reuses its final dispatch without another solve.
-  for (let iteration = 0; iteration < MAX_CONTRACT_BALANCE_ITERATIONS; iteration += 1) {
-    const costs = getContractResourceFlows(contractPlan.contractResults).filter(flow => flow.kind !== "import");
-    let changed = false;
+  for (const pass3 = { iteration: 0 }; pass3.iteration < MAX_CONTRACT_BALANCE_ITERATIONS; pass3.iteration += 1) {
+    const costs = getContractResourceFlows(contractState.plan.contractResults).filter(flow => flow.kind !== "import");
+    const progress = {
+      changed: false,
+    };
 
-    for (const result of contractPlan.contractResults) {
+    for (const result of contractState.plan.contractResults) {
       const fixedImports = result.routes.reduce((total, route) => (
         total + (route.route.importedPerProductionCycle === null ? 0 : route.imported)
       ), 0);
@@ -1044,7 +1068,7 @@ export const calculateFactoryTotal = (
         || result.imported <= Math.max(result.requiredImported, fixedImports) + CONTRACT_BALANCE_TOLERANCE) continue;
 
       const paymentId = result.contract.exchange.exported.resourceId;
-      const flow = dispatched.calculation.allResourceFlows.find(flow => flow.resourceId === paymentId);
+      const flow = contractState.dispatched.calculation.allResourceFlows.find(flow => flow.resourceId === paymentId);
 
       if (!flow || flow.net >= -CONTRACT_BALANCE_TOLERANCE) continue;
 
@@ -1055,20 +1079,20 @@ export const calculateFactoryTotal = (
       if (available >= (paymentAvailability.get(paymentId) ?? Infinity) - CONTRACT_BALANCE_TOLERANCE) continue;
 
       paymentAvailability.set(paymentId, available);
-      changed = true;
+      progress.changed = true;
     }
-    if (!changed) break;
+    if (!progress.changed) break;
 
-    contractPlan = rebalanceContracts(contractPlan);
-    dispatched = calculateWithContractPlan(contractPlan);
+    contractState.plan = rebalanceContracts(contractState.plan);
+    contractState.dispatched = calculateWithContractPlan(contractState.plan);
   }
-  const { calculation } = dispatched;
+  const { calculation } = contractState.dispatched;
   const flows = calculation.allResourceFlows.filter(
     (flow) => !localResourceIds.has(flow.resourceId),
   );
   const finalDemandSources = getDemandSourceProduction(calculation);
   const finalFlowsById = new Map(flows.map((flow) => [flow.resourceId, flow]));
-  const contractResults = contractPlan.contractResults.map((result) => {
+  const contractResults = contractState.plan.contractResults.map((result) => {
     const importedId = result.contract.exchange.imported.resourceId;
     const finalNet = finalFlowsById.get(importedId)?.net ?? 0;
     const demandSourceRemainder = finalDemandSources.get(importedId) ?? 0;
@@ -1089,12 +1113,12 @@ export const calculateFactoryTotal = (
 
   return {
     flows,
-    allLines: dispatched.lines,
+    allLines: contractState.dispatched.lines,
     contractResults,
     contractFlows: getContractResourceFlows(contractResults),
     calculation,
-    electricityDemandMw: dispatched.electricityDemandMw,
-    modeledElectricityDemandMw: dispatched.modeledElectricityDemandMw,
-    computingDemandTflops: dispatched.computingDemandTflops,
+    electricityDemandMw: contractState.dispatched.electricityDemandMw,
+    modeledElectricityDemandMw: contractState.dispatched.modeledElectricityDemandMw,
+    computingDemandTflops: contractState.dispatched.computingDemandTflops,
   };
 };

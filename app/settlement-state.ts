@@ -27,13 +27,15 @@ const isStrings = (value: unknown): value is string[] => (
 export const isSyncedSettlementState = (value: unknown): value is SyncedSettlementState => {
   if (!isRecord(value) || !isCount(value.population) || !Array.isArray(value.settlements)) return false
   const housingIds = new Set<number>()
-  let housedPopulation = 0
+  const totals = {
+    housedPopulation: 0,
+  }
 
   for (const settlement of value.settlements) {
     if (!isRecord(settlement) || !isCount(settlement.population) || !isCount(settlement.capacity)
       || settlement.population > settlement.capacity || !Array.isArray(settlement.housing)
       || !isStrings(settlement.foodProductIds) || !isStrings(settlement.serviceIds)) return false
-    housedPopulation += settlement.population
+    totals.housedPopulation += settlement.population
     for (const house of settlement.housing) {
       if (!isRecord(house) || !isCount(house.entityId) || housingIds.has(house.entityId)
         || !isCount(house.population) || !isCount(house.capacity)
@@ -41,7 +43,7 @@ export const isSyncedSettlementState = (value: unknown): value is SyncedSettleme
       housingIds.add(house.entityId)
     }
   }
-  if (housedPopulation > value.population) return false
+  if (totals.housedPopulation > value.population) return false
   if (value.unity === null) return true
   return Array.isArray(value.unity) && value.unity.every(item => (
     isRecord(item) && typeof item.id === 'string' && item.id.length > 0

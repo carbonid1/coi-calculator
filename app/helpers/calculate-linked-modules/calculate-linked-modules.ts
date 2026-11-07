@@ -88,8 +88,10 @@ const getResultFlow = (
   calculation: Calculation,
   resourceId: ResourceId,
 ) => {
-  let consumed = 0
-  let produced = 0
+  const totals = {
+    consumed: 0,
+    produced: 0,
+  }
   const results: readonly (RegularResult | PassiveResult)[] = [
     ...calculation.regularResults,
     ...calculation.sourceResults,
@@ -100,14 +102,14 @@ const getResultFlow = (
     if (result.moduleId !== moduleId) continue
 
     for (const input of result.actualInputs) {
-      if (input.resourceId === resourceId) consumed += input.quantity
+      if (input.resourceId === resourceId) totals.consumed += input.quantity
     }
     for (const output of result.actualOutputs) {
-      if (output.resourceId === resourceId) produced += output.quantity
+      if (output.resourceId === resourceId) totals.produced += output.quantity
     }
   }
 
-  return { consumed, produced }
+  return { consumed: totals.consumed, produced: totals.produced }
 }
 
 const getFlowResourceIds = (moduleId: string, calculation: Calculation) => new Set(
@@ -189,18 +191,20 @@ const getRunBoundaries = (
   return [...resourceIds].map(resourceId => {
     const rule = resolveModuleResourceBoundary(moduleId, resourceId, links, run.preset)
     const flow = getResultFlow(moduleId, run.calculation, resourceId)
-    let received = 0
-    let sent = 0
-    let demandTriggeredSent = 0
+    const transfers2 = {
+      received: 0,
+      sent: 0,
+      demandTriggeredSent: 0,
+    }
 
     for (const link of moduleLinks) {
       if (link.resourceId !== resourceId) continue
       const quantity = quantities.get(link.id) ?? 0
 
-      if (link.targetModuleId === moduleId) received += quantity
+      if (link.targetModuleId === moduleId) transfers2.received += quantity
       if (link.sourceModuleId === moduleId) {
-        sent += quantity
-        if (link.mode === 'produce-to-demand') demandTriggeredSent += quantity
+        transfers2.sent += quantity
+        if (link.mode === 'produce-to-demand') transfers2.demandTriggeredSent += quantity
       }
     }
     return {
@@ -209,7 +213,7 @@ const getRunBoundaries = (
         produced: flow.produced,
         consumed: flow.consumed + (resourceId === 'electricity' ? electricityDemandMw : 0),
         fixedDemand: run.preset?.fixedDemands?.[resourceId] ?? 0,
-        received, sent, demandTriggeredSent,
+        received: transfers2.received, sent: transfers2.sent, demandTriggeredSent: transfers2.demandTriggeredSent,
       }),
     }
   })
@@ -540,21 +544,23 @@ export const calculateLinkedModules = ({
     return allocated
   }
 
-  let demandRequests = new Map<string, number>(
-    activeLinks
-      .filter(link => link.mode === 'produce-to-demand')
-      .map(link => [link.id, 0] as const),
-  )
-  let transferQuantities = new Map<string, number>(
-    activeLinks.map(link => [link.id, 0]),
-  )
-  let targetRequirements = new Map<string, number>()
+  const allocation = {
+    demandRequests: new Map<string, number>(
+      activeLinks
+        .filter(link => link.mode === 'produce-to-demand')
+        .map(link => [link.id, 0] as const),
+    ),
+    transferQuantities: new Map<string, number>(
+      activeLinks.map(link => [link.id, 0]),
+    ),
+    targetRequirements: new Map<string, number>(),
+  }
 
-  for (let iteration = 0; iteration < MAX_LINK_ITERATIONS; iteration += 1) {
-    const sourceRuns = runModules(transferQuantities, demandRequests, true)
+  for (const pass = { iteration: 0 }; pass.iteration < MAX_LINK_ITERATIONS; pass.iteration += 1) {
+    const sourceRuns = runModules(allocation.transferQuantities, allocation.demandRequests, true)
     const sourceAvailability = getSourceAvailability(sourceRuns)
-    const probeTransfers = getProbeTransfers(sourceAvailability, demandRequests)
-    const targetRuns = runModules(probeTransfers, demandRequests, true)
+    const probeTransfers = getProbeTransfers(sourceAvailability, allocation.demandRequests)
+    const targetRuns = runModules(probeTransfers, allocation.demandRequests, true)
     const nextTargetRequirements = getTargetRequirements(targetRuns)
     const nextDemandRequests = new Map(
       activeLinks
@@ -570,43 +576,43 @@ export const calculateLinkedModules = ({
       nextTargetRequirements,
     )
 
-    const requestsConverged = quantitiesAreEqual(demandRequests, nextDemandRequests)
+    const requestsConverged = quantitiesAreEqual(allocation.demandRequests, nextDemandRequests)
     const transfersConverged = quantitiesAreEqual(
-      transferQuantities,
+      allocation.transferQuantities,
       nextTransferQuantities,
     )
 
-    demandRequests = nextDemandRequests
-    transferQuantities = nextTransferQuantities
-    targetRequirements = nextTargetRequirements
+    allocation.demandRequests = nextDemandRequests
+    allocation.transferQuantities = nextTransferQuantities
+    allocation.targetRequirements = nextTargetRequirements
 
     if (requestsConverged && transfersConverged) break
   }
 
-  const planningRuns = runModules(transferQuantities, demandRequests, true)
+  const planningRuns = runModules(allocation.transferQuantities, allocation.demandRequests, true)
   const planningAvailability = getSourceAvailability(planningRuns)
-  const planningProbes = getProbeTransfers(planningAvailability, demandRequests)
-  const targetPlanningRuns = runModules(planningProbes, demandRequests, true)
+  const planningProbes = getProbeTransfers(planningAvailability, allocation.demandRequests)
+  const targetPlanningRuns = runModules(planningProbes, allocation.demandRequests, true)
 
-  targetRequirements = getTargetRequirements(targetPlanningRuns)
-  transferQuantities = allocateTransfers(
+  allocation.targetRequirements = getTargetRequirements(targetPlanningRuns)
+  allocation.transferQuantities = allocateTransfers(
     planningRuns,
     planningAvailability,
-    targetRequirements,
+    allocation.targetRequirements,
   )
 
   const finalDemandRequests = new Map(
     activeLinks
       .filter(link => link.mode === 'produce-to-demand')
-      .map(link => [link.id, transferQuantities.get(link.id) ?? 0] as const),
+      .map(link => [link.id, allocation.transferQuantities.get(link.id) ?? 0] as const),
   )
 
   for (const [targetKey, matchingLinks] of linksByTargetResource) {
     const delivered = matchingLinks.reduce(
-      (total, link) => total + (transferQuantities.get(link.id) ?? 0),
+      (total, link) => total + (allocation.transferQuantities.get(link.id) ?? 0),
       0,
     )
-    const shortfall = Math.max(0, (targetRequirements.get(targetKey) ?? 0) - delivered)
+    const shortfall = Math.max(0, (allocation.targetRequirements.get(targetKey) ?? 0) - delivered)
     const lastDemandLink = matchingLinks.findLast(link => link.mode === 'produce-to-demand')
 
     if (lastDemandLink && shortfall > LINK_TOLERANCE) {
@@ -617,15 +623,15 @@ export const calculateLinkedModules = ({
     }
   }
 
-  demandRequests = finalDemandRequests
+  allocation.demandRequests = finalDemandRequests
 
-  const finalRuns = runModules(transferQuantities, demandRequests, false)
+  const finalRuns = runModules(allocation.transferQuantities, allocation.demandRequests, false)
   const transfers = activeLinks.map<ModuleResourceTransfer>(link => ({
     ...link,
-    quantity: transferQuantities.get(link.id) ?? 0,
+    quantity: allocation.transferQuantities.get(link.id) ?? 0,
     requestedQuantity: link.mode === 'produce-to-demand'
-      ? (demandRequests.get(link.id) ?? 0)
-      : (transferQuantities.get(link.id) ?? 0),
+      ? (allocation.demandRequests.get(link.id) ?? 0)
+      : (allocation.transferQuantities.get(link.id) ?? 0),
   }))
   const moduleResults = new Map<string, LinkedModuleResult>()
   const boundaries: ModuleResourceBoundary[] = []
@@ -668,7 +674,7 @@ export const calculateLinkedModules = ({
       lines: run.lines,
     })
 
-    for (const boundary of getRunBoundaries(moduleDefinition.id, run, activeLinks, transferQuantities, outputModifiers)) {
+    for (const boundary of getRunBoundaries(moduleDefinition.id, run, activeLinks, allocation.transferQuantities, outputModifiers)) {
       const { resourceId } = boundary
 
       boundaries.push(boundary)

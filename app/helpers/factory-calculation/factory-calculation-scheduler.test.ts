@@ -2,16 +2,7 @@ import { expect, it, vi } from 'vitest'
 
 import { createCalculationScheduler } from './factory-calculation-scheduler'
 
-const createDeferred = <Value>() => {
-  let resolve!: (value: Value) => void
-  let reject!: (error: unknown) => void
-  const promise = new Promise<Value>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-
-  return { promise, reject, resolve }
-}
+const createDeferred = <Value>() => Promise.withResolvers<Value>()
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 

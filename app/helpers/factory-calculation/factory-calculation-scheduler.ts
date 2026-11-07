@@ -25,32 +25,34 @@ export const createCalculationScheduler = <Input, Value>({
   onError,
   onSettled,
 }: CalculationSchedulerOptions<Input, Value>): CalculationScheduler<Input> => {
-  let active: CalculationJob<Input> | null = null
-  let queued: CalculationJob<Input> | null = null
-  let disposed = false
+  const state: { active: CalculationJob<Input> | null; queued: CalculationJob<Input> | null; disposed: boolean } = {
+    active: null,
+    queued: null,
+    disposed: false,
+  }
 
   const run = (job: CalculationJob<Input>) => {
-    active = job
+    state.active = job
     void calculate(job.revision, job.input).then(
       value => {
-        if (disposed || active !== job) return
-        active = null
+        if (state.disposed || state.active !== job) return
+        state.active = null
         onSettled(job.revision, job.input, value)
-        if (queued) {
-          const next = queued
+        if (state.queued) {
+          const next = state.queued
 
-          queued = null
+          state.queued = null
           run(next)
         }
       },
       (error: unknown) => {
-        if (disposed || active !== job) return
-        active = null
+        if (state.disposed || state.active !== job) return
+        state.active = null
         onError(job.revision, error)
-        if (queued) {
-          const next = queued
+        if (state.queued) {
+          const next = state.queued
 
-          queued = null
+          state.queued = null
           run(next)
         }
       },
@@ -59,18 +61,18 @@ export const createCalculationScheduler = <Input, Value>({
 
   return {
     dispose: () => {
-      disposed = true
-      active = null
-      queued = null
+      state.disposed = true
+      state.active = null
+      state.queued = null
     },
     request: (revision, input) => {
-      if (disposed) return
-      if (active?.revision === revision) {
-        queued = null
+      if (state.disposed) return
+      if (state.active?.revision === revision) {
+        state.queued = null
         return
       }
-      if (active) {
-        queued = { input, revision }
+      if (state.active) {
+        state.queued = { input, revision }
         return
       }
 

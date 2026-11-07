@@ -45,14 +45,14 @@ it.each([false, true])('manual sync replaces the scheduled poll, waits for compl
 })
 
 it('waits a full minute after the active request before polling again', async () => {
-  let finish!: () => void
-  const refresh = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+  const pending = Promise.withResolvers<void>()
+  const refresh = vi.fn(() => pending.promise)
   const poller = startGameStatePolling({ refresh, isVisible: () => true, onError: vi.fn() })
 
   await vi.advanceTimersByTimeAsync(5_000)
   poller.visibilityChanged()
   expect(refresh).toHaveBeenCalledTimes(1)
-  finish()
+  pending.resolve()
   await vi.advanceTimersByTimeAsync(59_999)
   expect(refresh).toHaveBeenCalledTimes(1)
   await vi.advanceTimersByTimeAsync(1)
@@ -76,36 +76,40 @@ it('times out a hung request and continues polling, even if the request ignores 
 })
 
 it('does no polling while hidden and refreshes on return when the next poll is due', async () => {
-  let visible = false
+  const visibility2 = {
+    visible: false,
+  }
   const refresh = vi.fn().mockResolvedValue(undefined)
-  const poller = startGameStatePolling({ refresh, isVisible: () => visible, onError: vi.fn() })
+  const poller = startGameStatePolling({ refresh, isVisible: () => visibility2.visible, onError: vi.fn() })
 
   await vi.advanceTimersByTimeAsync(60_000)
   expect(refresh).not.toHaveBeenCalled()
-  visible = true
+  visibility2.visible = true
   poller.visibilityChanged()
   await vi.advanceTimersByTimeAsync(0)
   expect(refresh).toHaveBeenCalledTimes(1)
-  visible = false
+  visibility2.visible = false
   poller.visibilityChanged()
   await vi.advanceTimersByTimeAsync(60_000)
   expect(refresh).toHaveBeenCalledTimes(1)
-  visible = true
+  visibility2.visible = true
   poller.visibilityChanged()
   expect(refresh).toHaveBeenCalledTimes(2)
   poller.dispose()
 })
 
 it('does not bypass the one-minute interval when switching tabs', async () => {
-  let visible = true
+  const visibility3 = {
+    visible: true,
+  }
   const refresh = vi.fn().mockResolvedValue(undefined)
-  const poller = startGameStatePolling({ refresh, isVisible: () => visible, onError: vi.fn() })
+  const poller = startGameStatePolling({ refresh, isVisible: () => visibility3.visible, onError: vi.fn() })
 
   await vi.advanceTimersByTimeAsync(5_000)
-  visible = false
+  visibility3.visible = false
   poller.visibilityChanged()
   await vi.advanceTimersByTimeAsync(5_000)
-  visible = true
+  visibility3.visible = true
   poller.visibilityChanged()
   expect(refresh).toHaveBeenCalledTimes(1)
   await vi.advanceTimersByTimeAsync(49_999)

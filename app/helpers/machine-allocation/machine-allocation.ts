@@ -149,13 +149,15 @@ export const allocateSharedMachines = (
     const groupZoneIds = new Set(
       (effectiveZonesByEntity.get(seed.entityId) ?? []).map(zone => zone.id),
     );
-    let addedToGroup = true;
+    const expansion = {
+      addedToGroup: true,
+    };
 
-    while (addedToGroup && groupZoneIds.size > 0) {
-      addedToGroup = false;
+    while (expansion.addedToGroup && groupZoneIds.size > 0) {
+      expansion.addedToGroup = false;
 
-      for (let index = ungroupedSuggestions.length - 1; index >= 0; index--) {
-        const candidate = ungroupedSuggestions[index];
+      for (const scan = { index: ungroupedSuggestions.length - 1 }; scan.index >= 0; scan.index--) {
+        const candidate = ungroupedSuggestions[scan.index];
 
         if (!candidate) continue;
 
@@ -165,8 +167,8 @@ export const allocateSharedMachines = (
 
         group.push(candidate);
         for (const zone of candidateZones) groupZoneIds.add(zone.id);
-        ungroupedSuggestions.splice(index, 1);
-        addedToGroup = true;
+        ungroupedSuggestions.splice(scan.index, 1);
+        expansion.addedToGroup = true;
       }
     }
 
@@ -174,7 +176,9 @@ export const allocateSharedMachines = (
   }
 
   const resolutions: Record<string, SharedMachineClaimResolution> = {};
-  let suggestionGroupIndex = 0;
+  const suggestions = {
+    suggestionGroupIndex: 0,
+  };
 
   for (const claim of claims) {
     const explicit = explicitByClaim.get(claim.id) ?? [];
@@ -182,10 +186,10 @@ export const allocateSharedMachines = (
 
     while (
       explicit.length + suggested.length < claim.target
-      && suggestionGroupIndex < suggestionGroups.length
+      && suggestions.suggestionGroupIndex < suggestionGroups.length
     ) {
-      suggested.push(...(suggestionGroups[suggestionGroupIndex] ?? []));
-      suggestionGroupIndex++;
+      suggested.push(...(suggestionGroups[suggestions.suggestionGroupIndex] ?? []));
+      suggestions.suggestionGroupIndex++;
     }
 
     const running = explicit.filter(machine => machine.running).length;

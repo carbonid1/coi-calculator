@@ -152,11 +152,12 @@ export const resolveNuclearEntityInventory = (
 
   for (const entity of entities) {
     if (entity.prototypeId === "FastBreederReactor" && entity.nuclearReactor) {
-      let recipeId: "fbr-0x" | "fbr" | "fbr-3x" | null = null;
-
-      if (entity.nuclearReactor.enrichmentStep === 0) recipeId = "fbr-0x";
-      if (entity.nuclearReactor.enrichmentStep === 1) recipeId = "fbr";
-      if (entity.nuclearReactor.enrichmentStep === 2) recipeId = "fbr-3x";
+      const recipeId = (() => {
+        if (entity.nuclearReactor.enrichmentStep === 0) return "fbr-0x";
+        if (entity.nuclearReactor.enrichmentStep === 1) return "fbr";
+        if (entity.nuclearReactor.enrichmentStep === 2) return "fbr-3x";
+        return null;
+      })();
 
       if (recipeId) {
         addCount(counts, recipeId, entity.running);
@@ -184,11 +185,10 @@ export const resolveNuclearEntityInventory = (
     const count = counts[recipeId];
 
     if (!count) continue;
-    let speedLevel = 1;
+    const activeCount = count.running > 0 ? count.running : count.built;
+    const total = count.running > 0 ? totalPower.running : totalPower.built;
 
-    if (count.built > 0) speedLevel = totalPower.built / count.built;
-    if (count.running > 0) speedLevel = totalPower.running / count.running;
-    speedLevels[recipeId] = speedLevel;
+    speedLevels[recipeId] = activeCount > 0 ? total / activeCount : 1;
   }
 
   return {

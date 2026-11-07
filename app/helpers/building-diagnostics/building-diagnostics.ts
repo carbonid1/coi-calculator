@@ -279,7 +279,9 @@ export const calculateBuildingDiagnostics = (
       0,
     );
     const affectedResourceIds = new Set<ResourceId>();
-    let hasUnmetOutputDemand = false;
+    const demand = {
+      hasUnmetOutputDemand: false,
+    };
 
     for (const result of results) {
       const diagnosticOutputIds = isRegularResult(result)
@@ -296,7 +298,7 @@ export const calculateBuildingDiagnostics = (
           && (flowsById.get(output.resourceId)?.net ?? 0) < -EPSILON
         ) {
           affectedResourceIds.add(output.resourceId);
-          hasUnmetOutputDemand = true;
+          demand.hasUnmetOutputDemand = true;
         }
       }
 
@@ -318,7 +320,7 @@ export const calculateBuildingDiagnostics = (
     const paused = Math.max(0, built - (keepReady ? currentActive : active));
     // Input-starved utilization is not evidence of spare production capacity
     // while one of the pool's main products still has unmet demand.
-    const suppressPauseAttention = keepReady || hasUnmetOutputDemand || results.every((result) => (
+    const suppressPauseAttention = keepReady || demand.hasUnmetOutputDemand || results.every((result) => (
       getRecipeBuildingData(result.recipe)?.suppressPauseAttention === true
     ));
     const canPause = suppressPauseAttention

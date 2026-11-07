@@ -341,9 +341,9 @@ export const SupplyDiagnosis = ({ inspector, target, contracts = [], deliveries 
     - imports.reduce((sum, imported) => sum + imported.amount, 0)
     - deliveries.reduce((sum, delivery) => sum + delivery.quantity, 0)
     - moduleSupplies.reduce((sum, supply) => sum + supply.quantity, 0)
-  let balanceLabel = flow.net < -0.001 ? 'Short by' : 'Remaining'
-
-  if (factoryAccess) balanceLabel = flow.net < -0.001 ? 'Needs from factory' : 'Available to factory'
+  const shortageLabel = factoryAccess ? 'Needs from factory' : 'Short by'
+  const remainingLabel = factoryAccess ? 'Available to factory' : 'Remaining'
+  const balanceLabel = flow.net < -0.001 ? shortageLabel : remainingLabel
 
   return (
     <div className="space-y-5" aria-label={`${resources[target.resourceId].name} supply diagnosis`}>

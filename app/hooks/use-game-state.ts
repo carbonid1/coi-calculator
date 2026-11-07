@@ -60,18 +60,20 @@ export const useGameState = (initialResult: GameStateResult) => {
   const syncNow = useCallback(() => pollingRef.current?.refreshNow(), []);
 
   useEffect(() => {
-    let isActive = true;
+    const lifecycle = {
+      isActive: true,
+    };
     const cachedSnapshot = readCachedSnapshot();
     const initialSnapshot = initialSnapshotRef.current;
     const initialCacheWriteTimer = initialSnapshot
       && shouldPersistInitialSnapshot(initialSnapshot, cachedSnapshot)
       ? window.setTimeout(() => {
-          if (isActive) writeCachedSnapshot(initialSnapshot);
+          if (lifecycle.isActive) writeCachedSnapshot(initialSnapshot);
         }, 0)
       : undefined;
     const cacheTimer = cachedSnapshot
       ? window.setTimeout(() => {
-          if (!isActive) return;
+          if (!lifecycle.isActive) return;
 
           setResult(current => current.snapshot
             ? current
@@ -87,7 +89,7 @@ export const useGameState = (initialResult: GameStateResult) => {
       : undefined;
 
     const setUnavailable = (status: "missing" | "error") => {
-      if (!isActive) return;
+      if (!lifecycle.isActive) return;
 
       setResult(current => ({
         exportedAtUtc: current.exportedAtUtc,
@@ -110,7 +112,7 @@ export const useGameState = (initialResult: GameStateResult) => {
           signal,
         });
 
-        if (!isActive || signal.aborted) return;
+        if (!lifecycle.isActive || signal.aborted) return;
 
         if (response.status === 304) {
           const exportedAtUtc = response.headers.get("X-CoI-Exported-At-Utc");
@@ -120,7 +122,7 @@ export const useGameState = (initialResult: GameStateResult) => {
             return;
           }
 
-          if (isActive) {
+          if (lifecycle.isActive) {
             const isFresh = isSnapshotFresh(exportedAtUtc);
 
             setResult(current => {
@@ -156,7 +158,7 @@ export const useGameState = (initialResult: GameStateResult) => {
 
         const value: unknown = await response.json();
 
-        if (!isActive || signal.aborted) return;
+        if (!lifecycle.isActive || signal.aborted) return;
         const snapshot = normalizeGameStateSnapshot(value);
 
         if (!snapshot) {
@@ -170,7 +172,7 @@ export const useGameState = (initialResult: GameStateResult) => {
 
         revisionRef.current = revision;
         if (snapshotChanged) writeCachedSnapshot(snapshot);
-        if (isActive) {
+        if (lifecycle.isActive) {
           const isFresh = isSnapshotFresh(snapshot.exportedAtUtc);
 
           setResult(current => {
@@ -195,7 +197,7 @@ export const useGameState = (initialResult: GameStateResult) => {
           });
         }
       } catch {
-        if (!isActive || signal.aborted) return;
+        if (!lifecycle.isActive || signal.aborted) return;
         setUnavailable("error");
       }
     };
@@ -211,7 +213,7 @@ export const useGameState = (initialResult: GameStateResult) => {
     document.addEventListener("visibilitychange", polling.visibilityChanged);
 
     return () => {
-      isActive = false;
+      lifecycle.isActive = false;
       pollingRef.current = null;
       polling.dispose();
       document.removeEventListener("visibilitychange", polling.visibilityChanged);

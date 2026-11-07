@@ -105,7 +105,9 @@ export const calculateBuildingStats = (
         * (result.recipe.electricityMultiplier ?? 1);
     }, 0);
 
-  let populationComputingTflops = 0;
+  const computing = {
+    populationComputingTflops: 0,
+  };
   const machineComputing = new Map<string, { effectiveMachines: number; tflopsPerMachine: number }>();
 
   for (const result of results.regularResults) {
@@ -123,7 +125,7 @@ export const calculateBuildingStats = (
       : result.activeBuildings * result.supplyRatio;
 
     if (result.recipe.computingScalesWithSpeed) {
-      populationComputingTflops += tflopsPerMachine * effectiveMachines;
+      computing.populationComputingTflops += tflopsPerMachine * effectiveMachines;
       continue;
     }
 
@@ -150,6 +152,6 @@ export const calculateBuildingStats = (
   return {
     workers,
     electricityKw: regularElectricityKw + passiveElectricityKw,
-    computingTflops: populationComputingTflops + machineComputingTflops,
+    computingTflops: computing.populationComputingTflops + machineComputingTflops,
   };
 };

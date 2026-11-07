@@ -58,25 +58,27 @@ export const allocateProcessingSupply = (
 ) => {
   const remainingLocal = new Map(localSupply)
   const allocated = new Map<string, number>()
-  let localBudget = Math.max(0, preemptibleSupply)
-  let remainingGlobal = Math.max(0, globalSupply)
+  const budget = {
+    localBudget: Math.max(0, preemptibleSupply),
+    remainingGlobal: Math.max(0, globalSupply),
+  }
 
   for (const request of requests) {
     if (!request.localFirst) continue
     const available = Math.max(0, remainingLocal.get(request.moduleId) ?? 0)
-    const quantity = Math.min(Math.max(0, request.desired), available, localBudget)
+    const quantity = Math.min(Math.max(0, request.desired), available, budget.localBudget)
 
     allocated.set(request.id, quantity)
     remainingLocal.set(request.moduleId, available - quantity)
-    localBudget -= quantity
-    remainingGlobal = Math.max(0, remainingGlobal - quantity)
+    budget.localBudget -= quantity
+    budget.remainingGlobal = Math.max(0, budget.remainingGlobal - quantity)
   }
   for (const request of requests) {
     const local = allocated.get(request.id) ?? 0
-    const quantity = Math.min(Math.max(0, request.desired - local), remainingGlobal)
+    const quantity = Math.min(Math.max(0, request.desired - local), budget.remainingGlobal)
 
     allocated.set(request.id, local + quantity)
-    remainingGlobal -= quantity
+    budget.remainingGlobal -= quantity
   }
   return allocated
 }
