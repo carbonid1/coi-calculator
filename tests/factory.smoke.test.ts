@@ -235,7 +235,8 @@ it('extends Science expansion with third FBR support, housing and a closed fuel 
   expect(expanded.focusAllocations).toEqual(science.focusAllocations)
   expect(expanded.projectedSpaceStationLevel).toEqual(science.projectedSpaceStationLevel)
   const supportCounts = { 'fbr-0x': 2, 'nuclear-reprocessing': 2, 'enrichment-plant': 3,
-    'radioactive-waste-storage': 2, 'seawater-pump': 8, 'thermal-desalinator-super': 15,
+    'radioactive-waste-storage': 2, 'seawater-pump': 8, 'thermal-desalinator-super': 13,
+    'turbine-super': 8, 'turbine-high': 8, 'turbine-low': 8, 'power-generator-ii-nuclear': 16,
     ...Object.fromEntries(nuclear.recipes
       ?.filter(recipe => recipe.gameBuildingId === 'CoolingTowerT2').map(recipe => [recipe.id, 7]) ?? []) }
 
@@ -244,7 +245,8 @@ it('extends Science expansion with third FBR support, housing and a closed fuel 
   expect(preset.builtBuildings).toEqual(sciencePreset.builtBuildings)
   expect(preset.currentActiveBuildings).toEqual(sciencePreset.currentActiveBuildings)
   expect(preset.unplacedPlannedBuildings).toEqual({ ...sciencePreset.unplacedPlannedBuildings,
-    ...Object.fromEntries(Object.entries(supportCounts).map(([id, count]) => [id, count - (preset.builtBuildings?.[id] ?? 0)])) })
+    ...Object.fromEntries(Object.entries(supportCounts).map(([id, count]) => [id, count - (preset.builtBuildings?.[id] ?? 0)])),
+    'turbine-super': 2, 'turbine-high': 2, 'turbine-low': 2, 'power-generator-ii-nuclear': 4 })
   expect(preset.dataSources).toEqual({ ...sciencePreset.dataSources, 'fbr-3x': 'planned',
     ...Object.fromEntries(Object.keys(supportCounts).map(id => [id, 'planned'])) })
   expect(preset.fixed).toEqual(sciencePreset.fixed)
@@ -267,6 +269,16 @@ it('extends Science expansion with third FBR support, housing and a closed fuel 
   const reactor = result.factoryResult.allLines.find(line => line.recipe.id === 'fbr-0x')
 
   expect(reactor).toMatchObject({ activeBuildings: 2, builtBuildings: 1, speedLevel: 4, operatingMode: 'fixed' })
+  // Four working rows supply 240 MW; the fifth row is planned construction,
+  // never extra running capacity or a minimum generation target.
+  expect(result.factoryResult.allLines.find(line => line.recipe.id === 'turbine-super'))
+    .toMatchObject({ activeBuildings: 8, unplacedPlannedBuildings: 2, operatingMode: 'balanced' })
+  const turbineCapacity = result.factoryResult.allLines
+    .filter(line => ['turbine-super', 'turbine-high', 'turbine-low'].includes(line.recipe.id))
+    .reduce((sum, line) => sum + line.activeBuildings * line.recipe.outputs
+      .reduce((power, output) => power + (output.resourceId === 'electricity' ? output.quantity : 0), 0), 0)
+
+  expect(turbineCapacity).toBe(240)
   expect(result.factoryResult.allLines.find(line => line.recipe.id === 'fbr-3x'))
     .toMatchObject({ activeBuildings: 1, builtBuildings: 1, speedLevel: 2, dataSource: 'planned', operatingMode: 'fixed' })
   for (const id of ['coreFuel', 'coreFuelSpent', 'blanketFuel', 'blanketFuelEnriched']) {
@@ -352,6 +364,7 @@ it('projects native maintenance for planned builds and unpauses without duplicat
     CoolingTowerT2: { productId: 'Product_Virtual_MaintenanceT1', perMonth: 5 },
     ResearchLab5: { productId: 'Product_Virtual_MaintenanceT1', perMonth: 3 },
     MicrochipMachineT2: { productId: 'Product_Virtual_MaintenanceT3', perMonth: 1 },
+    TurbineSuperPress: { productId: 'Product_Virtual_MaintenanceT1', perMonth: 2 },
   }
 
   for (const building of snapshot.buildingDefinitions) if (rates[building.id]) building.maintenance = rates[building.id]
@@ -363,8 +376,11 @@ it('projects native maintenance for planned builds and unpauses without duplicat
   const projection = planned.maintenanceProjection
 
   // Unpaused labs already contribute idle upkeep to the synced baseline. Twelve
-  // chip recipes share three added machines. Breeder speed adds no buildings.
-  expect(projection.planned).toEqual({ maintenanceI: 11.2, maintenanceII: 2, maintenanceIII: 6.5 })
+  // chip recipes share three added machines. Two SP turbines unpause while
+  // two new standby turbines add only idle upkeep. Breeder speed adds none.
+  expect(projection.planned?.maintenanceI).toBeCloseTo(13.2)
+  expect(projection.planned?.maintenanceII).toBe(2)
+  expect(projection.planned?.maintenanceIII).toBe(6.5)
   for (const tier of ['maintenanceI', 'maintenanceII', 'maintenanceIII'] as const) {
     expect(projection.projected?.[tier]).toBeCloseTo(snapshot.history.maintenance[tier].averagePerCycle + (projection.planned?.[tier] ?? 0))
     const assigned = planned.configuredModules.flatMap(mod => Object.values(mod.presets[0].recipeOutputTargets ?? {}))
@@ -372,6 +388,10 @@ it('projects native maintenance for planned builds and unpauses without duplicat
 
     expect(assigned).toBeCloseTo(projection.projected?.[tier] ?? 0)
   }
+  // Even with every working turbine synced, new paused construction still
+  // contributes its idle upkeep until that spare inventory exists in-game.
+  for (const entity of snapshot.productionEntities) if (entity.prototypeId === 'TurbineSuperPress') entity.running = true
+  expect(derive('third-fbr').maintenanceProjection.planned?.maintenanceI).toBeCloseTo(11.4)
   const invalid = structuredClone(snapshot)
 
   invalid.buildingDefinitions[0].maintenance = { productId: 'Product_Virtual_MaintenanceT1', perMonth: -1 }

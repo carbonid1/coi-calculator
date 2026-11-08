@@ -1,5 +1,5 @@
 import { type Preset } from '../../db/modules/modules'
-import { createAtLeastBuildingActions } from '../../db/modules/plan-mismatch'
+import { createAtLeastBuildingActions, createAtMostBuildingActions } from '../../db/modules/plan-mismatch'
 import { type Recipe } from '../../db/recipes'
 
 export interface NuclearOperationTarget {
@@ -7,6 +7,61 @@ export interface NuclearOperationTarget {
   pluralName?: string
   recipeId: string
   target: number
+}
+
+export interface NuclearTurbinePlan {
+  working: number
+  standby: number
+}
+
+// The installed turbine/generator recipes form a 60 MW row: two complete
+// SP/HP/LP trains with four Generator IIs. Standby rows stay outside dispatch.
+const turbineRowMembers = [
+  { recipeId: 'turbine-super', count: 2, name: 'Super-pressure turbine', pluralName: 'Super-pressure turbines' },
+  { recipeId: 'turbine-high', count: 2, name: 'High-pressure turbine II', pluralName: 'High-pressure turbines II' },
+  { recipeId: 'turbine-low', count: 2, name: 'Low-pressure turbine II', pluralName: 'Low-pressure turbines II' },
+  { recipeId: 'power-generator-ii-nuclear', count: 4, name: 'Power generator II', pluralName: 'Power generators II' },
+]
+
+export const applyNuclearTurbinePlan = (preset: Preset, plan?: NuclearTurbinePlan): Preset => {
+  if (!plan) return preset
+  const activeBuildings = { ...preset.activeBuildings }
+  const unplacedPlannedBuildings = { ...preset.unplacedPlannedBuildings }
+  const dataSources = { ...preset.dataSources }
+  const planMismatches = [...(preset.planMismatches ?? [])]
+
+  for (const member of turbineRowMembers) {
+    const id = member.recipeId
+    const built = preset.builtBuildings?.[id] ?? 0
+    const current = preset.currentActiveBuildings?.[id] ?? 0
+    const ghosts = preset.constructionGhosts?.[id] ?? 0
+    const working = plan.working * member.count
+    const standby = plan.standby * member.count
+    const total = working + standby
+    const unplaced = Math.max(0, total - built - ghosts)
+    const standbyToBuild = Math.min(standby, unplaced)
+    const actions = [
+      ...createAtLeastBuildingActions({ ...member, built, running: current, target: working - ghosts }),
+      ...createAtMostBuildingActions({ ...member, running: current, target: working }),
+      ...(standbyToBuild > 0 ? [{ type: 'build' as const,
+        label: `Build ${standbyToBuild} ${standbyToBuild === 1 ? member.name : member.pluralName} for standby (leave paused)` }] : []),
+    ]
+
+    activeBuildings[id] = working
+    // Physical construction includes the paused spare, while dispatch uses
+    // only working inventory. Keep the synced built count unchanged.
+    unplacedPlannedBuildings[id] = unplaced
+    if (working !== current || unplaced > 0) dataSources[id] = 'planned'
+    if (actions.length === 0) continue
+    planMismatches.push({ recipeId: id, current, target: working,
+      direction: current > working ? 'at-most' : 'at-least', format: 'count',
+      currentLabel: `${built} built · ${current} running`,
+      targetLabel: `≥${total} built · ${working} running · ≥${standby} paused`,
+      actions })
+  }
+
+  return { ...preset, activeBuildings, unplacedPlannedBuildings, dataSources,
+    planMismatches: planMismatches.length > 0 ? planMismatches : undefined }
 }
 
 /** Raise physical inventory across configured recipe groups without replacing synced counts. */

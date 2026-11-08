@@ -4,7 +4,7 @@ import {
   nuclearSpecialPrototypeIds,
   resolveNuclearEntityInventory,
 } from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
-import { applyNuclearOperationTargets, type NuclearOperationTarget } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets';
+import { applyNuclearOperationTargets, applyNuclearTurbinePlan, type NuclearOperationTarget, type NuclearTurbinePlan } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets';
 import { resolveDirectionalPlan } from '../../helpers/resolve-directional-plan';
 import { type PlanningBaselines } from "../planning-baselines";
 import {
@@ -22,6 +22,7 @@ export interface NuclearOperationPlan {
   powerReactorCount?: number;
   breederPowerLevel?: number;
   supportTargets?: readonly NuclearOperationTarget[];
+  turbineRows?: NuclearTurbinePlan;
 }
 
 export const plannedNuclearOperation: NuclearOperationPlan = {
@@ -35,7 +36,9 @@ export const thirdFbrNuclearOperation: NuclearOperationPlan = {
   ...plannedNuclearOperation,
   powerReactorCount: 2,
   breederPowerLevel: 2,
-  superDesalinatorCount: 15,
+  superDesalinatorCount: 13,
+  // FBR1: two working rows. FBR2: two working rows and one paused spare.
+  turbineRows: { working: 4, standby: 1 },
   supportTargets: [
     { recipeId: 'nuclear-reprocessing', name: 'Nuclear reprocessing plant', target: 2 },
     { recipeId: 'enrichment-plant', name: 'Enrichment plant', target: 3 },
@@ -143,7 +146,7 @@ export const createNuclearModule = (
     builtBuildings,
     recipes: liveRecipes?.recipes,
     presets: [
-      applyNuclearOperationTargets({
+      applyNuclearTurbinePlan(applyNuclearOperationTargets({
         ...liveRecipes?.preset,
         id: "configured-target",
         name: "Configured target",
@@ -165,7 +168,7 @@ export const createNuclearModule = (
         },
         // Vehicles refuel from what production leaves; a shortfall shows on fuel.
         deferredDemandIds: ["hydrogen"],
-      }, liveRecipes?.recipes ?? [], operationTargets, liveRecipes?.recipeIdsByPolicyId, liveRecipes?.unavailableRecipeIds),
+      }, liveRecipes?.recipes ?? [], operationTargets, liveRecipes?.recipeIdsByPolicyId, liveRecipes?.unavailableRecipeIds), plan?.turbineRows),
     ],
     defaultPresetId: "configured-target",
     liveArea,

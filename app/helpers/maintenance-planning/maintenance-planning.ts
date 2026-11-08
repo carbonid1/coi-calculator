@@ -19,8 +19,8 @@ const tiersByProductId: Record<string, MaintenanceTier> = {
   Product_Virtual_MaintenanceT3: 'maintenanceIII',
 }
 
-/** Historical consumption covers existing operation. Only extra active physical
- * inventory adds upkeep; speed, utilization and livestock population do not.
+/** Historical consumption covers existing operation. Planned construction and
+ * unpauses add upkeep; speed, utilization and livestock population do not.
  * A shared recipe pool is one set of buildings, regardless of recipe count. */
 export const projectMaintenance = (
   history: GameStateSnapshot['history']['maintenance'],
@@ -34,7 +34,7 @@ export const projectMaintenance = (
     maintenanceIII: history.maintenanceIII.averagePerCycle,
   }
   const planned: MaintenanceValues = { maintenanceI: 0, maintenanceII: 0, maintenanceIII: 0 }
-  const additions = new Map<string, { count: number; unpaused: number; maintenance: BuildingDefinition['maintenance'] }>()
+  const additions = new Map<string, { count: number; unpaused: number; paused: number; maintenance: BuildingDefinition['maintenance'] }>()
 
   for (const mod of modules) {
     const preset = mod.presets.find(preset => preset.id === mod.defaultPresetId) ?? null
@@ -46,8 +46,13 @@ export const projectMaintenance = (
       const count = Math.max(0, Math.ceil(active) - Math.ceil(current))
       const built = line.capacityPoolBuiltBuildings ?? line.builtBuildings
       const unpaused = Math.min(count, Math.max(0, Math.ceil(built) - Math.ceil(current)))
+      const ghosts = line.capacityPoolConstructionGhosts ?? line.constructionGhosts ?? 0
+      const unplaced = line.capacityPoolUnplacedPlannedBuildings ?? line.unplacedPlannedBuildings ?? 0
+      // New inventory beyond the working target is paused standby, not another
+      // full-load building. Existing paused inventory is already in history.
+      const paused = Math.max(0, Math.ceil(ghosts + unplaced) - Math.max(0, Math.ceil(active) - Math.ceil(built)))
 
-      if (count === 0) continue
+      if (count === 0 && paused === 0) continue
       const building = getRecipeBuildingData(line.recipe)
 
       // Synthetic operation ledgers (for example orbital upkeep) already carry
@@ -60,8 +65,8 @@ export const projectMaintenance = (
       const key = line.capacityPoolId ?? `${mod.id}:${line.recipe.id}`
       const previous = additions.get(key)
 
-      if (!previous || count > previous.count) additions.set(key, {
-        count, unpaused, maintenance: building?.maintenance,
+      if (!previous || count + paused > previous.count + previous.paused) additions.set(key, {
+        count, unpaused, paused, maintenance: building?.maintenance,
       })
     }
   }
@@ -70,12 +75,12 @@ export const projectMaintenance = (
   if (additions.size > 0 && (!configuration || [...additions.values()].some(entry => !entry.maintenance))) {
     return { synced, planned: null, projected: null }
   }
-  for (const { count, unpaused, maintenance } of additions.values()) {
+  for (const { count, unpaused, paused, maintenance } of additions.values()) {
     if (!maintenance?.productId) continue
     const tier = tiersByProductId[maintenance.productId]
 
     // Existing paused machines already contribute idle maintenance to history.
-    const increase = count - unpaused * (configuration?.idleMultiplier ?? 0)
+    const increase = count + (paused - unpaused) * (configuration?.idleMultiplier ?? 0)
 
     if (tier) planned[tier] += increase * maintenance.perMonth * (configuration?.consumptionMultiplier ?? 1)
   }

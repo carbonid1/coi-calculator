@@ -5,7 +5,7 @@ import { calculateFactoryTotal } from "../../test-fixtures/factory-total";
 import { baseConfig } from '../../test-fixtures/historical-planning'
 import { emptyPlanningBaselines } from "../planning-baselines";
 import { type Module } from "./modules";
-import { createNuclearModule, plannedNuclearOperation } from "./nuclear";
+import { createNuclearModule, plannedNuclearOperation, thirdFbrNuclearOperation } from "./nuclear";
 
 const sequence = {
   nextEntityId: 1,
@@ -129,6 +129,41 @@ it("keeps synced turbine inventory and leaves generation demand driven", () => {
     "power-generator-ii-nuclear": "synced",
   });
   expect(preset?.electricityDispatchTargets).toBeUndefined();
+});
+
+it.each([
+  { built: 8, running: 4, unplaced: 2, workingBuild: 0, standbyBuild: 2, unpause: 4, pause: 0 },
+  { built: 4, running: 4, unplaced: 6, workingBuild: 4, standbyBuild: 2, unpause: 0, pause: 0 },
+  { built: 10, running: 8, unplaced: 0, workingBuild: 0, standbyBuild: 0, unpause: 0, pause: 0 },
+  { built: 10, running: 10, unplaced: 0, workingBuild: 0, standbyBuild: 0, unpause: 0, pause: 2 },
+])("plans four working rows and one paused spare from $built built / $running running trains", (state) => {
+  const members = [
+    ['turbine-super', 'TurbineSuperPress', 1],
+    ['turbine-high', 'TurbineHighPressT2', 1],
+    ['turbine-low', 'TurbineLowPressT2', 1],
+    ['power-generator-ii-nuclear', 'PowerGeneratorT2', 2],
+  ] as const;
+  const entities = members.flatMap(([, prototype, scale]) => makeMany(state.built * scale, state.running * scale, prototype));
+  const nuclearModule = createNuclearModule(emptyPlanningBaselines, thirdFbrNuclearOperation, entities);
+  const preset = nuclearModule.presets[0];
+
+  for (const [id, , scale] of members) {
+    expect(preset.activeBuildings[id]).toBe(8 * scale);
+    expect(preset.builtBuildings?.[id]).toBe(state.built * scale);
+    expect(preset.currentActiveBuildings?.[id]).toBe(state.running * scale);
+    expect(preset.unplacedPlannedBuildings?.[id]).toBe(state.unplaced * scale);
+    expect(preset.fixed).not.toContain(id);
+    const actions = preset.planMismatches?.find(mismatch => mismatch.recipeId === id)?.actions ?? [];
+
+    expect(actions.filter(action => action.type === 'build').length)
+      .toBe(Number(state.workingBuild > 0) + Number(state.standbyBuild > 0));
+    expect(actions.filter(action => action.type === 'unpause').length).toBe(Number(state.unpause > 0));
+    expect(actions.filter(action => action.type === 'pause').length).toBe(Number(state.pause > 0));
+    if (state.standbyBuild > 0) expect(actions.at(-1)?.label)
+      .toMatch(new RegExp(`Build ${state.standbyBuild * scale} .* for standby \\(leave paused\\)`));
+    if (actions.length === 0) expect(preset.dataSources?.[id]).toBe('synced');
+  }
+  expect(preset.electricityDispatchTargets).toBeUndefined();
 });
 
 it("returns reached operation targets to synced state", () => {
