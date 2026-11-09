@@ -1,6 +1,7 @@
-import { Button, Tooltip } from "@carbonid1/design-system";
+import { Button, Item, Tooltip } from "@carbonid1/design-system";
 import {
   Boxes,
+  ChevronRight,
   CircleMinus,
   CirclePause,
   CirclePlus,
@@ -9,6 +10,7 @@ import {
   Play,
   Settings2,
   Tags,
+  type LucideIcon,
 } from "lucide-react";
 
 import { type Module } from "../db/modules/modules";
@@ -27,6 +29,7 @@ import {
 } from "../helpers/planned-builds/planned-builds";
 import { BuildingStateCounts } from "./BuildingStateCounts";
 import { getDataSourceSurfaceClassName } from "./DataSourceState";
+import { ResourceToken } from "./ResourceToken";
 
 interface Props {
   diagnostics: BuildingDiagnostic[];
@@ -40,22 +43,13 @@ interface Props {
 }
 
 const formatCount = (value: number) => parseFloat(value.toFixed(2));
-const checklistButtonClassName = "h-auto min-w-0 flex-col items-stretch gap-1 px-2 py-1.5 text-left whitespace-normal sm:flex-row sm:items-center sm:justify-between sm:gap-3";
-const checklistStatusClassName = "min-w-0 pl-6 text-left sm:pl-0 sm:text-right";
 const getChecklistDetail = (planned: {
   buildingName: string;
   moduleName: string;
   recipeName: string;
-}) => planned.recipeName === planned.buildingName
-  ? planned.moduleName
+}) => planned.recipeName === planned.buildingName || planned.recipeName === planned.moduleName
+  ? null
   : planned.recipeName;
-const getChecklistLocation = (planned: {
-  buildingName: string;
-  moduleName: string;
-  recipeName: string;
-}) => planned.recipeName === planned.buildingName
-  ? `in ${planned.moduleName}`
-  : `for ${planned.recipeName} in ${planned.moduleName}`;
 
 const mismatchIcons = {
   assign: Tags,
@@ -96,6 +90,67 @@ const formatMismatchState = (mismatch: {
   return `Synced ${current} · planned ${target}`;
 };
 
+interface ChecklistEntry {
+  key: string;
+  moduleName: string;
+  buildingName: string;
+  recipeName: string;
+  diagnostic: BuildingDiagnostic;
+  icon: LucideIcon;
+  action: string;
+  state?: string;
+  note?: string;
+  later?: boolean;
+}
+
+const ChecklistRow = ({ entry, onOpenBuilding }: {
+  entry: ChecklistEntry;
+  onOpenBuilding: Props["onOpenBuilding"];
+}) => {
+  const Icon = entry.icon;
+  const detail = getChecklistDetail(entry);
+  const label = [entry.buildingName, detail, entry.action, entry.state, entry.note].filter(Boolean).join(" · ");
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger delay={400} render={
+        <Button
+          variant="ghost"
+          size="small"
+          fullWidth
+          aria-label={label}
+          className="grid h-auto min-w-0 grid-cols-[1rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1 px-2 py-1.5 text-left whitespace-normal sm:grid-cols-[1rem_minmax(0,2fr)_minmax(0,3fr)]"
+          onClick={() => onOpenBuilding(entry.diagnostic)}
+        />
+      }>
+        <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-highlight-foreground" />
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-foreground">{entry.buildingName}</span>
+          {(entry.diagnostic.outputResourceIds?.length ?? 0) > 0 && (
+            <span data-checklist-outputs aria-hidden="true" className="mt-0.5 flex flex-wrap items-center gap-1">
+              {entry.diagnostic.outputResourceIds?.map(resourceId => (
+                <ResourceToken key={resourceId} resourceId={resourceId} interactive={false} />
+              ))}
+            </span>
+          )}
+        </span>
+        <span className="col-start-2 min-w-0 sm:col-start-auto">
+          <span className="block text-xs font-medium text-highlight-foreground">{entry.action}</span>
+          {entry.state && <span className="block text-xs text-muted-foreground tabular-nums">{entry.state}</span>}
+          {entry.note && <span className="block text-xs text-muted-foreground">{entry.note}</span>}
+        </span>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Positioner>
+          <Tooltip.Popup className="max-w-[min(26rem,calc(100vw-1rem))] whitespace-normal">
+            {label}
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+};
+
 export const PlannedBuildsView: React.FC<Props> = ({
   diagnostics,
   machineAllocationIssues = [],
@@ -116,23 +171,93 @@ export const PlannedBuildsView: React.FC<Props> = ({
   const actionableMachineZones = machineZones.filter(zone => zone.needsAssignment);
   const hasMachineOwnershipActions = machineAllocationIssues.length > 0
     || actionableMachineZones.length > 0;
+  const entries: ChecklistEntry[] = [
+    ...planMismatches.map(mismatch => ({
+      ...mismatch,
+      icon: mismatchIcons[mismatch.actions[0]?.type ?? "configure"],
+      action: mismatch.actions.map(({ label }) => label).join(" · "),
+      state: formatMismatchState(mismatch),
+    })),
+    ...plannedBuilds.map(planned => ({
+      ...planned,
+      icon: Hammer,
+      action: `${planned.count} to build`,
+      state: `${formatCount(planned.built)} built · ${formatCount(planned.target)} target`,
+    })),
+    ...plannedConfigurations.map(planned => ({
+      ...planned,
+      icon: Settings2,
+      action: `${planned.count} to configure`,
+    })),
+    ...plannedFollowUps.map(planned => ({
+      ...planned,
+      icon: CirclePause,
+      action: `Pause ${planned.count} later`,
+      later: true,
+    })),
+  ];
+  const entriesByModule = Map.groupBy(entries, entry => entry.diagnostic.moduleId);
+  const moduleGroups = [...entriesByModule].map(([moduleId, items]) => ({
+    moduleId,
+    moduleName: items[0]?.moduleName ?? moduleId,
+    items: items.toSorted((left, right) => (
+      Number(Boolean(left.later)) - Number(Boolean(right.later))
+      || left.buildingName.localeCompare(right.buildingName)
+      || left.recipeName.localeCompare(right.recipeName)
+    )),
+  })).toSorted((left, right) => left.moduleName.localeCompare(right.moduleName));
 
-  if (
-    planMismatches.length === 0
-    && plannedBuilds.length === 0
-    && plannedConfigurations.length === 0
-    && plannedFollowUps.length === 0
-    && !hasMachineOwnershipActions
-  ) return null;
+  if (entries.length === 0 && !hasMachineOwnershipActions) return null;
 
   return (
-    <section className={getDataSourceSurfaceClassName(
+    <section aria-label="Plan checklist" className={getDataSourceSurfaceClassName(
       "planned",
       { className: "rounded-lg border p-3" },
     )}>
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">
-        Plan checklist
-      </h4>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">
+          Plan checklist
+        </h4>
+        {moduleGroups.length > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {entries.length} {entries.length === 1 ? "item" : "items"} · {moduleGroups.length} {moduleGroups.length === 1 ? "module" : "modules"}
+          </span>
+        )}
+      </div>
+      {moduleGroups.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {moduleGroups.map(group => (
+            <Item.Root
+              as="details"
+              key={group.moduleId}
+              surface="inset"
+              className="group/checklist-module block p-0"
+              data-checklist-module={group.moduleId}
+            >
+              <Item.Root as="summary" interactive className="cursor-pointer list-none gap-2 px-2 py-2 [&::-webkit-details-marker]:hidden">
+                <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground group-open/checklist-module:rotate-90" />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{group.moduleName}</span>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {group.items.length} {group.items.length === 1 ? "item" : "items"}
+                </span>
+              </Item.Root>
+              <div className="space-y-1 px-1 pb-1">
+                {group.items.filter(entry => !entry.later).map(entry => (
+                  <ChecklistRow key={entry.key} entry={entry} onOpenBuilding={onOpenBuilding} />
+                ))}
+                {group.items.some(entry => entry.later) && (
+                  <div className="space-y-1 pt-2">
+                    <h5 className="px-2 text-xs font-medium text-muted-foreground">Later</h5>
+                    {group.items.filter(entry => entry.later).map(entry => (
+                      <ChecklistRow key={entry.key} entry={entry} onOpenBuilding={onOpenBuilding} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Item.Root>
+          ))}
+        </div>
+      )}
       {hasMachineOwnershipActions && machineInventory.length > 0 && (
         <div className="mt-3">
           <h5 className="text-xs font-medium text-muted-foreground">
@@ -265,197 +390,6 @@ export const PlannedBuildsView: React.FC<Props> = ({
                   </span>
                 </span>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {planMismatches.length > 0 && (
-        <div className="mt-3">
-          <h5 className="text-xs font-medium text-muted-foreground">
-            Plan mismatches
-          </h5>
-          <div className="mt-1 grid gap-1">
-            {planMismatches.map((mismatch) => {
-              const primaryAction = mismatch.actions[0];
-              const Icon = mismatchIcons[primaryAction?.type ?? "configure"];
-              const actionLabel = mismatch.actions.map(({ label }) => label).join(" · ");
-
-              return (
-                <Tooltip
-                  key={mismatch.key}
-                  className="w-full min-w-0"
-                  label={`Factory Total keeps the planned target until the live value is ${mismatch.direction === "at-least" ? "at least" : "at most"} ${mismatch.target}. ${actionLabel}.`}
-                  maxWidth={320}
-                >
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    fullWidth
-                    className={checklistButtonClassName}
-                    onClick={() => onOpenBuilding(mismatch.diagnostic)}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Icon
-                        aria-hidden="true"
-                        className="size-4 shrink-0 text-highlight-foreground"
-                      />
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-foreground">
-                          {mismatch.buildingName}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {getChecklistDetail(mismatch)}
-                        </span>
-                      </span>
-                    </span>
-                    <span className={checklistStatusClassName}>
-                      <span className="block text-xs font-medium text-highlight-foreground">
-                        {actionLabel}
-                      </span>
-                      <span className="block font-mono text-xs text-muted-foreground">
-                        {formatMismatchState(mismatch)}
-                      </span>
-                    </span>
-                  </Button>
-                </Tooltip>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {plannedBuilds.length > 0 && (
-        <div className="mt-3">
-          <h5 className="text-xs font-medium text-muted-foreground">Buildings to construct</h5>
-          <div className="mt-1 grid gap-1 md:grid-cols-2">
-            {plannedBuilds.map((planned) => {
-              return (
-                <Tooltip
-                  key={planned.key}
-                  className="w-full min-w-0"
-                  label={`Factory Total assumes this capacity is available. Remaining to build: ${planned.count} × ${planned.buildingName} ${getChecklistLocation(planned)}.`}
-                  maxWidth={320}
-                >
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    fullWidth
-                    className={checklistButtonClassName}
-                    onClick={() => onOpenBuilding(planned.diagnostic)}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Hammer
-                        aria-hidden="true"
-                        className="size-4 shrink-0 text-highlight-foreground"
-                      />
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-foreground">
-                          {planned.buildingName}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {getChecklistDetail(planned)}
-                        </span>
-                      </span>
-                    </span>
-                    <span className={checklistStatusClassName}>
-                      <span className="block text-xs font-medium text-highlight-foreground">
-                        {planned.count} to build
-                      </span>
-                      <span className="block font-mono text-xs text-muted-foreground">
-                        {formatCount(planned.built)} built · {formatCount(planned.target)} target
-                      </span>
-                    </span>
-                  </Button>
-                </Tooltip>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {plannedConfigurations.length > 0 && (
-        <div className="mt-3">
-          <h5 className="text-xs font-medium text-muted-foreground">Buildings to configure</h5>
-          <div className="mt-1 grid gap-1 md:grid-cols-2">
-            {plannedConfigurations.map((planned) => (
-              <Tooltip
-                key={planned.key}
-                className="w-full min-w-0"
-                label={`Factory Total uses planned settings for ${planned.count} × ${planned.buildingName} ${getChecklistLocation(planned)}.`}
-                maxWidth={320}
-              >
-                <Button
-                  variant="ghost"
-                  size="small"
-                  fullWidth
-                  className={checklistButtonClassName}
-                  onClick={() => onOpenBuilding(planned.diagnostic)}
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Settings2
-                      aria-hidden="true"
-                      className="size-4 shrink-0 text-highlight-foreground"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-foreground">
-                        {planned.buildingName}
-                      </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {getChecklistDetail(planned)}
-                      </span>
-                    </span>
-                  </span>
-                  <span className={checklistStatusClassName}>
-                    <span className="block text-xs font-medium text-highlight-foreground">
-                      {planned.count} to configure
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      Planned settings
-                    </span>
-                  </span>
-                </Button>
-              </Tooltip>
-            ))}
-          </div>
-        </div>
-      )}
-      {plannedFollowUps.length > 0 && (
-        <div className="mt-3">
-          <h5 className="text-xs font-medium text-muted-foreground">
-            Later operating changes
-          </h5>
-          <div className="mt-1 grid gap-1 md:grid-cols-2">
-            {plannedFollowUps.map((planned) => (
-              <Tooltip key={planned.key} label={planned.note} maxWidth={320} className="w-full min-w-0">
-                <Button
-                  variant="ghost"
-                  size="small"
-                  fullWidth
-                  className={checklistButtonClassName}
-                  onClick={() => onOpenBuilding(planned.diagnostic)}
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <CirclePause
-                      aria-hidden="true"
-                      className="size-4 shrink-0 text-attention-foreground"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-foreground">
-                        {planned.buildingName}
-                      </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {getChecklistDetail(planned)}
-                      </span>
-                    </span>
-                  </span>
-                  <span className={checklistStatusClassName}>
-                    <span className="block text-xs font-medium text-highlight-foreground">
-                      Pause {planned.count} later
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {planned.note}
-                    </span>
-                  </span>
-                </Button>
-              </Tooltip>
             ))}
           </div>
         </div>

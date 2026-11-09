@@ -236,6 +236,16 @@ test('recorded factory: browser → Next API → replayed game API → worker �
   const evaluate = async expression => (await browser('eval', '--base64', Buffer.from(expression).toString('base64'))).result
   const text = () => evaluate('document.body.innerText')
   const click = name => browser('find', 'role', 'button', 'click', '--name', name, '--exact')
+  const expandChecklist = async () => {
+    const closedModules = await evaluate('Array.from(document.querySelectorAll("[data-checklist-module]:not([open])")).map(node => node.dataset.checklistModule)')
+
+    for (const id of closedModules) {
+      const selector = `[data-checklist-module=${JSON.stringify(id)}] > summary`
+
+      await browser('scrollintoview', selector)
+      await browser('click', selector)
+    }
+  }
   const preset = async name => {
     await browser('click', '[aria-label="Factory preset"]')
     await browser('find', 'role', 'option', 'click', '--name', name, '--exact')
@@ -294,6 +304,20 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await ready()
     assert.equal(await evaluate('document.querySelector("[data-plan-calculation]").innerText'), '')
     assert.equal(await evaluate('document.querySelectorAll("[data-previous-result]").length'), 0)
+    const checklistModules = await evaluate('Array.from(document.querySelectorAll("[data-checklist-module]")).map(node => node.dataset.checklistModule)')
+
+    assert.ok(checklistModules.length > 1, 'The checklist groups work by module')
+    assert.equal(new Set(checklistModules).size, checklistModules.length)
+    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module][open]").length'), 0)
+    await browser('focus', '[data-checklist-module]:first-child > summary')
+    await browser('press', 'Enter')
+    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module][open]").length'), 1, 'Keyboard expansion leaves other modules collapsed')
+    await browser('press', 'Tab')
+    assert.ok(await evaluate('document.activeElement.matches("[data-checklist-module][open] button")'), 'Expanded checklist actions are keyboard accessible')
+    await browser('press', 'Shift+Tab')
+    await browser('press', 'Enter')
+    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module][open]").length'), 0)
+    await expandChecklist()
     assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Build Space Station level 4/)
     assert.match(await text(), /Unpause 1 Household Goods Module/)
     assert.notDeepEqual(await summary(), baseline)
@@ -301,6 +325,35 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await preset('Third FBR')
     await ready()
     assert.equal(await selected(), 'Third FBR')
+    await expandChecklist()
+    const nuclearChecklist = await evaluate('document.querySelector("[data-checklist-module=live-area-12]").innerText')
+
+    assert.match(nuclearChecklist, /Cooling tower \(large\)[\s\S]*3 to build/)
+    assert.match(nuclearChecklist, /Build 1 Fast breeder reactor/)
+    assert.doesNotMatch(nuclearChecklist, /Research Lab|Greenhouse|Housing/)
+    const defaultChecklistRows = await evaluate(`Array.from(document.querySelectorAll('[data-checklist-module=general] button')).map(button => ({
+      building: button.querySelector('span > span')?.textContent,
+      recipe: button.getAttribute('aria-label'),
+      outputs: Array.from(button.querySelectorAll('[data-checklist-outputs] img')).map(image => image.getAttribute('src').split('?')[0]),
+      visible: button.innerText,
+    }))`)
+    const chemical = defaultChecklistRows.find(row => row.building === 'Chemical plant II')
+    const microchips = defaultChecklistRows.filter(row => row.building === 'Microchip machine II')
+
+    assert.match(chemical?.recipe ?? '', /Fertilizer/)
+    assert.deepEqual(chemical?.outputs, ['/api/game-icons/Product_Fertilizer'])
+    assert.doesNotMatch(chemical?.visible ?? '', /Ammonia|Fertilizer|→/, 'Recipe text is reserved for the tooltip')
+    assert.equal(microchips.length, 3)
+    assert.ok(microchips.every(row => row.recipe?.includes('→')), 'Shared machine groups show their selected recipes')
+    assert.equal(new Set(microchips.map(row => row.recipe)).size, 3, 'Microchip machine groups remain distinguishable')
+    assert.ok(microchips.every(row => row.outputs.length > 0 && new Set(row.outputs).size === row.outputs.length), 'Output icons are deduplicated within each group')
+    assert.ok(microchips.every(row => !row.visible.includes('→')), 'Checklist rows show output icons without recipe text')
+    await browser('focus', `[data-checklist-module=general] button[aria-label=${JSON.stringify(chemical.recipe)}]`)
+    await browser('press', 'Shift+Tab')
+    await browser('press', 'Tab')
+    await browser('wait', '[role="tooltip"]')
+    assert.match(await evaluate('document.querySelector("[role=tooltip]").innerText'), /Ammonia[\s\S]*Fertilizer/)
+    await browser('press', 'Escape')
     assert.match(await evaluate('document.querySelector("[data-summary-metric=Electricity]").innerText'), /Electricity\s+Modeled demand[\s\S]*Measured load unavailable/)
     assert.match(await text(), /Build 1 Fast breeder reactor \(0× enrichment, 400% power\)/)
     assert.match(await text(), /Set 3× enrichment FBR power to 200%/)
@@ -341,6 +394,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('reload')
     await ready()
     assert.equal(await selected(), 'Science expansion')
+    await expandChecklist()
     assert.match(await text(), /Unpause 2 Research Lab IV/)
     try {
       state.saveId = 'Other factory'
@@ -409,6 +463,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await ready()
     await preset('Science expansion')
     await ready()
+    await expandChecklist()
     assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*Modeled demand[\s\S]*233 MW[\s\S]*\+112\.71 TFLOPS[\s\S]*-0\.74 \/ cycle[\s\S]*7,356 \/ 7,488/)
     assert.doesNotMatch(await text(), /(?:Pause|Unpause|Build) \d+ Cracking Units?/)
     assert.match(await text(), /Unpause 2 Research Lab IV/)

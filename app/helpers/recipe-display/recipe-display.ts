@@ -100,14 +100,7 @@ export const getRecipePresentation = (recipe: DisplayableRecipe, amounts?: Recip
   };
 };
 
-/** The configuration shown beside a physical building group. */
+/** Selected recipes stay visible even when a pool has its own building label. */
 export const getRecipeGroupDisplayName = (recipes: Recipe[]) => {
-  const first = recipes[0];
-
-  if (!first) return "Recipe";
-  if (first.sharedCapacity?.label) {
-    return getRecipeDisplayName({ building: first.building, name: first.sharedCapacity.label });
-  }
-
-  return [...new Set(recipes.map(getRecipeDisplayName))].join(" / ");
+  return [...new Set(recipes.map(getRecipeDisplayName))].join(" / ") || "Recipe";
 };

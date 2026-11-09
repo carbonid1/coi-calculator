@@ -38,6 +38,8 @@ export interface BuildingDiagnostic {
   moduleName: string;
   buildingName: string;
   recipeName: string;
+  /** Distinct products of the selected recipes in this physical group. */
+  outputResourceIds?: ResourceId[];
   plannedCapacity: boolean;
   /** Effective preference for this physical building group, including user overrides. */
   keepReady?: boolean;
@@ -220,6 +222,9 @@ export const calculateBuildingDiagnostics = (
 
     if (!first) throw new Error(`Building group ${key} has no results`);
 
+    const outputResourceIds = [...new Set(results.flatMap(result => result.recipe.outputs
+      .filter(output => output.quantity > 0)
+      .map(output => output.resourceId)))];
     const physicalCapacityResults = results.filter((result) => (
       result.recipe.tracksPhysicalCapacity !== false
       && result.recipe.sinkMode !== "unbounded"
@@ -248,6 +253,7 @@ export const calculateBuildingDiagnostics = (
           ? first.recipe.sharedCapacity?.label ?? first.recipe.building
           : first.recipe.building,
         recipeName: getRecipeGroupDisplayName(results.map(result => result.recipe)),
+        outputResourceIds,
         plannedCapacity,
         load: animalDiagnostic.animalPopulation.current
           / (first.recipe.animalPopulationCapacity ?? 1),
@@ -354,6 +360,7 @@ export const calculateBuildingDiagnostics = (
         ? first.recipe.sharedCapacity?.label ?? first.recipe.building
         : first.recipe.building,
       recipeName: getRecipeGroupDisplayName(results.map(result => result.recipe)),
+      outputResourceIds,
       plannedCapacity,
       keepReady,
       load,
