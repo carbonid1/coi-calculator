@@ -286,7 +286,8 @@ export const calculateBuildingDiagnostics = (
     );
     const affectedResourceIds = new Set<ResourceId>();
     const demand = {
-      hasUnmetOutputDemand: false,
+      hasUnmetOutputDemand: results.some(result => isRegularResult(result)
+        && (result.processingRequiredBuildings ?? 0) > result.activeBuildings * result.supplyRatio + EPSILON),
     };
 
     for (const result of results) {

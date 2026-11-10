@@ -70,7 +70,7 @@ const listen = async server => {
   return server.address().port
 }
 
-test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 240_000 }, async t => {
+test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 300_000 }, async t => {
   const state = { mode: 'live', powerMeter: false, inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false, limitedConnections: false, worldMining: false }
   const requests = new Set()
   const snapshotRequests = { count: 0 }
@@ -279,6 +279,68 @@ test('recorded factory: browser → Next API → replayed game API → worker �
   const ready = () => browser('wait', '--fn', 'document.querySelector("[data-game-sync=available]") !== null && document.querySelector("[data-plan-calculation=ready]") !== null && document.querySelector("nav") !== null', '--timeout', '45000')
 
   t.after(() => browser('close'))
+
+  await t.test('creates, navigates and persists the Default titanium to steel processing chain', async () => {
+    await browser('open', appUrl)
+    await browser('set', 'viewport', '1440', '1000')
+    await ready()
+    await area('Default')
+    const source = '[data-processing-recipe="ArcFurnace2:IlmeniteSmeltingArc2"]'
+    const furnace = '[data-processing-recipe="OxygenFurnace:SteelSmelting"]'
+    const caster = '[data-processing-recipe="CasterCooled:SteelCastingCooled"]'
+    const popup = '[role=dialog][aria-label="Processing chain"]'
+    const storageKey = `coi-processing-links-v1:${encodeURIComponent(fixture.saveId)}`
+    const saved = () => evaluate(`JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)}) ?? '[]')`)
+
+    await browser('focus', source)
+    await browser('wait', '--fn', `getComputedStyle(document.querySelector('${source}')).opacity === '1'`)
+    await browser('press', 'Enter')
+    await click('Link output')
+    await click('Link Molten iron to Oxygen furnace')
+    assert.equal((await saved()).length, 1)
+    await browser('press', 'Escape')
+    await browser('focus', furnace)
+    await browser('press', 'Enter')
+    await click('Link output')
+    await click('Link Molten steel to Cooled caster')
+    assert.equal((await saved()).length, 2)
+    await browser('press', 'Escape')
+    await ready()
+    await browser('focus', furnace)
+    await browser('press', 'Enter')
+    await browser('wait', '--fn', `document.querySelector('${popup}')?.innerText.includes('5.51/mo')`, '--timeout', '45000')
+    const chainText = await evaluate(`document.querySelector('${popup}').innerText`)
+
+    assert.match(chainText, /Arc furnace II[\s\S]*Molten iron[\s\S]*Oxygen furnace[\s\S]*Molten steel[\s\S]*Cooled caster/)
+    assert.doesNotMatch(chainText, /Blocked/)
+    await screenshot('default-titanium-steel-chain')
+    await browser('click', `${popup} [data-processing-node="CasterCooled:SteelCastingCooled"]`)
+    await browser('wait', '--fn', `document.activeElement?.querySelector('${caster}') !== null`)
+    assert.equal(await evaluate(`document.querySelector('${popup}') !== null`), false)
+    await screenshot('default-chain-caster')
+    await browser('reload')
+    await ready()
+    await area('Default')
+    await browser('set', 'viewport', '375', '900')
+    await browser('focus', caster)
+    await browser('press', 'Enter')
+    assert.match(await evaluate(`document.querySelector('${popup}').innerText`), /Arc furnace II/)
+    assert.equal(await evaluate('document.documentElement.scrollWidth > window.innerWidth'), false)
+    await screenshot('default-chain-mobile')
+    await click('Remove Molten steel link')
+    assert.equal((await saved()).length, 1)
+    await browser('press', 'Escape')
+    await browser('set', 'viewport', '1440', '1000')
+    await browser('focus', furnace)
+    await browser('press', 'Enter')
+    await click('Remove Molten iron link')
+    assert.equal((await saved()).length, 0)
+    await browser('press', 'Escape')
+    await ready()
+    assert.equal((await browser('errors')).errors.length, 0)
+  })
+
+  if (process.env.COI_PROCESSING_CHAIN_SMOKE_ONLY) return
 
   await t.test('keeps the live baseline preset, migrates completed plans and reminds us to resume research', async () => {
     await browser('open', appUrl)

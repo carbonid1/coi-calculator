@@ -106,9 +106,13 @@ export const buildModuleLines = (
     const drivingInputIds = recipe.inputs
       .map(input => input.resourceId)
       .filter(resourceId => requestedImportIds.has(resourceId));
+    const processingLink = mod.processingLinks?.find(link => link.targetRecipeId === recipe.id);
 
     return {
       recipe,
+      processingInput: processingLink ? {
+        id: processingLink.id, sourceRecipeId: processingLink.sourceRecipeId, resourceId: processingLink.resourceId,
+      } : undefined,
       localFirstInputIds,
       moduleId: mod.id,
       dataSource: preset?.dataSources?.[recipe.id],

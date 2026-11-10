@@ -16,6 +16,7 @@ import { calculateProductionCardLoad } from '../helpers/production-card-groups/p
 import { getRecipeDisplayName, getRecipePresentation } from '../helpers/recipe-display/recipe-display'
 import { BuildingCount } from './BuildingCount'
 import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from './KeepReadyMenu'
+import { ProcessingChainButton } from './ProcessingChain'
 import { ProductionCard } from './ProductionCard'
 import { RecipeFlow } from './RecipeFlow'
 import { RecipeTitle } from './RecipeTitle'
@@ -110,7 +111,7 @@ export const SharedRecipeCard: React.FC<Props> = ({
             <section
               key={line.recipe.id}
               className={cn(
-                'rounded-lg p-2.5',
+                'group/recipe relative rounded-lg p-2.5 pr-9',
                 inactive && !diagnostic?.keepReady
                   ? 'border border-border/50 bg-transparent [&>*]:opacity-40'
                   : 'bg-surface-inset inset-shadow-surface',
@@ -120,6 +121,7 @@ export const SharedRecipeCard: React.FC<Props> = ({
                 presentation.configuration ? 'mb-2' : 'sr-only')}>
                 {presentation.configuration ?? presentation.name}
               </h4>
+              <div className="absolute right-1 top-1"><ProcessingChainButton moduleId={line.moduleId} recipe={line.recipe} /></div>
 
               <RecipeFlow name={presentation.name}
                 inputs={line.recipe.inputs.map(input => ({

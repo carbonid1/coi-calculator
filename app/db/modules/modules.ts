@@ -1,4 +1,5 @@
 import { type ValueSource } from "../../data-source";
+import { type ResolvedProcessingLink } from '../../helpers/processing-links/processing-links';
 import { type PlanDirection } from "../../helpers/resolve-directional-plan";
 import { type Recipe } from "../recipes";
 import { type ResourceProcessingPriorities } from "../resource-supply";
@@ -124,6 +125,8 @@ interface PlannedFollowUp {
 }
 
 export interface Module {
+  /** User-authored processing routes between this module's recipe groups. */
+  processingLinks?: ResolvedProcessingLink[];
   id: string;
   name: string;
   description: string;

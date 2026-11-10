@@ -132,6 +132,7 @@ import { calculateTreeGrowthSpeed } from '../modifiers/calculate-tree-growth-spe
 import { calculateUnityCapacity } from '../modifiers/calculate-unity-capacity'
 import { applySettlementState, resolveProjectedPopulation } from '../population-entity-sync/apply-settlement-state'
 import { resolvePopulationEntityInventory } from '../population-entity-sync/population-entity-sync'
+import { resolveProcessingLinks, type ProcessingLink } from '../processing-links/processing-links'
 import { type ResourcePriorityOverrides } from '../resource-priorities/resource-priorities'
 import {
   getSyncedChickenFarmEntities,
@@ -141,6 +142,7 @@ import { getAverageSunIntensityPercent } from '../weather/planning-weather'
 import { calculateWorldMines, getWorldClaimedEntityIds } from '../world-mines/calculate-world-mines'
 
 export interface DeriveCalculatorModelOptions {
+  processingLinks?: readonly ProcessingLink[]
   presetId?: FactoryPresetId
   operatingOverrides?: boolean
   worldMineFullThrottlePreferences?: Readonly<Record<string, boolean>>
@@ -158,6 +160,7 @@ export interface DeriveCalculatorModelOptions {
  * separately on `factoryCalculationInput`.
  */
 const deriveUncalibratedCalculatorModel = ({
+  processingLinks = [],
   presetId = 'current',
   operatingOverrides = false,
   machineZoneAssignments,
@@ -657,7 +660,7 @@ const deriveUncalibratedCalculatorModel = ({
   const configuredModules = configuredModulesWithoutMaintenance.map(module => {
     const assignment = maintenanceAssignments[module.id]
 
-    return assignment ? attachMaintenanceDepotsToModule(module, assignment) : module
+    return { ...(assignment ? attachMaintenanceDepotsToModule(module, assignment) : module) }
   })
   const configuredComputingModules = configuredModules.filter(module => (
     hasModuleCapability(module, 'computing') && module.liveArea
@@ -781,9 +784,14 @@ const deriveUncalibratedCalculatorModel = ({
     snapshot.saveId,
     moduleResourceLinkDefinitions,
   )
+  const resolvedProcessingLinks = resolveProcessingLinks(processingLinks, configuredModules)
+
+  for (const owner of configuredModules) {
+    owner.processingLinks = resolvedProcessingLinks.filter(link => owner.recipes?.some(recipe => recipe.id === link.targetRecipeId))
+  }
   const calculationRevision = `${
     revision ?? snapshot.exportedAtUtc
-  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}:${JSON.stringify(contractFullThrottlePreferences)}:${JSON.stringify(worldMineFullThrottlePreferences)}:${presetId}:${operatingOverrides}`
+  }:${JSON.stringify(machineZoneAssignments)}:${JSON.stringify(resourcePriorityOverrides)}:${JSON.stringify(contractFullThrottlePreferences)}:${JSON.stringify(worldMineFullThrottlePreferences)}:${JSON.stringify(processingLinks)}:${presetId}:${operatingOverrides}`
   // Every calculation input above is a pure derivation of the game-state
   // revision, assignments, operating modes, and the factory preset identified by `calculationRevision`.
   const factoryCalculationInput: FactoryCalculationInput = {
@@ -798,6 +806,7 @@ const deriveUncalibratedCalculatorModel = ({
   }
 
   return {
+    processingLinks,
     averageSunIntensityPercent,
     calculationRevision,
     configuredComputingModules,
@@ -857,8 +866,8 @@ export const deriveCalculatorModel = (options: DeriveCalculatorModelOptions) => 
     model.factoryCalculationInput.powerPlanning = {
       measuredDemandMw: electricity.demandMw,
       bufferPercent: 20,
-      ...((model.presetId !== 'current' || model.operatingOverrides) ? {
-        baseline: deriveUncalibratedCalculatorModel({ ...options, presetId: 'current', operatingOverrides: false }).factoryCalculationInput,
+      ...((model.presetId !== 'current' || model.operatingOverrides || model.processingLinks.length > 0) ? {
+        baseline: deriveUncalibratedCalculatorModel({ ...options, processingLinks: [], presetId: 'current', operatingOverrides: false }).factoryCalculationInput,
       } : {}),
     }
   }

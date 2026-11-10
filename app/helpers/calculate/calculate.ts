@@ -12,6 +12,7 @@ import {
   withRecipeRecycling,
   type RecipeModifierMultipliers,
 } from "../modifiers/recipe-output";
+import { calculateProcessingChains } from '../processing-links/calculate-processing-chains';
 import { getResourceProducts } from '../products/products';
 import { getModuleInputIds, isModuleInput } from "../recipe-input-scope/recipe-input-scope";
 import { typedEntries } from "../typed-entries/typed-entries";
@@ -56,6 +57,13 @@ export interface ProductionLine {
   drivingInputIds?: ResourceId[];
   /** User-selected preference for processing locally produced inputs before export. */
   localFirstInputIds?: ResourceId[];
+  /** Explicit source-specific intra-module processing, resolved from saved routes. */
+  processingInput?: { id: string; sourceRecipeId: string; resourceId: ResourceId };
+  /** Internal source-bounded allocation floor; normal input/output accounting is retained. */
+  processingFloor?: { ratio: number; resourceId: ResourceId };
+  processingSourceLimit?: number;
+  processingRequiredBuildings?: number;
+  processingBlockedBy?: ResourceId | 'capacity';
 }
 
 export interface ResourceFlow {
@@ -106,6 +114,10 @@ export interface RegularResult {
   operatingMode: OperatingMode;
   hasOutputTarget?: boolean;
   supplyRatio: number;
+  processingRequiredBuildings?: number;
+  processingQuantity?: number;
+  processingRequestedQuantity?: number;
+  processingBlockedBy?: ResourceId | 'capacity';
   speedLevel: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
   actualOutputs: { resourceId: ResourceId; quantity: number }[];
@@ -502,7 +514,7 @@ const makeGetFlow = (flows: FlowMap, markChanged?: (id: ResourceId) => void) => 
   return f;
 };
 
-export const calculateNet = (
+const calculateNetCore = (
   inputLines: ProductionLine[],
   suppliedResources: Partial<Record<ResourceId, number>> = {},
   recyclingEfficiencyPercent: number | undefined = undefined,
@@ -1034,6 +1046,9 @@ export const calculateNet = (
   };
   const capacityTracker = createCapacityTracker(regularLines);
   const applyRegularLine = (line: ProductionLine, requestedRatio: number, additive = false) => {
+    const requested = line.processingSourceLimit != null && requestedRatio > 0
+      ? Math.min(requestedRatio, Math.max(0, line.processingSourceLimit - (additive ? allocationRatios.get(line) ?? 0 : 0)))
+      : requestedRatio;
     const recyclableInput = getRecyclableInput(line.recipe);
     const observedMix = typedEntries(line.recipe.recyclingInputSources ?? {});
     const inputFlow = recyclableInput ? getFlow(recyclableInput.resourceId) : undefined;
@@ -1048,7 +1063,7 @@ export const calculateNet = (
     const inputRate = recyclableInput ? getRecipeInputQuantity(recyclableInput, outputModifiers) * lineFactor(line) : 0;
     const previousRatio = allocationRatios.get(line) ?? 0;
     const inputMix = (() => {
-      if (requestedRatio < 0 && previousRatio > 0 && inputRate > 0) {
+      if (requested < 0 && previousRatio > 0 && inputRate > 0) {
         // Undo the allocated material even if later inputs changed the mix.
         return [...(recycling.sortedRecyclableSources.get(line) ?? [])]
           .map(([id, quantity]) => [id, quantity / (inputRate * previousRatio)] as const);
@@ -1067,10 +1082,10 @@ export const calculateNet = (
       return [...available].map(([id, quantity]) => [id, quantity / physicalAvailable] as const);
     })();
     const recyclingRatio = inputMix.length === 0 || inputRate <= 0 ? 0 : Math.min(
-      requestedRatio,
+      requested,
       physicalAvailable / inputRate,
     );
-    const ratio = recyclableInput ? recyclingRatio : requestedRatio;
+    const ratio = recyclableInput ? recyclingRatio : requested;
 
     allocationRatios.set(
       line,
@@ -1284,6 +1299,20 @@ export const calculateNet = (
   // alternatives can consume the same physical machines.
   for (const line of drivenInputLines) {
     applyRegularLine(line, getDrivenInputRatio(line));
+  }
+
+  // Source-specific routing reserves throughput before ordinary pooled consumers.
+  // The chain coordinator bounds the root; every ingredient remains real demand.
+  for (const line of regularLines) {
+    const floor = line.processingFloor;
+
+    if (!floor) continue;
+    const extra = Math.max(0, Math.min(
+      floor.ratio - (allocationRatios.get(line) ?? 0), capacityTracker.availableRatio(line),
+    ));
+
+    if (extra <= 0) continue;
+    applyRegularLine(line, extra, true);
   }
 
   // Supply-driven chains can contain legitimate byproduct cycles. Iterate so a
@@ -2087,7 +2116,7 @@ export const calculateNet = (
         if (balancedOutputs.length === 0) continue;
 
         const reduction2 = {
-          cut: ratio,
+          cut: Math.max(0, ratio - (line.processingFloor?.ratio ?? 0)),
         };
 
         for (const output of balancedOutputs) {
@@ -2347,6 +2376,20 @@ export const calculateNet = (
       unplacedPlannedBuildings: line.unplacedPlannedBuildings,
       operatingMode: line.operatingMode,
       hasOutputTarget: line.hasOutputTarget,
+      processingRequiredBuildings: line.processingRequiredBuildings,
+      processingBlockedBy: line.processingBlockedBy,
+      processingQuantity: line.processingFloor ? (() => {
+        const input = line.recipe.inputs.find(input => input.resourceId === line.processingFloor?.resourceId);
+
+        return input ? getRecipeInputQuantity(input, outputModifiers) * lineFactor(line)
+          * Math.min(line.processingFloor.ratio, allocationRatios.get(line) ?? 0) : 0;
+      })() : undefined,
+      processingRequestedQuantity: line.processingFloor ? (() => {
+        const input = line.recipe.inputs.find(input => input.resourceId === line.processingFloor?.resourceId);
+
+        return input ? getRecipeInputQuantity(input, outputModifiers) * line.speedLevel
+          * (line.processingRequiredBuildings ?? 0) : 0;
+      })() : undefined,
       supplyRatio: allocationRatios.get(line) ?? 0,
       speedLevel: line.speedLevel,
       actualInputs: line.recipe.inputs.map((input) => ({
@@ -2908,3 +2951,9 @@ export const calculateNet = (
 
   return { resourceFlows, allResourceFlows, regularResults, sourceResults, sinkResults, blockedRoutes };
 };
+
+export const calculateNet = (inputLines: ProductionLine[], ...options: Tail<Parameters<typeof calculateNetCore>>) => (
+  calculateProcessingChains(inputLines, lines => calculateNetCore(lines, ...options), options[2] ?? {})
+);
+
+type Tail<T extends unknown[]> = T extends [unknown, ...infer Rest] ? Rest : never;
