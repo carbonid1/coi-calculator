@@ -35,6 +35,7 @@ interface Props {
   diagnostic?: BuildingDiagnostic;
   onKeepReadyChange?: KeepReadyChange;
   showConfigurationSummary?: boolean;
+  autoBalanceOffBuildings?: number;
 }
 
 export const isCompactSyncedElectricitySource = (
@@ -47,7 +48,7 @@ export const isCompactSyncedElectricitySource = (
   && recipe.outputs[0]?.resourceId === "electricity"
 );
 
-export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, onKeepReadyChange, showConfigurationSummary = true }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, onKeepReadyChange, showConfigurationSummary = true, autoBalanceOffBuildings }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -146,6 +147,12 @@ export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuilding
       </div>
 
       <KeepReadyNote enabled={diagnostic?.keepReady} />
+      {autoBalanceOffBuildings != null && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Auto-balance · On <span className="font-mono tabular-nums text-foreground">{Math.max(0, activeBuildings - autoBalanceOffBuildings)}</span>
+          {' · '}Off <span className="font-mono tabular-nums text-foreground">{autoBalanceOffBuildings}</span>
+        </p>
+      )}
       {displaysFlows && (
         <RecipeFlow name={recipeDisplayName}
           inputs={recipe.inputs.map(input => {

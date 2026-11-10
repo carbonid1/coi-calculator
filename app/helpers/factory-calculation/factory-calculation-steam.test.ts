@@ -30,6 +30,45 @@ const calculate = (modules: Module[], links: ModuleResourceLink[] = []) => calcu
   recyclingEfficiencyPercent: 100,
 })
 
+it('keeps auto-balance-off turbines at full steam draw with excess electricity', () => {
+  const nuclear = moduleWith('Nuclear', [
+    recipe('steam', { outputs: [{ resourceId: 'steamSuper', quantity: 192 }] }),
+    ...['turbine-super', 'turbine-high', 'turbine-low', 'power-generator-ii-nuclear'].map(id => recipes.find(recipe => recipe.id === id)!),
+  ])
+
+  nuclear.builtBuildings = { steam: 1, 'turbine-super': 4, 'turbine-high': 4, 'turbine-low': 4, 'power-generator-ii-nuclear': 8 }
+  nuclear.presets[0]!.autoBalanceOffBuildings = { 'turbine-super': 4, 'turbine-high': 4, 'turbine-low': 4 }
+  const result = calculate([nuclear])
+  const flow = (id: string) => result.factoryResult.flows.find(flow => flow.resourceId === id)
+
+  expect(result.factoryResult.electricityDemandMw).toBe(0)
+  expect(flow('steamSuper')?.consumed).toBeCloseTo(192)
+  expect(flow('steamDepleted')?.produced).toBeCloseTo(192)
+  expect(flow('electricity')?.produced).toBeCloseTo(120)
+  expect(result.factoryResult.calculation.regularResults.find(line => line.recipe.id === 'power-generator-ii-nuclear')?.supplyRatio).toBe(1)
+})
+
+it.each([
+  { off: ['turbine-high'], steam: 192, demand: 100, generation: 100 },
+  { off: ['turbine-high', 'turbine-low'], steam: 192, demand: 100, generation: 100 },
+  { off: ['turbine-super', 'turbine-high', 'turbine-low'], steam: 96, demand: 0, generation: 60 },
+])('respects Steam supply with mixed auto-balance settings (%j)', ({ off, steam, demand, generation }) => {
+  const nuclear = moduleWith('Nuclear', [
+    recipe('steam', { outputs: [{ resourceId: 'steamSuper', quantity: steam }] }),
+    recipe('load', { buildingData: { workers: 0, electricityKw: demand * 1000 } }),
+    ...['turbine-super', 'turbine-high', 'turbine-low', 'power-generator-ii-nuclear'].map(id => recipes.find(recipe => recipe.id === id)!),
+  ])
+
+  nuclear.builtBuildings = { steam: 1, load: 1, 'turbine-super': 4, 'turbine-high': 4, 'turbine-low': 4, 'power-generator-ii-nuclear': 8 }
+  nuclear.presets[0]!.autoBalanceOffBuildings = Object.fromEntries(off.map(id => [id, 4]))
+  const result = calculate([nuclear]).factoryResult
+
+  for (const id of steamIds) expect(result.flows.find(flow => flow.resourceId === id)?.net ?? 0).toBeGreaterThanOrEqual(-0.000001)
+  expect(result.flows.find(flow => flow.resourceId === 'electricity')?.produced).toBeCloseTo(generation, 3)
+  expect(result.calculation.regularResults.find(line => line.recipe.id === 'power-generator-ii-nuclear')?.supplyRatio)
+    .toBeCloseTo(generation / 120, 4)
+})
+
 it.each([false, true])('dispatches power for separately calculated areas exactly once (linked: %s)', linked => {
   const power = moduleWith('Power', [
     recipe('generator', {
@@ -193,11 +232,12 @@ it.each([true, false])('credits a linked Steam delivery to the receiving cooling
   expect(getResourceSupplyRows(modules, result, 'water').find(row => row.moduleId === target.id)?.produced).toBeCloseTo(4.8)
 })
 
-it('does not dispatch a turbine using another module’s Steam', () => {
+it.each([false, true])('does not dispatch a turbine using another module’s Steam (auto-balance off: %s)', autoBalanceOff => {
   const source = moduleWith('Nuclear', [recipe('steam-source', { outputs: [{ resourceId: 'steamSuper', quantity: 96 }] })])
   const target = moduleWith('Default', [recipes.find(recipe => recipe.id === 'turbine-super')!])
 
   target.presets[0]!.electricityDispatchTargets = { 'fbr-turbines': 15 }
+  if (autoBalanceOff) target.presets[0]!.autoBalanceOffBuildings = { 'turbine-super': 1 }
   const modules = [source, target]
   const result = calculate(modules)
 

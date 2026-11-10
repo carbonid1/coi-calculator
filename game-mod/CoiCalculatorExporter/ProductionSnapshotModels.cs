@@ -169,6 +169,7 @@ internal sealed class ProductionEntitySnapshot
     public readonly NuclearReactorConfigurationSnapshot NuclearReactor;
     public readonly int? DataCenterRacks;
     public readonly TrainStationConfigurationSnapshot TrainStation;
+    public readonly bool? TurbineAutoBalance;
 
     public ProductionEntitySnapshot(
         int entityId,
@@ -178,7 +179,8 @@ internal sealed class ProductionEntitySnapshot
         List<LogisticsZoneSnapshot> zones,
         NuclearReactorConfigurationSnapshot nuclearReactor,
         int? dataCenterRacks,
-        TrainStationConfigurationSnapshot trainStation)
+        TrainStationConfigurationSnapshot trainStation,
+        bool? turbineAutoBalance)
     {
         EntityId = entityId;
         PrototypeId = prototypeId;
@@ -188,6 +190,7 @@ internal sealed class ProductionEntitySnapshot
         NuclearReactor = nuclearReactor;
         DataCenterRacks = dataCenterRacks;
         TrainStation = trainStation;
+        TurbineAutoBalance = turbineAutoBalance;
     }
 }
 

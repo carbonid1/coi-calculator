@@ -48,6 +48,8 @@ export interface ProductionLine {
   operatingMode: OperatingMode;
   /** Factory-wide dispatch can assign a utilization without changing installed capacity. */
   allocationRatio?: number;
+  /** Configured turbines that keep consuming steam independently of electricity demand. */
+  autoBalanceOffBuildings?: number;
   /** An explicit output target reserved this line before ordinary balanced production. */
   hasOutputTarget?: boolean;
   /** Explicit private supplies that can start this consumer without output demand. */

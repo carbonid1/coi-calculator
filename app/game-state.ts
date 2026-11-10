@@ -209,6 +209,7 @@ export interface SyncedProductionEntity {
   recipeIds: string[]
   zones: SyncedLogisticsZoneRef[]
   nuclearReactor: SyncedNuclearReactorConfiguration | null
+  turbineAutoBalance?: boolean | null
   dataCenterRacks?: number | null
   /** Present in schema 29 and newer. */
   trainStation?: SyncedTrainStationConfiguration | null
@@ -313,7 +314,7 @@ type SyncedEdictStates = Record<EdictId, SyncedEdictState>
 
 type SyncedReserves = ReserveBalances
 
-export const CURRENT_GAME_STATE_SCHEMA_VERSION = 55 as const
+export const CURRENT_GAME_STATE_SCHEMA_VERSION = 56 as const
 
 export interface GameStateSnapshot {
   chickenFarmDefinition: ChickenFarmDefinition
@@ -771,6 +772,9 @@ const isProductionEntity = (
     : value.nuclearReactor === null) &&
   ((value.prototypeId === 'DataCenter' && isNonNegativeInteger(value.dataCenterRacks)) ||
     (value.prototypeId !== 'DataCenter' && value.dataCenterRacks === null)) &&
+  (value.prototypeId.startsWith('Turbine')
+    ? typeof value.turbineAutoBalance === 'boolean'
+    : value.turbineAutoBalance == null) &&
   hasValidTrainStationConfiguration(value)
 
 const normalizeProductionEntities = (value: unknown): SyncedProductionEntity[] | null => {

@@ -22,7 +22,7 @@ internal static partial class SnapshotJsonWriter
     {
         SnapshotJsonStream json = new SnapshotJsonStream(3600);
         json.BeginObject();
-        json.Field("schemaVersion", 55);
+        json.Field("schemaVersion", 56);
         appendPlanningDefinitions(json, snapshot.PlanningDefinitions);
         appendOfficeFocusDefinitions(json, snapshot.OfficeFocusDefinitions);
         appendChickenFarmDefinition(json, snapshot.ChickenFarmDefinition);
@@ -204,6 +204,15 @@ internal static partial class SnapshotJsonWriter
             }
             json.Name("trainStation");
             appendTrainStationConfiguration(json, entity.TrainStation);
+            json.Name("turbineAutoBalance");
+            if (entity.TurbineAutoBalance.HasValue)
+            {
+                json.Value(entity.TurbineAutoBalance.Value);
+            }
+            else
+            {
+                json.Value((string)null);
+            }
             json.EndObject();
         }
         json.EndArray();

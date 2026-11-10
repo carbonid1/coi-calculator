@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Mafi.Base.Prototypes.Machines.PowerGenerators;
 
 using Mafi;
 using Mafi.Core;
@@ -108,6 +109,7 @@ internal sealed partial class GameSnapshotCollector
             if (source.IsTrackedProduction)
             {
                 NuclearReactor reactor = entity as NuclearReactor;
+                MechPowerGeneratorFromProduct turbine = entity as MechPowerGeneratorFromProduct;
                 productionEntities.Add(new ProductionEntitySnapshot(
                     entity.Id.Value,
                     prototypeId,
@@ -122,7 +124,8 @@ internal sealed partial class GameSnapshotCollector
                     dataCenterEntity == null
                         ? (int?)null
                         : dataCenterEntity.RacksCount,
-                    getTrainStationConfiguration(entity)));
+                    getTrainStationConfiguration(entity),
+                    turbine == null ? (bool?)null : turbine.AutoBalance));
             }
 
             WellPump groundwaterPump = entity as WellPump;

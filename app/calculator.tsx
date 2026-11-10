@@ -905,9 +905,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                   stretchChild={false}
                   targetKey={groupTargetKey}
                 >
-                  <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {label}
-                  </h2>
+                  <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{label}</h2>
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {groupProductionCardLines(items).map(({ key, targetKey, lines }) => {
                       const line = lines[0]
@@ -934,7 +932,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                           </BuildingCardTarget>
                         ) : null
                       }
-                      if (group === 'sink') {
+                      if (group === 'sink' && lines.length === 1) {
                         const result = moduleResult.sinkResults.find(
                           sink => sink.recipe.id === line.recipe.id,
                         )
@@ -964,7 +962,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                               dataSource={line.dataSource}
                               lines={lines}
                               results={lines.map(sharedLine =>
-                                moduleResult.regularResults.find(
+                                (group === 'sink' ? moduleResult.sinkResults : moduleResult.regularResults).find(
                                   result => result.recipe.id === sharedLine.recipe.id,
                                 ),
                               )}
@@ -1003,6 +1001,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                             actualInputs={result?.actualInputs}
                             actualOutputs={result?.actualOutputs}
                             outputModifiers={outputModifiers}
+                            autoBalanceOffBuildings={line.recipe.id.startsWith('turbine-') ? line.autoBalanceOffBuildings ?? 0 : undefined}
                           />
                         </BuildingCardTarget>
                       )

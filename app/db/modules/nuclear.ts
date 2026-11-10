@@ -2,9 +2,10 @@ import { type SyncedProductionEntity } from "../../game-state";
 import { nuclearOrdinaryRecipeIds, resolveNuclearAreaRecipes } from '../../helpers/nuclear-entity-sync/nuclear-area-recipes';
 import {
   nuclearSpecialPrototypeIds,
+  nuclearSpecialRecipeBindings,
   resolveNuclearEntityInventory,
 } from "../../helpers/nuclear-entity-sync/nuclear-entity-sync";
-import { applyNuclearOperationTargets, applyNuclearTurbinePlan, type NuclearOperationTarget, type NuclearTurbinePlan } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets';
+import { applyNuclearOperationTargets, applyNuclearTurbinePlan, applyTurbineAutoBalance, type NuclearOperationTarget, type NuclearTurbinePlan } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets';
 import { resolveDirectionalPlan } from '../../helpers/resolve-directional-plan';
 import { type PlanningBaselines } from "../planning-baselines";
 import {
@@ -23,6 +24,7 @@ export interface NuclearOperationPlan {
   breederPowerLevel?: number;
   supportTargets?: readonly NuclearOperationTarget[];
   turbineRows?: NuclearTurbinePlan;
+  turbineAutoBalanceOff?: Readonly<Record<string, number>>;
 }
 
 export const plannedNuclearOperation: NuclearOperationPlan = {
@@ -37,14 +39,16 @@ export const thirdFbrNuclearOperation: NuclearOperationPlan = {
   powerReactorCount: 2,
   breederPowerLevel: 2,
   superDesalinatorCount: 13,
-  // FBR1: two working rows. FBR2: two working rows and one paused spare.
-  turbineRows: { working: 4, standby: 1 },
+  // FBR1 and FBR2 each run two rows; no spare construction is planned.
+  turbineRows: { working: 4, standby: 0 },
+  // Every working row keeps auto-balance off for fixed steam throughput.
+  turbineAutoBalanceOff: { 'turbine-super': 8, 'turbine-high': 8, 'turbine-low': 8 },
   supportTargets: [
     { recipeId: 'nuclear-reprocessing', name: 'Nuclear reprocessing plant', target: 2 },
     { recipeId: 'enrichment-plant', name: 'Enrichment plant', target: 3 },
     { recipeId: 'radioactive-waste-storage', name: 'Nuclear waste storage', target: 2 },
     { recipeId: 'cooling-tower-large-depleted', name: 'Cooling tower (large)', target: 7 },
-    { recipeId: 'seawater-pump', name: 'Seawater pump', target: 8 },
+    { recipeId: 'seawater-pump', name: 'Seawater pump', target: 7 },
   ],
 };
 
@@ -61,7 +65,15 @@ export const createNuclearModule = (
   const nonBreederPowerLevel = syncedInventory.speedLevels["fbr-0x"] ?? 0;
   const hydrogenDemandPerCycle = Math.max(0, baselines.hydrogenFuelDemandPerCycle);
   const liveRecipes = generatedArea?.recipes ? resolveNuclearAreaRecipes(generatedArea) : undefined;
-  const recipeIds = Object.keys(syncedInventory.counts).filter(id => (
+  const areaPreset = generatedArea?.presets.find(preset => preset.id === generatedArea.defaultPresetId)
+    ?? generatedArea?.presets[0];
+  const specialConstructionGhosts = Object.fromEntries(nuclearSpecialRecipeBindings.flatMap(binding => {
+    const count = areaPreset?.capacityPools?.[binding.prototypeId]?.constructionGhosts ?? 0;
+
+    return count > 0 ? [[binding.recipeId, count]] : [];
+  }));
+  const constructionGhosts = { ...specialConstructionGhosts, ...liveRecipes?.preset.constructionGhosts };
+  const recipeIds = [...new Set([...Object.keys(syncedInventory.counts), ...Object.keys(specialConstructionGhosts)])].filter(id => (
     !liveRecipes || !nuclearOrdinaryRecipeIds.has(id)
   ));
   const builtBuildings = { ...Object.fromEntries(recipeIds.map(recipeId => [
@@ -72,7 +84,9 @@ export const createNuclearModule = (
     recipeId,
     syncedInventory.counts[recipeId]?.running ?? 0,
   ])), ...liveRecipes?.preset.currentActiveBuildings };
-  const activeBuildings = { ...currentActiveBuildings, ...liveRecipes?.preset.activeBuildings };
+  const activeBuildings = { ...Object.fromEntries(recipeIds.map(id => [
+    id, (currentActiveBuildings[id] ?? 0) + (specialConstructionGhosts[id] ?? 0),
+  ])), ...liveRecipes?.preset.activeBuildings };
   const speedLevels: Record<string, number> = { ...syncedInventory.speedLevels, ...liveRecipes?.preset.speedLevels };
   const dataSources: NonNullable<Preset["dataSources"]> = { ...Object.fromEntries(
     recipeIds.map(recipeId => [recipeId, "synced" as const]),
@@ -146,7 +160,7 @@ export const createNuclearModule = (
     builtBuildings,
     recipes: liveRecipes?.recipes,
     presets: [
-      applyNuclearTurbinePlan(applyNuclearOperationTargets({
+      applyTurbineAutoBalance(applyNuclearTurbinePlan(applyNuclearOperationTargets({
         ...liveRecipes?.preset,
         id: "configured-target",
         name: "Configured target",
@@ -154,6 +168,9 @@ export const createNuclearModule = (
         builtBuildings,
         activeBuildings,
         currentActiveBuildings,
+        constructionGhosts,
+        autoBalanceOffBuildings: syncedInventory.autoBalanceOffBuildings,
+        pausedAutoBalanceOffBuildings: syncedInventory.pausedAutoBalanceOffBuildings,
         planMismatches,
         dataSources: Object.keys(dataSources).length > 0 ? dataSources : undefined,
         fixed: [
@@ -168,7 +185,7 @@ export const createNuclearModule = (
         },
         // Vehicles refuel from what production leaves; a shortfall shows on fuel.
         deferredDemandIds: ["hydrogen"],
-      }, liveRecipes?.recipes ?? [], operationTargets, liveRecipes?.recipeIdsByPolicyId, liveRecipes?.unavailableRecipeIds), plan?.turbineRows),
+      }, liveRecipes?.recipes ?? [], operationTargets, liveRecipes?.recipeIdsByPolicyId, liveRecipes?.unavailableRecipeIds), plan?.turbineRows), plan?.turbineAutoBalanceOff),
     ],
     defaultPresetId: "configured-target",
     liveArea,

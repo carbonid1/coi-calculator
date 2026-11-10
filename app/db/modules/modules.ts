@@ -18,6 +18,10 @@ export interface Preset {
   dataSources?: Partial<Record<string, ValueSource>>;
   /** Recipes forced to run at active capacity. Every other recipe is automatically balanced. */
   fixed: string[];
+  /** Active turbines with auto-balance disabled; these reserve their full steam draw. */
+  autoBalanceOffBuildings?: Record<string, number>;
+  /** Synced mode settings on paused built turbines, reused by planned unpauses. */
+  pausedAutoBalanceOffBuildings?: Record<string, number>;
   outputTargets?: Partial<Record<ResourceId, number>>;
   /** Per-recipe observed targets used when several recipes produce the same resource. */
   recipeOutputTargets?: Record<string, Partial<Record<ResourceId, number>>>;

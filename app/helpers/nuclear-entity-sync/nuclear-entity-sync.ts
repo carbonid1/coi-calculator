@@ -8,6 +8,8 @@ interface SyncedRecipeBuildingCount {
 export interface ResolvedNuclearEntityInventory {
   counts: Record<string, SyncedRecipeBuildingCount>;
   speedLevels: Record<string, number>;
+  autoBalanceOffBuildings: Record<string, number>;
+  pausedAutoBalanceOffBuildings: Record<string, number>;
   entities: SyncedProductionEntity[];
   unmappedEntities: SyncedProductionEntity[];
 }
@@ -119,6 +121,13 @@ export const nuclearSpecialPrototypeIds = new Set([
   'TurbineLowPressT2', 'PowerGeneratorT2', 'NuclearWasteStorage',
 ]);
 
+/** Fixed configurations can reuse the area's prototype-level construction inventory. */
+export const nuclearSpecialRecipeBindings = matchers.flatMap(binding => (
+  binding.prototypeId && binding.gameRecipeId == null && nuclearSpecialPrototypeIds.has(binding.prototypeId)
+    ? [{ prototypeId: binding.prototypeId, recipeId: binding.recipeId }]
+    : []
+));
+
 const matches = (entity: SyncedProductionEntity, matcher: RecipeMatcher) => (
   (matcher.prototypeId == null || entity.prototypeId === matcher.prototypeId) &&
   (matcher.gameRecipeId == null || entity.recipeIds.includes(matcher.gameRecipeId))
@@ -147,6 +156,8 @@ export const resolveNuclearEntityInventory = (
       ));
   const counts: ResolvedNuclearEntityInventory["counts"] = {};
   const speedLevels: ResolvedNuclearEntityInventory["speedLevels"] = {};
+  const autoBalanceOffBuildings: Record<string, number> = {};
+  const pausedAutoBalanceOffBuildings: Record<string, number> = {};
   const matchedEntityIds = new Set<number>();
   const reactorPower = new Map<string, { built: number; running: number }>();
 
@@ -177,6 +188,11 @@ export const resolveNuclearEntityInventory = (
       if (!matches(entity, matcher)) continue;
 
       addCount(counts, matcher.recipeId, entity.running);
+      if (entity.prototypeId.startsWith('Turbine') && entity.turbineAutoBalance === false) {
+        const modeCounts = entity.running ? autoBalanceOffBuildings : pausedAutoBalanceOffBuildings;
+
+        modeCounts[matcher.recipeId] = (modeCounts[matcher.recipeId] ?? 0) + 1;
+      }
       matchedEntityIds.add(entity.entityId);
     }
   }
@@ -194,6 +210,8 @@ export const resolveNuclearEntityInventory = (
   return {
     counts,
     speedLevels,
+    autoBalanceOffBuildings,
+    pausedAutoBalanceOffBuildings,
     entities,
     unmappedEntities: entities.filter(entity => !matchedEntityIds.has(entity.entityId)),
   };

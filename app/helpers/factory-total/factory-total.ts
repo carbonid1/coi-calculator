@@ -60,6 +60,7 @@ interface ElectricityDispatchGroup {
   id: string;
   priority: number;
   capacityMw: number;
+  constantCapacityMw: number;
   minimumGenerationMw: number;
 }
 
@@ -136,6 +137,7 @@ const calculateWithDispatch = (
     } } };
   });
   const groupsById = new Map<string, ElectricityDispatchGroup>();
+  const dispatchLines = new Map<string, { groupId: string; capacityMw: number; constantRatio: number }>();
   const prioritizedLines = lines.filter((line) => line.operatingMode !== "fixed" && line.allocationRatio == null && (
     typedEntries(line.recipe.inputPriorities ?? {}).length > 0
     || (line.recipe.group !== "source" && line.recipe.group !== "sink"
@@ -185,11 +187,17 @@ const calculateWithDispatch = (
         : total
     ), 0);
     const existing = groupsById.get(dispatch.groupId);
+    const constantRatio = line.activeBuildings > 0
+      ? Math.min(1, Math.max(0, line.autoBalanceOffBuildings ?? 0) / line.activeBuildings)
+      : 0;
+
+    dispatchLines.set(prioritizedLineId(line), { groupId: dispatch.groupId, capacityMw: electricityCapacityMw, constantRatio });
 
     groupsById.set(dispatch.groupId, {
       id: dispatch.groupId,
       priority: dispatch.priority,
-      capacityMw: (existing?.capacityMw ?? 0) + electricityCapacityMw,
+      capacityMw: (existing?.capacityMw ?? 0) + electricityCapacityMw * (1 - constantRatio),
+      constantCapacityMw: (existing?.constantCapacityMw ?? 0) + electricityCapacityMw * constantRatio,
       minimumGenerationMw: Math.max(
         existing?.minimumGenerationMw ?? 0,
         electricityDispatchTargets[dispatch.groupId] ?? 0,
@@ -200,27 +208,25 @@ const calculateWithDispatch = (
   const groups = [...groupsById.values()].toSorted((a, b) => (
     a.priority - b.priority || a.id.localeCompare(b.id)
   ));
-  const minimumElectricityDemandMw = groups.reduce(
-    (state, group) => ({
-      priorCapacityMw: state.priorCapacityMw + group.capacityMw,
-      demandMw: group.minimumGenerationMw > 0 && group.capacityMw > 0
-        ? Math.max(
-            state.demandMw,
-            state.priorCapacityMw
-              + Math.min(group.capacityMw, group.minimumGenerationMw),
-          )
-        : state.demandMw,
-    }),
-    { priorCapacityMw: 0, demandMw: 0 },
-  ).demandMw;
   const applyDispatchRatios = (
     electricityRatios: Map<string, number>,
     resourceRatios: Map<string, number>,
+    generationRatios: Map<string, number>,
   ) => lines.map((line) => {
     const groupId = line.recipe.electricityDispatch?.groupId;
     const resourceRatio = resourceRatios.get(prioritizedLineId(line));
+    const constantRatio = line.activeBuildings > 0
+      ? Math.min(1, Math.max(0, line.autoBalanceOffBuildings ?? 0) / line.activeBuildings)
+      : 0;
+    const group = groupId ? groupsById.get(groupId) : undefined;
+    const dispatchRatio = groupId ? electricityRatios.get(groupId) ?? 0 : 0;
+    // Physical generators follow the whole shaft's load, including turbines
+    // whose auto-balance setting keeps them outside demand-following dispatch.
+    const electricityRatio = group && line.recipe.outputs.length === 0
+      ? generationRatios.get(group.id) ?? 0
+      : constantRatio + (1 - constantRatio) * dispatchRatio;
     const ratios = [
-      ...(groupId ? [electricityRatios.get(groupId) ?? 0] : []),
+      ...(groupId ? [electricityRatio] : []),
       ...(resourceRatio != null ? [resourceRatio] : []),
     ];
 
@@ -234,6 +240,7 @@ const calculateWithDispatch = (
   });
   const dispatchState: {
     electricityRatios: Map<string, number>;
+    generationRatios: Map<string, number>;
     resourceRatios: Map<string, number>;
     dispatchedLines: ProductionLine[];
     calculation: ReturnType<typeof calculateNet> | null;
@@ -241,6 +248,7 @@ const calculateWithDispatch = (
     calculationMatchesDispatchRatios: boolean;
   } = {
     electricityRatios: new Map(groups.map((group) => [group.id, 0])),
+    generationRatios: new Map(groups.map((group) => [group.id, 0])),
     resourceRatios: new Map(
       prioritizedLines.map((line) => [prioritizedLineId(line), 0]),
     ),
@@ -254,7 +262,7 @@ const calculateWithDispatch = (
   // priorities likewise depend on final byproduct totals, so dispatch both
   // feedback loops together until the monthly plan reaches a steady state.
   for (const pass = { iteration: 0 }; pass.iteration < MAX_DISPATCH_ITERATIONS; pass.iteration += 1) {
-    dispatchState.dispatchedLines = applyDispatchRatios(dispatchState.electricityRatios, dispatchState.resourceRatios);
+    dispatchState.dispatchedLines = applyDispatchRatios(dispatchState.electricityRatios, dispatchState.resourceRatios, dispatchState.generationRatios);
     const currentCalculation = calculateNet(
       dispatchState.dispatchedLines,
       suppliedResources,
@@ -276,21 +284,61 @@ const calculateWithDispatch = (
       outputModifiers,
     );
     const modeledDemandMw = dispatchState.buildingStats.electricityKw / 1000 + fixedElectricityDemandMw;
+    const constantGenerationByGroup = new Map<string, number>();
+    const generationByGroup = new Map<string, number>();
+
+    for (const result of currentCalculation.regularResults) {
+      const dispatch = dispatchLines.get(`${result.moduleId}:${result.recipe.id}`);
+
+      if (!dispatch) continue;
+      const generated = result.actualOutputs.reduce((sum, output) => (
+        sum + (output.resourceId === 'electricity' ? output.quantity : 0)
+      ), 0);
+
+      generationByGroup.set(dispatch.groupId, (generationByGroup.get(dispatch.groupId) ?? 0) + generated);
+      // Off turbines claim steam before automatic turbines in the same line.
+      // Credit only the part their actual steam supply allowed them to run.
+      constantGenerationByGroup.set(dispatch.groupId, (constantGenerationByGroup.get(dispatch.groupId) ?? 0)
+        + dispatch.capacityMw * Math.min(dispatch.constantRatio, result.supplyRatio));
+    }
+    const constantGenerationMw = [...constantGenerationByGroup.values()].reduce((sum, quantity) => sum + quantity, 0);
+    const nextGenerationRatios = new Map(groups.map(group => {
+      const capacity = group.capacityMw + group.constantCapacityMw;
+
+      return [group.id, capacity > 0 ? (generationByGroup.get(group.id) ?? 0) / capacity : 0];
+    }));
+    const minimumElectricityDemandMw = groups.reduce((state, group) => {
+      const constant = constantGenerationByGroup.get(group.id) ?? 0;
+
+      return {
+        priorCapacityMw: state.priorCapacityMw + group.capacityMw,
+        demandMw: group.minimumGenerationMw > constant && group.capacityMw > 0
+          ? Math.max(state.demandMw, state.priorCapacityMw + Math.min(group.capacityMw, group.minimumGenerationMw - constant))
+          : state.demandMw,
+      };
+    }, { priorCapacityMw: 0, demandMw: 0 }).demandMw;
     const remaining2 = {
       remainingDemandMw: Math.max(
-        getDemandMw(modeledDemandMw),
+        getDemandMw(modeledDemandMw) - constantGenerationMw,
         minimumElectricityDemandMw,
       ),
     };
     const nextElectricityRatios = new Map<string, number>();
 
     for (const group of groups) {
-      const ratio = group.capacityMw > 0
+      const desiredRatio = group.capacityMw > 0
         ? Math.min(1, Math.max(0, remaining2.remainingDemandMw / group.capacityMw))
         : 0;
+      const previousRatio = dispatchState.electricityRatios.get(group.id) ?? 0;
+      // Automatic upstream turbines can feed off-mode downstream turbines.
+      // Relax that feedback so their shared power target does not oscillate.
+      const constrainedConstant = (constantGenerationByGroup.get(group.id) ?? 0) < group.constantCapacityMw - DISPATCH_TOLERANCE;
+      const ratio = constrainedConstant && group.capacityMw > 0
+        ? previousRatio + (desiredRatio - previousRatio) * 0.5
+        : desiredRatio;
 
       nextElectricityRatios.set(group.id, ratio);
-      remaining2.remainingDemandMw = Math.max(0, remaining2.remainingDemandMw - group.capacityMw * ratio);
+      remaining2.remainingDemandMw = Math.max(0, remaining2.remainingDemandMw - group.capacityMw * desiredRatio);
     }
 
     const desiredResourceRatios = new Map<string, number>();
@@ -633,8 +681,12 @@ const calculateWithDispatch = (
         (desiredResourceRatios.get(id) ?? 0) - (dispatchState.resourceRatios.get(id) ?? 0),
       ) <= DISPATCH_TOLERANCE;
     });
+    const generationConverged = groups.every(group => (
+      Math.abs((nextGenerationRatios.get(group.id) ?? 0) - (dispatchState.generationRatios.get(group.id) ?? 0)) <= DISPATCH_TOLERANCE
+    ));
     const ratiosAreIdentical = groups.every((group) => (
       nextElectricityRatios.get(group.id) === dispatchState.electricityRatios.get(group.id)
+      && nextGenerationRatios.get(group.id) === dispatchState.generationRatios.get(group.id)
     )) && prioritizedLines.every((line) => {
       const id = prioritizedLineId(line);
 
@@ -642,16 +694,17 @@ const calculateWithDispatch = (
     });
 
     dispatchState.electricityRatios = nextElectricityRatios;
+    dispatchState.generationRatios = nextGenerationRatios;
     dispatchState.resourceRatios = desiredResourceRatios;
 
-    if (electricityConverged && resourcesConverged) {
+    if (electricityConverged && resourcesConverged && generationConverged) {
       dispatchState.calculationMatchesDispatchRatios = ratiosAreIdentical;
       break;
     }
   }
 
   if (!dispatchState.calculationMatchesDispatchRatios || !dispatchState.calculation || !dispatchState.buildingStats) {
-    dispatchState.dispatchedLines = applyDispatchRatios(dispatchState.electricityRatios, dispatchState.resourceRatios);
+    dispatchState.dispatchedLines = applyDispatchRatios(dispatchState.electricityRatios, dispatchState.resourceRatios, dispatchState.generationRatios);
     dispatchState.calculation = calculateNet(
       dispatchState.dispatchedLines,
       suppliedResources,

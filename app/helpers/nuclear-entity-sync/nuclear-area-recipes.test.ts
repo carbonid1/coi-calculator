@@ -21,7 +21,8 @@ const reforming = {
 }
 const create = (entities: SyncedAreaEntity[], plan?: NuclearOperationPlan) => {
   const [area] = createLiveAreaModules([zone], entities)
-  const inventory = entities.map(entity => ({ ...entity, recipeIds: entity.recipes.filter(r => r.assigned).map(r => r.id), nuclearReactor: null }))
+  const inventory = entities.filter(entity => entity.constructed)
+    .map(entity => ({ ...entity, recipeIds: entity.recipes.filter(r => r.assigned).map(r => r.id), nuclearReactor: null }))
 
   return createNuclearModule(emptyPlanningBaselines, plan, inventory, area)
 }
@@ -77,6 +78,55 @@ it('keeps construction ghosts separate from the current inventory after mapping 
     activeBuildings: 2, currentActiveBuildings: 1, builtBuildings: 1, constructionGhosts: 1,
     recipe: { id: 'hydrogen-reformer-super' },
   })
+})
+
+it.each([
+  ['NuclearWasteStorage', 'radioactive-waste-storage'],
+  ['TurbineSuperPress', 'turbine-super'],
+  ['TurbineHighPressT2', 'turbine-high'],
+  ['TurbineLowPressT2', 'turbine-low'],
+  ['PowerGeneratorT2', 'power-generator-ii-nuclear'],
+])('counts %s construction ghosts even without an ordinary recipe', (prototypeId, recipeId) => {
+  const built = { ...entity(1, prototypeId, reforming), recipes: [], availableRecipeCount: 0 }
+  const ghost = { ...built, entityId: 2, constructed: false, running: false, constructionState: 'InConstruction' }
+  const nuclear = create([built, ghost], {
+    ...reformerPlan(0), supportTargets: [{ recipeId, name: prototypeId, target: 2 }],
+  })
+  const line = buildModuleLines(nuclear, nuclear.presets[0]).lines.find(line => line.recipe.id === recipeId)
+
+  expect(line).toMatchObject({
+    builtBuildings: 1, currentActiveBuildings: 1, activeBuildings: 2,
+    constructionGhosts: 1, unplacedPlannedBuildings: 0,
+  })
+  expect(nuclear.presets[0].planMismatches?.filter(mismatch => mismatch.recipeId === recipeId) ?? []).toEqual([])
+})
+
+it.each([false, true])('keeps ghost-covered rows synced unless built turbines need configuration (auto-balance: %s)', autoBalance => {
+  const members = [
+    ['TurbineSuperPress', 'turbine-super', 4],
+    ['TurbineHighPressT2', 'turbine-high', 4],
+    ['TurbineLowPressT2', 'turbine-low', 4],
+    ['PowerGeneratorT2', 'power-generator-ii-nuclear', 8],
+  ] as const
+  const entities = members.flatMap(([prototypeId, , count], group) => Array.from({ length: count * 2 }, (_, index) => ({
+    ...entity(group * 100 + index, prototypeId, reforming, index < count),
+    recipes: [], availableRecipeCount: 0,
+    constructed: index < count, constructionState: index < count ? 'Constructed' : 'InConstruction',
+    turbineAutoBalance: prototypeId.startsWith('Turbine') ? autoBalance : null,
+  })))
+  const nuclear = create(entities, {
+    ...reformerPlan(0), turbineRows: { working: 4, standby: 0 },
+    turbineAutoBalanceOff: { 'turbine-super': 8, 'turbine-high': 8, 'turbine-low': 8 },
+  })
+  const preset = nuclear.presets[0]
+
+  for (const [prototypeId, recipeId] of members) {
+    const needsConfiguration = prototypeId.startsWith('Turbine') && autoBalance
+
+    expect(preset.dataSources?.[recipeId]).toBe(needsConfiguration ? 'planned' : 'synced')
+    expect(preset.unplacedPlannedBuildings?.[recipeId] ?? 0).toBe(0)
+    expect(preset.planMismatches?.some(mismatch => mismatch.recipeId === recipeId) ?? false).toBe(needsConfiguration)
+  }
 })
 
 it('keeps unsupported-product diagnostics instead of substituting a static recipe', () => {

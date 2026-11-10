@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Mafi.Base.Prototypes.Machines.PowerGenerators;
 
 using Mafi;
 using Mafi.Core;
@@ -122,6 +123,7 @@ internal sealed partial class GameSnapshotCollector
 
         string entityNamespace = entity.GetType().Namespace;
         return entity is ForestryTower
+            || staticEntity.Prototype is ElectricityGeneratorFromMechPowerProto
             || staticEntity.Prototype is MachineProto
             || entity is IEntityWithAssignedRecipes
             || entity is IEntityWithWorkers
