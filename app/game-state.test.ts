@@ -125,6 +125,12 @@ describe('game-state snapshot validation', () => {
     expect(normalizeGameStateSnapshot({ ...currentSnapshot,
       spaceStation: { currentLevel: testSpaceStationLevels.length + 1, highestLevelAchieved: testSpaceStationLevels.length + 1 },
     })).toBeNull()
+    expect(normalizeGameStateSnapshot({ ...currentSnapshot,
+      spaceStation: { ...currentSnapshot.spaceStation, crewDisabled: 'true' },
+    })).toBeNull()
+    expect(normalizeGameStateSnapshot({ ...currentSnapshot,
+      spaceStation: { ...currentSnapshot.spaceStation, crewDisabled: true },
+    })?.spaceStation.crewDisabled).toBe(true)
   })
   it('requires complete, supported Rocket II data from the compatible Bridge', () => {
     for (const definition of [undefined, null, {},

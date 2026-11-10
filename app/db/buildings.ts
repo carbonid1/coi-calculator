@@ -34,6 +34,7 @@ const normalize = (name: string) => name.trim().toLocaleLowerCase('en-US')
 const quietBuildings = new Set([
   'Super-Pressure Turbine', 'High-Pressure Turbine II', 'Low-Pressure Turbine II',
   'Power Generator II', 'Liquid Dump', 'Smoke stack (large)', 'Cooling Tower (Large)',
+  'Solar Panel', 'Solar Panel (Mono)',
 ].map(normalize))
 const catalogCache = new WeakMap<readonly BuildingDefinition[], {
   byId: Map<string, BuildingDefinition>

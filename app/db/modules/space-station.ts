@@ -176,23 +176,24 @@ export const createSpaceStationModule = (
     built: 0,
     running: 0,
   };
-  const stationActive = hasStation ? 1 : 0;
-  const currentStationActive = currentlyHasStation ? 1 : 0;
+  const crewPlanned = Boolean(researchPlan) && config.crewDisabled === true;
+  const stationActive = hasStation && (researchPlan || config.crewDisabled !== true) ? 1 : 0;
+  const currentStationActive = currentlyHasStation && config.crewDisabled !== true ? 1 : 0;
   const rocketBuiltBuildings = Object.fromEntries(
     rocketInfrastructureItems.map((item) => [item.recipeId, rocketBuilt[item.id]]),
   );
   const rocketActiveBuildings = Object.fromEntries(
     rocketInfrastructureItems.map((item) => [
       item.recipeId,
-      Math.max(hasStation ? 1 : 0, rocketRunning[item.id]),
+      Math.max(stationActive, rocketRunning[item.id]),
     ]),
   );
   const rocketCurrentActiveBuildings = Object.fromEntries(
     rocketInfrastructureItems.map((item) => [item.recipeId, rocketRunning[item.id]]),
   );
   const builtBuildings = {
-    "space-station-operations": currentStationActive,
-    "space-station-orbital-research": currentlyHasOrbitalResearch ? currentStationActive : 0,
+    "space-station-operations": currentlyHasStation ? 1 : 0,
+    "space-station-orbital-research": currentlyHasOrbitalResearch ? 1 : 0,
     [SPACE_STATION_PARTS_RECIPE_ID]: stationPartsAssembly.built,
     ...rocketBuiltBuildings,
   };
@@ -209,8 +210,8 @@ export const createSpaceStationModule = (
     ...rocketCurrentActiveBuildings,
   };
   const dataSources = {
-    "space-station-operations": stationPlanPending ? "planned" as const : "synced" as const,
-    "space-station-orbital-research": stationPlanPending ? "planned" as const : "synced" as const,
+    "space-station-operations": stationPlanPending || crewPlanned ? "planned" as const : "synced" as const,
+    "space-station-orbital-research": stationPlanPending || crewPlanned ? "planned" as const : "synced" as const,
     [SPACE_STATION_PARTS_RECIPE_ID]: "synced" as const,
     ...Object.fromEntries(
       rocketInfrastructureItems.map((item) => [
@@ -231,9 +232,20 @@ export const createSpaceStationModule = (
           label: currentlyHasStation
             ? `Upgrade Space Station to level ${targetLevel}`
             : `Build Space Station level ${targetLevel}`,
-        }],
+        }, ...(crewPlanned ? [{ type: "unpause" as const, label: "Enable Space Station crew" }] : [])],
       }]
     : [];
+
+  if (crewPlanned && !stationPlanPending) {
+    stationPlanMismatches.push({
+      recipeId: "space-station-operations",
+      current: 0,
+      target: 1,
+      direction: "at-least",
+      format: "count",
+      actions: [{ type: "unpause", label: "Enable Space Station crew" }],
+    });
+  }
 
   const stationModule: Module = {
     id: SPACE_STATION_MODULE_ID,
@@ -255,9 +267,9 @@ export const createSpaceStationModule = (
           ? { "space-station-operations": 1 }
           : undefined,
         fixed: [
-          ...(hasStation ? ["space-station-operations"] : []),
-          ...(hasOrbitalResearch ? ["space-station-orbital-research"] : []),
-          ...(hasStation ? ["rocket-ii-launch-amortized"] : []),
+          ...(stationActive ? ["space-station-operations"] : []),
+          ...(stationActive && hasOrbitalResearch ? ["space-station-orbital-research"] : []),
+          ...(stationActive ? ["rocket-ii-launch-amortized"] : []),
         ],
         planMismatches: stationPlanMismatches.length > 0
           ? stationPlanMismatches

@@ -46,6 +46,7 @@ internal static partial class SnapshotJsonWriter
         json.Name("spaceStation").BeginObject();
         json.Field("currentLevel", snapshot.SpaceStationCurrentLevel);
         json.Field("highestLevelAchieved", snapshot.SpaceStationHighestLevelAchieved);
+        json.Field("crewDisabled", snapshot.SpaceStationCrewDisabled);
         json.EndObject();
         json.Name("logisticsZones").BeginArray();
         for (int i = 0; i < snapshot.Production.LogisticsZones.Count; i++)

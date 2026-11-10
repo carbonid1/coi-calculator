@@ -9,6 +9,7 @@ import { getContractCatalog } from '../app/db/contracts'
 import { activeCropFarmGroups } from '../app/db/crop-farm-plans'
 import { calculateCropFarmGroupRates, type CropFarmGroup } from '../app/db/crop-farming'
 import { getEdictCatalog, mapEdictValues } from '../app/db/edicts'
+import { factoryPresets } from '../app/db/factory-presets'
 import { getHousingTypes } from '../app/db/housing'
 import { createCropFarmAreaModule, createDefaultCropFarmModule, getCropFarmGroundwaterRecipeId } from '../app/db/modules/crop-farm-areas'
 import { createChickenFarmsModule } from '../app/db/modules/farms'
@@ -23,6 +24,7 @@ import { calculateUnityBudget } from '../app/db/unity'
 import { getLabSpacePoints } from '../app/factory-definitions'
 import { normalizeGameStateSnapshot, type GameStateSnapshot } from '../app/game-state'
 import { buildModuleLines } from '../app/helpers/build-module-lines/build-module-lines'
+import { calculateBuildingDiagnostics } from '../app/helpers/building-diagnostics/building-diagnostics'
 import { calculateBuildingStats } from '../app/helpers/building-stats/building-stats'
 import { calculateNet } from '../app/helpers/calculate/calculate'
 import { deriveCalculatorModel } from '../app/helpers/calculator-model/derive-calculator-model'
@@ -53,6 +55,73 @@ import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 // Update 4.3 factory with native farm and Rocket II definitions read by Bridge.
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
+
+it('uses the live factory with two running labs and station crew as the new baseline', () => {
+  const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
+
+  if (!snapshot) throw new Error('Recorded factory is incompatible')
+  snapshot.spaceStation = { currentLevel: 4, highestLevelAchieved: 4, crewDisabled: true }
+  const isLab = (prototypeId: string) => prototypeId.startsWith('ResearchLab')
+
+  for (const entity of [...snapshot.productionEntities, ...snapshot.areaEntities]) {
+    if (isLab(entity.prototypeId)) entity.running = false
+  }
+  const original = JSON.stringify(snapshot)
+  const derive = (presetId: 'current' | 'baseline') => deriveCalculatorModel({
+    snapshot, presetId, machineZoneAssignments: {}, revision: 'research-baseline',
+  })
+  const current = derive('current')
+  const planned = derive('baseline')
+  const presets = (model: typeof planned) => model.configuredModules.flatMap(module => module.presets)
+  const changes = () => presets(derive('baseline')).flatMap(preset => preset.planMismatches ?? [])
+  const researchModule = planned.configuredModules.find(module => module.id === 'general')!
+  const researchRecipe = researchModule.recipes!.find(recipe => isLab(recipe.gameBuildingId ?? ''))!
+  const station = planned.configuredModules.find(module => module.capabilities?.includes('space-station'))!
+
+  expect(factoryPresets.map(preset => preset.id)).toEqual(['baseline'])
+  expect(researchModule.presets[0].activeBuildings[researchRecipe.id]).toBe(2)
+  expect(researchModule.presets[0].builtBuildings?.[researchRecipe.id]).toBe(3)
+  expect(changes().flatMap(change => change.actions?.map(action => action.label) ?? [])).toEqual([
+    'Unpause 2 Research Lab IV', 'Enable Space Station crew',
+  ])
+  expect(presets(planned).flatMap(preset => Object.values(preset.unplacedPlannedBuildings ?? {})).some(count => count > 0)).toBe(false)
+  expect(station.presets[0].activeBuildings['space-station-operations']).toBe(1)
+  expect(station.presets[0].currentActiveBuildings?.['space-station-operations']).toBe(0)
+  expect(station.builtBuildings['space-station-operations']).toBe(1)
+  for (const area of planned.configuredModules.filter(module => module.id !== 'general' && module.id !== station.id)) {
+    expect(area).toEqual(current.configuredModules.find(candidate => candidate.id === area.id))
+  }
+  const result = calculateFactoryCalculation(planned.factoryCalculationInput)
+  const labs = result.factoryResult.allLines.filter(line => isLab(line.recipe.gameBuildingId ?? ''))
+
+  expect(labs.reduce((sum, line) => sum + line.activeBuildings, 0)).toBe(2)
+  expect(result.factoryResult.allLines.find(line => line.recipe.id === 'space-station-orbital-research')?.activeBuildings).toBe(1)
+  const calculation = result.factoryResult.calculation
+  const diagnostics = calculateBuildingDiagnostics(
+    planned.configuredModules, calculation.allResourceFlows,
+    calculation.regularResults.map(line => line.recipe.id.startsWith('solar-panel')
+      ? { ...line, supplyRatio: 0, actualOutputs: [] } : line),
+    calculation.sourceResults, calculation.sinkResults,
+  )
+  const solar = diagnostics.filter(item => item.buildingName.startsWith('Solar Panel'))
+
+  expect(new Set(solar.map(item => item.buildingName))).toEqual(new Set(['Solar Panel', 'Solar Panel (Mono)']))
+  expect(solar.every(item => item.load === 0 && item.attention === null)).toBe(true)
+  expect(diagnostics.some(item => item.attention === 'can-pause')).toBe(true)
+  expect(JSON.stringify(snapshot)).toBe(original)
+
+  snapshot.spaceStation.crewDisabled = false
+  const labIds = snapshot.productionEntities.filter(entity => isLab(entity.prototypeId)).slice(0, 2).map(entity => entity.entityId)
+
+  for (const entity of [...snapshot.productionEntities, ...snapshot.areaEntities]) {
+    if (labIds.includes(entity.entityId)) entity.running = true
+  }
+  expect(changes()).toEqual([])
+  for (const entity of [...snapshot.productionEntities, ...snapshot.areaEntities]) {
+    if (isLab(entity.prototypeId)) entity.running = true
+  }
+  expect(changes().flatMap(change => change.actions?.map(action => action.label) ?? [])).toEqual(['Pause 1 Research Lab IV'])
+}, 30_000)
 
 it('replays the complete Science expansion preset and returns to the latest live baseline', () => {
   const snapshot = normalizeGameStateSnapshot(structuredClone(capture))

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { getFactoryPreset, getFactoryPresetStorageKey, type FactoryPresetId } from '../db/factory-presets'
+import { defaultFactoryPresetId, getAvailableFactoryPreset, getFactoryPresetStorageKey, type FactoryPresetId } from '../db/factory-presets'
 import { type ResourceProcessingPriority } from '../db/resource-supply'
 import { type ResourceId } from '../db/resources'
 import { parseContractPreferences, type ContractFullThrottlePreferences } from '../helpers/contracts/contract-preferences'
@@ -18,13 +18,15 @@ interface PresetState {
 }
 
 const emptyChanges: ForecastChanges = { contracts: {}, worldMines: {}, priorities: {} }
-const initial: PresetState = { presetId: 'current', changes: null }
+const initial: PresetState = { presetId: defaultFactoryPresetId, changes: null }
 const read = (key: string): PresetState => {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(key) ?? 'null')
 
     if (!value || typeof value !== 'object' || !('presetId' in value)) return initial
-    const presetId = getFactoryPreset(typeof value.presetId === 'string' ? value.presetId : null).id
+    const presetId = getAvailableFactoryPreset(typeof value.presetId === 'string' ? value.presetId : null).id
+
+    if (presetId !== value.presetId) return initial
     const changes = 'changes' in value ? value.changes : null
 
     if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return { presetId, changes: null }

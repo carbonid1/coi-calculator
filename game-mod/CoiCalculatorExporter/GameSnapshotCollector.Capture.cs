@@ -69,6 +69,7 @@ internal sealed partial class GameSnapshotCollector
             getGroundwaterAquifers(),
             getOfficeFocusDefinitions(),
             getPlanningDefinitions());
+        snapshot.SpaceStationCrewDisabled = spaceStation != null && spaceStation.IsCrewDisabled;
         snapshot.Electricity = getElectricitySnapshot();
         snapshot.MaintenancePlanning = new MaintenancePlanningSnapshot {
             ConsumptionMultiplier = m_maintenanceManager.ConsumptionMultiplier.ToDouble(),

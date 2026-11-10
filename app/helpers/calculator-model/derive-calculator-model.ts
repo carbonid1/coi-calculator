@@ -40,6 +40,7 @@ import {
 } from '../../db/modules/crop-farm-areas'
 import {
   applyDefaultAreaPlan,
+  applyResearchLabPlan,
   createDefaultModule,
   DEFAULT_MODULE_ID,
   plannedResearchLabTarget,
@@ -280,14 +281,20 @@ const deriveUncalibratedCalculatorModel = ({
   const spaceStationConfig = {
     currentLevel: snapshot.spaceStation.currentLevel,
     highestLevelAchieved: snapshot.spaceStation.highestLevelAchieved,
+    crewDisabled: snapshot.spaceStation.crewDisabled,
   }
   const currentSpaceStationLevel = calculateSpaceStationLevel(
     spaceStationConfig.currentLevel,
     snapshot.spaceStationLevels,
   )
   const researchLabEntities = productionEntities.filter(entity => (
-    entity.prototypeId === 'ResearchLab4' || entity.prototypeId === 'ResearchLab5'
+    entity.prototypeId.startsWith('ResearchLab')
   ))
+  const baselineResearchLabEntities = targets.has('research-on')
+    ? [...researchLabEntities].sort((left, right) => (
+        Number(right.running) - Number(left.running) || left.entityId - right.entityId
+      )).slice(0, plannedResearchLabTarget)
+    : undefined
   const defaultResearchLabEntities = researchLabEntities.filter(entity => (
     !entity.zones.some(zone => Boolean(zone.name))
   ))
@@ -297,17 +304,19 @@ const deriveUncalibratedCalculatorModel = ({
   ).length
   const runningOtherResearchLabCount = runningResearchLabCount - runningDefaultResearchLabCount
   const hasDefaultResearchLabInventory = defaultResearchLabEntities.length > 0
-  const plannedResearchLabCount = targets.has('science') && baseConfig.researchMode === 'with-space'
+  const plannedResearchLabCount = baselineResearchLabEntities?.length ?? (targets.has('science') && baseConfig.researchMode === 'with-space'
     ? runningOtherResearchLabCount + (hasDefaultResearchLabInventory
         ? Math.max(runningDefaultResearchLabCount, plannedResearchLabTarget)
         : 0)
-    : 0
+    : 0)
   const runningSpaceResearchPoints = researchLabEntities.filter(entity => entity.running).reduce((total, entity) => total
     + getLabSpacePoints(planningDefinitions.factory, entity.prototypeId), 0)
-  const plannedSpaceResearchPoints = targets.has('science') && baseConfig.researchMode === 'with-space'
+  const plannedSpaceResearchPoints = baselineResearchLabEntities?.reduce((total, entity) => (
+    total + getLabSpacePoints(planningDefinitions.factory, entity.prototypeId)
+  ), 0) ?? (targets.has('science') && baseConfig.researchMode === 'with-space'
     ? runningSpaceResearchPoints + Math.max(0, plannedResearchLabCount - runningResearchLabCount)
       * getLabSpacePoints(planningDefinitions.factory, defaultResearchLabEntities[0]?.prototypeId ?? 'ResearchLab5')
-    : 0
+    : 0)
   const projectedSpaceStationTargetLevel = Math.max(
     currentSpaceStationLevel.level,
     getMinimumSpaceStationLevelForResearchPoints(plannedSpaceResearchPoints, snapshot.spaceStationLevels),
@@ -484,6 +493,22 @@ const deriveUncalibratedCalculatorModel = ({
           .filter(entity => entity.prototypeId === 'DataCenter' && !entity.running)
           .map(entity => entity.dataCenterRacks ?? 0),
       )
+    }
+
+    if (baselineResearchLabEntities) {
+      for (const recipe of configured.module.recipes ?? []) {
+        if (!recipe.gameBuildingId?.startsWith('ResearchLab')) continue
+        const target = baselineResearchLabEntities.filter(entity => (
+          entity.prototypeId === recipe.gameBuildingId
+          && (module.liveArea?.zoneId === DEFAULT_LIVE_AREA_ZONE_ID
+            ? !entity.zones.some(zone => Boolean(zone.name))
+            : entity.zones.some(zone => zone.id === module.liveArea?.zoneId))
+        )).length
+
+        configured.module = applyResearchLabPlan(
+          planningDefinitions.factory, configured.module, baseConfig.researchMode, target, recipe, true,
+        )
+      }
     }
 
     configured.module = createChickenFarmAreaModule(
@@ -673,6 +698,7 @@ const deriveUncalibratedCalculatorModel = ({
   )
   const hasProjectedSpaceStation = configuredSpaceStationModules.length > 0
     && projectedSpaceStationLevel.level > 0
+    && (plannedSpaceResearchPoints > 0 || snapshot.spaceStation.crewDisabled !== true)
   const researchEfficiency = {
     ...calculateResearchEfficiency({
       definitions: planningDefinitions,
@@ -686,7 +712,8 @@ const deriveUncalibratedCalculatorModel = ({
     }),
     populationIsPlanned: projectedPopulation.isPlanned,
     stationIsPlanned: hasProjectedSpaceStation
-      && projectedSpaceStationLevel.level > currentSpaceStationLevel.level,
+      && (projectedSpaceStationLevel.level > currentSpaceStationLevel.level
+        || snapshot.spaceStation.crewDisabled === true),
   }
 
   const plannedRecyclingEfficiency = calculateRecyclingEfficiency(planningDefinitions,

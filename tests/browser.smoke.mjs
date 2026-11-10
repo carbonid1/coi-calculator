@@ -117,6 +117,12 @@ test('recorded factory: browser → Next API → replayed game API → worker �
         byType: [{ prototypeId: 'FlatConveyorT3', name: 'Flat conveyor III', demandMw: 2,
           consumedMw: 2, maximumDemandMw: 4, entities: 100, transport: true }] } : undefined,
       saveId: state.saveId ?? fixture.saveId,
+      spaceStation: state.stationCrewDisabled === undefined ? fixture.spaceStation
+        : { ...fixture.spaceStation, currentLevel: 4, crewDisabled: state.stationCrewDisabled },
+      productionEntities: fixture.productionEntities.map(entity => state.researchRunning !== undefined && entity.prototypeId.startsWith('ResearchLab')
+        ? { ...entity, running: state.researchRunning && entity.entityId !== 317965 } : entity),
+      areaEntities: fixture.areaEntities.map(entity => state.researchRunning !== undefined && entity.prototypeId.startsWith('ResearchLab')
+        ? { ...entity, running: state.researchRunning && entity.entityId !== 317965 } : entity),
       world: state.worldMining ? { ...fixture.world,
         mines: fixture.world.mines.map(mine => mine.product.productId === 'Product_Sulfur'
           ? { ...mine, running: true, state: 'Working', outputPerCycle: 432, capacityPerCycle: 432, workers: 96, unityPerCycle: 1.6 } : mine),
@@ -274,157 +280,70 @@ test('recorded factory: browser → Next API → replayed game API → worker �
 
   t.after(() => browser('close'))
 
-  await t.test('switches complete factory presets, restores current setup and persists the selection per save', async () => {
+  await t.test('keeps the live baseline preset, migrates completed plans and reminds us to resume research', async () => {
     await browser('open', appUrl)
     await browser('set', 'viewport', '1440', '1000')
     await ready()
     const selected = () => evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`)
 
-    assert.equal(await selected(), 'Current setup')
-    assert.match(await text(), /Calculated · flows \/ cycle/)
-    assert.equal(await evaluate('document.querySelectorAll("[data-summary-metric=Freshwater]").length'), 0)
-    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
-    const summary = () => evaluate('Array.from(document.querySelectorAll("dt + dd")).slice(0, 4).map(node => node.innerText)')
-    const baseline = await summary()
-
-    await screenshot('current-setup')
+    assert.equal(await selected(), 'Baseline')
     await browser('click', '[aria-label="Factory preset"]')
-    assert.equal(await evaluate('document.querySelectorAll("[role=option]").length'), 3)
-    assert.equal(await evaluate('document.querySelectorAll("[role=listbox] [role=switch]").length'), 0)
-    await screenshot('factory-presets')
-    await browser('press', 'ArrowDown')
-    const readsBeforePlanChange = snapshotRequests.count
-
-    await browser('press', 'Enter')
-    await browser('wait', '[data-plan-calculation="updating"]')
-    assert.equal(await evaluate('document.querySelector("[data-plan-calculation]").innerText'), 'Calculating plan…')
-    assert.match(await evaluate('document.querySelector("[data-game-sync]").innerText'), /^Synced · /)
-    assert.equal(await evaluate('document.querySelector("[data-previous-result]").innerText'), 'Previous result')
-    assert.equal(snapshotRequests.count, readsBeforePlanChange, 'Changing the plan recalculates locally without a game sync')
-    await ready()
-    assert.equal(await evaluate('document.querySelector("[data-plan-calculation]").innerText'), '')
-    assert.equal(await evaluate('document.querySelectorAll("[data-previous-result]").length'), 0)
-    const checklistModules = await evaluate('Array.from(document.querySelectorAll("[data-checklist-module]")).map(node => node.dataset.checklistModule)')
-
-    assert.ok(checklistModules.length > 1, 'The checklist groups work by module')
-    assert.equal(new Set(checklistModules).size, checklistModules.length)
-    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module][open]").length'), 0)
-    await browser('focus', '[data-checklist-module]:first-child > summary')
-    await browser('press', 'Enter')
-    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module][open]").length'), 1, 'Keyboard expansion leaves other modules collapsed')
-    await browser('press', 'Tab')
-    assert.ok(await evaluate('document.activeElement.matches("[data-checklist-module][open] button")'), 'Expanded checklist actions are keyboard accessible')
-    await browser('press', 'Shift+Tab')
-    await browser('press', 'Enter')
-    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module][open]").length'), 0)
-    await expandChecklist()
-    assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Build Space Station level 4/)
-    assert.match(await text(), /Unpause 1 Household Goods Module/)
-    assert.notDeepEqual(await summary(), baseline)
-    await screenshot('science-expansion')
-    await preset('Third FBR')
-    await ready()
-    assert.equal(await selected(), 'Third FBR')
-    await expandChecklist()
-    const nuclearChecklist = await evaluate('document.querySelector("[data-checklist-module=live-area-12]").innerText')
-
-    assert.match(nuclearChecklist, /Cooling tower \(large\)[\s\S]*3 to build/)
-    assert.match(nuclearChecklist, /Build 1 Fast breeder reactor/)
-    assert.doesNotMatch(nuclearChecklist, /Research Lab|Greenhouse|Housing/)
-    const defaultChecklistRows = await evaluate(`Array.from(document.querySelectorAll('[data-checklist-module=general] button')).map(button => ({
-      building: button.querySelector('span > span')?.textContent,
-      recipe: button.getAttribute('aria-label'),
-      outputs: Array.from(button.querySelectorAll('[data-checklist-outputs] img')).map(image => image.getAttribute('src').split('?')[0]),
-      visible: button.innerText,
-    }))`)
-    const chemical = defaultChecklistRows.find(row => row.building === 'Chemical plant II')
-    const microchips = defaultChecklistRows.filter(row => row.building === 'Microchip machine II')
-
-    assert.match(chemical?.recipe ?? '', /Fertilizer/)
-    assert.deepEqual(chemical?.outputs, ['/api/game-icons/Product_Fertilizer'])
-    assert.doesNotMatch(chemical?.visible ?? '', /Ammonia|Fertilizer|→/, 'Recipe text is reserved for the tooltip')
-    assert.equal(microchips.length, 3)
-    assert.ok(microchips.every(row => row.recipe?.includes('→')), 'Shared machine groups show their selected recipes')
-    assert.equal(new Set(microchips.map(row => row.recipe)).size, 3, 'Microchip machine groups remain distinguishable')
-    assert.ok(microchips.every(row => row.outputs.length > 0 && new Set(row.outputs).size === row.outputs.length), 'Output icons are deduplicated within each group')
-    assert.ok(microchips.every(row => !row.visible.includes('→')), 'Checklist rows show output icons without recipe text')
-    await browser('focus', `[data-checklist-module=general] button[aria-label=${JSON.stringify(chemical.recipe)}]`)
-    await browser('press', 'Shift+Tab')
-    await browser('press', 'Tab')
-    await browser('wait', '[role="tooltip"]')
-    assert.match(await evaluate('document.querySelector("[role=tooltip]").innerText'), /Ammonia[\s\S]*Fertilizer/)
+    assert.deepEqual(await evaluate('Array.from(document.querySelectorAll("[role=option]")).map(node => node.innerText)'), ['Baseline'])
     await browser('press', 'Escape')
-    assert.match(await evaluate('document.querySelector("[data-summary-metric=Electricity]").innerText'), /Electricity\s+Modeled demand[\s\S]*Measured load unavailable/)
-    assert.match(await text(), /Build 1 Fast breeder reactor \(0× enrichment, 400% power\)/)
-    assert.match(await text(), /Set 3× enrichment FBR power to 200%/)
-    assert.match(await text(), /Build 1 Nuclear reprocessing plant/)
-    assert.match(await text(), /Build 1 Enrichment plant/)
-    assert.match(await text(), /Build 1 Nuclear waste storage/)
-    assert.match(await text(), /Cooling tower \(large\)[\s\S]*3 to build/)
-    assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Build Space Station level 4/)
-    await browser('set', 'viewport', '375', '900')
-    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Third FBR checklist must fit the mobile viewport')
-    await screenshot('third-fbr-mobile')
-    await browser('set', 'viewport', '1440', '1000')
-    state.powerMeter = true
-    await click('Sync now')
-    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
-    await ready()
-    assert.match(await evaluate('document.querySelector("[data-summary-metric=Electricity]").innerText'), /Electricity\s+20% reserve[\s\S]*MW short[\s\S]*Capacity now\s+213 MW[\s\S]*Required/)
-    await browser('focus', '[data-summary-metric="Electricity"] [tabindex]')
-    await browser('press', 'Tab')
-    await browser('press', 'Shift+Tab')
-    await browser('wait', '[role="tooltip"]')
-    assert.match(await evaluate('document.querySelector("[role=tooltip]").innerText'), /Synced demand\s+150 MW[\s\S]*Plan increase[\s\S]*Reserve · 20%/)
-    await browser('press', 'Escape')
-    await screenshot('third-fbr')
-    state.powerMeter = false
-    await click('Sync now')
-    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
-    await ready()
-    await browser('reload')
-    await ready()
-    assert.equal(await selected(), 'Third FBR')
-    await preset('Current setup')
-    await ready()
-    assert.deepEqual(await summary(), baseline)
-    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
-    await preset('Science expansion')
-    await ready()
-    await browser('reload')
-    await ready()
-    assert.equal(await selected(), 'Science expansion')
     await expandChecklist()
     assert.match(await text(), /Unpause 2 Research Lab IV/)
-    try {
-      state.saveId = 'Other factory'
-      await click('Sync now')
-      await browser('wait', '--fn', `JSON.parse(localStorage.getItem('coi-game-state-last-valid-v1'))?.saveId === 'Other factory'`)
-      await ready()
-      assert.equal(await selected(), 'Current setup')
-      assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
-    } finally {
-      state.saveId = undefined
-      await click('Sync now')
-      await browser('wait', '--fn', `JSON.parse(localStorage.getItem('coi-game-state-last-valid-v1'))?.saveId === ${JSON.stringify(fixture.saveId)}`)
-      await ready()
-    }
-    assert.equal(await selected(), 'Science expansion')
-    await browser('set', 'viewport', '375', '900')
-    await browser('click', '[aria-label="Factory preset"]')
-    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
-    assert.equal(await evaluate('document.querySelectorAll("[role=option]").length'), 3)
-    await screenshot('mobile-presets')
-    await browser('press', 'Escape')
+    assert.match(await text(), /Build Space Station level 4/)
+    assert.doesNotMatch(await text(), /Build 1 Fast breeder reactor|Set 3× enrichment FBR|Unpause 1 Household Goods Module/)
+    const key = `coi-factory-preset-v1:${encodeURIComponent(fixture.saveId)}`
+
+    await evaluate(`localStorage.setItem(${JSON.stringify(key)}, JSON.stringify({presetId: 'third-fbr', changes: {priorities: {14: {water: 'local-first'}}}}))`)
+    await browser('reload')
     await ready()
+    assert.equal(await selected(), 'Baseline')
+    await expandChecklist()
+    assert.doesNotMatch(await text(), /Build 1 Fast breeder reactor|Set 3× enrichment FBR/)
+    state.stationCrewDisabled = true
+    await click('Sync now')
+    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
+    await ready()
+    await expandChecklist()
+    assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Enable Space Station crew/)
+    assert.doesNotMatch(await text(), /Build Space Station level 4/)
+    assert.deepEqual(await evaluate('Array.from(document.querySelectorAll("[data-checklist-module]")).map(node => node.dataset.checklistModule)'), ['general', 'live-area-15'])
+    await screenshot('baseline-research-reminders')
+    state.stationCrewDisabled = false
+    state.researchRunning = true
+    await click('Sync now')
+    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
+    await ready()
+    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Enable Space Station crew/)
+    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module]").length'), 0)
+    state.stationCrewDisabled = true
+    state.researchRunning = false
+    await click('Sync now')
+    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
+    await ready()
+    await expandChecklist()
+    assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Enable Space Station crew/)
+    await browser('set', 'viewport', '375', '900')
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
+    await browser('click', '[aria-label="Factory preset"]')
+    assert.equal(await evaluate('document.querySelectorAll("[role=option]").length'), 1)
+    await screenshot('baseline-mobile')
+    await browser('press', 'Escape')
     await browser('set', 'viewport', '1440', '1000')
+    state.stationCrewDisabled = undefined
+    state.researchRunning = undefined
+    await click('Sync now')
+    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
+    await ready()
   })
 
-  await t.test('updates resource requirements directly from the selected factory preset', async () => {
+  await t.test('renders baseline resource requirements and preserves them after reload', async () => {
     await browser('open', appUrl)
     await browser('set', 'viewport', '1440', '1000')
     await ready()
-    await preset('Science expansion')
+    await preset('Baseline')
     await ready()
     await click('Requirements')
     const requirements = () => evaluate(`document.querySelector('[aria-label="Resource requirements"]').innerText`)
@@ -444,11 +363,9 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('wait', '--fn', 'document.querySelector("[role=tooltip]") !== null')
     assert.match(await text(), /Groundwater \+ world-mine deliveries[\s\S]*Farm rain reduces irrigation/)
     await browser('press', 'Escape')
-    await preset('Current setup')
+    await browser('reload')
     await ready()
-    assert.notEqual(await requirements(), scienceRequirements)
-    await preset('Science expansion')
-    await ready()
+    await click('Requirements')
     assert.equal(await requirements(), scienceRequirements)
     await browser('set', 'viewport', '375', '900')
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
@@ -461,16 +378,16 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('open', appUrl)
     await browser('set', 'viewport', '1440', '1000')
     await ready()
-    await preset('Science expansion')
+    await preset('Baseline')
     await ready()
     await expandChecklist()
-    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*Modeled demand[\s\S]*233 MW[\s\S]*\+112\.71 TFLOPS[\s\S]*-0\.74 \/ cycle[\s\S]*7,356 \/ 7,488/)
+    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*Modeled demand[\s\S]*222\.3 MW[\s\S]*\+124\.71 TFLOPS[\s\S]*-0\.71 \/ cycle[\s\S]*7,310 \/ 7,488/)
     assert.doesNotMatch(await text(), /(?:Pause|Unpause|Build) \d+ Cracking Units?/)
     assert.match(await text(), /Unpause 2 Research Lab IV/)
     assert.match(await text(), /Build Space Station level 4/)
     const storedRock = await evaluate(`document.querySelector('[aria-label="From storage"] li:has([aria-label="Inspect Rock supply"])').innerText`)
 
-    assert.match(storedRock, /Rock[\s\S]*stored · [\d,.]+ in-game years remaining[\s\S]*71\.92/)
+    assert.match(storedRock, /Rock[\s\S]*stored · [\d,.]+ in-game years remaining[\s\S]*51\.85/)
     assert.doesNotMatch(storedRock, /\bcycles\b/)
     assert.equal(await evaluate(`Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle').querySelector('[aria-label="Inspect Rock supply"]') === null`), true)
     const desktopTabs = await tabClearance('first')
@@ -486,7 +403,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('press', 'Escape')
 
     await click('Resource supply')
-    for (const [resource, quantity] of [['Core fuel', '12'], ['Core fuel (spent)', '12'], ['Recyclables', '157.79']]) {
+    for (const [resource, quantity] of [['Core fuel', '12'], ['Core fuel (spent)', '12'], ['Recyclables', '133.41']]) {
       await browser('fill', '[aria-label="Resource"]', resource)
       await browser('find', 'role', 'option', 'click', '--name', resource, '--exact')
       const balance = new RegExp(`Supply\\s+${quantity.replace('.', '\\.')}\\s+Demand\\s+${quantity.replace('.', '\\.')}\\s+Remaining\\s+0`)
@@ -509,7 +426,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(await evaluate('document.querySelector("[data-source=synced]").getBoundingClientRect().top < 650'))
     await screenshot('steel-compact')
     await browser('find', 'role', 'button', 'click', '--name', 'Resource balance')
-    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*88\.15[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
+    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*73\.41[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Module inputs\\"] [data-resource-id=seaWater]").length'), 1)
     await screenshot('steel-balance')
 
@@ -548,7 +465,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await click('Focus')
     assert.match(await text(), /Capacity\s+5,460[\s\S]*Allocated\s+5,450[\s\S]*Available\s+10/)
     await click('General Info')
-    assert.match(await text(), /MAINTENANCE DEMAND \/ MONTH[\s\S]*Synced[\s\S]*Planned increase[\s\S]*Projected/)
+    assert.match(await text(), /MAINTENANCE DEMAND \/ MONTH[\s\S]*Synced/)
     assert.doesNotMatch(await text(), /\bcycles\b/)
     await screenshot('maintenance-overview')
     await click('Research')
@@ -709,7 +626,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Factory Summary/)
     await click('Inspect Rock supply')
     assert.equal(await evaluate(`document.querySelector('[aria-label="Rock supply diagnosis"]') !== null`), true)
-    assert.match(await evaluate(`document.querySelector('[aria-label="Supply sources"]').innerText`), /Reserves[\s\S]*71\.92/)
+    assert.match(await evaluate(`document.querySelector('[aria-label="Supply sources"]').innerText`), /Reserves[\s\S]*51\.85/)
     await click('Back to Factory Total')
     assert.equal((await browser('errors')).errors.length, 0)
   })
@@ -750,7 +667,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('wait', '--fn', `Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle')?.querySelector('[aria-label="Inspect Rock supply"]') != null`, '--timeout', '45000')
     const deficit = await evaluate(`Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle').innerText`)
 
-    assert.match(deficit, /Rock\s+No producer\s+-71\.92/)
+    assert.match(deficit, /Rock\s+No producer\s+-51\.85/)
     assert.equal(await evaluate(`document.querySelector('[aria-label="From storage"] [aria-label="Inspect Rock supply"]') === null`), true)
     state.emptyRock = false
     await browser('reload')
@@ -866,7 +783,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('wait', '[aria-label="Sync now"]:not([disabled])')
     await ready()
     await click('Factory Total')
-    assert.match(await text(), /7,356 \/ 7,488/)
+    assert.match(await text(), /7,310 \/ 7,488/)
     assert.equal((await browser('errors')).errors.length, 0)
   })
 
@@ -939,7 +856,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     })()`)
 
     assert.ok(rates[0] > 0 && Math.abs(rates[0] - rates[1]) < 0.001, 'Full throttle imports at measured route capacity')
-    assert.equal(await evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`), 'Science expansion · modified')
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`), 'Baseline · modified')
     await screenshot('contracts-full-throttle')
     state.limitedConnections = true
     await browser('reload')
@@ -996,10 +913,10 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal(await evaluate('document.documentElement.scrollWidth > window.innerWidth'), false)
     await screenshot('world-mines-mobile')
     await browser('set', 'viewport', '1440', '1000')
-    await preset('Science expansion')
+    await preset('Baseline')
     await ready()
     await browser('wait', '--fn', `document.querySelector('${row}')?.dataset.fullThrottle === 'true'`, '--timeout', '45000')
-    assert.equal(await evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`), 'Science expansion')
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Factory preset"]').textContent`), 'Baseline')
     await click('Contracts')
     const titanium = fixture.contracts.established.find(contract => contract.importedProduct.productId === 'Product_TitaniumOre')
     const contract = `details[data-contract-id="${titanium.gameId}"]`
@@ -1009,7 +926,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('wait', '--fn', `document.querySelector('${contract}').dataset.fullThrottle === 'true'`, '--timeout', '45000')
     await click('Mines')
     assert.equal(await evaluate(`document.querySelector('${row}').dataset.fullThrottle`), 'true', 'Editing a different setting must not resurrect a discarded draft')
-    await preset('Science expansion')
+    await preset('Baseline')
     await ready()
     await click('Contracts')
     assert.equal(await evaluate(`document.querySelector('${contract}').dataset.fullThrottle`), 'false')

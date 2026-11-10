@@ -26,6 +26,7 @@ import { isCargoOperation, normalizeWorldMines, normalizeStorages, type SyncedCa
 interface SyncedSpaceStationState {
   currentLevel: number
   highestLevelAchieved: number
+  crewDisabled?: boolean
 }
 
 export interface SyncedChickenFarmEntity {
@@ -535,6 +536,7 @@ function normalizeCargoRoutes(value: unknown, establishedIds: Set<string> | null
 
 const isSpaceStationState = (value: unknown): value is SyncedSpaceStationState =>
   isUnknownRecord(value) &&
+  (value.crewDisabled === undefined || typeof value.crewDisabled === 'boolean') &&
   isNonNegativeInteger(value.currentLevel) &&
   isNonNegativeInteger(value.highestLevelAchieved) &&
   value.currentLevel <= value.highestLevelAchieved

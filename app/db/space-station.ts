@@ -5,6 +5,8 @@ import { type Recipe } from './recipes';
 import { type ResourceId } from './resources';
 
 export interface SpaceStationConfig {
+  /** Explicit crew setting from Bridge; older exports do not provide it. */
+  crewDisabled?: boolean;
   /** Station level currently present in orbit. Zero means it is being rebuilt. */
   currentLevel: number;
   /** Highest level ever reached in this save; the game retains this progression. */

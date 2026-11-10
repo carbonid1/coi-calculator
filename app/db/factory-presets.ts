@@ -5,16 +5,26 @@ const scienceExpansionLayers = [
   'science', 'settlement', 'power-water', 'computing', 'farms', 'refining', 'construction', 'operating',
 ] as const
 
-export type PlanLayerId = typeof scienceExpansionLayers[number] | 'third-fbr'
+export type PlanLayerId = typeof scienceExpansionLayers[number] | 'third-fbr' | 'research-on'
 
 export const factoryPresets = [
+  { id: 'baseline', name: 'Baseline', layers: ['research-on'] },
+] as const
+export const defaultFactoryPresetId = factoryPresets[0].id
+
+// Retained for recorded expansion replays; completed plans are no longer selectable.
+const previousFactoryPresets = [
   { id: 'current', name: 'Current setup', layers: [] },
   { id: 'science-expansion', name: 'Science expansion', layers: scienceExpansionLayers },
   { id: 'third-fbr', name: 'Third FBR', layers: [...scienceExpansionLayers, 'third-fbr'] },
 ] as const
-export type FactoryPresetId = typeof factoryPresets[number]['id']
-export const getFactoryPreset = (id: string | null | undefined) => (
+
+export type FactoryPresetId = typeof factoryPresets[number]['id'] | typeof previousFactoryPresets[number]['id']
+export const getAvailableFactoryPreset = (id: string | null | undefined) => (
   factoryPresets.find(preset => preset.id === id) ?? factoryPresets[0]
+)
+export const getFactoryPreset = (id: string | null | undefined) => (
+  [...factoryPresets, ...previousFactoryPresets].find(preset => preset.id === id) ?? factoryPresets[0]
 )
 export const getFactoryPresetStorageKey = (saveId: string | null | undefined) => (
   saveId ? `coi-factory-preset-v1:${encodeURIComponent(saveId)}` : null

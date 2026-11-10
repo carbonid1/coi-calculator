@@ -299,14 +299,15 @@ const isResearchLabRecipe = (recipe: Recipe) => (
   recipe.gameBuildingId?.startsWith('ResearchLab') ?? false
 )
 
-const applyResearchLabPlan = (
+export const applyResearchLabPlan = (
   definitions: FactoryDefinitions | undefined,
   module: Module,
   researchMode: ResearchMode,
   target = plannedResearchLabTarget,
+  recipe = module.recipes?.find(isResearchLabRecipe),
+  exact = false,
 ): Module => {
   const sourcePreset = getPreset(module)
-  const recipe = module.recipes?.find(isResearchLabRecipe)
 
   if (!sourcePreset || !recipe) return module
   if (!definitions) throw new Error('Research Lab definitions are unavailable')
@@ -323,25 +324,25 @@ const applyResearchLabPlan = (
     sourcePreset.activeBuildings[recipeId] ?? 0,
     running + constructionGhosts,
   )
-  const planSatisfied = projected >= target
+  const planSatisfied = exact ? running === target : projected >= target
   const unplaced = planSatisfied
     ? 0
     : Math.max(0, target - built - constructionGhosts)
-  const plannedActive = planSatisfied
-    ? projected
-    : Math.max(projected, target)
+  const plannedActive = exact ? target : Math.max(projected, target)
   const planMismatch = planSatisfied
     ? []
     : [{
         recipeId,
         current: running,
         target,
-        direction: 'at-least' as const,
+        direction: exact && running > target ? 'at-most' as const : 'at-least' as const,
         format: 'count' as const,
-        actions: createPlanActions({
-          buildingName: 'Research Lab IV',
+        actions: exact && running > target ? createAtMostBuildingActions({
+          name: recipe.building, running, target,
+        }) : createPlanActions({
+          buildingName: recipe.building,
           built: built + constructionGhosts,
-          running: projected,
+          running: exact ? running : projected,
           target,
         }),
       }]

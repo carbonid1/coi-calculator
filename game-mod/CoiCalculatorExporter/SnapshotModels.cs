@@ -9,6 +9,7 @@ internal sealed class SnapshotDocument
     public readonly DateTime ExportedAtUtc;
     public readonly int SpaceStationCurrentLevel;
     public readonly int SpaceStationHighestLevelAchieved;
+    public bool SpaceStationCrewDisabled;
     public readonly ProductionSnapshot Production;
     public readonly int GroundwaterDepletedPumpSpeedPercent;
     public readonly int GroundwaterReplenishWhenLowPercent;
