@@ -19,6 +19,6 @@ on port 3073 and works while paused.
 For another game-server port, set `COI_WEB_API_URL=http://127.0.0.1:3099` in
 `.env.local` and restart the calculator.
 
-Checks: `pnpm ts`, `pnpm exec vitest run`, `pnpm build`. `pnpm lint` also fixes lint issues.
+Checks: `pnpm ts`, `pnpm lint`, `pnpm exec vitest run`, `pnpm build`. `pnpm lint:fix` fixes lint issues.
 
 [Train Network Monitor](./game-mod/TrainNetworkMonitor/README.md) is maintained separately.
