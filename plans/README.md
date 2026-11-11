@@ -24,7 +24,8 @@ of existing elements, data attributes, logs and stored data only.
 | [009](009-name-the-snapshot-rejection-reason.md) | A rejected Bridge reply says whether the Bridge, the calculator or the game version is the mismatch | P1 | S | — | DONE (`77b5d40` on `main`) |
 | [010](010-remove-dead-preference-hooks.md) | The three unused per-save preference hooks and their storage-key helpers are gone | P2 | S | — | DONE (`203f6e1` on `main`) |
 | [011](011-keep-hidden-pump-assignments.md) | Saving one pump assignment no longer erases stored assignments whose area is temporarily missing | P2 | S | — (after 006) | DONE (`0f25459` on `main`) |
-| [012](012-cover-next-preset-production-targets.md) | The recorded-factory smoke tests check the Next preset's production targets and household-appliance demand | P2 | S–M | 005 | TODO |
+| [012](012-cover-next-preset-production-targets.md) | The recorded-factory smoke tests check the Next preset's production targets and household-appliance demand | P2 | S–M | 005 | DONE (`a59301d` on `main`) |
+| [013](013-ignore-agent-worktrees-in-eslint.md) | `pnpm lint` ignores agent worktrees and scratch folders | P1 | S | — | DONE (`9a5d2dc` on `main`) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -64,18 +65,20 @@ beyond `app/calculator.tsx`.
 
 ## Execution notes (2026-11-12)
 
-Plans 005–011 were executed by separate executors, reviewed, and applied to
-`main` in order (`2fab1bc` … `0f25459`, not pushed). On `main` at `0f25459`:
-`pnpm ts` and `pnpm build` exit 0, vitest passes 92 files / 950 tests, and
-ESLint is clean once `.claude/**` is ignored. Plain `pnpm lint` fails while
-agent worktrees exist (see the candidates table).
+Plans 005–013 were executed by separate executors, reviewed, and applied to
+`main` in order (`2fab1bc` … `9a5d2dc`). On `main` at `9a5d2dc`: `pnpm ts`,
+`pnpm lint` and `pnpm build` exit 0, vitest passes 92 files / 951 tests, and
+`node --test tests/browser.smoke.mjs` passes 11/11.
 
 - 007 needed one revision: the first commit normalised the mixed line endings
   of `app/helpers/calculate/calculate.ts`. The plan now warns about it.
 - 008's plan had a test helper with an `as` assertion, which lint forbids;
   corrected in the plan.
-- Not verified anywhere: the running app (new sync messages, pump assignment
-  after a reload), `tests/browser.smoke.mjs`, and a completed GitHub Actions run.
+- 012's plan named a local variable `module`, which lint forbids; corrected.
+  013 was added during execution for the ESLint gap that 005 missed.
+- The browser smoke covers the app against a replayed game. Not verified
+  against a live game: the new sync messages (plan 009) and a pump assignment
+  surviving a reload (plan 011).
 
 ## Dependency notes
 
@@ -115,8 +118,8 @@ assertion. `tests/browser.smoke.mjs` and the C# mod tests were not run.
 | Preset fallback differs between call sites | `app/helpers/factory-calculation/factory-calculation.ts:89`, `app/helpers/resource-supply/resource-supply.ts:39` vs `factory-total.ts:795-796` | S | Latent; generated modules have matching ids. |
 | Preferences and cached results are keyed by game name, not game id | `game-mod/CoiCalculatorExporter/GameSnapshotCollector.Capture.cs:40` | M | Investigate whether the game enforces unique names. |
 | Transitive build-tool advisories (`browserslist`, `source-map-js`, `baseline-browser-mapping`, `@babel/core`) | `pnpm audit --prod` on `0794128`; paths under `next` and `@carbonid1/design-system` | S | Try `pnpm update` within ranges, else `pnpm.overrides`. Build-time only; low exposure for a localhost tool. |
-| `pnpm lint` fails on `main` while agent worktrees exist | `eslint.config.mjs` ignores only `.next/**` and `next-env.d.ts`; ESLint then lints the config files inside `.claude/worktrees/*` (13 `import/no-default-export` errors seen on 2026-11-11) | S | Add `.claude/**` (and `out/**`, `Builds/**`) to the ignores. CI is unaffected. Plan 005 covered vitest and `tsc` but missed ESLint. |
 | Two files have mixed line endings | `app/helpers/calculate/calculate.ts` (about 2,100 CRLF, 900 LF), `app/components/MinesView.tsx`; no `.gitattributes` | S | Any tool that rewrites the file turns a small edit into a 900-line diff (seen while executing plan 007). Normalise both to LF in one commit and add `* text=auto eol=lf`. |
+| Browser smoke runs close to its overall time limit | `tests/browser.smoke.mjs:73` (300 s limit); 263 s alone on 2026-11-12, and it timed out with 2 of 11 subtests unfinished while the vitest suite ran alongside | S | Raise the limit or split the file. It is not part of CI. |
 | Dev server accepts any `Host` header | no middleware; `app/api/*/route.ts` | S | Read-only routes; low severity after plan 002. |
 | One throwing Bridge collector fails the whole snapshot without naming the section | `game-mod/CoiCalculatorExporter/CoiCalculatorExporterMod.cs:133-141`; `GameSnapshotCollector.Capture.cs:10-79` | S | Catch per section and return the section name. Needs Windows and the game. Complements plan 009. |
 | Map and layout parsers and three API routes are covered only by the browser smoke, which CI does not run | `app/factory-layout.ts:18-72`; `app/island-map.ts:18-51`; `app/api/{game-state,island-map,factory-layout}/route.ts` | S | Add vitest regressions modelled on `app/api/game-icons/[id]/route.test.ts`. |

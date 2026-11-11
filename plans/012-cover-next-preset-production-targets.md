@@ -190,10 +190,10 @@ In `tests/factory.smoke.test.ts`:
      ))
      const recorded = planned.filter(({ zoneId }) => recordedZoneIds.has(zoneId))
      const running = (model: typeof next, zoneId: number, target: typeof planned[number]['target']) => {
-       const module = model.configuredModules.find(candidate => candidate.liveArea?.zoneId === zoneId)
-       const preset = module?.presets[0]
+       const areaModule = model.configuredModules.find(candidate => candidate.liveArea?.zoneId === zoneId)
+       const preset = areaModule?.presets[0]
 
-       return (module?.recipes ?? [])
+       return (areaModule?.recipes ?? [])
          .filter(recipe => recipe.gameBuildingId === target.buildingId && recipe.gameRecipeId === target.recipeId)
          .reduce((total, recipe) => total + (preset?.activeBuildings[recipe.id] ?? 0), 0)
      }
