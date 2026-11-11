@@ -36,6 +36,39 @@ export const shouldPersistInitialSnapshot = (
   || cachedSnapshot.exportedAtUtc !== snapshot.exportedAtUtc
 );
 
+/**
+ * Coalesce writes: only the newest value is written, after the caller's
+ * current work. `defer` returns its own cancel function.
+ */
+export const createLatestWriter = <Value,>(
+  write: (value: Value) => void,
+  defer: (run: () => void) => () => void,
+) => {
+  const state: { pending: { value: Value } | null; cancel: (() => void) | null } = {
+    pending: null,
+    cancel: null,
+  };
+
+  return {
+    schedule: (value: Value) => {
+      state.pending = { value };
+      if (state.cancel) return;
+      state.cancel = defer(() => {
+        const { pending } = state;
+
+        state.cancel = null;
+        state.pending = null;
+        if (pending) write(pending.value);
+      });
+    },
+    dispose: () => {
+      state.cancel?.();
+      state.cancel = null;
+      state.pending = null;
+    },
+  };
+};
+
 const readCachedSnapshot = (): GameStateSnapshot | null => {
   try {
     const cached = window.localStorage.getItem(GAME_STATE_CACHE_KEY);
@@ -49,7 +82,23 @@ const writeCachedSnapshot = (snapshot: GameStateSnapshot) => {
   try {
     window.localStorage.setItem(GAME_STATE_CACHE_KEY, JSON.stringify(snapshot));
   } catch {
+    // An older factory must never outlive a snapshot that could not be saved.
+    try {
+      window.localStorage.removeItem(GAME_STATE_CACHE_KEY);
+    } catch {
+    }
   }
+};
+
+const deferUntilIdle = (run: () => void) => {
+  if (typeof window.requestIdleCallback === "function") {
+    const handle = window.requestIdleCallback(run, { timeout: 5_000 });
+
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = window.setTimeout(run, 1_000);
+
+  return () => window.clearTimeout(handle);
 };
 
 const readErrorMessage = async (response: Response): Promise<string | null> => {
@@ -77,6 +126,7 @@ export const useGameState = (initialResult: GameStateResult) => {
     const lifecycle = {
       isActive: true,
     };
+    const cacheWriter = createLatestWriter(writeCachedSnapshot, deferUntilIdle);
     const cachedSnapshot = readCachedSnapshot();
     const initialSnapshot = initialSnapshotRef.current;
     const initialCacheWriteTimer = initialSnapshot
@@ -189,7 +239,6 @@ export const useGameState = (initialResult: GameStateResult) => {
         const snapshotChanged = revisionRef.current !== revision;
 
         revisionRef.current = revision;
-        if (snapshotChanged) writeCachedSnapshot(snapshot);
         if (lifecycle.isActive) {
           const isFresh = isSnapshotFresh(snapshot.exportedAtUtc);
 
@@ -215,6 +264,7 @@ export const useGameState = (initialResult: GameStateResult) => {
               status: "available",
             };
           });
+          if (snapshotChanged) cacheWriter.schedule(snapshot);
         }
       } catch {
         if (!lifecycle.isActive || signal.aborted) return;
@@ -234,6 +284,7 @@ export const useGameState = (initialResult: GameStateResult) => {
 
     return () => {
       lifecycle.isActive = false;
+      cacheWriter.dispose();
       pollingRef.current = null;
       polling.dispose();
       document.removeEventListener("visibilitychange", polling.visibilityChanged);
