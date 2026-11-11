@@ -123,6 +123,8 @@ export interface Recipe {
   balanceOutputIds?: ResourceId[]
   /** Output-balanced recipes can serve only demand created inside their physical module. */
   balanceOutputScope?: 'module'
+  /** Limit production to the amount of this output its module can take. */
+  backpressureOutputId?: ResourceId
   /** Lower values allocate demand-balanced recipes first when planned outputs compete. */
   demandPriority?: number
   /** Fallback recipes run after ordinary production; surplus recipes run last. */
@@ -139,8 +141,8 @@ export interface Recipe {
   consumeSurplusInputScope?: 'module'
   /** Lower values receive a shared surplus resource first. */
   surplusConsumptionPriority?: number
-  /** Preferred conversion runs before fallbacks; residual conversion runs before disposal. */
-  surplusConsumptionPhase?: 'before-fallback' | 'before-disposal'
+  /** Stage for extra conversion. After-fallback waits for the final fallback pass. */
+  surplusConsumptionPhase?: 'before-fallback' | 'before-disposal' | 'after-fallback'
   /** Input-balanced recipes can consume only net production from their own physical module. */
   balanceInputScope?: 'module'
   /** Inputs supplied only inside this module, independently of utilization limits. */

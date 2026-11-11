@@ -46,7 +46,7 @@ import {
   plannedResearchLabTarget,
 } from '../../db/modules/default'
 import { createChickenFarmAreaModule } from '../../db/modules/farms'
-import { mines } from '../../db/modules/mines'
+import { createMinesModule } from '../../db/modules/mines'
 import { hasModuleCapability, type Module } from '../../db/modules/modules'
 import {
   createNuclearModule,
@@ -72,8 +72,10 @@ import {
   createSpaceStationModule,
   selectSpaceStationZone,
 } from '../../db/modules/space-station'
+import { applyWasteRecoveryPlan } from '../../db/modules/waste-recovery'
 import { calculateOfficePlan, defaultOfficePlan, mapFocusValues, officeCatalog, plannedOfficePlan } from '../../db/offices'
 import { emptyPlanningBaselines, resolvePlanningBaselines } from '../../db/planning-baselines'
+import { getConfiguredProcessingLinks } from '../../db/processing-links'
 import {
   emptyRocketInfrastructureConfig,
   type RocketInfrastructureConfig,
@@ -160,18 +162,19 @@ export interface DeriveCalculatorModelOptions {
  * separately on `factoryCalculationInput`.
  */
 const deriveUncalibratedCalculatorModel = ({
-  processingLinks = [],
   presetId = 'current',
   operatingOverrides = false,
   machineZoneAssignments,
   revision,
   snapshot,
+  processingLinks = getConfiguredProcessingLinks(snapshot.saveId),
   resourcePriorityOverrides: savedResourcePriorities = {},
   contractFullThrottlePreferences: savedContractModes = {},
   worldMineFullThrottlePreferences: savedWorldMineModes = {},
 }: DeriveCalculatorModelOptions) => {
   const plan = getFactoryPreset(presetId)
   const targets = new Set<PlanLayerId>(plan.layers)
+  const planWasteRecovery = targets.has('waste-recovery') && snapshot.saveId === 'Last-Stop Waters'
   const nuclearOperation = targets.has('third-fbr') ? thirdFbrNuclearOperation : plannedNuclearOperation
   const resourcePriorityOverrides = operatingOverrides ? savedResourcePriorities : {}
   const contractFullThrottlePreferences = operatingOverrides ? savedContractModes : {}
@@ -399,7 +402,7 @@ const deriveUncalibratedCalculatorModel = ({
       currentCropFarmEntities,
       snapshot.cropFarming,
     ),
-    mines,
+    createMinesModule({ dumpWaste: !planWasteRecovery }),
     createReservesModule(snapshot.reserves),
   ]
   const liveAreaPlans = resolvePlanAreaTargets(getLiveAreaPlans(snapshot.saveId), targets)
@@ -452,6 +455,9 @@ const deriveUncalibratedCalculatorModel = ({
         snapshot.cropFarming,
         defaultGroundwaterConstraint,
       )
+      if (planWasteRecovery) {
+        configured.module = applyWasteRecoveryPlan(planningDefinitions, configured.module)
+      }
     } else if (nuclearReactorZoneIds.has(module.liveArea.zoneId)) {
       const appliesPlan = module.liveArea.zoneId === plannedNuclearZoneId
 
@@ -806,7 +812,6 @@ const deriveUncalibratedCalculatorModel = ({
   }
 
   return {
-    processingLinks,
     averageSunIntensityPercent,
     calculationRevision,
     configuredComputingModules,
@@ -866,8 +871,8 @@ export const deriveCalculatorModel = (options: DeriveCalculatorModelOptions) => 
     model.factoryCalculationInput.powerPlanning = {
       measuredDemandMw: electricity.demandMw,
       bufferPercent: 20,
-      ...((model.presetId !== 'current' || model.operatingOverrides || model.processingLinks.length > 0) ? {
-        baseline: deriveUncalibratedCalculatorModel({ ...options, processingLinks: [], presetId: 'current', operatingOverrides: false }).factoryCalculationInput,
+      ...((model.presetId !== 'current' || model.operatingOverrides) ? {
+        baseline: deriveUncalibratedCalculatorModel({ ...options, presetId: 'current', operatingOverrides: false }).factoryCalculationInput,
       } : {}),
     }
   }

@@ -13,14 +13,12 @@ import {
 import { getRecipePresentation } from "../helpers/recipe-display/recipe-display";
 import { BuildingCount } from "./BuildingCount";
 import { KeepReadyMenu, KeepReadyNote, type KeepReadyChange } from './KeepReadyMenu';
-import { ProcessingChainButton } from './ProcessingChain';
 import { ProductionCard } from "./ProductionCard";
 import { RecipeFlow } from "./RecipeFlow";
 import { RecipeLabel } from "./RecipeLabel";
 import { RecipeTitle } from "./RecipeTitle";
 
 interface Props {
-  moduleId?: string;
   recipe: Recipe;
   dataSource?: ValueSource;
   activeBuildings: number;
@@ -50,7 +48,7 @@ export const isCompactSyncedElectricitySource = (
   && recipe.outputs[0]?.resourceId === "electricity"
 );
 
-export const RecipeCard: React.FC<Props> = ({ moduleId, recipe, dataSource, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, onKeepReadyChange, showConfigurationSummary = true, autoBalanceOffBuildings }) => {
+export const RecipeCard: React.FC<Props> = ({ recipe, dataSource, activeBuildings, currentActiveBuildings, builtBuildings, constructionGhosts, unplacedPlannedBuildings, supplyRatio, operatingMode, speedLevel, actualInputs, actualOutputs, outputModifiers, diagnostic, onKeepReadyChange, showConfigurationSummary = true, autoBalanceOffBuildings }) => {
   const buildingMultiplier = activeBuildings * supplyRatio;
   const ioMultiplier = buildingMultiplier * speedLevel;
   const inactive = buildingMultiplier === 0;
@@ -78,7 +76,7 @@ export const RecipeCard: React.FC<Props> = ({ moduleId, recipe, dataSource, acti
       dataSource={dataSource}
       operatingMode={operatingMode}
       inactive={inactive && !diagnostic?.keepReady && diagnostic?.attention !== 'can-pause'}
-      className="group/recipe p-3"
+      className="p-3"
     >
       <div className={displaysFlows
         ? "mb-2 flex items-start justify-between gap-3"
@@ -123,32 +121,29 @@ export const RecipeCard: React.FC<Props> = ({ moduleId, recipe, dataSource, acti
             </p>
           )}
         </div>
-        <div className="flex shrink-0 items-start gap-1">
-          <ProcessingChainButton moduleId={moduleId} recipe={recipe} />
-          <BuildingCount
-            load={buildingMultiplier}
-            active={activeBuildings}
-            currentActive={currentActiveBuildings}
-            built={builtBuildings}
-            ghosts={constructionGhosts}
-            planned={unplacedPlannedBuildings}
-            attention={diagnostic?.attention}
-            attentionCount={diagnostic?.attentionCount}
-            level={diagnostic?.level}
-            animalPopulation={diagnostic?.animalPopulation ?? (
-              recipe.animalPopulationCapacity
-                ? {
-                    current: recipe.animalPopulationCapacity * activeBuildings * speedLevel,
-                    capacity: recipe.animalPopulationCapacity * (
-                      builtBuildings + (constructionGhosts ?? 0) + (unplacedPlannedBuildings ?? 0)
-                    ),
-                    label: recipe.animalPopulationLabel ?? "animals",
-                    additionalBuildings: 0,
-                  }
-                : undefined
-            )}
-          />
-        </div>
+        <BuildingCount
+          load={buildingMultiplier}
+          active={activeBuildings}
+          currentActive={currentActiveBuildings}
+          built={builtBuildings}
+          ghosts={constructionGhosts}
+          planned={unplacedPlannedBuildings}
+          attention={diagnostic?.attention}
+          attentionCount={diagnostic?.attentionCount}
+          level={diagnostic?.level}
+          animalPopulation={diagnostic?.animalPopulation ?? (
+            recipe.animalPopulationCapacity
+              ? {
+                  current: recipe.animalPopulationCapacity * activeBuildings * speedLevel,
+                  capacity: recipe.animalPopulationCapacity * (
+                    builtBuildings + (constructionGhosts ?? 0) + (unplacedPlannedBuildings ?? 0)
+                  ),
+                  label: recipe.animalPopulationLabel ?? "animals",
+                  additionalBuildings: 0,
+                }
+              : undefined
+          )}
+        />
       </div>
 
       <KeepReadyNote enabled={diagnostic?.keepReady} />

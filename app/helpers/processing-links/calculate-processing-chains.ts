@@ -6,12 +6,18 @@ import { getModuleInputIds } from '../recipe-input-scope/recipe-input-scope'
 const TOLERANCE = 1e-7
 const key = (line: Pick<ProductionLine, 'moduleId' | 'recipe'>) => `${line.moduleId}:${line.recipe.id}`
 
+type Balance = Pick<ResourceFlow, 'resourceId' | 'net' | 'produced' | 'consumed'>
+interface ChainSolve {
+  result: { regularResults: RegularResult[]; allResourceFlows: ResourceFlow[] }
+  restrictedModuleBalances: ReadonlyMap<string, Balance>
+}
+
 /**
  * Reserve a linear route inside the ordinary material/capacity ledger. Each
  * attempt is a complete solve: supporting production and displaced alternatives
  * must settle before accepting extra processing. No synthetic supply is added.
  */
-export const calculateProcessingChains = <T extends { regularResults: RegularResult[]; allResourceFlows: ResourceFlow[] }>(
+export const calculateProcessingChains = <T extends ChainSolve>(
   lines: ProductionLine[], solve: (lines: ProductionLine[]) => T, modifiers: RecipeModifierMultipliers,
 ): T => {
   const calculation = { result: solve(lines) }
@@ -51,7 +57,7 @@ export const calculateProcessingChains = <T extends { regularResults: RegularRes
       balanceInputIds: line.recipe.balanceBy === 'output'
         ? line.recipe.balanceInputIds?.filter(id => id !== line.processingInput?.resourceId) : line.recipe.balanceInputIds,
     } } : {}),
-    processingSourceLimit: roots.get(key(line)),
+    allocationLimit: roots.get(key(line)) ?? line.allocationLimit,
     processingFloor: floors.get(key(line)),
     processingRequiredBuildings: required.get(key(line)),
     processingBlockedBy: blockers.get(key(line)),
@@ -69,7 +75,7 @@ export const calculateProcessingChains = <T extends { regularResults: RegularRes
     }
     if (traversal.cursor || !chain.length) continue
     const baseline = calculation.result
-    const results = new Map(baseline.regularResults.map(result => [key(result), result]))
+    const results = new Map(baseline.result.regularResults.map(result => [key(result), result]))
     const rootResult = results.get(key(root))
     const firstInput = chain[0]?.processingInput
 
@@ -127,64 +133,95 @@ export const calculateProcessingChains = <T extends { regularResults: RegularRes
       })
       return solve(configured())
     }
-    const baselineFlows = new Map(baseline.allResourceFlows.map(flow => [flow.resourceId, flow]))
-    const findBlocker = (candidate: T): ResourceId | 'capacity' | undefined => {
-      const delivered = candidate.regularResults.find(result => key(result) === key(root))?.actualOutputs
+    const baselineFlows = new Map(baseline.result.allResourceFlows.map(flow => [flow.resourceId, flow]))
+    const supportingInputs = new Set(requests.flatMap(({ line, resourceId }) =>
+      line.recipe.inputs.filter(input => input.resourceId !== resourceId).map(input => input.resourceId),
+    ))
+    const findShortage = (flow: Balance, before: Balance | undefined) => {
+      const allowedNet = Math.min(0, before?.net ?? 0)
+
+      if (flow.net >= allowedNet - TOLERANCE) return undefined
+      const previousNet = before?.net ?? 0
+
+      // Indirect shortages can include displaced production elsewhere in the
+      // factory. Use its settled slack instead of treating that output as a
+      // supporting producer that the route can call on.
+      if (!supportingInputs.has(flow.resourceId)) return {
+        resourceId: flow.resourceId,
+        share: Math.max(0, previousNet) / (previousNet - flow.net),
+      }
+      const baselineConsumption = before?.consumed ?? 0
+      const extraConsumption = flow.consumed - baselineConsumption
+      const available = flow.produced - baselineConsumption - allowedNet
+
+      return {
+        resourceId: flow.resourceId,
+        share: extraConsumption > 0 ? Math.max(0, available) / extraConsumption : undefined,
+      }
+    }
+    const findBlocker = (candidate: T): { resourceId: ResourceId | 'capacity'; share?: number } | undefined => {
+      const delivered = candidate.result.regularResults.find(result => key(result) === key(root))?.actualOutputs
         .find(output => output.resourceId === firstInput.resourceId)?.quantity ?? 0
       const promised = requests[0]
       const promisedQuantity = promised ? available * (floors.get(key(promised.line))?.ratio ?? 0) / (promised.ratio || 1) : 0
 
-      if (delivered < promisedQuantity - TOLERANCE) return 'capacity'
-      const shortage = candidate.allResourceFlows.find(flow => (
-        flow.net < Math.min(0, baselineFlows.get(flow.resourceId)?.net ?? 0) - TOLERANCE
-      ))
+      if (delivered < promisedQuantity - TOLERANCE) return { resourceId: 'capacity' }
+      for (const flow of candidate.result.allResourceFlows) {
+        const shortage = findShortage(flow, baselineFlows.get(flow.resourceId))
 
-      if (shortage) return shortage.resourceId
+        if (shortage) return shortage
+      }
+      for (const [scope, flow] of candidate.restrictedModuleBalances) {
+        const shortage = findShortage(flow, baseline.restrictedModuleBalances.get(scope))
+
+        if (shortage) return shortage
+      }
       if (requests.some(({ line }) => {
-        const actual = candidate.regularResults.find(result => key(result) === key(line))?.supplyRatio ?? 0
+        const actual = candidate.result.regularResults.find(result => key(result) === key(line))?.supplyRatio ?? 0
 
         return actual < (floors.get(key(line))?.ratio ?? 0) - TOLERANCE
-      })) return 'capacity'
+      })) return { resourceId: 'capacity' }
       return undefined
     }
-    const evaluation: { candidate: T; blocker?: ResourceId | 'capacity' } = { candidate: attempt(route.maximum) }
+    const full = route.maximum > TOLERANCE ? attempt(route.maximum) : baseline
+    const blocker = route.maximum > TOLERANCE ? findBlocker(full) : { resourceId: 'capacity' as const }
+    const accepted = { fraction: blocker ? 0 : route.maximum, calculation: blocker ? baseline : full }
+    const rejected = { fraction: route.maximum, blocker }
+    // A demand-driven input can have zero initial flow and spare capacity.
+    // Estimate its limit from the production that the full attempt unlocked.
+    const resolution = 1e-5
 
-    evaluation.blocker = findBlocker(evaluation.candidate)
+    for (const probe = { count: 0 }; probe.count < 8 && rejected.blocker && rejected.fraction - accepted.fraction > resolution; probe.count++) {
+      const projected = rejected.fraction * (rejected.blocker.share ?? 1)
 
-    if (evaluation.blocker) {
-      // Existing shortages have no spare supply to fund this route. For a
-      // new shortage, interpolate its available share before refining. This
-      // avoids twenty complete factory solves inside every dispatch probe.
-      const bracket = { feasible: 0, infeasible: route.maximum, fraction: route.maximum }
+      if (projected <= resolution && accepted.fraction === 0) break
+      const hasEstimate = projected > accepted.fraction + resolution && projected < rejected.fraction
+      const fraction = hasEstimate ? projected : (accepted.fraction + rejected.fraction) / 2
+      const trial = attempt(fraction)
+      const shortage = findBlocker(trial)
 
-      for (const pass = { iteration: 0 }; pass.iteration < 8; pass.iteration++) {
-        const limits = evaluation.candidate.allResourceFlows.flatMap(flow => {
-          const before = baselineFlows.get(flow.resourceId)?.net ?? 0
-
-          if (flow.net >= Math.min(0, before) - TOLERANCE) return []
-          return [bracket.fraction * Math.max(0, before) / (before - flow.net)]
-        })
-        const projected = limits.length > 0 ? Math.min(...limits) : (bracket.feasible + bracket.infeasible) / 2
-
-        bracket.fraction = Math.max(bracket.feasible, Math.min(bracket.infeasible, projected))
-        if (bracket.fraction < 1e-6) break
-        const trial = attempt(bracket.fraction)
-
-        if (findBlocker(trial)) { bracket.infeasible = bracket.fraction; evaluation.candidate = trial }
-        else { bracket.feasible = bracket.fraction; break }
+      if (shortage) {
+        rejected.fraction = fraction
+        rejected.blocker = shortage
+      } else {
+        accepted.fraction = fraction
+        accepted.calculation = trial
+        if (hasEstimate) break
       }
-      route.maximum = bracket.feasible < 1e-6 ? 0 : bracket.feasible
-      evaluation.candidate = attempt(route.maximum)
-    } else if (route.maximum < 1 - TOLERANCE) evaluation.blocker = 'capacity'
+    }
+    const reason = rejected.blocker?.resourceId ?? (route.maximum < 1 - TOLERANCE ? 'capacity' : undefined)
+    const settled = accepted.fraction === 0 ? attempt(0) : accepted.calculation
 
-    if (evaluation.blocker) for (const { line } of requests) blockers.set(key(line), evaluation.blocker)
-    // Attach the final requirement/blocker to the accepted results without an
-    // extra full solve, including paused consumers and zero-throughput routes.
-    for (const regular of evaluation.candidate.regularResults) {
+    for (const { line, ratio, resourceId } of requests) {
+      floors.set(key(line), { ratio: ratio * accepted.fraction, resourceId })
+      if (reason) blockers.set(key(line), reason)
+    }
+    // Attach the requirement and blocker even when the linked allocation is zero.
+    for (const regular of settled.result.regularResults) {
       regular.processingRequiredBuildings = required.get(key(regular))
       regular.processingBlockedBy = blockers.get(key(regular))
     }
-    calculation.result = evaluation.candidate
+    calculation.result = settled
   }
   return calculation.result
 }

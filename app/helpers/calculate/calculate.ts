@@ -61,7 +61,8 @@ export interface ProductionLine {
   processingInput?: { id: string; sourceRecipeId: string; resourceId: ResourceId };
   /** Internal source-bounded allocation floor; normal input/output accounting is retained. */
   processingFloor?: { ratio: number; resourceId: ResourceId };
-  processingSourceLimit?: number;
+  /** Internal ceiling on the fraction of installed capacity that can run. */
+  allocationLimit?: number;
   processingRequiredBuildings?: number;
   processingBlockedBy?: ResourceId | 'capacity';
 }
@@ -116,7 +117,6 @@ export interface RegularResult {
   supplyRatio: number;
   processingRequiredBuildings?: number;
   processingQuantity?: number;
-  processingRequestedQuantity?: number;
   processingBlockedBy?: ResourceId | 'capacity';
   speedLevel: number;
   actualInputs: { resourceId: ResourceId; quantity: number }[];
@@ -639,6 +639,12 @@ const calculateNetCore = (
       && line.recipe.surplusConsumptionPhase == null
     )),
   );
+  const afterFallbackSurplusConsumerLines = orderSurplusConsumers(
+    balancedLines.filter((line) => (
+      (line.recipe.consumeSurplusInputIds?.length ?? 0) > 0
+      && line.recipe.surplusConsumptionPhase === "after-fallback"
+    )),
+  );
   const drivenInputLines = orderAllocatedLines(
     balancedLines.filter((line) => (line.drivingInputIds?.length ?? 0) > 0),
   );
@@ -990,7 +996,7 @@ const calculateNetCore = (
             ? Math.min(1, Math.max(0, remaining / producer.activeBuildings))
             : 1;
           const ratio = Math.min(
-            Math.max(0, 1 - (allocationRatios.get(producer) ?? 0)),
+            remainingAllocationRatio(producer),
             availableRatio,
           );
 
@@ -1037,6 +1043,9 @@ const calculateNetCore = (
   const reservedSourceInputs = new Map<ProductionLine, Map<ResourceId, number>>();
 
   const allocationRatios = new AllocationMap<ProductionLine>();
+  const remainingAllocationRatio = (line: ProductionLine) => Math.max(
+    0, (line.allocationLimit ?? 1) - (allocationRatios.get(line) ?? 0),
+  );
   const surplusOnlyConsumption = new AllocationMap<ResourceId>();
   const surplusOnlyModuleConsumption = new AllocationMap<string>();
   const moduleScopedInputConsumption = new AllocationMap<ResourceId>();
@@ -1046,8 +1055,8 @@ const calculateNetCore = (
   };
   const capacityTracker = createCapacityTracker(regularLines);
   const applyRegularLine = (line: ProductionLine, requestedRatio: number, additive = false) => {
-    const requested = line.processingSourceLimit != null && requestedRatio > 0
-      ? Math.min(requestedRatio, Math.max(0, line.processingSourceLimit - (additive ? allocationRatios.get(line) ?? 0 : 0)))
+    const requested = line.allocationLimit != null && requestedRatio > 0
+      ? Math.min(requestedRatio, Math.max(0, line.allocationLimit - (additive ? allocationRatios.get(line) ?? 0 : 0)))
       : requestedRatio;
     const recyclableInput = getRecyclableInput(line.recipe);
     const observedMix = typedEntries(line.recipe.recyclingInputSources ?? {});
@@ -1333,7 +1342,7 @@ const calculateNetCore = (
       const factor = lineFactor(line);
       const limit3 = {
         ratio: Math.min(
-          Math.max(0, 1 - currentRatio),
+          remainingAllocationRatio(line),
           capacityTracker.availableRatio(line),
         ),
       };
@@ -1383,7 +1392,7 @@ const calculateNetCore = (
     const factor = lineFactor(line);
     const limit4 = {
       ratio: Math.min(
-        Math.max(0, 1 - currentRatio),
+        remainingAllocationRatio(line),
         capacityTracker.availableRatio(line),
       ),
     };
@@ -1456,7 +1465,7 @@ const calculateNetCore = (
       const factor = lineFactor(line);
       const limit5 = {
         ratio: Math.min(
-          Math.max(0, 1 - currentRatio),
+          remainingAllocationRatio(line),
           capacityTracker.availableRatio(line),
         ),
       };
@@ -1837,8 +1846,7 @@ const calculateNetCore = (
       // is not charged to this route's deficit guard.
       propagateAdditionalDemand();
 
-      const currentRatio = allocationRatios.get(line) ?? 0;
-      const remainingLineRatio = Math.max(0, 1 - currentRatio);
+      const remainingLineRatio = remainingAllocationRatio(line);
 
       if (remainingLineRatio <= 1e-9) {
         clearBlockedRoute(line);
@@ -1907,7 +1915,7 @@ const calculateNetCore = (
         for (const consumer of outputConsumers) {
           const consumer2 = {
             consumerRatio: Math.min(
-              1 - (allocationRatios.get(consumer) ?? 0),
+              remainingAllocationRatio(consumer),
               capacityTracker.availableRatio(consumer),
             ),
           };
@@ -2017,10 +2025,7 @@ const calculateNetCore = (
       };
 
       for (const { line, inputs, outputs } of demandPropagationLines) {
-        const remainingLineRatio = Math.max(
-          0,
-          1 - (allocationRatios.get(line) ?? 0),
-        );
+        const remainingLineRatio = remainingAllocationRatio(line);
         const limit7 = {
           ratio: Math.min(
             remainingLineRatio,
@@ -2340,6 +2345,8 @@ const calculateNetCore = (
     // Final surplus conversion can create inputs for local fallback cleanup.
     // Run those fallbacks once more so chained routes settle in the same cycle.
     settleFallbackDemand(true);
+    // Reserve inputs for cleanup of late byproducts before using residual steam.
+    applyAdditionalSurplusConsumption(afterFallbackSurplusConsumerLines);
     propagateAdditionalDemand();
     trimOverproduction();
   };
@@ -2383,12 +2390,6 @@ const calculateNetCore = (
 
         return input ? getRecipeInputQuantity(input, outputModifiers) * lineFactor(line)
           * Math.min(line.processingFloor.ratio, allocationRatios.get(line) ?? 0) : 0;
-      })() : undefined,
-      processingRequestedQuantity: line.processingFloor ? (() => {
-        const input = line.recipe.inputs.find(input => input.resourceId === line.processingFloor?.resourceId);
-
-        return input ? getRecipeInputQuantity(input, outputModifiers) * line.speedLevel
-          * (line.processingRequiredBuildings ?? 0) : 0;
       })() : undefined,
       supplyRatio: allocationRatios.get(line) ?? 0,
       speedLevel: line.speedLevel,
@@ -2812,7 +2813,12 @@ const calculateNetCore = (
     // for Bread and its Water. Share the remaining allowance along that chain.
     // Set iteration also visits newly added consumers, covering longer chains.
     for (const producer of allowances.allowanceLines) {
-      for (const consumer of [...beforeFallbackSurplusConsumerLines, ...beforeDisposalSurplusConsumerLines, ...finalSurplusConsumerLines]) {
+      for (const consumer of [
+        ...beforeFallbackSurplusConsumerLines,
+        ...beforeDisposalSurplusConsumerLines,
+        ...finalSurplusConsumerLines,
+        ...afterFallbackSurplusConsumerLines,
+      ]) {
         if (allowances.allowanceLines.has(consumer)) continue;
         if (
           consumer.recipe.consumeSurplusInputScope === "module"
@@ -2949,11 +2955,75 @@ const calculateNetCore = (
     }
   }
 
-  return { resourceFlows, allResourceFlows, regularResults, sourceResults, sinkResults, blockedRoutes };
+  const getSettledModuleFlow = (moduleId: string, resourceId: ResourceId, flow: { produced: number; consumed: number }) => {
+    const totals = { ...flow };
+
+    for (const sink of sinkResults) {
+      if (sink.moduleId !== moduleId) continue;
+      totals.produced += sink.actualOutputs.find(output => output.resourceId === resourceId)?.quantity ?? 0;
+      totals.consumed += sink.actualInputs.find(input => input.resourceId === resourceId)?.quantity ?? 0;
+    }
+    return { resourceId, ...totals, net: totals.produced - totals.consumed };
+  };
+  const restrictedModuleBalances = new Map<string, ReturnType<typeof getSettledModuleFlow>>();
+
+  if (lines.some(line => line.processingInput)) {
+    for (const [moduleId, keys] of moduleResourceKeys) {
+      for (const [resourceId, key] of keys) {
+        if (!moduleScopedInputKeysByResource.get(resourceId)?.has(key)
+          && !ownedModuleSupplyKeysByResource.get(resourceId)?.has(key)) continue;
+        const flow = actualModuleFlows.get(key) ?? { produced: 0, consumed: 0 };
+
+        restrictedModuleBalances.set(key, getSettledModuleFlow(moduleId, resourceId, flow));
+      }
+    }
+  }
+  const backpressureLimits = new Map<string, number>();
+  const remainingOutput = new Map<string, number>();
+
+  for (const line of regularLines) {
+    const resourceId = line.recipe.backpressureOutputId;
+    const output = line.recipe.outputs.find(output => output.resourceId === resourceId);
+    const ratio = allocationRatios.get(line) ?? 0;
+
+    if (!output || ratio <= 0) continue;
+    const flowKey = moduleResourceKey(line.moduleId, output.resourceId);
+    const surplus = remainingOutput.get(flowKey) ?? getSettledModuleFlow(
+      line.moduleId, output.resourceId, getActualModuleFlow(line.moduleId, output.resourceId),
+    ).net;
+    const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * lineFactor(line);
+
+    if (surplus <= STRICT_TOLERANCE || capacity <= 0) continue;
+    const reduction = Math.min(ratio, surplus / capacity);
+
+    backpressureLimits.set(`${line.moduleId}:${line.recipe.id}`, ratio - reduction);
+    remainingOutput.set(flowKey, surplus - reduction * capacity);
+  }
+  return {
+    result: { resourceFlows, allResourceFlows, regularResults, sourceResults, sinkResults, blockedRoutes },
+    restrictedModuleBalances,
+    backpressureLimits,
+  };
+};
+
+const solveWithBackpressure = (lines: ProductionLine[], options: Tail<Parameters<typeof calculateNetCore>>) => {
+  const solve = { lines, settled: calculateNetCore(lines, ...options) };
+
+  // Tighten the producer ceiling after its real consumers have settled. Solve
+  // again so downstream byproducts and the unprocessed input stay in balance.
+  for (const pass = { count: 0 }; pass.count < 8 && solve.settled.backpressureLimits.size > 0; pass.count++) {
+    solve.lines = solve.lines.map(line => {
+      const limit = solve.settled.backpressureLimits.get(`${line.moduleId}:${line.recipe.id}`);
+
+      return limit == null ? line : { ...line, allocationLimit: limit };
+    });
+    solve.settled = calculateNetCore(solve.lines, ...options);
+  }
+  return solve.settled;
 };
 
 export const calculateNet = (inputLines: ProductionLine[], ...options: Tail<Parameters<typeof calculateNetCore>>) => (
-  calculateProcessingChains(inputLines, lines => calculateNetCore(lines, ...options), options[2] ?? {})
+  calculateProcessingChains(inputLines, lines => solveWithBackpressure(lines, options), options[2] ?? {}).result
 );
 
 type Tail<T extends unknown[]> = T extends [unknown, ...infer Rest] ? Rest : never;

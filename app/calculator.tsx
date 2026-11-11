@@ -15,7 +15,6 @@ import { MinesView } from './components/MinesView'
 import { ModifiersView } from './components/ModifiersView'
 import { ModuleSwitcher } from './components/ModuleSwitcher'
 import { NetSummary } from './components/NetSummary'
-import { ProcessingLinksProvider } from './components/ProcessingChain'
 import { RecipeCard } from './components/RecipeCard'
 import { InfiniteResearchSettings, ResearchSettings } from './components/ResearchSettings'
 import { ReservesView } from './components/ReservesView'
@@ -67,7 +66,6 @@ import { useFactoryCalculation } from './hooks/use-factory-calculation'
 import { useFactoryPreset } from './hooks/use-factory-preset'
 import { type GameStateResult, useGameState } from './hooks/use-game-state'
 import { useKeepReadyPreferences } from './hooks/use-keep-ready-preferences'
-import { useProcessingLinks } from './hooks/use-processing-links'
 
 const groupLabels: Record<RecipeGroup, string> = {
   source: 'Sources',
@@ -94,7 +92,6 @@ interface Props {
 
 export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersion }) => {
   const gameState = useGameState(initialGameState)
-  const processing = useProcessingLinks(gameState.snapshot?.saveId)
   const factoryPreset = useFactoryPreset(gameState.snapshot?.saveId)
   const { preferences: keepReadyPreferences, canSave: canSaveKeepReady, setKeepReady } = useKeepReadyPreferences(gameState.snapshot?.saveId)
   const changeKeepReady = canSaveKeepReady ? (diagnostic: BuildingDiagnostic, enabled: boolean) => {
@@ -138,7 +135,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   const latestModel = useMemo(() => (
     latestSnapshot
       ? deriveCalculatorModel({
-          processingLinks: processing.links,
           presetId: factoryPreset.presetId,
           operatingOverrides: factoryPreset.isModified,
           contractFullThrottlePreferences: factoryPreset.changes.contracts,
@@ -149,7 +145,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           snapshot: latestSnapshot,
         })
       : null
-  ), [processing.links, latestRevision, latestSnapshot, machineZoneAssignments, factoryPreset.changes, factoryPreset.presetId, factoryPreset.isModified])
+  ), [latestRevision, latestSnapshot, machineZoneAssignments, factoryPreset.changes, factoryPreset.presetId, factoryPreset.isModified])
   const groundwaterPumpClaimIds = (latestModel?.groundwaterPumpClaims ?? [])
     .map(claim => claim.id)
     .join('|')
@@ -157,7 +153,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     ? `${MACHINE_ZONE_ASSIGNMENTS_KEY}:${encodeURIComponent(gameState.snapshot.saveId)}`
     : null
   const { failed, retry, settled } = useFactoryCalculation(
-    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && factoryPreset.ready && processing.ready ? latestModel : null,
+    loadedAssignmentsKey === machineZoneAssignmentsStorageKey && factoryPreset.ready ? latestModel : null,
     calculationVersion,
   )
 
@@ -591,7 +587,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
     .flatMap(result => result.lines)
   const hasPlannedChanges = (lines: readonly ProductionLine[]) => (settled.model.presetId !== 'current' || settled.model.operatingOverrides) || lines.some(line => (
     line.dataSource === 'planned'
-    || line.processingInput != null
     || (line.constructionGhosts ?? 0) > 0
     || (line.unplacedPlannedBuildings ?? 0) > 0
     || (line.currentActiveBuildings != null && Math.abs(line.activeBuildings - line.currentActiveBuildings) > 0.001)
@@ -991,7 +986,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                           targetKey={targetKey}
                         >
                           <RecipeCard
-                            moduleId={line.moduleId}
                             dataSource={line.dataSource}
                             recipe={line.recipe}
                             activeBuildings={line.activeBuildings}
@@ -1040,7 +1034,6 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
                       targetKey={targetKey}
                     >
                       <RecipeCard
-                        moduleId={line.moduleId}
                         dataSource={line.dataSource}
                         recipe={line.recipe}
                         activeBuildings={line.activeBuildings}
@@ -1090,17 +1083,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   return (
     <ResourceProductsProvider products={gameState.snapshot?.products}
       current={gameState.source === 'live' && gameState.status === 'available' && gameState.isFresh}>
-      <ProcessingLinksProvider modules={configuredModules} links={processing.links}
-        results={[...factoryResult.calculation.regularResults, ...[...linkedModulesResult.moduleResults.values()].flatMap(result => result.regularResults)]}
-        onChange={processing.canSave ? change => {
-          if (!processing.update(change)) toast.error('Could not save processing link. Check browser storage and try again.')
-        } : undefined}
-        onNavigate={(moduleId, recipe) => {
-          setActiveModuleId(moduleId)
-          setBuildingTarget({ moduleId, key: recipe.sharedCapacity ? `${moduleId}:${recipe.sharedCapacity.id}` : `${moduleId}:${recipe.id}` })
-        }}>
-        <ResourceNavigationProvider onInspectResource={inspectResource}>{page}</ResourceNavigationProvider>
-      </ProcessingLinksProvider>
+      <ResourceNavigationProvider onInspectResource={inspectResource}>{page}</ResourceNavigationProvider>
     </ResourceProductsProvider>
   )
 }

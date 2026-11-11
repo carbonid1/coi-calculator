@@ -5,10 +5,13 @@ const scienceExpansionLayers = [
   'science', 'settlement', 'power-water', 'computing', 'farms', 'refining', 'construction', 'operating',
 ] as const
 
-export type PlanLayerId = typeof scienceExpansionLayers[number] | 'third-fbr' | 'research-on'
+export type PlanLayerId = typeof scienceExpansionLayers[number] | 'third-fbr' | 'research-on' | 'waste-recovery'
+
+const baselineLayers = ['research-on'] as const
 
 export const factoryPresets = [
-  { id: 'baseline', name: 'Baseline', layers: ['research-on'] },
+  { id: 'baseline', name: 'Baseline', layers: baselineLayers },
+  { id: 'next', name: 'Next', layers: [...baselineLayers, 'construction', 'waste-recovery'] },
 ] as const
 export const defaultFactoryPresetId = factoryPresets[0].id
 

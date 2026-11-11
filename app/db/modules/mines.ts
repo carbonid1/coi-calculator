@@ -2,13 +2,13 @@ import { type Module } from "./modules";
 
 export const MINES_MODULE_ID = "mines";
 
-export const mines: Module = {
+export const createMinesModule = ({ dumpWaste = true } = {}): Module => ({
     id: MINES_MODULE_ID,
     name: "Mines",
     description: "World-mine supply and terrain disposal.",
     builtBuildings: {
       "slag-terrain-dump": 1,
-      "waste-terrain-dump": 1,
+      ...(dumpWaste ? { "waste-terrain-dump": 1 } : {}),
       "dirt-terrain-dump": 1,
     },
     presets: [{
@@ -19,4 +19,6 @@ export const mines: Module = {
       fixed: [],
     }],
     defaultPresetId: "current-mines-plan",
-};
+});
+
+export const mines = createMinesModule();

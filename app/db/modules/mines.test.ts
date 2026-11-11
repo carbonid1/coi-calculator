@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { calculateNet } from "../../helpers/calculate/calculate";
 import { buildModuleLines } from '../../test-fixtures/build-module-lines';
 import { recipes } from "../recipes";
-import { mines } from "./mines";
+import { createMinesModule, mines } from "./mines";
 
 it("contains terrain disposal without a fabricated world-mine source", () => {
   const lines = buildModuleLines(mines, null).lines;
@@ -22,6 +22,17 @@ it("contains terrain disposal without a fabricated world-mine source", () => {
 
 it("does not register legacy global terrain-extraction recipes", () => {
   expect(recipes.some(({ sourceKind }) => sourceKind === "terrain-mine")).toBe(false);
+});
+
+it("leaves Waste as surplus when its terrain disposal is disabled", () => {
+  const plannedMines = createMinesModule({ dumpWaste: false });
+  const result = calculateNet(buildModuleLines(plannedMines, null).lines, { waste: 20, slag: 10, dirt: 5 });
+
+  expect(result.allResourceFlows.find(flow => flow.resourceId === "waste")?.net).toBe(20);
+  expect(result.sinkResults.map(sink => sink.actualInputs)).toEqual([
+    [{ resourceId: "slag", quantity: 10 }],
+    [{ resourceId: "dirt", quantity: 5 }],
+  ]);
 });
 
 it("does not fabricate Coal, Copper Ore, or Sand supply", () => {

@@ -34,6 +34,7 @@ import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/
 import { calculateAquiferPumpsForCeiling, calculateAquiferSustainableCeiling, calculateAquiferSustainableOutput, calculateGroundwaterClaimLimits, getAquiferRainRechargePerDay, getDryEmergencyRechargePerDay } from '../app/helpers/groundwater/calculate-groundwater-production'
 import { createLiveAreaModules } from '../app/helpers/live-area-modules/live-area-modules'
 import { calculatePopulationResearchBonus } from '../app/helpers/modifiers/calculate-research-efficiency'
+import { extractModuleResult } from '../app/helpers/module-result/module-result'
 import { withFactoryDefinition } from '../app/helpers/planning-recipes/factory-recipes'
 import { withPlanningDefinition } from '../app/helpers/planning-recipes/planning-recipes'
 import { calculateReserveRunway, getReserveDrawPerProductionCycle } from '../app/helpers/reserves/reserves'
@@ -67,7 +68,7 @@ it('uses the live factory with two running labs and station crew as the new base
     if (isLab(entity.prototypeId)) entity.running = false
   }
   const original = JSON.stringify(snapshot)
-  const derive = (presetId: 'current' | 'baseline') => deriveCalculatorModel({
+  const derive = (presetId: 'current' | 'baseline' | 'next') => deriveCalculatorModel({
     snapshot, presetId, machineZoneAssignments: {}, revision: 'research-baseline',
   })
   const current = derive('current')
@@ -78,7 +79,7 @@ it('uses the live factory with two running labs and station crew as the new base
   const researchRecipe = researchModule.recipes!.find(recipe => isLab(recipe.gameBuildingId ?? ''))!
   const station = planned.configuredModules.find(module => module.capabilities?.includes('space-station'))!
 
-  expect(factoryPresets.map(preset => preset.id)).toEqual(['baseline'])
+  expect(factoryPresets.map(preset => preset.id)).toEqual(['baseline', 'next'])
   expect(researchModule.presets[0].activeBuildings[researchRecipe.id]).toBe(2)
   expect(researchModule.presets[0].builtBuildings?.[researchRecipe.id]).toBe(3)
   expect(changes().flatMap(change => change.actions?.map(action => action.label) ?? [])).toEqual([
@@ -122,6 +123,64 @@ it('uses the live factory with two running labs and station crew as the new base
   }
   expect(changes().flatMap(change => change.actions?.map(action => action.label) ?? [])).toEqual(['Pause 1 Research Lab IV'])
 }, 30_000)
+
+it('burns available Waste in Next and recovers residual local steam before importing Water and Brine', () => {
+  const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
+
+  if (!snapshot) throw new Error('Recorded factory is incompatible')
+  snapshot.areaEntities = snapshot.areaEntities.filter(entity => entity.constructed)
+  const run = (presetId: 'baseline' | 'next') => {
+    const model = deriveCalculatorModel({ snapshot, presetId, machineZoneAssignments: {}, revision: 'waste-recovery' })
+    const result = calculateFactoryCalculation(model.factoryCalculationInput)
+    const area = (id: string) => extractModuleResult(id, result.factoryResult.calculation)
+
+    return { model, result, general: area('general'), nuclear: area('live-area-12') }
+  }
+  const baseline = run('baseline')
+  const next = run('next')
+  const waste = next.result.factoryResult.flows.find(flow => flow.resourceId === 'waste')!
+  const burner = next.general.regularResults.find(line => line.recipe.gameRecipeId === 'IncinerationOfWaste')!
+  const desalination = next.general.regularResults.find(line => line.recipe.gameRecipeId === 'DesalinationFromHP')!
+  const amount = (ingredients: typeof burner.actualInputs, id: string) => ingredients.find(input => input.resourceId === id)?.quantity ?? 0
+  const steamForProduction = next.general.regularResults.filter(line => line !== desalination)
+    .reduce((total, line) => total + amount(line.actualInputs, 'steamHigh'), 0)
+  const scrubber = next.general.regularResults.find(line => line.recipe.gameRecipeId === 'ExhaustFilteringLime')!
+  const graphite = next.general.regularResults.find(line => line.recipe.gameRecipeId === 'GraphiteProductionCo2')!
+  const previousGraphite = baseline.general.regularResults.find(line => line.recipe.gameRecipeId === 'GraphiteProductionCo2')!
+  const produced = (id: string) => next.general.regularResults
+    .reduce((total, line) => total + amount(line.actualOutputs, id), 0)
+  const co2UsedElsewhere = next.general.regularResults.filter(line => line !== graphite)
+    .reduce((total, line) => total + amount(line.actualInputs, 'carbonDioxide'), 0)
+
+  expect(burner).toMatchObject({ activeBuildings: 2, builtBuildings: 1, operatingMode: 'balanced' })
+  expect(burner.recipe).toMatchObject({ balanceBy: 'input', balanceInputIds: ['waste'] })
+  expect(amount(burner.actualInputs, 'waste')).toBeCloseTo(waste.produced, 3)
+  expect(waste.net).toBeGreaterThanOrEqual(-0.001)
+  expect(baseline.result.factoryResult.allLines.some(line => line.recipe.id === 'waste-terrain-dump')).toBe(true)
+  expect(next.result.factoryResult.allLines.some(line => line.recipe.id === 'waste-terrain-dump')).toBe(false)
+  expect(desalination.activeBuildings).toBe(2)
+  expect(amount(desalination.actualInputs, 'steamHigh')).toBeGreaterThan(0)
+  expect(amount(burner.actualOutputs, 'steamHigh')).toBeCloseTo(steamForProduction + amount(desalination.actualInputs, 'steamHigh'), 3)
+  expect(scrubber).toMatchObject({ activeBuildings: 1 })
+  expect(graphite).toMatchObject({ activeBuildings: 1 })
+  expect(amount(scrubber.actualInputs, 'exhaust')).toBeCloseTo(produced('exhaust'), 2)
+  expect(amount(graphite.actualInputs, 'carbonDioxide')).toBeCloseTo(produced('carbonDioxide') - co2UsedElsewhere, 2)
+  expect(amount(graphite.actualOutputs, 'graphite')).toBeGreaterThan(amount(previousGraphite.actualOutputs, 'graphite'))
+  const stripped = (area: typeof next.general) => area.regularResults
+    .filter(line => line.recipe.gameRecipeId === 'SourWaterStripping')
+    .reduce((total, line) => total + amount(line.actualInputs, 'sourWater'), 0)
+
+  expect(stripped(next.general)).toBeCloseTo(next.general.regularResults
+    .reduce((total, line) => total + amount(line.actualOutputs, 'sourWater'), 0), 6)
+  for (const id of ['water', 'brine']) {
+    const net = (area: typeof next.general) => area.resourceFlows.find(flow => flow.resourceId === id)?.net ?? 0
+
+    expect(net(next.general)).toBeGreaterThan(net(baseline.general))
+    expect(net(next.nuclear)).toBeLessThan(net(baseline.nuclear))
+  }
+  expect(next.result.factoryResult.allLines.filter(line => line.recipe.gameBuildingId?.startsWith('ResearchLab'))
+    .reduce((total, line) => total + line.activeBuildings, 0)).toBe(2)
+}, 40_000)
 
 it('replays the complete Science expansion preset and returns to the latest live baseline', () => {
   const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
@@ -990,7 +1049,8 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
     if (getCropFarmingData(snapshot.cropFarming).crop(cropId).fertilityPercentPerDay > 0)
       expect(cropId).not.toBe(schedule[(index + 1) % schedule.length])
   }
-  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'recorded-factory' })
+  // The reference report predates the configured titanium-to-steel chain.
+  const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot, machineZoneAssignments: {}, revision: 'recorded-factory', processingLinks: [] })
   const { factoryResult, linkedModulesResult } = calculateFactoryCalculation(model.factoryCalculationInput)
 
   for (const resourceId of ['coreFuel', 'coreFuelSpent'])
@@ -1080,7 +1140,7 @@ it('replays the recorded factory through validation, planning, dispatch, contrac
 
   if (!officeBoost) throw new Error('Recorded Office boost definition is missing')
   officeBoost.computingTflops += 48
-  const changedModel = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: updated, machineZoneAssignments: {}, revision: 'changed-catalog' })
+  const changedModel = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: updated, machineZoneAssignments: {}, revision: 'changed-catalog', processingLinks: [] })
   const changed = calculateFactoryCalculation(changedModel.factoryCalculationInput).factoryResult
   const changedStats = calculateBuildingStats(changed.allLines, changed.calculation, changedModel.outputModifiers)
 

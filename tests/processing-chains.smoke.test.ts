@@ -6,22 +6,17 @@ import { normalizeGameStateSnapshot } from '../app/game-state'
 import { calculateBuildingDiagnostics } from '../app/helpers/building-diagnostics/building-diagnostics'
 import { deriveCalculatorModel } from '../app/helpers/calculator-model/derive-calculator-model'
 import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/factory-calculation'
-import { getProcessingEndpoint, type ProcessingLink } from '../app/helpers/processing-links/processing-links'
 
 it('runs the Default titanium byproduct → oxygen furnace → cooled caster chain in the recorded factory', () => {
   const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
   const snapshot = normalizeGameStateSnapshot(capture)!
   const options = { snapshot, revision: 'processing-chain', machineZoneAssignments: {}, presetId: 'baseline' as const }
-  const baselineModel = deriveCalculatorModel(options)
-  const owner = baselineModel.configuredModules.find(module => module.id === 'general')!
+  const model = deriveCalculatorModel(options)
+  const owner = model.configuredModules.find(module => module.id === 'general')!
   const source = owner.recipes!.find(recipe => recipe.gameBuildingId === 'ArcFurnace2' && recipe.gameRecipeId === 'IlmeniteSmeltingArc2')!
   const furnace = owner.recipes!.find(recipe => recipe.gameBuildingId === 'OxygenFurnace' && recipe.gameRecipeId === 'SteelSmelting')!
   const caster = owner.recipes!.find(recipe => recipe.gameBuildingId === 'CasterCooled' && recipe.gameRecipeId === 'SteelCastingCooled')!
-  const links: ProcessingLink[] = [
-    { id: 'titanium-iron', source: getProcessingEndpoint(owner.id, source), target: getProcessingEndpoint(owner.id, furnace), resourceId: 'moltenIron' },
-    { id: 'iron-steel', source: getProcessingEndpoint(owner.id, furnace), target: getProcessingEndpoint(owner.id, caster), resourceId: 'moltenSteel' },
-  ]
-  const model = deriveCalculatorModel({ ...options, processingLinks: links })
+  const baselineModel = deriveCalculatorModel({ ...options, processingLinks: [] })
   const baseline = calculateFactoryCalculation(baselineModel.factoryCalculationInput).factoryResult
   const linked = calculateFactoryCalculation(model.factoryCalculationInput).factoryResult
   const result = (recipeId: string) => linked.calculation.regularResults.find(result => result.recipe.id === recipeId)!

@@ -1,6 +1,6 @@
 import { type Module } from '../../db/modules/modules'
 import { type Recipe } from '../../db/recipes'
-import { resources, type ResourceId } from '../../db/resources'
+import { type ResourceId } from '../../db/resources'
 
 export interface ProcessingEndpoint {
   moduleId: string
@@ -30,11 +30,11 @@ export const getProcessingEndpoint = (moduleId: string, recipe: Recipe): Process
   ...(recipe.sharedCapacity ? { poolId: recipe.sharedCapacity.id } : {}),
 })
 
-export const endpointKey = (endpoint: ProcessingEndpoint) => JSON.stringify([
+const endpointKey = (endpoint: ProcessingEndpoint) => JSON.stringify([
   endpoint.moduleId, endpoint.buildingId, endpoint.recipeId, endpoint.poolId ?? null,
 ])
 
-export const resolveProcessingEndpoint = (endpoint: ProcessingEndpoint, modules: readonly Module[]) => {
+const resolveProcessingEndpoint = (endpoint: ProcessingEndpoint, modules: readonly Module[]) => {
   const owner = modules.find(module => module.id === endpoint.moduleId)
   const matches = owner?.recipes?.filter(recipe => (
     endpointKey(getProcessingEndpoint(owner.id, recipe)) === endpointKey(endpoint)
@@ -98,34 +98,3 @@ export const resolveProcessingLinks = (links: readonly ProcessingLink[], modules
     return definition && !unavailable.has(endpointKey(definition.source))
   })
 }
-
-const isEndpoint = (value: unknown): value is ProcessingEndpoint => {
-  if (!value || typeof value !== 'object') return false
-  return 'moduleId' in value && typeof value.moduleId === 'string' && value.moduleId !== ''
-    && 'buildingId' in value && typeof value.buildingId === 'string' && value.buildingId !== ''
-    && 'recipeId' in value && typeof value.recipeId === 'string' && value.recipeId !== ''
-    && (!('poolId' in value) || typeof value.poolId === 'string')
-}
-
-export const parseProcessingLinks = (value: string | null): ProcessingLink[] => {
-  try {
-    const parsed: unknown = JSON.parse(value ?? '[]')
-
-    if (!Array.isArray(parsed)) return []
-    const result: ProcessingLink[] = []
-
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !item.id
-        || !isEndpoint(item.source) || !isEndpoint(item.target)
-        || typeof item.resourceId !== 'string' || !Object.hasOwn(resources, item.resourceId)) continue
-      if (canAddProcessingLink(result, item)) result.push(item)
-    }
-    return result
-  } catch {
-    return []
-  }
-}
-
-export const getProcessingLinksStorageKey = (saveId: string | null | undefined) => (
-  saveId ? `coi-processing-links-v1:${encodeURIComponent(saveId)}` : null
-)

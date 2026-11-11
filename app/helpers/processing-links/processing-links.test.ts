@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 
 import { type Recipe } from '../../db/recipes'
 import { calculateNet, type ProductionLine } from '../calculate/calculate'
-import { canAddProcessingLink, getProcessingEndpoint, parseProcessingLinks, resolveProcessingLinks, type ProcessingLink } from './processing-links'
+import { canAddProcessingLink, getProcessingEndpoint, resolveProcessingLinks, type ProcessingLink } from './processing-links'
 
 const line = (id: string, inputs: Recipe['inputs'], outputs: Recipe['outputs'], extra: Partial<ProductionLine> = {}): ProductionLine => ({
   recipe: { id, name: id, building: id, group: 'production', inputs, outputs, balanceBy: 'output', balanceOutputIds: [outputs[0].resourceId] },
@@ -30,6 +30,35 @@ it('does not use unrelated pooled iron to drive a chain with an idle root', () =
   const result = calculateNet(lines(), { oxygen: 2, water: 2, moltenIron: 100 })
 
   expect(result.regularResults.map(result => result.supplyRatio)).toEqual([0, 0, 0])
+})
+
+it('uses spare demand-driven supporting capacity even when its initial flow is zero', () => {
+  const result = calculateNet([
+    ...lines(),
+    line('oxygen-plant', [], [{ resourceId: 'oxygen', quantity: 1 }]),
+  ], { water: 2 }, undefined, {}, { titaniumSlag: 10 })
+
+  expect(result.regularResults[1].supplyRatio).toBeCloseTo(0.5, 4)
+  expect(result.regularResults[2].supplyRatio).toBeCloseTo(0.5, 4)
+  expect(result.allResourceFlows.find(flow => flow.resourceId === 'oxygen')?.net).toBeCloseTo(0, 5)
+})
+
+it('keeps a processing floor within the local supply of its supporting steam', () => {
+  const input = lines()
+
+  input[1].recipe = {
+    ...input[1].recipe, balanceInputIds: ['steamHigh'], moduleInputIds: ['steamHigh'],
+    inputs: [...input[1].recipe.inputs, { resourceId: 'steamHigh', quantity: 2 }],
+  }
+  const remote = line('remote-steam', [], [{ resourceId: 'steamHigh', quantity: 20 }], {
+    moduleId: 'remote', operatingMode: 'fixed',
+  })
+  const local = line('local-steam', [], [{ resourceId: 'steamHigh', quantity: 1 }], { operatingMode: 'fixed' })
+  const result = calculateNet([...input, remote, local], { oxygen: 2, water: 2 }, undefined, {}, { titaniumSlag: 10 })
+
+  expect(result.regularResults[1].supplyRatio).toBeCloseTo(0.5, 4)
+  expect(result.regularResults[2].supplyRatio).toBeCloseTo(0.5, 4)
+  expect(result.regularResults[1].processingBlockedBy).toBe('steamHigh')
 })
 
 it('preserves ordinary steel production above the linked throughput and displaces primary iron correctly', () => {
@@ -91,7 +120,6 @@ it('rejects branching/cycles and keeps unresolved or ambiguous semantic endpoint
 
   expect(canAddProcessingLink([link], { ...link, id: 'cycle', source: target, target: source })).toBe(false)
   expect(canAddProcessingLink([link], { ...link, id: 'branch', target: getProcessingEndpoint('general', input[2].recipe) })).toBe(false)
-  expect(parseProcessingLinks(JSON.stringify([link, { ...link, id: 'duplicate' }, { ...link, id: 'invalid', resourceId: 'not-a-resource' }]))).toEqual([link])
   expect(resolveProcessingLinks([link], [])).toEqual([])
   const recipes = [
     { ...input[0].recipe, id: 'new:dedicated', gameBuildingId: 'ArcFurnace2', gameRecipeId: 'Ilmenite' },
