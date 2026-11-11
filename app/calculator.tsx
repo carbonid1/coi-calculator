@@ -104,7 +104,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
 
     toast(enabled ? 'Keep ready enabled' : 'Pause suggestions restored', {
       id: toastId,
-      description: `${diagnostic.recipeName} В· ${diagnostic.moduleName}`,
+      description: `${diagnostic.moduleName} · ${diagnostic.recipeName}`,
       action: {
         label: 'Undo',
         onClick: () => {
