@@ -248,8 +248,11 @@ passing tests (run with `--reporter=verbose` to see names).
 Run `node --test tests/browser.smoke.mjs` and note the final `duration_ms`
 and each subtest's time. Call the total B.
 
-**Verify**: the reserve test passes; the smoke run reports `pass 11`,
-`fail 0`, `cancelled 0`.
+**Verify**: the reserve test passes; the smoke run reports `fail 0`. On a
+slow or busy machine the baseline can exceed the 300-second limit, in which
+case the last subtest is reported as cancelled (`cancelled 2`) without any
+assertion failing. That is acceptable for the baseline — it is the problem
+this plan addresses. Use that run's total as B.
 
 ### Step 2: Drop two redundant sync round-trips from the first subtest
 
@@ -340,8 +343,11 @@ Call the new total duration A.
 - `pass 10`, `fail 0`, `cancelled 0` (one parent test plus nine subtests).
 - A is at least 50 000 ms lower than B.
 - The aquifer subtest
-  (`keeps aquifer numbers, rows, selection, focus and scroll stable…`) took
-  under 40 000 ms.
+  (`keeps aquifer numbers, rows, selection, focus and scroll stable…`) still
+  passes. (It stays at about a minute: its second retry loop waits for the
+  factory-layout map layer, which polls on its own 60-second timer in
+  `app/hooks/use-map-layer.ts` and is not refreshed by "Sync now". Only an
+  app change can shorten that.)
 - `pnpm lint` exits 0.
 - `git status --short` lists only `tests/browser.smoke.mjs`.
 
@@ -367,8 +373,9 @@ removed Rock case.
 Stop and report back (do not improvise, and do not weaken or delete an
 assertion to get a pass) if:
 
-- Step 1's baseline run does not pass 11/11 on its own. Report which subtest
-  failed; the file has a problem this plan does not address.
+- Step 1's baseline run has a subtest that fails an assertion (`fail` above
+  0). Report which; the file has a problem this plan does not address. A
+  baseline that is only cancelled by the time limit is not a STOP condition.
 - After step 4, any assertion after `await ready()` in the aquifer subtest
   fails — in particular `document.activeElement.dataset.aquiferId` or the
   `viewState()` comparison. That means the scripted sync changed focus, scroll

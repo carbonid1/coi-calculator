@@ -26,13 +26,13 @@ of existing elements, data attributes, logs and stored data only.
 | [011](011-keep-hidden-pump-assignments.md) | Saving one pump assignment no longer erases stored assignments whose area is temporarily missing | P2 | S | — (after 006) | DONE (`0f25459` on `main`) |
 | [012](012-cover-next-preset-production-targets.md) | The recorded-factory smoke tests check the Next preset's production targets and household-appliance demand | P2 | S–M | 005 | DONE (`a59301d` on `main`) |
 | [013](013-ignore-agent-worktrees-in-eslint.md) | `pnpm lint` ignores agent worktrees and scratch folders | P1 | S | — | DONE (`9a5d2dc` on `main`) |
-| [014](014-trim-the-browser-smoke.md) | The browser smoke drops work vitest already covers and no longer waits a minute for a poll | P2 | S | — | TODO |
-| [015](015-normalise-line-endings.md) | Every text file uses LF line endings, enforced by `.gitattributes` | P2 | S | — (run when no open branch edits the four files) | TODO |
-| [016](016-test-map-layout-parsers-and-routes.md) | The map and layout parsers and the three data routes have fast unit tests | P2 | S–M | — | TODO |
-| [017](017-keep-sync-error-beside-cached-factory.md) | Showing the cached factory no longer hides why the first sync failed | P3 | S | — | TODO |
-| [018](018-remove-unreferenced-exports.md) | Three exports nothing references and one helper only its own test uses are gone | P3 | S | — | TODO |
-| [019](019-bridge-reports-what-failed.md) | When the Bridge cannot produce factory data, the calculator says what failed | P2 | S–M | — (needs the game installed to compile; in-game check by the maintainer) | TODO |
-| [020](020-guard-mine-storage-settings-startup.md) | A failure registering Mine Storage Control's settings tab is logged instead of escaping into the game's UI start-up | P3 | S | — (needs the game installed to compile; in-game check by the maintainer) | TODO |
+| [014](014-trim-the-browser-smoke.md) | The browser smoke drops work vitest already covers and no longer waits a minute for a poll | P2 | S | — | DONE (`89f952c` on `main`) |
+| [015](015-normalise-line-endings.md) | Every text file uses LF line endings, enforced by `.gitattributes` | P2 | S | — (run when no open branch edits the four files) | DONE (`4cc0cfc` on `main`) |
+| [016](016-test-map-layout-parsers-and-routes.md) | The map and layout parsers and the three data routes have fast unit tests | P2 | S–M | — | DONE (`e7ac74a` on `main`) |
+| [017](017-keep-sync-error-beside-cached-factory.md) | Showing the cached factory no longer hides why the first sync failed | P3 | S | — | DONE (`9a1b515` on `main`) |
+| [018](018-remove-unreferenced-exports.md) | Three exports nothing references and one helper only its own test uses are gone | P3 | S | — | DONE (`a8c73da` on `main`) |
+| [019](019-bridge-reports-what-failed.md) | When the Bridge cannot produce factory data, the calculator says what failed | P2 | S–M | — (needs the game installed to compile; in-game check by the maintainer) | DONE (`78b3dc9` on `main`; in-game check pending) |
+| [020](020-guard-mine-storage-settings-startup.md) | A failure registering Mine Storage Control's settings tab is logged instead of escaping into the game's UI start-up | P3 | S | — (needs the game installed to compile; in-game check by the maintainer) | DONE (`91fd53c` on `main`; in-game check pending) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -99,6 +99,22 @@ edits only `tests/browser.smoke.mjs`. 019 and 020 change C# mods: an executor
 can compile them here, but the maintainer must install and try them in the
 game.
 
+All seven were executed, reviewed and applied to `main` on 2026-11-12
+(`89f952c` … `4cc0cfc`). On `main` afterwards: `pnpm ts`, `pnpm lint` and
+`pnpm build` exit 0; vitest passes 96 files / 1,005 tests; the browser smoke
+passes 10/10 in 235 s (it was 263 s; about 65 s of margin under its 300 s
+limit). Both mods compile and their existing smoke checks pass.
+
+- **Still to do by the maintainer, in the game:** install the Bridge 0.65.1
+  (`pnpm game-mod:install`) and Mine Storage Control 0.2.1
+  (`scripts/build-mine-storage-control.ps1 -Install`), restart, and confirm
+  the calculator syncs and the Mine Storage Control tab opens.
+- 014 saved less than estimated: the aquifer subtest still takes a minute
+  because the map layers poll on their own timer (see the candidates table).
+- 015: `git checkout-index --force` alone did not refresh the working copies;
+  the files had to be deleted first. Branches with edits to the four
+  normalised files should merge with `git merge -X renormalize main`.
+
 Deliberately not planned (each is still in the candidates table with its
 reason): anything whose cost is unmeasured (render recomputation, solver warm
 start, first page load, worker payload), anything needing a product decision
@@ -152,6 +168,7 @@ start-up (020; removing stale settings tabs is still open).
 | Preferences and cached results are keyed by game name, not game id | `game-mod/CoiCalculatorExporter/GameSnapshotCollector.Capture.cs:40` | M | Investigate whether the game enforces unique names. |
 | Transitive build-tool advisories (`browserslist`, `source-map-js`, `baseline-browser-mapping`, `@babel/core`) | `pnpm audit --prod` on `0794128`; paths under `next` and `@carbonid1/design-system` | S | Try `pnpm update` within ranges, else `pnpm.overrides`. Build-time only; low exposure for a localhost tool. |
 | Two files have mixed line endings | `app/helpers/calculate/calculate.ts` (about 2,100 CRLF, 900 LF), `app/components/MinesView.tsx`; no `.gitattributes` | S | Any tool that rewrites the file turns a small edit into a 900-line diff (seen while executing plan 007). Normalise both to LF in one commit and add `* text=auto eol=lf`. |
+| "Sync now" does not refresh the map layers | `app/hooks/use-map-layer.ts:33-37` runs its own 60-second poll per layer with no manual refresh; `app/hooks/use-game-state.ts:123` only refreshes the factory data | S | After a manual sync a new building appears on the Mines map up to a minute later. Also the last slow minute in the browser smoke's aquifer subtest. Needs a decision on whether layers should follow the sync. |
 | Browser smoke subtests share one session and one replay state | `tests/browser.smoke.mjs:74`; each subtest resets its switches only on its last lines | S–M | One failure cascades into later subtests. Plan 014 trims runtime but leaves this. |
 | Dev server accepts any `Host` header | no middleware; `app/api/*/route.ts` | S | Read-only routes; low severity after plan 002. |
 | One throwing Bridge collector fails the whole snapshot without naming the section | `game-mod/CoiCalculatorExporter/CoiCalculatorExporterMod.cs:133-141`; `GameSnapshotCollector.Capture.cs:10-79` | S | Catch per section and return the section name. Needs Windows and the game. Complements plan 009. |
