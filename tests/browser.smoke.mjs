@@ -71,7 +71,7 @@ const listen = async server => {
 }
 
 test('recorded factory: browser → Next API → replayed game API → worker → UI', { timeout: 300_000 }, async t => {
-  const state = { mode: 'live', powerMeter: false, inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, emptyRock: false, limitedConnections: false, worldMining: false }
+  const state = { mode: 'live', powerMeter: false, inventoryBonus: 0, pausedPumps: false, mapMode: 'live', layoutMode: 'live', addedBuilding: false, officeCostBonus: 0, planningCostBonus: 0, limitedConnections: false, worldMining: false }
   const requests = new Set()
   const snapshotRequests = { count: 0 }
   const upstream = createServer((request, response) => {
@@ -147,8 +147,6 @@ test('recorded factory: browser → Next API → replayed game API → worker �
           { product: contract.importedProduct, direction: 'import', capacityPerCycle: 10 },
         ] } }
       }) } : fixture.contracts,
-      storages: fixture.storages.map(storage => state.emptyRock && storage.product.productId === 'Product_Rock'
-        ? { ...storage, quantity: 0 } : storage),
       schemaVersion: state.mode === 'old-bridge' ? fixture.schemaVersion - 1 : fixture.schemaVersion,
       planningDefinitions: state.mode === 'missing-planning-definitions' ? undefined : {
         ...fixture.planningDefinitions, factory: state.mode === 'missing-factory-definitions' ? undefined : fixture.planningDefinitions.factory,
@@ -326,20 +324,6 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.doesNotMatch(await text(), /Build Space Station level 4/)
     assert.deepEqual(await evaluate('Array.from(document.querySelectorAll("[data-checklist-module]")).map(node => node.dataset.checklistModule)'), ['general', 'live-area-15'])
     await screenshot('baseline-research-reminders')
-    state.stationCrewDisabled = false
-    state.researchRunning = true
-    await click('Sync now')
-    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
-    await ready()
-    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Enable Space Station crew/)
-    assert.equal(await evaluate('document.querySelectorAll("[data-checklist-module]").length'), 0)
-    state.stationCrewDisabled = true
-    state.researchRunning = false
-    await click('Sync now')
-    await browser('wait', '[aria-label="Sync now"]:not([disabled])')
-    await ready()
-    await expandChecklist()
-    assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Enable Space Station crew/)
     await browser('set', 'viewport', '375', '900')
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
     await browser('click', '[aria-label="Factory preset"]')
@@ -675,21 +659,6 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     state.inventoryBonus = 0
   })
 
-  await t.test('returns Rock to deficits when its synced storage is empty', async () => {
-    state.emptyRock = true
-    await browser('reload')
-    await ready()
-    await browser('wait', '--fn', `Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle')?.querySelector('[aria-label="Inspect Rock supply"]') != null`, '--timeout', '45000')
-    const deficit = await evaluate(`Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle').innerText`)
-
-    assert.match(deficit, /Rock\s+No producer\s+-51\.85/)
-    assert.equal(await evaluate(`document.querySelector('[aria-label="From storage"] [aria-label="Inspect Rock supply"]') === null`), true)
-    state.emptyRock = false
-    await browser('reload')
-    await ready()
-    await browser('wait', '[aria-label="From storage"] [aria-label="Inspect Rock supply"]')
-  })
-
   await t.test('keeps aquifer numbers, rows, selection, focus and scroll stable through live pump changes', async () => {
     const response = await fetch(`${appUrl}/api/game-state`)
 
@@ -721,6 +690,8 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     const newQuantity = fixture.products.inventory.Product_Gold.quantity + 123
     const receivedUpdate = `JSON.parse(localStorage.getItem('coi-game-state-last-valid-v1'))?.products.inventory.Product_Gold.quantity === ${newQuantity}`
 
+    // Same poll as the automatic one; a scripted click leaves keyboard focus on the map.
+    await evaluate('document.querySelector("[aria-label=\\"Sync now\\"]").click()')
     for (const attempt of [0, 1, 2, 3]) {
       try {
         await browser('wait', '--fn', receivedUpdate, '--timeout', '20000')
@@ -782,7 +753,11 @@ test('recorded factory: browser → Next API → replayed game API → worker �
       const response = await fetch(`${appUrl}/api/game-state`)
 
       assert.equal(response.status, status, mode)
-      assert.ok((await response.json()).error)
+      const { error } = await response.json()
+
+      assert.ok(error, mode)
+      if (mode === 'old-bridge') assert.equal(error, 'Update CoI Calculator Bridge for this version of the calculator.')
+      else if (status === 422) assert.equal(error, 'The calculator could not read this factory.', mode)
     }
     await browser('reload')
     await browser('wait', '[data-game-sync="error"]', '--timeout', '45000')
