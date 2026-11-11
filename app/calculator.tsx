@@ -56,6 +56,11 @@ import {
 import { calculateContractWorkers } from './helpers/contracts/calculate-contracts'
 import { calculateFactoryTotal } from './helpers/factory-total/factory-total'
 import { type MachineZoneAssignments } from './helpers/machine-allocation/machine-allocation'
+import {
+  parseStoredMachineZoneAssignments,
+  selectActiveMachineZoneAssignments,
+  withMachineZoneAssignment,
+} from './helpers/machine-allocation/machine-zone-assignments'
 import { getRecipeOutputQuantity } from './helpers/modifiers/recipe-output'
 import { extractModuleResult } from './helpers/module-result/module-result'
 import { getPresetResourceDemands } from './helpers/preset-resource-demands/preset-resource-demands'
@@ -172,28 +177,11 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
         const validGroundwaterPumpClaimIds = new Set(
           groundwaterPumpClaimIds.split('|').filter(Boolean),
         )
-        const stored: unknown = JSON.parse(
-          window.localStorage.getItem(machineZoneAssignmentsStorageKey) ?? '{}',
-        )
 
-        if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
-          setMachineZoneAssignments({})
-          return
-        }
-
-        const assignments: Record<number, string> = {}
-
-        for (const [zoneId, claimId] of Object.entries(stored)) {
-          if (
-            /^-?\d+$/.test(zoneId) &&
-            typeof claimId === 'string' &&
-            validGroundwaterPumpClaimIds.has(claimId)
-          ) {
-            assignments[Number(zoneId)] = claimId
-          }
-        }
-
-        setMachineZoneAssignments(assignments)
+        setMachineZoneAssignments(selectActiveMachineZoneAssignments(
+          parseStoredMachineZoneAssignments(window.localStorage.getItem(machineZoneAssignmentsStorageKey)),
+          validGroundwaterPumpClaimIds,
+        ))
       } catch {
         setMachineZoneAssignments({})
       } finally {
@@ -205,23 +193,33 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   }, [machineZoneAssignmentsStorageKey, groundwaterPumpClaimIds])
 
   const assignMachineZone = (zoneId: number, claimId: string | null) => {
-    const next = { ...machineZoneAssignments }
-
-    if (claimId) {
-      next[zoneId] = claimId
-    } else {
-      delete next[zoneId]
-    }
-
     if (machineZoneAssignmentsStorageKey) {
       try {
-        window.localStorage.setItem(machineZoneAssignmentsStorageKey, JSON.stringify(next))
+        // Merge into what is stored, not into the active subset, so choices
+        // for an area that is missing right now survive this save.
+        const stored = parseStoredMachineZoneAssignments(
+          window.localStorage.getItem(machineZoneAssignmentsStorageKey),
+        )
+
+        window.localStorage.setItem(
+          machineZoneAssignmentsStorageKey,
+          JSON.stringify(withMachineZoneAssignment(stored, zoneId, claimId)),
+        )
       } catch {
         toast.error('Could not save pump assignment. Check browser storage and try again.')
         return
       }
     }
-    setMachineZoneAssignments(next)
+    setMachineZoneAssignments(current => {
+      const next = { ...current }
+
+      if (claimId) {
+        next[zoneId] = claimId
+      } else {
+        delete next[zoneId]
+      }
+      return next
+    })
   }
 
   useEffect(() => {
