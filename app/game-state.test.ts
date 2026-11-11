@@ -4,6 +4,7 @@ import { defaultEdictLevels, edictCatalog } from './db/edicts'
 import { mapFocusValues } from './db/offices'
 import {
   CURRENT_GAME_STATE_SCHEMA_VERSION,
+  describeGameStateSnapshotRejection,
   isGameStateSnapshot,
   normalizeGameStateSnapshot,
 } from './game-state'
@@ -517,5 +518,17 @@ describe('game-state snapshot validation', () => {
         electricityGeneration: { byType: [generation, generation] },
       },
     })).toBe(false)
+  })
+
+  it('names why a Bridge reply is rejected', () => {
+    const current = { schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION, gameVersion: '0.8.8' }
+
+    expect(describeGameStateSnapshotRejection({ ...current, schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION - 1 })).toBe('bridge-outdated')
+    expect(describeGameStateSnapshotRejection({ ...current, schemaVersion: CURRENT_GAME_STATE_SCHEMA_VERSION + 1 })).toBe('calculator-outdated')
+    expect(describeGameStateSnapshotRejection({ ...current, gameVersion: '0.8.9' })).toBe('game-version')
+    expect(describeGameStateSnapshotRejection(current)).toBe('invalid')
+    for (const value of [null, 'text', [], {}, { schemaVersion: '56' }]) {
+      expect(describeGameStateSnapshotRejection(value)).toBe('invalid')
+    }
   })
 })

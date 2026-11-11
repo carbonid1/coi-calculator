@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { testProducts } from '../test-fixtures/products'
 
-const { normalize, revision } = vi.hoisted(() => ({ normalize: vi.fn(), revision: vi.fn() }))
+const { normalize, rejection, revision } = vi.hoisted(() => ({ normalize: vi.fn(), rejection: vi.fn(), revision: vi.fn() }))
 
 vi.mock('server-only', () => ({}))
-vi.mock('../game-state', () => ({ normalizeGameStateSnapshot: normalize }))
+vi.mock('../game-state', () => ({
+  describeGameStateSnapshotRejection: rejection, normalizeGameStateSnapshot: normalize,
+}))
 vi.mock('./game-state-snapshot-revision', () => ({ calculateGameStateSnapshotRevision: revision }))
 
 const snapshot = {
@@ -62,6 +64,7 @@ beforeEach(() => {
     return Promise.resolve(new Response(null, { status: 404 }))
   })
   normalize.mockReturnValue(snapshot)
+  rejection.mockReturnValue('invalid')
   revision.mockReturnValue('revision-a')
 })
 
@@ -129,6 +132,18 @@ it('rejects malformed JSON and incompatible game data', async () => {
   expect(await read()).toMatchObject({ httpStatus: 422, snapshot: null })
   normalize.mockReturnValueOnce(null)
   expect(await read()).toMatchObject({ httpStatus: 422, snapshot: null })
+})
+
+it.each([
+  ['bridge-outdated', 'Update CoI Calculator Bridge for this version of the calculator.'],
+  ['calculator-outdated', 'Update the calculator for this version of CoI Calculator Bridge.'],
+  ['game-version', 'This game version is not supported yet.'],
+  ['invalid', 'The calculator could not read this factory.'],
+])('names the mismatch behind a rejected Bridge reply: %s', async (reason, error) => {
+  normalize.mockReturnValueOnce(null)
+  rejection.mockReturnValueOnce(reason)
+  expect(await read()).toMatchObject({ httpStatus: 422, snapshot: null, status: 'error', error })
+  expect(rejection).toHaveBeenCalledWith({ raw: 'game' })
 })
 
 it('rejects a game load between native inventory and bridge collection', async () => {

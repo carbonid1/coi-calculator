@@ -1,6 +1,9 @@
 import 'server-only'
 
-import { normalizeGameStateSnapshot, type GameStateSnapshot } from '../game-state'
+import {
+  describeGameStateSnapshotRejection, normalizeGameStateSnapshot,
+  type GameStateSnapshot, type GameStateSnapshotRejection,
+} from '../game-state'
 import { isGameIdentity, normalizeNativeProducts } from '../product-state'
 import { calculateGameStateSnapshotRevision } from './game-state-snapshot-revision'
 import { fetchGameWebApi } from './game-web-api'
@@ -31,6 +34,13 @@ const REQUEST_TIMEOUT_MS = 8_000
 const logged: { error: string | null } = { error: null }
 const requests: { pending: Promise<GameStateSnapshotReadResult> | null } = { pending: null }
 
+const rejectionMessages: Record<GameStateSnapshotRejection, string> = {
+  'bridge-outdated': 'Update CoI Calculator Bridge for this version of the calculator.',
+  'calculator-outdated': 'Update the calculator for this version of CoI Calculator Bridge.',
+  'game-version': 'This game version is not supported yet.',
+  invalid: 'The calculator could not read this factory.',
+}
+
 const unavailable = (
   httpStatus: UnavailableResult['httpStatus'],
   error: string,
@@ -59,8 +69,10 @@ const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
     return unavailable(502, 'The game could not provide calculator data. Check the game log.')
   }
 
-  const [bridge, catalog, inventory, rawHistory, afterResponse] = await Promise.all([
-    response.json().then(normalizeGameStateSnapshot).catch(() => null),
+  const [{ raw, bridge }, catalog, inventory, rawHistory, afterResponse] = await Promise.all([
+    response.json()
+      .then((raw: unknown) => ({ raw, bridge: normalizeGameStateSnapshot(raw) }))
+      .catch(() => ({ raw: null, bridge: null })),
     catalogResponse.json().catch(() => null),
     inventoryResponse.json().catch(() => null),
     historyResponse.json().catch(() => null),
@@ -70,7 +82,7 @@ const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
   const products = normalizeNativeProducts(catalog, inventory, before)
 
   if (!bridge) {
-    return unavailable(422, 'Update CoI Calculator Bridge for this version of the calculator and game.')
+    return unavailable(422, rejectionMessages[describeGameStateSnapshotRejection(raw)])
   }
   if (!products) {
     return unavailable(502, 'The game could not provide product and inventory data. Check the game log.')

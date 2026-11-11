@@ -1104,6 +1104,19 @@ const normalizeWorld = (value: unknown): SyncedWorldState | null => {
   return new Set(ids).size === ids.length ? { mines, routes, unassignedShipIds: value.unassignedShipIds, unassignedWorkers: value.unassignedWorkers } : null
 }
 
+const SUPPORTED_GAME_VERSION = /^0\.8\.8[a-z]?$/
+
+export type GameStateSnapshotRejection = 'bridge-outdated' | 'calculator-outdated' | 'game-version' | 'invalid'
+
+/** Names why a Bridge reply failed normalizeGameStateSnapshot, so the status line can give the right advice. */
+export const describeGameStateSnapshotRejection = (value: unknown): GameStateSnapshotRejection => {
+  if (!isUnknownRecord(value) || typeof value.schemaVersion !== 'number') return 'invalid'
+  if (value.schemaVersion < CURRENT_GAME_STATE_SCHEMA_VERSION) return 'bridge-outdated'
+  if (value.schemaVersion > CURRENT_GAME_STATE_SCHEMA_VERSION) return 'calculator-outdated'
+  if (typeof value.gameVersion === 'string' && !SUPPORTED_GAME_VERSION.test(value.gameVersion)) return 'game-version'
+  return 'invalid'
+}
+
 export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | null => {
   if (!isUnknownRecord(value)) return null
 
@@ -1123,7 +1136,7 @@ export const normalizeGameStateSnapshot = (value: unknown): GameStateSnapshot | 
   if (snapshot.products !== undefined && (!isNativeProducts(snapshot.products)
     || snapshot.products.gameId !== snapshot.gameId || snapshot.products.sessionId !== snapshot.sessionId)) return null
   if (!isRecyclingData(snapshot.recycling)) return null
-  if (typeof snapshot.gameVersion !== 'string' || !/^0\.8\.8[a-z]?$/.test(snapshot.gameVersion)) return null
+  if (typeof snapshot.gameVersion !== 'string' || !SUPPORTED_GAME_VERSION.test(snapshot.gameVersion)) return null
   if (typeof snapshot.gameId !== 'string' || !/^-?\d+$/.test(snapshot.gameId)) return null
   if (typeof snapshot.sessionId !== 'string' || !/^-?\d+$/.test(snapshot.sessionId)) return null
   if (!isSyncedSettlementState(snapshot.settlement) || !isWeatherConfig(snapshot.weather)) return null
