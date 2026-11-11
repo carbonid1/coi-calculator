@@ -5,13 +5,13 @@ const scienceExpansionLayers = [
   'science', 'settlement', 'power-water', 'computing', 'farms', 'refining', 'construction', 'operating',
 ] as const
 
-export type PlanLayerId = typeof scienceExpansionLayers[number] | 'third-fbr' | 'research-on' | 'waste-recovery'
+export type PlanLayerId = typeof scienceExpansionLayers[number] | 'third-fbr' | 'research-on' | 'waste-recovery' | 'household-appliances'
 
 const baselineLayers = ['research-on'] as const
 
 export const factoryPresets = [
   { id: 'baseline', name: 'Baseline', layers: baselineLayers },
-  { id: 'next', name: 'Next', layers: [...baselineLayers, 'construction', 'waste-recovery'] },
+  { id: 'next', name: 'Next', layers: [...baselineLayers, 'construction', 'waste-recovery', 'household-appliances'] },
 ] as const
 export const defaultFactoryPresetId = factoryPresets[0].id
 
@@ -41,6 +41,10 @@ export const resolvePlanAreaTargets = (plans: LiveAreaPlans, selected: ReadonlyS
     return [zoneId, {
       resourcePool: plan.resourcePool,
       ...(selected.has('farms') ? { cropFarms: plan.cropFarms } : {}),
+      ...(selected.has('household-appliances') ? {
+        householdAppliances: plan.householdAppliances,
+        productionTargets: plan.productionTargets,
+      } : {}),
       ...(selected.has('third-fbr') ? { chickenFarms: plan.chickenFarms, foodPackProduction: plan.foodPackProduction } : {}),
       ...(selected.has('computing') ? { computing: plan.computing, offices: plan.offices } : {}),
       ...(selected.has('operating') ? {

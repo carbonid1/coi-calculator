@@ -30,6 +30,7 @@ export const settlementRecipeIds = {
   transformer: 'housing-transformer',
   waterFacility: 'housing-water-facility',
   householdGoodsModule: 'housing-household-goods-module',
+  householdAppliancesModule: 'housing-household-appliances-module',
   wasteCollection: 'housing-waste-collection',
   recyclablesCollection: 'housing-recyclables-collection',
   biomassCollection: 'housing-biomass-collection',
@@ -49,8 +50,12 @@ export interface SettlementPopulationFlows {
 export interface SettlementSupply {
   foodResourceIds: ReadonlySet<ResourceId>
   householdGoods: boolean
+  householdAppliances?: boolean
   healthcare: boolean
 }
+
+// SettlementHouseholdAppliancesModule's native rate in Update 4.3.
+const householdAppliancesPerPop = 0.007
 
 export const calculateSettlementPopulationFlows = (
   definitions: PlanningDefinitions,
@@ -114,6 +119,13 @@ export const calculateSettlementPopulationFlows = (
               quantity: householdGoods,
             },
           ]
+        : []),
+      ...(supply?.householdAppliances
+        ? [{
+            resourceId: 'householdAppliances' as const,
+            inputModifierId: 'settlementConsumption' as const,
+            quantity: householdAppliancesPerPop * normalizedPopulation * housing.serviceDemandMultipliers.householdAppliances,
+          }]
         : []),
     ],
     outputs: [

@@ -591,6 +591,15 @@ const recipePolicies: Recipe[] = [
     outputs: [],
   },
   {
+    id: settlementRecipeIds.householdAppliancesModule,
+    name: 'Household Appliances Module',
+    building: 'Household Appliances Module',
+    gameBuildingId: 'SettlementHouseholdAppliancesModule',
+    group: 'production',
+    inputs: [],
+    outputs: [],
+  },
+  {
     id: settlementRecipeIds.wasteCollection,
     name: 'Waste Collection',
     building: 'Waste Collection',

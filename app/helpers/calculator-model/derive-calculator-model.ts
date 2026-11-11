@@ -67,6 +67,7 @@ import {
   thirdFbrBiomassMixerCount,
   thirdFbrHousingCount,
 } from '../../db/modules/population'
+import { applyLiveAreaProductionTargets } from '../../db/modules/production-targets'
 import { createReservesModule } from '../../db/modules/reserves'
 import {
   createSpaceStationModule,
@@ -443,6 +444,7 @@ const deriveUncalibratedCalculatorModel = ({
     if (!module.liveArea) return module
 
     const configured = { module }
+    const productionTargets = liveAreaPlans[module.liveArea.zoneId]?.productionTargets
 
     if (module.id === DEFAULT_MODULE_ID) {
       configured.module = createDefaultCropFarmModule(
@@ -474,6 +476,7 @@ const deriveUncalibratedCalculatorModel = ({
       configured.module = createConfiguredSpaceStationModule(module)
     } else if (hasModuleCapability(module, 'population')) {
       const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
+      const planHouseholdAppliances = liveAreaPlans[module.liveArea.zoneId]?.householdAppliances ?? false
 
       if (syncedInventory) {
         configured.module = applySettlementState(planningDefinitions, createPopulationModule(
@@ -484,7 +487,8 @@ const deriveUncalibratedCalculatorModel = ({
           populationHousingPlanTargets.get(module.liveArea.zoneId) ?? null,
           targets.has('settlement'),
           targets.has('third-fbr') ? thirdFbrBiomassMixerCount : null,
-        ), snapshot.settlement, productionEntities)
+          planHouseholdAppliances,
+        ), snapshot.settlement, productionEntities, planHouseholdAppliances)
       }
     } else if (hasModuleCapability(module, 'computing')) {
       const areaComputingConfigs = resolveComputingEntityInventory(
@@ -502,6 +506,10 @@ const deriveUncalibratedCalculatorModel = ({
           .filter(entity => entity.prototypeId === 'DataCenter' && !entity.running)
           .map(entity => entity.dataCenterRacks ?? 0),
       )
+    }
+
+    if (productionTargets?.length) {
+      configured.module = applyLiveAreaProductionTargets(planningDefinitions, configured.module, productionTargets)
     }
 
     if (baselineResearchLabEntities) {

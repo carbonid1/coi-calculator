@@ -84,6 +84,7 @@ export const createPopulationModule = (
   plannedHousingTarget: number | null = plannedHousingCount,
   includeHouseholdGoodsPlan = true,
   plannedBiomassMixerTarget: number | null = null,
+  planHouseholdAppliances = false,
 ): Module => {
   const housingTypes = getHousingTypes(planningDefinitions);
   const activeHousingType = housingTypes.housingIII;
@@ -319,6 +320,7 @@ export const createPopulationModule = (
         ...rawGeneratedPreset.fixed.filter(id => !isReplacedGeneratedRecipeId(id)),
         ...specialItems.filter(item => item.fixed).map(item => item.recipeId),
         ...(hasHousingPlan ? [settlementRecipeIds.residents] : []),
+        ...(planHouseholdAppliances ? [settlementRecipeIds.householdAppliancesModule] : []),
       ]),
     ],
     speedLevels: {
@@ -340,6 +342,14 @@ export const createPopulationModule = (
   const biomassRecipe = generatedArea.recipes?.find(recipe => (
     recipe.gameBuildingId === 'IndustrialMixerT2' && recipe.gameRecipeId === 'BiomassCompost'
   ));
+  const serviceTargets = [
+    ...(biomassRecipe && plannedBiomassMixerTarget != null
+      ? [{ recipeId: biomassRecipe.id, name: 'Mixer II', target: plannedBiomassMixerTarget }]
+      : []),
+    ...(planHouseholdAppliances
+      ? [{ recipeId: settlementRecipeIds.householdAppliancesModule, name: 'Household Appliances Module', target: 1 }]
+      : []),
+  ];
 
   return {
     ...generatedArea,
@@ -352,10 +362,8 @@ export const createPopulationModule = (
     recipes: generatedArea.recipes?.filter(recipe => (
       !isReplacedGeneratedRecipeId(recipe.id)
     )),
-    presets: [biomassRecipe && plannedBiomassMixerTarget != null
-      ? applyNuclearOperationTargets(generatedPreset, generatedArea.recipes ?? [], [{
-          recipeId: biomassRecipe.id, name: 'Mixer II', target: plannedBiomassMixerTarget,
-        }])
+    presets: [serviceTargets.length > 0
+      ? applyNuclearOperationTargets(generatedPreset, generatedArea.recipes ?? [], serviceTargets)
       : generatedPreset],
     defaultPresetId: generatedPreset.id,
     liveArea: generatedArea.liveArea

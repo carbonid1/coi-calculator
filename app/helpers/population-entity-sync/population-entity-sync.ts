@@ -38,6 +38,10 @@ export const populationEntityMatchers: readonly PopulationEntityMatcher[] = [
     prototypeId: "SettlementHouseholdGoodsModule",
     recipeId: settlementRecipeIds.householdGoodsModule,
   },
+  {
+    prototypeId: "SettlementHouseholdAppliancesModule",
+    recipeId: settlementRecipeIds.householdAppliancesModule,
+  },
   { prototypeId: "SettlementLandfillModule", recipeId: settlementRecipeIds.wasteCollection },
   {
     prototypeId: "SettlementRecyclablesModule",

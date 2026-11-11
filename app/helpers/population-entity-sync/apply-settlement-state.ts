@@ -66,6 +66,7 @@ export const applySettlementState = (
   module: Module,
   state: SyncedSettlementState,
   entities: readonly SyncedProductionEntity[],
+  planHouseholdAppliances = false,
 ): Module => {
   const preset = module.presets.find(candidate => candidate.id === module.defaultPresetId)
 
@@ -145,6 +146,8 @@ export const applySettlementState = (
           foodResourceIds,
           householdGoods: plannedHouseholdGoods
             || settlement.serviceIds.includes('HouseholdGoodsNeed'),
+          householdAppliances: planHouseholdAppliances
+            || settlement.serviceIds.includes('HouseholdAppliancesNeed'),
           healthcare: settlement.serviceIds.includes('HealthCareNeed'),
         },
       )
