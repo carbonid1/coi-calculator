@@ -10,10 +10,6 @@ export interface WorldMinePlanning {
   fullThrottle: Readonly<Record<string, boolean>>
 }
 
-export const getWorldMinePreferencesStorageKey = (saveId: string | null | undefined) => (
-  saveId ? `coi-world-mine-full-throttle-v1:${encodeURIComponent(saveId)}` : null
-)
-
 export const getBalancedWorldResources = ({ world, fullThrottle }: WorldMinePlanning) => (
   [...new Set(world.mines.flatMap(mine => {
     const id = resolveSyncedResourceId(mine.product)

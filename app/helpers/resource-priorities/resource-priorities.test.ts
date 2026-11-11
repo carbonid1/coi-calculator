@@ -1,10 +1,8 @@
 import { expect, it } from 'vitest'
 
-import { allocateProcessingSupply, getResourcePriorityStorageKey, parseResourcePriorityOverrides } from './resource-priorities'
+import { allocateProcessingSupply, parseResourcePriorityOverrides } from './resource-priorities'
 
-it('scopes persisted overrides to a save and rejects invalid settings', () => {
-  expect(getResourcePriorityStorageKey(null)).toBeNull()
-  expect(getResourcePriorityStorageKey('One / two')).not.toBe(getResourcePriorityStorageKey('One'))
+it('rejects invalid persisted overrides', () => {
   expect(parseResourcePriorityOverrides(JSON.stringify({
     12: { brine: 'local-first', salt: 'factory', badResource: 'local-first', water: 'bad' },
     13: ['local-first'], badArea: { brine: 'local-first' },

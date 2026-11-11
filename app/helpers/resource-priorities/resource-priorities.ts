@@ -2,12 +2,8 @@ import { type Recipe } from '../../db/recipes'
 import { type ResourceProcessingPriorities, type ResourceProcessingPriority } from '../../db/resource-supply'
 import { resources, type ResourceId } from '../../db/resources'
 
-/** Browser overrides are scoped to a save, then stable game area IDs. */
+/** Overrides are scoped to stable game area IDs within a save's preset. */
 export type ResourcePriorityOverrides = Readonly<Record<number, ResourceProcessingPriorities>>
-
-export const getResourcePriorityStorageKey = (saveId: string | null | undefined) => (
-  saveId ? `coi-resource-priorities-v1:${encodeURIComponent(saveId)}` : null
-)
 
 export const isResourceProcessingPriority = (value: unknown): value is ResourceProcessingPriority => (
   value === 'factory' || value === 'local-first'
