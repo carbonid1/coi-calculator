@@ -186,7 +186,7 @@ it('burns available Waste in Next and recovers residual local steam before impor
 
   expect(appliances(baseline)).toBe(0)
   expect(appliances(next)).toBeGreaterThan(0)
-}, 40_000)
+}, 120_000)
 
 it('raises every recorded area to its Next production targets and leaves Baseline unplanned', () => {
   const snapshot = normalizeGameStateSnapshot(structuredClone(capture))

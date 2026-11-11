@@ -444,7 +444,8 @@ const deriveUncalibratedCalculatorModel = ({
     if (!module.liveArea) return module
 
     const configured = { module }
-    const productionTargets = liveAreaPlans[module.liveArea.zoneId]?.productionTargets
+    const areaPlan = liveAreaPlans[module.liveArea.zoneId]
+    const productionTargets = areaPlan?.productionTargets
 
     if (module.id === DEFAULT_MODULE_ID) {
       configured.module = createDefaultCropFarmModule(
@@ -476,7 +477,7 @@ const deriveUncalibratedCalculatorModel = ({
       configured.module = createConfiguredSpaceStationModule(module)
     } else if (hasModuleCapability(module, 'population')) {
       const syncedInventory = populationInventoriesByZone.get(module.liveArea.zoneId)
-      const planHouseholdAppliances = liveAreaPlans[module.liveArea.zoneId]?.householdAppliances ?? false
+      const planHouseholdAppliances = areaPlan?.householdAppliances ?? false
 
       if (syncedInventory) {
         configured.module = applySettlementState(planningDefinitions, createPopulationModule(
@@ -484,7 +485,7 @@ const deriveUncalibratedCalculatorModel = ({
           syncedInventory,
           module,
           housingCapacityLevel,
-          populationHousingPlanTargets.get(module.liveArea.zoneId) ?? null,
+          areaPlan?.housingTarget ?? populationHousingPlanTargets.get(module.liveArea.zoneId) ?? null,
           targets.has('settlement'),
           targets.has('third-fbr') ? thirdFbrBiomassMixerCount : null,
           planHouseholdAppliances,

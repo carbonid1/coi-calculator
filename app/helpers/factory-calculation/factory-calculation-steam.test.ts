@@ -30,6 +30,33 @@ const calculate = (modules: Module[], links: ModuleResourceLink[] = []) => calcu
   recyclingEfficiencyPercent: 100,
 })
 
+it('routes pooled and isolated brine overflow to local disposal after production', () => {
+  const copper = moduleWith('Copper', [recipe('copper-brine', {
+    outputs: [{ resourceId: 'brine', quantity: 10 }],
+  })])
+  const exhaust = moduleWith('Exhaust', [recipe('exhaust-brine', {
+    outputs: [{ resourceId: 'brine', quantity: 5 }],
+  })], false)
+  const receiver = moduleWith('Default', [
+    recipe('salt', { balanceBy: 'output', inputs: [{ resourceId: 'brine', quantity: 12 }],
+      outputs: [{ resourceId: 'salt', quantity: 12 }] }),
+    recipe('brine-dump', { group: 'sink', sinkScope: 'module', inputs: [{ resourceId: 'brine', quantity: 20 }] }),
+  ])
+
+  receiver.presets[0].fixedDemands = { salt: 4 }
+  const result = calculate([copper, exhaust, receiver], [copper, exhaust].map(source => ({
+    id: `${source.id}-brine`, resourceId: 'brine', mode: 'surplus-only', exportAllSurplus: true,
+    sourceModuleId: source.id, sourceModuleName: source.name,
+    targetModuleId: receiver.id, targetModuleName: receiver.name,
+  })))
+  const { flows, calculation } = result.factoryResult
+
+  expect(result.linkedModulesResult.transfers.map(link => link.quantity)).toEqual([10, 5])
+  expect(calculation.regularResults.find(line => line.recipe.id === 'salt')?.actualOutputs[0]?.quantity).toBeCloseTo(4)
+  expect(calculation.sinkResults.find(line => line.recipe.id === 'brine-dump')?.actualInputs[0]?.quantity).toBeCloseTo(11)
+  expect(flows.find(flow => flow.resourceId === 'brine')).toMatchObject({ produced: 15, consumed: 15, net: 0 })
+})
+
 it('keeps auto-balance-off turbines at full steam draw with excess electricity', () => {
   const nuclear = moduleWith('Nuclear', [
     recipe('steam', { outputs: [{ resourceId: 'steamSuper', quantity: 192 }] }),

@@ -11,6 +11,8 @@ export interface ModuleResourceLinkDefinition {
   targetZoneId: number
   resourceId: ResourceId
   mode: ModuleResourceLinkMode
+  /** Send all available surplus, including overflow beyond production demand. */
+  exportAllSurplus?: boolean
 }
 
 export interface ModuleResourceLink {
@@ -21,6 +23,7 @@ export interface ModuleResourceLink {
   targetModuleId: string
   resourceId: ResourceId
   mode: ModuleResourceLinkMode
+  exportAllSurplus?: boolean
 }
 
 export interface ModuleResourceTransfer extends ModuleResourceLink {
@@ -62,6 +65,33 @@ export const moduleResourceLinkDefinitions: readonly ModuleResourceLinkDefinitio
     resourceId: 'exhaust',
     mode: 'surplus-only',
   },
+  {
+    id: 'copper-1-brine-to-default',
+    saveId: 'Last-Stop Waters',
+    sourceZoneId: 16,
+    targetZoneId: -1,
+    resourceId: 'brine',
+    mode: 'surplus-only',
+    exportAllSurplus: true,
+  },
+  {
+    id: 'steel-1-brine-to-default',
+    saveId: 'Last-Stop Waters',
+    sourceZoneId: 21,
+    targetZoneId: -1,
+    resourceId: 'brine',
+    mode: 'surplus-only',
+    exportAllSurplus: true,
+  },
+  {
+    id: 'exhaust-1-brine-to-default',
+    saveId: 'Last-Stop Waters',
+    sourceZoneId: 17,
+    targetZoneId: -1,
+    resourceId: 'brine',
+    mode: 'surplus-only',
+    exportAllSurplus: true,
+  },
 ]
 
 export const resolveModuleResourceLinks = (
@@ -88,6 +118,7 @@ export const resolveModuleResourceLinks = (
       targetModuleId: target.id,
       resourceId: definition.resourceId,
       mode: definition.mode,
+      ...(definition.exportAllSurplus ? { exportAllSurplus: true } : {}),
     }]
   })
 }

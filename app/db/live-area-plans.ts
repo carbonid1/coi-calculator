@@ -1,6 +1,6 @@
 import { type ChickenFarmSettings } from './chicken-farm'
 import { type ComputingConfig } from './computing'
-import { activeCropFarmGroups, thirdFbrCropFarmGroups } from './crop-farm-plans'
+import { activeCropFarmGroups, applianceCropFarmGroups, thirdFbrCropFarmGroups } from './crop-farm-plans'
 import { type CropFarmGroup } from './crop-farming'
 import { type LiveAreaProductionTarget } from './modules/production-targets'
 import { plannedOfficePlan, type OfficeConfigurationCount } from './offices'
@@ -9,8 +9,10 @@ import { type ResourceId } from './resources'
 
 interface LiveAreaPlan {
   householdAppliances?: boolean
+  housingTarget?: number
   productionTargets?: readonly LiveAreaProductionTarget[]
   cropFarms?: readonly CropFarmGroup[]
+  applianceCropFarms?: readonly CropFarmGroup[]
   chickenFarms?: ChickenFarmSettings
   foodPackProduction?: Partial<Record<'eggs' | 'meat', number>>
   thirdFbr?: Pick<LiveAreaPlan, 'cropFarms' | 'chickenFarms' | 'foodPackProduction'>
@@ -42,39 +44,60 @@ const liveAreaPlansBySave: Readonly<Record<string, LiveAreaPlans>> = {
           product: 'ethanol', target: 5 },
         { buildingId: 'CrusherLarge', recipeId: 'CopperOreCrushing', building: 'Crusher (large)',
           product: 'copperOreCrushed', target: 2 },
+        { buildingId: 'CrusherLarge', recipeId: 'QuartzMilling', building: 'Crusher (large)',
+          product: 'sand', target: 3 },
         { buildingId: 'VacuumDistillationTower', recipeId: 'RubberProductionEthanol', building: 'Rubber maker',
           product: 'rubber', target: 3 },
+        { buildingId: 'WasteDump', recipeId: 'BrineDumping', building: 'Liquid dump',
+          product: 'brine', sinkScope: 'module', target: 1 },
       ],
     },
-    10: { cropFarms: activeCropFarmGroups, thirdFbr: { cropFarms: thirdFbrCropFarmGroups } },
+    10: {
+      cropFarms: activeCropFarmGroups,
+      applianceCropFarms: applianceCropFarmGroups,
+      thirdFbr: { cropFarms: thirdFbrCropFarmGroups },
+    },
     12: {
       resourceProcessingPriorities: { brine: 'local-first' },
     },
     13: {
       computing: { dataCenterCount: 8, rackCount: 369, waterChillers: 8 },
     },
-    14: { householdAppliances: true },
+    14: { householdAppliances: true, housingTarget: 28 },
     16: {
       resourcePool: 'factory',
       productionTargets: [
         { buildingId: 'ArcFurnace2', recipeId: 'CopperSmeltingArc', building: 'Arc furnace II',
-          product: 'moltenCopper', target: 7 },
+          product: 'moltenCopper', target: 8 },
         { buildingId: 'CasterT2', recipeId: 'CopperCasting', building: 'Metal caster II',
-          pluralName: 'Metal casters II', product: 'impureCopper', target: 14 },
+          pluralName: 'Metal casters II', product: 'impureCopper', target: 15 },
         { buildingId: 'CopperElectrolysis', recipeId: 'CopperElectrolysisProcess', building: 'Copper electrolysis',
-          pluralName: 'copper electrolysis units', product: 'copper', target: 14 },
+          pluralName: 'copper electrolysis units', product: 'copper', target: 15 },
+        { buildingId: 'OceanWaterPumpT1', recipeId: 'OceanWaterPumping', building: 'Seawater pump',
+          product: 'seaWater', sourceMode: 'module-demand-capped', target: 2 },
       ],
     },
     21: {
       resourcePool: 'factory',
+      productionTargets: [
+        { buildingId: 'ArcFurnace2', recipeId: 'IronSmeltingArc', building: 'Arc furnace II',
+          product: 'moltenIron', target: 7 },
+        { buildingId: 'OxygenFurnaceT2', recipeId: 'SteelSmeltingT2', building: 'Oxygen furnace II',
+          product: 'moltenSteel', target: 7 },
+        { buildingId: 'CasterCooledT2', recipeId: 'SteelCastingCooled', building: 'Cooled caster II',
+          product: 'steel', target: 7 },
+      ],
     },
     23: {
       offices: [{ tierId: 'officeIII', ...plannedOfficePlan.offices.officeIII }],
     },
-    26: { thirdFbr: {
-      chickenFarms: { totalChickenCount: 3_850, slaughtering: true },
-      foodPackProduction: { eggs: 41.499, meat: 19.201 },
-    } },
+    26: {
+      chickenFarms: { totalChickenCount: 3_900, slaughtering: true },
+      thirdFbr: {
+        chickenFarms: { totalChickenCount: 3_850, slaughtering: true },
+        foodPackProduction: { eggs: 41.499, meat: 19.201 },
+      },
+    },
     28: {
       resourcePool: 'factory',
       productionTargets: [

@@ -78,6 +78,7 @@ const calculateLinkedFactory = ({
   for (const link of activeLinks) {
     if (!pooledIds.has(link.targetModuleId)) continue
     if (link.mode === 'surplus-only') {
+      if (link.exportAllSurplus) continue
       const ids = moduleDrivingInputIds.get(link.targetModuleId) ?? new Set<ResourceId>()
 
       ids.add(link.resourceId)

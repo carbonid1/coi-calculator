@@ -277,7 +277,7 @@ export const calculateLinkedModules = ({
     const preset = getPreset(moduleDefinition)
     const drivingInputIds = new Set(
       (linksByTarget.get(moduleDefinition.id) ?? [])
-        .filter(link => link.mode === 'surplus-only')
+        .filter(link => link.mode === 'surplus-only' && !link.exportAllSurplus)
         .map(link => link.resourceId),
     )
     const lines = buildModuleLines(moduleDefinition, preset, outputModifiers).lines.map(line => {
@@ -512,14 +512,14 @@ export const calculateLinkedModules = ({
 
         const sourceKey = sourceResourceKey(link)
         const targetKey = targetResourceKey(link)
-        const quantity = Math.min(
-          remainingSource.get(sourceKey) ?? 0,
-          remainingTarget.get(targetKey) ?? 0,
-        )
+        const available = remainingSource.get(sourceKey) ?? 0
+        const required = remainingTarget.get(targetKey) ?? 0
+        const quantity = mode === 'surplus-only' && link.exportAllSurplus
+          ? available : Math.min(available, required)
 
         allocated.set(link.id, quantity)
-        remainingSource.set(sourceKey, (remainingSource.get(sourceKey) ?? 0) - quantity)
-        remainingTarget.set(targetKey, (remainingTarget.get(targetKey) ?? 0) - quantity)
+        remainingSource.set(sourceKey, available - quantity)
+        remainingTarget.set(targetKey, Math.max(0, required - quantity))
       }
     }
 

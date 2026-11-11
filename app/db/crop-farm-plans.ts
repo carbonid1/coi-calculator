@@ -36,3 +36,19 @@ export const thirdFbrCropFarmGroups: readonly CropFarmGroup[] = [
   group(['wheat', 'sugarCane', 'wheat', 'fruit'], 1, 130),
   group(['wheat', 'fruit', 'wheat', 'canola']),
 ]
+
+/** Rotations for Appliances & Waste Recovery with 28 Housing III and 3,900 chickens. */
+export const applianceCropFarmGroups: readonly CropFarmGroup[] = [
+  group(['corn', 'vegetables']),
+  group(['corn', 'wheat']),
+  group(['poppy', 'vegetables', 'soybean']),
+  group(['corn', 'wheat', 'vegetables']),
+  group(['corn', 'wheat', 'corn', 'potato']),
+  group(['canola', 'vegetables', 'sugarCane', 'treeSapling'], 1, 130),
+  group(['corn', 'fruit', 'corn', 'potato'], 1, 130),
+  group(['canola', 'corn', 'wheat']),
+  group(['wheat', 'canola', 'wheat', 'fruit']),
+  group(['corn', 'wheat', 'potato'], 1, 120),
+  group(['corn', 'wheat', 'fruit', 'potato']),
+  group(['fruit', 'wheat', 'soybean']),
+]

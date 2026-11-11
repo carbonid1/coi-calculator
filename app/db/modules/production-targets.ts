@@ -1,6 +1,7 @@
 import { applyNuclearOperationTargets } from '../../helpers/nuclear-entity-sync/nuclear-operation-targets'
 import { withFactoryDefinition } from '../../helpers/planning-recipes/factory-recipes'
 import { type PlanningDefinitions } from '../../planning-state'
+import { type Recipe, type SourceMode } from '../recipes'
 import { resources, type ResourceId } from '../resources'
 import { type Module } from './modules'
 
@@ -10,6 +11,8 @@ export interface LiveAreaProductionTarget {
   building: string
   pluralName?: string
   product: ResourceId
+  sourceMode?: SourceMode
+  sinkScope?: Recipe['sinkScope']
   target: number
 }
 
@@ -20,7 +23,7 @@ export const applyLiveAreaProductionTargets = (
 ): Module => {
   const recipes = [...(module.recipes ?? [])]
   const matchingRecipeIds = new Map<string, string[]>()
-  const operationTargets = targets.map(({ buildingId, recipeId, building, product, target, pluralName }) => {
+  const operationTargets = targets.map(({ buildingId, recipeId, building, product, sourceMode, sinkScope, target, pluralName }) => {
     const matching = recipes.filter(recipe => (
       recipe.gameBuildingId === buildingId && recipe.gameRecipeId === recipeId
     ))
@@ -34,9 +37,12 @@ export const applyLiveAreaProductionTargets = (
       gameBuildingId: buildingId,
       gameRecipeId: recipeId,
       factoryRecipe: { buildingId, recipeId },
-      group: 'production',
-      balanceBy: 'output',
-      balanceOutputIds: [product],
+      ...(sinkScope ? { group: 'sink', sinkScope } : {
+        group: sourceMode ? 'source' : 'production',
+        sourceMode,
+        balanceBy: 'output',
+        balanceOutputIds: [product],
+      }),
       inputs: [],
       outputs: [],
     }, definitions))

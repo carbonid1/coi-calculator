@@ -11,7 +11,7 @@ const baselineLayers = ['research-on'] as const
 
 export const factoryPresets = [
   { id: 'baseline', name: 'Baseline', layers: baselineLayers },
-  { id: 'next', name: 'Next', layers: [...baselineLayers, 'construction', 'waste-recovery', 'household-appliances'] },
+  { id: 'next', name: 'Appliances & Waste Recovery', layers: [...baselineLayers, 'construction', 'waste-recovery', 'household-appliances'] },
 ] as const
 export const defaultFactoryPresetId = factoryPresets[0].id
 
@@ -43,7 +43,10 @@ export const resolvePlanAreaTargets = (plans: LiveAreaPlans, selected: ReadonlyS
       ...(selected.has('farms') ? { cropFarms: plan.cropFarms } : {}),
       ...(selected.has('household-appliances') ? {
         householdAppliances: plan.householdAppliances,
+        housingTarget: plan.housingTarget,
         productionTargets: plan.productionTargets,
+        cropFarms: plan.applianceCropFarms,
+        chickenFarms: plan.chickenFarms,
       } : {}),
       ...(selected.has('third-fbr') ? { chickenFarms: plan.chickenFarms, foodPackProduction: plan.foodPackProduction } : {}),
       ...(selected.has('computing') ? { computing: plan.computing, offices: plan.offices } : {}),
