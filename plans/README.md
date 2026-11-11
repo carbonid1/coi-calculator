@@ -34,6 +34,15 @@ pre-existing 40 s timeout at `tests/factory.smoke.test.ts:127` (41.9 s here).
 - Not verified anywhere: `tests/browser.smoke.mjs` (needs the agent-browser
   Chromium) and the first GitHub Actions run of 001's workflow.
 
+## Reconcile (2026-11-11, `main` at `0794128`)
+
+001–004 verified DONE on `main`: grep criteria, `pnpm ts`, `pnpm lint` and
+`vitest run app/server app/hooks` (43/43) all pass. Not re-run: full vitest,
+`pnpm build`, browser smoke.
+
+Open: 001's CI workflow has never run — all three runs stay `queued` with no
+jobs. Check the repository's Actions settings and billing.
+
 ## Dependency notes
 
 - 001 has no prerequisites and gives every later plan an automatic check.
@@ -65,6 +74,7 @@ assertion. `tests/browser.smoke.mjs` and the C# mod tests were not run.
 | Preset fallback differs between call sites | `app/helpers/factory-calculation/factory-calculation.ts:89`, `app/helpers/resource-supply/resource-supply.ts:39` vs `factory-total.ts:795-796` | S | Latent; generated modules have matching ids. |
 | Unused module | `app/helpers/capacity-pools/` has no importers | S | Verify, then delete. |
 | Preferences and cached results are keyed by game name, not game id | `game-mod/CoiCalculatorExporter/GameSnapshotCollector.Capture.cs:40` | M | Investigate whether the game enforces unique names. |
+| Transitive build-tool advisories (`browserslist`, `source-map-js`, `baseline-browser-mapping`, `@babel/core`) | `pnpm audit --prod` on `0794128`; paths under `next` and `@carbonid1/design-system` | S | Try `pnpm update` within ranges, else `pnpm.overrides`. Build-time only; low exposure for a localhost tool. |
 | Dev server accepts any `Host` header | no middleware; `app/api/*/route.ts` | S | Read-only routes; low severity after plan 002. |
 
 ## Findings considered and rejected
