@@ -11,6 +11,7 @@ import { calculateCropFarmGroupRates, type CropFarmGroup } from '../app/db/crop-
 import { getEdictCatalog, mapEdictValues } from '../app/db/edicts'
 import { factoryPresets } from '../app/db/factory-presets'
 import { getHousingTypes } from '../app/db/housing'
+import { getLiveAreaPlans } from '../app/db/live-area-plans'
 import { createCropFarmAreaModule, createDefaultCropFarmModule, getCropFarmGroundwaterRecipeId } from '../app/db/modules/crop-farm-areas'
 import { createChickenFarmsModule } from '../app/db/modules/farms'
 import { type Module } from '../app/db/modules/modules'
@@ -180,7 +181,45 @@ it('burns available Waste in Next and recovers residual local steam before impor
   }
   expect(next.result.factoryResult.allLines.filter(line => line.recipe.gameBuildingId?.startsWith('ResearchLab'))
     .reduce((total, line) => total + line.activeBuildings, 0)).toBe(2)
+  const appliances = (solved: typeof next) => solved.result.factoryResult.flows
+    .find(flow => flow.resourceId === 'householdAppliances')?.consumed ?? 0
+
+  expect(appliances(baseline)).toBe(0)
+  expect(appliances(next)).toBeGreaterThan(0)
 }, 40_000)
+
+it('raises every recorded area to its Next production targets and leaves Baseline unplanned', () => {
+  const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
+
+  if (!snapshot) throw new Error('Recorded factory is incompatible')
+  const derive = (presetId: 'baseline' | 'next') => deriveCalculatorModel({
+    snapshot, presetId, machineZoneAssignments: {}, revision: 'production-targets',
+  })
+  const baseline = derive('baseline')
+  const next = derive('next')
+  const recordedZoneIds = new Set([-1, ...snapshot.logisticsZones.map(zone => zone.id)])
+  const planned = Object.entries(getLiveAreaPlans(snapshot.saveId)).flatMap(([zoneId, plan]) => (
+    (plan.productionTargets ?? []).map(target => ({ zoneId: Number(zoneId), target }))
+  ))
+  const recorded = planned.filter(({ zoneId }) => recordedZoneIds.has(zoneId))
+  const running = (model: typeof next, zoneId: number, target: typeof planned[number]['target']) => {
+    const areaModule = model.configuredModules.find(candidate => candidate.liveArea?.zoneId === zoneId)
+    const preset = areaModule?.presets[0]
+
+    return (areaModule?.recipes ?? [])
+      .filter(recipe => recipe.gameBuildingId === target.buildingId && recipe.gameRecipeId === target.recipeId)
+      .reduce((total, recipe) => total + (preset?.activeBuildings[recipe.id] ?? 0), 0)
+  }
+
+  // Areas created after the recording cannot be replayed; everything else must be.
+  expect(planned.length).toBeGreaterThan(0)
+  expect(recorded.map(({ zoneId }) => zoneId)).toEqual(expect.arrayContaining([-1, 16]))
+  for (const { zoneId, target } of recorded) {
+    expect(running(next, zoneId, target), `area ${zoneId} ${target.recipeId}`).toBeGreaterThanOrEqual(target.target)
+  }
+  // The targets belong to the plan: at least one of them is above what Baseline runs.
+  expect(recorded.some(({ zoneId, target }) => running(baseline, zoneId, target) < target.target)).toBe(true)
+}, 30_000)
 
 it('replays the complete Science expansion preset and returns to the latest live baseline', () => {
   const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
