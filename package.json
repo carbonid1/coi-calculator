@@ -16,7 +16,8 @@
     "train-monitor:build": "powershell -ExecutionPolicy Bypass -File scripts/build-train-network-monitor.ps1",
     "train-monitor:install": "powershell -ExecutionPolicy Bypass -File scripts/build-train-network-monitor.ps1 -Install",
     "start": "next start",
-    "lint": "eslint . --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "ts": "tsc --noEmit"
   },
   "dependencies": {
