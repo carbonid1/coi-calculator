@@ -148,10 +148,6 @@ export const crops = {
   },
 } as const satisfies Record<CropId, Pick<CropDefinition, "id" | "name" | "productId">>;
 
-export const cropProductResourceIds: ReadonlySet<ResourceId> = new Set(
-  Object.values(crops).flatMap((crop) => crop.productId ? [crop.productId] : []),
-);
-
 export const isCropSchedule = (schedule: readonly string[]): schedule is CropSchedule =>
   schedule.length >= 1 && schedule.length <= 4 && schedule.every(id => id in crops);
 

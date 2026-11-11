@@ -55,7 +55,6 @@ export const plannedDefaultBuiltBuildings = {
   [cookingOilDieselRecipeId]: 0,
   [crackingUnitDieselRecipeId]: 0,
 } as const
-export const unplacedPlannedDefaultBuildings = plannedDefaultBuildings
 
 const getDefaultPlanRecipe = (module: Module) => (
   module.recipes?.find(recipe => matchesGameRecipe(

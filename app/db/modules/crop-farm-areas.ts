@@ -41,14 +41,6 @@ export const getCropFarmRelatedZoneIds = (
   entities: readonly CurrentCropFarmEntity[],
 ) => new Set(entities.flatMap(entity => namedZones(entity).map(zone => zone.id)))
 
-export const getCropFarmOwnerZones = (
-  entities: readonly CurrentCropFarmEntity[],
-) => [...new Map(entities.flatMap(entity => {
-  const owner = getCropFarmOwnerZone(entity)
-
-  return owner ? [[owner.id, owner] as const] : []
-})).values()]
-
 const cropFarmGroupId = (
   moduleId: string,
   entity: CurrentCropFarmEntity,
