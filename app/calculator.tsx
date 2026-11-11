@@ -275,6 +275,7 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
           calculationStatus={calculationStatus}
           onChange={id => { if (!factoryPreset.selectPreset(id)) toast.error('Could not save preset. Check browser storage and try again.') }} />
         <GameSyncStatus
+          error={gameState.error}
           exportedAtUtc={gameState.exportedAtUtc}
           isSyncing={gameState.isSyncing}
           onSync={gameState.syncNow}

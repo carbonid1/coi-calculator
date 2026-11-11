@@ -9,6 +9,7 @@ import {
 import { startGameStatePolling } from "../helpers/game-state-polling/game-state-polling";
 
 export interface GameStateResult {
+  error: string | null;
   exportedAtUtc: string | null;
   isFresh: boolean;
   revision: string | null;
@@ -51,6 +52,19 @@ const writeCachedSnapshot = (snapshot: GameStateSnapshot) => {
   }
 };
 
+const readErrorMessage = async (response: Response): Promise<string | null> => {
+  try {
+    const body: unknown = await response.json();
+
+    return typeof body === "object" && body !== null && "error" in body
+      && typeof body.error === "string" && body.error.length > 0
+      ? body.error.slice(0, 200)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export const useGameState = (initialResult: GameStateResult) => {
   const [result, setResult] = useState(initialResult);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -78,6 +92,7 @@ export const useGameState = (initialResult: GameStateResult) => {
           setResult(current => current.snapshot
             ? current
             : {
+                error: null,
                 exportedAtUtc: cachedSnapshot.exportedAtUtc,
                 isFresh: false,
                 revision: null,
@@ -88,10 +103,11 @@ export const useGameState = (initialResult: GameStateResult) => {
         }, 0)
       : undefined;
 
-    const setUnavailable = (status: "missing" | "error") => {
+    const setUnavailable = (status: "missing" | "error", error: string | null = null) => {
       if (!lifecycle.isActive) return;
 
       setResult(current => ({
+        error,
         exportedAtUtc: current.exportedAtUtc,
         isFresh: false,
         revision: current.revision,
@@ -128,7 +144,8 @@ export const useGameState = (initialResult: GameStateResult) => {
             setResult(current => {
               if (!current.snapshot) return current;
               if (
-                current.exportedAtUtc === exportedAtUtc
+                current.error === null
+                && current.exportedAtUtc === exportedAtUtc
                 && current.isFresh === isFresh
                 && current.source === "live"
                 && current.status === "available"
@@ -136,6 +153,7 @@ export const useGameState = (initialResult: GameStateResult) => {
 
               return {
                 ...current,
+                error: null,
                 exportedAtUtc,
                 isFresh,
                 source: "live",
@@ -147,12 +165,12 @@ export const useGameState = (initialResult: GameStateResult) => {
         }
 
         if (response.status === 404) {
-          setUnavailable("missing");
+          setUnavailable("missing", await readErrorMessage(response));
           return;
         }
 
         if (!response.ok) {
-          setUnavailable("error");
+          setUnavailable("error", await readErrorMessage(response));
           return;
         }
 
@@ -177,7 +195,8 @@ export const useGameState = (initialResult: GameStateResult) => {
 
           setResult(current => {
             if (
-              current.exportedAtUtc === snapshot.exportedAtUtc
+              current.error === null
+              && current.exportedAtUtc === snapshot.exportedAtUtc
               && current.isFresh === isFresh
               && current.revision === revision
               && current.source === "live"
@@ -185,6 +204,7 @@ export const useGameState = (initialResult: GameStateResult) => {
             ) return current;
 
             return {
+              error: null,
               exportedAtUtc: snapshot.exportedAtUtc,
               isFresh,
               revision,
