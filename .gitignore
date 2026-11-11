@@ -6,8 +6,7 @@ Builds/
 .claude/worktrees/
 .DS_Store
 *.log
-.env
-.env.local
+.env*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
