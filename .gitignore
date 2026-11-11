@@ -3,6 +3,7 @@ node_modules
 dist
 out
 Builds/
+.claude/worktrees/
 .DS_Store
 *.log
 .env

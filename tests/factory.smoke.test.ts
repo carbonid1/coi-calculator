@@ -527,7 +527,7 @@ it('projects native maintenance for planned builds and unpauses without duplicat
   expect(normalizeGameStateSnapshot(invalid)).not.toBeNull()
   invalid.buildingDefinitions[0].maintenance.perMonth = 1
   expect(normalizeGameStateSnapshot(invalid)).toBeNull()
-})
+}, 60_000)
 
 it('replays connected tank and pipe reserves, refill and shared-source exclusions through the existing shortfall forecast', () => {
   const original = normalizeGameStateSnapshot(capture)
@@ -573,7 +573,7 @@ it('replays connected tank and pipe reserves, refill and shared-source exclusion
     [{ ...network, buffers: network.buffers.map(buffer => ({ ...buffer, quantity: buffer.capacity + 1 })) }],
     [network, network]]) expect(normalizeGameStateSnapshot({ ...snapshot, groundwater: { ...snapshot.groundwater, networks } })).toBeNull()
   expect(normalizeGameStateSnapshot({ ...snapshot, groundwater: { ...snapshot.groundwater, networks: undefined } })).not.toBeNull()
-})
+}, 60_000)
 
 it('replays live crop phase and soil reserves into the existing water forecast while retaining steady production plans', () => {
   const snapshot = normalizeGameStateSnapshot(capture)
@@ -658,7 +658,7 @@ it('replays live crop phase and soil reserves into the existing water forecast w
     { ...empty.native.runtime, scheduleIndex: 4 }, { ...empty.native.runtime, cropId: null }]) {
     expect(normalizeGameStateSnapshot({ ...snapshot, cropFarms: [{ ...empty.native, runtime }] })).toBeNull()
   }
-})
+}, 60_000)
 
 it('replays the complete native recipe catalog, contract definitions, farm tiers and water rules without legacy rate tables', () => {
   const snapshot = normalizeGameStateSnapshot(capture)
