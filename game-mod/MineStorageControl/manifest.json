@@ -1,6 +1,6 @@
 {
   "id": "MineStorageControl",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "display_name": "Mine Storage Control",
   "description_short": "Pause and resume mining using two selected storage containers.",
   "description_long": "Choose a named Mine control tower and separate pause and resume containers in Mod Settings. Set an upper limit to pause and a lower limit to resume. Rules and waiting state are saved with the factory.",

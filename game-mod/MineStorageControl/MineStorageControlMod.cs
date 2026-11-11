@@ -39,7 +39,15 @@ public sealed class MineStorageControlMod : IMod, IDisposable
         m_events.BeforeSave.AddNonSaveable(this, beforeSave);
         resolver.Resolve<IGameLoopEvents>().RegisterRendererInitState(this, delegate {
             m_ui = new MineStorageUi(m_events, m_monitor);
-            m_ui.Initialize(resolver);
+            try
+            {
+                m_ui.Initialize(resolver);
+            }
+            catch (Exception exception)
+            {
+                // Saved rules keep working without the settings tab.
+                Log.Info("Mine Storage Control: settings unavailable: " + exception);
+            }
         });
         Log.Info("Mine Storage Control: initialized.");
     }
