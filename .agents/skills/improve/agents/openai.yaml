@@ -1,0 +1,6 @@
+interface:
+  display_name: "Improve"
+  short_description: "Audit the codebase and write handoff plans; never edits code"
+  default_prompt: "Use $improve to survey the codebase and write prioritized implementation plans under plans/."
+policy:
+  allow_implicit_invocation: false
