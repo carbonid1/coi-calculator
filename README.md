@@ -16,6 +16,8 @@ Restart the game after installing the Bridge, enable it when loading your factor
 then open [localhost:3000](http://localhost:3000). The Bridge starts the game server
 on port 3073 and works while paused.
 
+The calculator listens on this computer only. To reach it from another device, run `pnpm exec next dev --hostname 0.0.0.0`.
+
 For another game-server port, set `COI_WEB_API_URL=http://127.0.0.1:3099` in
 `.env.local` and restart the calculator.
 

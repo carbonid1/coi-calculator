@@ -7,7 +7,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "test": "vitest run && node --test tests/browser.smoke.mjs",
     "test:smoke": "vitest run tests/factory.smoke.test.ts && node --test tests/browser.smoke.mjs",
@@ -15,7 +15,7 @@
     "game-mod:install": "powershell -ExecutionPolicy Bypass -File scripts/build-game-mod.ps1 -Install",
     "train-monitor:build": "powershell -ExecutionPolicy Bypass -File scripts/build-train-network-monitor.ps1",
     "train-monitor:install": "powershell -ExecutionPolicy Bypass -File scripts/build-train-network-monitor.ps1 -Install",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "ts": "tsc --noEmit"
