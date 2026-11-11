@@ -205,20 +205,23 @@ export const Calculator: React.FC<Props> = ({ initialGameState, calculationVersi
   }, [machineZoneAssignmentsStorageKey, groundwaterPumpClaimIds])
 
   const assignMachineZone = (zoneId: number, claimId: string | null) => {
-    setMachineZoneAssignments(current => {
-      const next = { ...current }
+    const next = { ...machineZoneAssignments }
 
-      if (claimId) {
-        next[zoneId] = claimId
-      } else {
-        delete next[zoneId]
-      }
+    if (claimId) {
+      next[zoneId] = claimId
+    } else {
+      delete next[zoneId]
+    }
 
-      if (machineZoneAssignmentsStorageKey) {
+    if (machineZoneAssignmentsStorageKey) {
+      try {
         window.localStorage.setItem(machineZoneAssignmentsStorageKey, JSON.stringify(next))
+      } catch {
+        toast.error('Could not save pump assignment. Check browser storage and try again.')
+        return
       }
-      return next
-    })
+    }
+    setMachineZoneAssignments(next)
   }
 
   useEffect(() => {
