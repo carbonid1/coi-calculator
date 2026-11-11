@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 
-import { createLatestWriter, shouldPersistInitialSnapshot } from './use-game-state'
+import { createLatestWriter, shouldPersistInitialSnapshot, withCachedSnapshot } from './use-game-state'
 
 const snapshot = (saveId: string | null, exportedAtUtc: string) => ({
   exportedAtUtc,
@@ -79,4 +79,33 @@ it('cancels a pending write on dispose', () => {
 
   expect(cancel).toHaveBeenCalledTimes(1)
   expect(write).not.toHaveBeenCalled()
+})
+
+// Only identity fields matter to the swap; a full snapshot is megabytes.
+const cachedFactory = (exportedAtUtc: string) => ({ exportedAtUtc, saveId: 'save-a' })
+const serverResult = (status: 'loading' | 'available' | 'missing' | 'error', error: string | null) => ({
+  error, exportedAtUtc: null, isFresh: false, revision: null, snapshot: null, source: 'none', status,
+})
+
+it.each(['missing', 'error'] as const)('keeps a %s status and its reason when the cached factory is shown', status => {
+  const cached = cachedFactory('2026-08-31T10:00:00Z')
+
+  expect(withCachedSnapshot(serverResult(status, 'Enable CoI Calculator Bridge in the loaded game.'), cached)).toEqual({
+    error: 'Enable CoI Calculator Bridge in the loaded game.', exportedAtUtc: '2026-08-31T10:00:00Z',
+    isFresh: false, revision: null, snapshot: cached, source: 'cached', status,
+  })
+})
+
+it('shows the cached factory as loading when nothing has failed yet', () => {
+  const cached = cachedFactory('2026-08-31T10:00:00Z')
+
+  expect(withCachedSnapshot(serverResult('loading', null), cached)).toMatchObject({ error: null, source: 'cached', status: 'loading' })
+})
+
+it('never replaces live data with the cached factory', () => {
+  const live = {
+    ...serverResult('available', null), snapshot: cachedFactory('2026-08-31T10:00:05Z'), source: 'live', revision: 'r1',
+  }
+
+  expect(withCachedSnapshot(live, cachedFactory('2026-08-31T10:00:00Z'))).toBe(live)
 })

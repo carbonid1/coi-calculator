@@ -114,6 +114,28 @@ const readErrorMessage = async (response: Response): Promise<string | null> => {
   }
 };
 
+/**
+ * A cached factory fills in while live data is unavailable. It never replaces
+ * live data, and it keeps the reason the server gave for a failed first sync.
+ */
+export const withCachedSnapshot = (
+  current: GameStateResult,
+  cachedSnapshot: GameStateSnapshot,
+): GameStateResult => {
+  if (current.snapshot) return current;
+  const failed = current.status === "missing" || current.status === "error";
+
+  return {
+    error: failed ? current.error : null,
+    exportedAtUtc: cachedSnapshot.exportedAtUtc,
+    isFresh: false,
+    revision: null,
+    snapshot: cachedSnapshot,
+    source: "cached",
+    status: failed ? current.status : "loading",
+  };
+};
+
 export const useGameState = (initialResult: GameStateResult) => {
   const [result, setResult] = useState(initialResult);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -139,17 +161,7 @@ export const useGameState = (initialResult: GameStateResult) => {
       ? window.setTimeout(() => {
           if (!lifecycle.isActive) return;
 
-          setResult(current => current.snapshot
-            ? current
-            : {
-                error: null,
-                exportedAtUtc: cachedSnapshot.exportedAtUtc,
-                isFresh: false,
-                revision: null,
-                snapshot: cachedSnapshot,
-                source: "cached",
-                status: "loading",
-              });
+          setResult(current => withCachedSnapshot(current, cachedSnapshot));
         }, 0)
       : undefined;
 
