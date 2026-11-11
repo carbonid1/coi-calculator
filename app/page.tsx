@@ -10,6 +10,7 @@ const Page = async () => {
   const result = await readGameStateSnapshot();
   const initialGameState: GameStateResult = result.snapshot
     ? {
+        error: null,
         exportedAtUtc: result.snapshot.exportedAtUtc,
         isFresh: result.isFresh,
         revision: result.revision,
@@ -18,6 +19,7 @@ const Page = async () => {
         status: "available",
       }
     : {
+        error: result.error,
         exportedAtUtc: null,
         isFresh: false,
         revision: null,

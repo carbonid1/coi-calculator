@@ -164,3 +164,22 @@ it('does not substitute Bridge fuel totals when native fuel history fails or is 
   expect(await read()).toMatchObject({ httpStatus: 502, snapshot: null })
   expect((await read()).snapshot?.history).toEqual(combinedSnapshot.history)
 })
+
+it('reports unreadable game info as a game-side failure, not a lost connection', async () => {
+  infoReply.mockReturnValueOnce(new Response('not json'))
+  expect(await read()).toMatchObject({ httpStatus: 502, snapshot: null, status: 'error' })
+})
+
+it('logs each new failure reason once and again after a recovery', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+  bridgeReply.mockReturnValueOnce(new Response(null, { status: 500 })).mockReturnValueOnce(new Response(null, { status: 500 }))
+  await read()
+  await read()
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn.mock.calls[0]?.[0]).toContain('Check the game log')
+  await read()
+  bridgeReply.mockReturnValueOnce(new Response(null, { status: 500 }))
+  await read()
+  expect(warn).toHaveBeenCalledTimes(2)
+})

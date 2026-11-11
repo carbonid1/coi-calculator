@@ -8,6 +8,7 @@ import {
 } from "../game-state";
 
 interface Props {
+  error: string | null;
   exportedAtUtc: string | null;
   isSyncing: boolean;
   onSync: () => void;
@@ -28,16 +29,18 @@ const getStatusLabel = (
   hasCurrentSync: boolean,
   status: GameStateConnectionStatus,
   isSyncing: boolean,
+  error: string | null,
 ) => {
   if (isSyncing) return "Syncing game…";
   if (hasSnapshot) return hasCurrentSync ? "Synced" : "Last sync";
   if (status === "loading") return "Checking game…";
   if (status === "missing") return "Bridge unavailable";
 
-  return "Game data unavailable";
+  return error ?? "Game data unavailable";
 };
 
 export const GameSyncStatus: React.FC<Props> = ({
+  error,
   exportedAtUtc,
   isSyncing,
   onSync,
@@ -45,13 +48,15 @@ export const GameSyncStatus: React.FC<Props> = ({
   source,
   status,
 }) => {
-  const label = getStatusLabel(Boolean(snapshot), source === "live" && status === "available", status, isSyncing);
+  const label = getStatusLabel(Boolean(snapshot), source === "live" && status === "available", status, isSyncing, error);
 
   return (
     <div className="flex items-center gap-1 sm:justify-end">
       <p
         role="status"
         data-game-sync={isSyncing ? "syncing" : status}
+        data-game-sync-error={error ?? undefined}
+        title={isSyncing ? undefined : error ?? undefined}
         className="min-h-4 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:text-right"
       >
         {label}

@@ -28,6 +28,7 @@ export type GameStateSnapshotReadResult = AvailableResult | UnavailableResult
 
 const SNAPSHOT_ROUTE = '/api/mods/CoiCalculatorExporter/snapshot'
 const REQUEST_TIMEOUT_MS = 8_000
+const logged: { error: string | null } = { error: null }
 const requests: { pending: Promise<GameStateSnapshotReadResult> | null } = { pending: null }
 
 const unavailable = (
@@ -41,7 +42,7 @@ const unavailable = (
 const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
   const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const beforeResponse = await fetchGameWebApi('/api/v1/game-info', signal)
-  const before: unknown = beforeResponse.ok ? await beforeResponse.json() : null
+  const before: unknown = beforeResponse.ok ? await beforeResponse.json().catch(() => null) : null
 
   if (!isGameIdentity(before)) return unavailable(502, 'The game could not provide calculator data. Check the game log.')
   const [response, catalogResponse, inventoryResponse, historyResponse] = await Promise.all([
@@ -65,7 +66,7 @@ const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
     historyResponse.json().catch(() => null),
     fetchGameWebApi('/api/v1/game-info', signal),
   ])
-  const after: unknown = afterResponse.ok ? await afterResponse.json() : null
+  const after: unknown = afterResponse.ok ? await afterResponse.json().catch(() => null) : null
   const products = normalizeNativeProducts(catalog, inventory, before)
 
   if (!bridge) {
@@ -108,6 +109,13 @@ export const readGameStateSnapshot = (): Promise<GameStateSnapshotReadResult> =>
   if (!requests.pending) {
     requests.pending = requestSnapshot()
       .catch(() => unavailable(503, 'Cannot connect to the game. Load a game with CoI Calculator Bridge enabled.'))
+      .then(result => {
+        if (result.error !== logged.error) {
+          logged.error = result.error
+          if (result.error) console.warn(`Game sync failed (${result.httpStatus}): ${result.error}`)
+        }
+        return result
+      })
       .finally(() => { requests.pending = null })
   }
   return requests.pending
