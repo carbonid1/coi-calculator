@@ -26,6 +26,13 @@ of existing elements, data attributes, logs and stored data only.
 | [011](011-keep-hidden-pump-assignments.md) | Saving one pump assignment no longer erases stored assignments whose area is temporarily missing | P2 | S | — (after 006) | DONE (`0f25459` on `main`) |
 | [012](012-cover-next-preset-production-targets.md) | The recorded-factory smoke tests check the Next preset's production targets and household-appliance demand | P2 | S–M | 005 | DONE (`a59301d` on `main`) |
 | [013](013-ignore-agent-worktrees-in-eslint.md) | `pnpm lint` ignores agent worktrees and scratch folders | P1 | S | — | DONE (`9a5d2dc` on `main`) |
+| [014](014-trim-the-browser-smoke.md) | The browser smoke drops work vitest already covers and no longer waits a minute for a poll | P2 | S | — | TODO |
+| [015](015-normalise-line-endings.md) | Every text file uses LF line endings, enforced by `.gitattributes` | P2 | S | — (run when no open branch edits the four files) | TODO |
+| [016](016-test-map-layout-parsers-and-routes.md) | The map and layout parsers and the three data routes have fast unit tests | P2 | S–M | — | TODO |
+| [017](017-keep-sync-error-beside-cached-factory.md) | Showing the cached factory no longer hides why the first sync failed | P3 | S | — | TODO |
+| [018](018-remove-unreferenced-exports.md) | Three exports nothing references and one helper only its own test uses are gone | P3 | S | — | TODO |
+| [019](019-bridge-reports-what-failed.md) | When the Bridge cannot produce factory data, the calculator says what failed | P2 | S–M | — (needs the game installed to compile; in-game check by the maintainer) | TODO |
+| [020](020-guard-mine-storage-settings-startup.md) | A failure registering Mine Storage Control's settings tab is logged instead of escaping into the game's UI start-up | P3 | S | — (needs the game installed to compile; in-game check by the maintainer) | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -84,6 +91,22 @@ Plans 005–013 were executed by separate executors, reviewed, and applied to
   against a live game: the new sync messages (plan 009) and a pump assignment
   surviving a reload (plan 011).
 
+## Second batch (2026-11-12, `main` at `29c10d9`)
+
+Plans 014–020 cover every remaining audit candidate that has a clear fix and a
+verification story. 015–020 touch disjoint files and can run in parallel; 014
+edits only `tests/browser.smoke.mjs`. 019 and 020 change C# mods: an executor
+can compile them here, but the maintainer must install and try them in the
+game.
+
+Deliberately not planned (each is still in the candidates table with its
+reason): anything whose cost is unmeasured (render recomputation, solver warm
+start, first page load, worker payload), anything needing a product decision
+(number formatting, retired preset scenarios, consolidating the preference
+hooks), anything needing a failing case first (overlapping areas, the four
+low-confidence solver items, the pooled-solve cache key), and large refactors
+(`calculateNetCore`'s parameters, typechecking the test files).
+
 ## Dependency notes
 
 - 005 first: it makes the recorded-factory smoke tests reliable, and 007, 008
@@ -109,6 +132,12 @@ assertion. `tests/browser.smoke.mjs` and the C# mod tests were not run.
 
 ## Findings vetted but not planned (candidates for a later run)
 
+Rows since covered by a plan: the Bridge's `NaN` / `Infinity` and its unnamed
+collector failures (019), the map and layout parser tests (016), mixed line
+endings and the `.env*` ignore (015), unused exports (018), the cached
+snapshot hiding a sync error (017), and the unguarded Mine Storage Control UI
+start-up (020; removing stale settings tabs is still open).
+
 | Finding | Evidence | Effort | Note |
 |---|---|---|---|
 | Bridge JSON writer emits bare `NaN` / `Infinity` | `game-mod/CoiCalculatorExporter/SnapshotJsonStream.cs:53-58`; unguarded divisions by prototype durations in `OfficeFocusDefinitionSnapshot.cs:49`, `PlanningDefinitionSnapshot.cs:201`, `WorldMineSnapshotCollector.cs:91-92` | S | One zero-duration prototype (e.g. from another mod) makes the whole snapshot unparseable. Needs Windows and the game to build and verify. |
@@ -123,7 +152,7 @@ assertion. `tests/browser.smoke.mjs` and the C# mod tests were not run.
 | Preferences and cached results are keyed by game name, not game id | `game-mod/CoiCalculatorExporter/GameSnapshotCollector.Capture.cs:40` | M | Investigate whether the game enforces unique names. |
 | Transitive build-tool advisories (`browserslist`, `source-map-js`, `baseline-browser-mapping`, `@babel/core`) | `pnpm audit --prod` on `0794128`; paths under `next` and `@carbonid1/design-system` | S | Try `pnpm update` within ranges, else `pnpm.overrides`. Build-time only; low exposure for a localhost tool. |
 | Two files have mixed line endings | `app/helpers/calculate/calculate.ts` (about 2,100 CRLF, 900 LF), `app/components/MinesView.tsx`; no `.gitattributes` | S | Any tool that rewrites the file turns a small edit into a 900-line diff (seen while executing plan 007). Normalise both to LF in one commit and add `* text=auto eol=lf`. |
-| Browser smoke runs close to its overall time limit | `tests/browser.smoke.mjs:73` (300 s limit); 263 s alone on 2026-11-12, and it timed out with 2 of 11 subtests unfinished while the vitest suite ran alongside | S | Raise the limit or split the file. It is not part of CI. |
+| Browser smoke subtests share one session and one replay state | `tests/browser.smoke.mjs:74`; each subtest resets its switches only on its last lines | S–M | One failure cascades into later subtests. Plan 014 trims runtime but leaves this. |
 | Dev server accepts any `Host` header | no middleware; `app/api/*/route.ts` | S | Read-only routes; low severity after plan 002. |
 | One throwing Bridge collector fails the whole snapshot without naming the section | `game-mod/CoiCalculatorExporter/CoiCalculatorExporterMod.cs:133-141`; `GameSnapshotCollector.Capture.cs:10-79` | S | Catch per section and return the section name. Needs Windows and the game. Complements plan 009. |
 | Map and layout parsers and three API routes are covered only by the browser smoke, which CI does not run | `app/factory-layout.ts:18-72`; `app/island-map.ts:18-51`; `app/api/{game-state,island-map,factory-layout}/route.ts` | S | Add vitest regressions modelled on `app/api/game-icons/[id]/route.test.ts`. |
