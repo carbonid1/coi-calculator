@@ -13,12 +13,26 @@ of existing elements, data attributes, logs and stored data only.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| [001](001-add-ci-check-gate.md) | Every push runs typecheck, lint, tests and build in CI | P1 | S | — | TODO |
-| [002](002-upgrade-next-bind-localhost.md) | Next.js is patched and the calculator listens on localhost only | P1 | S | — (001 helps) | TODO |
-| [003](003-keep-sync-failure-reason.md) | A failed game sync says why, in the status line and the server log | P1 | S | — | TODO |
-| [004](004-harden-browser-storage-writes.md) | Snapshot caching never blocks a poll, never leaves stale data, and a full storage cannot crash the page | P2 | S–M | — (after 003 to avoid a merge conflict) | TODO |
+| [001](001-add-ci-check-gate.md) | Every push runs typecheck, lint, tests and build in CI | P1 | S | — | DONE |
+| [002](002-upgrade-next-bind-localhost.md) | Next.js is patched and the calculator listens on localhost only | P1 | S | — (001 helps) | DONE |
+| [003](003-keep-sync-failure-reason.md) | A failed game sync says why, in the status line and the server log | P1 | S | — | DONE |
+| [004](004-harden-browser-storage-writes.md) | Snapshot caching never blocks a poll, never leaves stale data, and a full storage cannot crash the page | P2 | S–M | — (after 003 to avoid a merge conflict) | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
+
+## Execution notes (2026-11-11)
+
+All four plans were executed by separate executors and reviewed; the commits
+are on `claude/project-thread-am085m`. On the combined branch: `pnpm ts`,
+`pnpm lint` and `pnpm build` exit 0; vitest 933/934, the one failure being the
+pre-existing 40 s timeout at `tests/factory.smoke.test.ts:127` (41.9 s here).
+`pnpm audit --prod` no longer lists any advisory for `next`.
+
+- 002 gained one reviewer-approved addition: `agentRules: false` in
+  `next.config.ts`. Next.js 16.4 otherwise appends generated rules to the
+  hand-maintained `AGENTS.md` on every `next dev`.
+- Not verified anywhere: `tests/browser.smoke.mjs` (needs the agent-browser
+  Chromium) and the first GitHub Actions run of 001's workflow.
 
 ## Dependency notes
 
