@@ -2414,7 +2414,7 @@ const calculateNetCore = (
     }));
 
     // Sources are fallback streams: internal production is retained first, then
-    // sources are allocated in declaration order to cover only what remains.
+    // module-scoped sources cover their own module, then the rest are allocated in declaration order.
     const remainingSourceDemand = new Map<ResourceId, number>();
     const remainingModuleSourceDemand = new Map<string, number>();
 
@@ -2469,6 +2469,27 @@ const calculateNetCore = (
       }
     }
 
+    // A module-scoped source covers its own module whatever the line order,
+    // so take that coverage out of the factory-wide remainder before any
+    // global source is sized.
+    const moduleCoverage = new Map(remainingModuleSourceDemand);
+
+    for (const line of sourceLines) {
+      if (!isModuleScopedSourceMode(line.recipe.sourceMode)) continue;
+
+      for (const output of line.recipe.outputs) {
+        const key = moduleResourceKey(line.moduleId, output.resourceId);
+        const capacity = sourceOutputCapacities.get(line)?.get(output.resourceId) ?? 0;
+        const covered = Math.min(capacity, moduleCoverage.get(key) ?? 0);
+
+        moduleCoverage.set(key, (moduleCoverage.get(key) ?? 0) - covered);
+        remainingSourceDemand.set(
+          output.resourceId,
+          Math.max(0, (remainingSourceDemand.get(output.resourceId) ?? 0) - covered),
+        );
+      }
+    }
+
     const sourceResults: PassiveResult[] = sourceLines.map((line) => {
       const actualOutputs = line.recipe.outputs.map((output) => {
         const flow = getFlow(output.resourceId, true);
@@ -2484,13 +2505,6 @@ const calculateNetCore = (
         getActualModuleFlow(line.moduleId, output.resourceId, true).produced -= capacity - actualUsed;
         if (moduleScoped) {
           remainingModuleSourceDemand.set(moduleKey, remaining - actualUsed);
-          remainingSourceDemand.set(
-            output.resourceId,
-            Math.max(
-              0,
-              (remainingSourceDemand.get(output.resourceId) ?? 0) - actualUsed,
-            ),
-          );
         } else {
           remainingSourceDemand.set(output.resourceId, remaining - actualUsed);
         }

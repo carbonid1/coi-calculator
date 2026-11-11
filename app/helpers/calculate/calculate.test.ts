@@ -1146,6 +1146,56 @@ it("keeps module-scoped source capacity out of other modules", () => {
     .toBe(0);
 });
 
+it("does not draw a global source for demand a module-scoped source covers, whatever the line order", () => {
+  const globalSource: Recipe = {
+    id: "test-global-ore-reserve",
+    name: "Test Global Ore Reserve",
+    building: "Reserve",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "titaniumOre", quantity: 100 }],
+    sourceMode: "demand",
+  };
+  const terrainSource: Recipe = {
+    id: "test-ordered-terrain-source",
+    name: "Test Ordered Terrain Source",
+    building: "Terrain extraction",
+    group: "source",
+    inputs: [],
+    outputs: [{ resourceId: "titaniumOre", quantity: 100 }],
+    sourceMode: "module-demand",
+    sourceKind: "terrain-mine",
+  };
+  const mineCrusher: Recipe = {
+    id: "test-ordered-mine-crusher",
+    name: "Test Ordered Mine Crusher",
+    building: "Crusher (Large)",
+    group: "production",
+    balanceBy: "output",
+    balanceInputIds: ["titaniumOre"],
+    balanceInputScope: "module",
+    inputs: [{ resourceId: "titaniumOre", quantity: 100 }],
+    outputs: [{ resourceId: "titaniumOreCrushed", quantity: 100 }],
+  };
+  const solve = (globalFirst: boolean) => {
+    const sources = globalFirst
+      ? [fixedLine(globalSource, "reserves"), fixedLine(terrainSource, "mine")]
+      : [fixedLine(terrainSource, "mine"), fixedLine(globalSource, "reserves")];
+    const result = calculateNet(
+      [...sources, balancedLine(mineCrusher, "mine")],
+      {}, undefined, {}, { titaniumOreCrushed: 100 },
+    );
+    const drawn = (recipeId: string) => result.sourceResults
+      .find(candidate => candidate.recipe.id === recipeId)?.actualOutputs[0]?.quantity;
+    const ore = result.allResourceFlows.find(flow => flow.resourceId === "titaniumOre");
+
+    return { terrain: drawn(terrainSource.id), reserve: drawn(globalSource.id), net: ore?.net };
+  };
+
+  expect(solve(false)).toEqual({ terrain: 100, reserve: 0, net: 0 });
+  expect(solve(true)).toEqual(solve(false));
+});
+
 it.each([false, true])("uses recovered Water before Groundwater Pumps or Liquid Dumps (dump listed first: %s)", dumpFirst => {
   const groundwaterPump: Recipe = {
     id: "test-factory-groundwater-pump",
