@@ -49,6 +49,18 @@ const unavailable = (
   status: httpStatus === 404 ? 'missing' : 'error',
 })
 
+/** The Bridge names its own failure as { error, source }; anything else is not from the Bridge. */
+const readBridgeFailure = async (response: Response): Promise<string | null> => {
+  const body: unknown = await response.json().catch(() => null)
+
+  if (typeof body !== 'object' || body === null || !('error' in body)) return null
+  if (typeof body.error !== 'string' || body.error.length === 0) return null
+  const source = 'source' in body && typeof body.source === 'string' && body.source.length > 0
+    ? ` (${body.source})` : ''
+
+  return `${body.error}${source}`.slice(0, 160)
+}
+
 const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
   const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const beforeResponse = await fetchGameWebApi('/api/v1/game-info', signal)
@@ -64,6 +76,11 @@ const requestSnapshot = async (): Promise<GameStateSnapshotReadResult> => {
 
   if (response.status === 404) {
     return unavailable(404, 'Enable CoI Calculator Bridge in the loaded game.')
+  }
+  if (!response.ok) {
+    const failure = await readBridgeFailure(response)
+
+    if (failure) return unavailable(502, `CoI Calculator Bridge failed: ${failure}`)
   }
   if (!response.ok || !catalogResponse.ok || !inventoryResponse.ok || !historyResponse.ok) {
     return unavailable(502, 'The game could not provide calculator data. Check the game log.')

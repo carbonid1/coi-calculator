@@ -30,7 +30,7 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
     private bool m_layoutRouteRegistered;
 
     public string Name { get { return "CoI Calculator Bridge"; } }
-    public int Version { get { return 61; } }
+    public int Version { get { return 62; } }
     public bool IsUiOnly { get { return false; } }
     public Option<IConfig> ModConfig { get; set; }
     public ModManifest Manifest { get; private set; }
@@ -136,8 +136,25 @@ public sealed class CoiCalculatorExporterMod : IMod, IDisposable
         {
             return WebRouteResponse.Error(503, "Calculator data is not ready.");
         }
-        return WebRouteResponse.Json(SnapshotJsonWriter.Serialize(m_snapshotCollector.Capture()))
-            .WithHeader("Cache-Control", "no-store");
+        try
+        {
+            return WebRouteResponse.Json(SnapshotJsonWriter.Serialize(m_snapshotCollector.Capture()))
+                .WithHeader("Cache-Control", "no-store");
+        }
+        catch (Exception exception)
+        {
+            // One collector failing must say which, instead of a bare server error.
+            Log.Error("CoI Calculator Bridge: could not capture factory data: " + exception);
+            var site = exception.TargetSite;
+            string source = site == null ? null
+                : (site.DeclaringType == null ? "" : site.DeclaringType.Name + ".") + site.Name;
+            SnapshotJsonStream error = new SnapshotJsonStream(256);
+            error.BeginObject();
+            error.Field("error", exception.GetType().Name + ": " + exception.Message);
+            error.Field("source", source);
+            error.EndObject();
+            return WebRouteResponse.Json(error.GetJson(), 500).WithHeader("Cache-Control", "no-store");
+        }
     }
 
     private WebRouteResponse getIslandMap()

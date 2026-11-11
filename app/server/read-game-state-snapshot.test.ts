@@ -127,6 +127,23 @@ it('reports an upstream collection failure without returning older data', async 
   expect(await read()).toMatchObject({ httpStatus: 502, snapshot: null, status: 'error' })
 })
 
+it('shows what the Bridge says failed, and falls back when it says nothing usable', async () => {
+  bridgeReply.mockReturnValueOnce(Response.json(
+    { error: 'InvalidOperationException: Unsupported weather provider', source: 'GameSnapshotCollector.getWeatherSnapshot' },
+    { status: 500 },
+  ))
+  expect(await read()).toMatchObject({
+    httpStatus: 502, snapshot: null, status: 'error',
+    error: 'CoI Calculator Bridge failed: InvalidOperationException: Unsupported weather provider (GameSnapshotCollector.getWeatherSnapshot)',
+  })
+  bridgeReply.mockReturnValueOnce(Response.json({ error: 'x'.repeat(500) }, { status: 500 }))
+  expect((await read()).error).toHaveLength('CoI Calculator Bridge failed: '.length + 160)
+  for (const reply of [Response.json({ error: 7 }, { status: 500 }), Response.json({}, { status: 500 }), new Response('<html>', { status: 500 })]) {
+    bridgeReply.mockReturnValueOnce(reply)
+    expect(await read()).toMatchObject({ httpStatus: 502, error: 'The game could not provide calculator data. Check the game log.' })
+  }
+})
+
 it('rejects malformed JSON and incompatible game data', async () => {
   bridgeReply.mockReturnValueOnce(new Response('<html>wrong endpoint</html>'))
   expect(await read()).toMatchObject({ httpStatus: 422, snapshot: null })

@@ -1,13 +1,15 @@
+using System;
 using System.Globalization;
 using System.Text;
 
 using Mafi.Serialization;
 
-// Schema 44's JSON boundary. Field writers do not manage separators or escaping.
+// The snapshot's JSON boundary. Field writers do not manage separators or escaping.
 internal sealed class SnapshotJsonStream
 {
     private readonly StringBuilder m_json;
     private bool m_needsComma;
+    private string m_lastName;
 
     public SnapshotJsonStream(int capacity)
     {
@@ -21,6 +23,7 @@ internal sealed class SnapshotJsonStream
 
     public SnapshotJsonStream Name(string name)
     {
+        m_lastName = name;
         appendComma();
         appendString(name);
         m_json.Append(':');
@@ -52,6 +55,12 @@ internal sealed class SnapshotJsonStream
 
     public SnapshotJsonStream Value(double value)
     {
+        // NaN and Infinity are not JSON; one of them makes the whole reply unreadable.
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            throw new InvalidOperationException(
+                "Non-finite number in field \"" + (m_lastName ?? "?") + "\".");
+        }
         appendComma();
         m_json.Append(value.ToString("R", CultureInfo.InvariantCulture));
         return this;
