@@ -49,11 +49,12 @@ pre-existing 40 s timeout at `tests/factory.smoke.test.ts:127` (41.9 s here).
 `vitest run app/server app/hooks` (43/43) all pass. Not re-run: full vitest,
 `pnpm build`, browser smoke.
 
-001's CI workflow has since run: it passed on `e6a6d24` and on `465d714`
-(2026-11-12, all plans through 013). Three earlier runs are still shown as
-`queued` and can be cancelled. The run warns that `actions/checkout@v4`,
-`actions/setup-node@v4` and `pnpm/action-setup@v4` target the deprecated
-Node 20 runtime.
+001's CI workflow ran and passed on `e6a6d24` and `465d714`. The maintainer
+then decided against GitHub CI (2026-11-12): `.github/workflows/ci.yml` is
+removed and checks run locally (`pnpm ts`, `pnpm lint`, `pnpm exec vitest run`,
+`pnpm build`, `node --test tests/browser.smoke.mjs`). Do not propose CI or
+pull-request workflows again. Three early runs remain listed as `queued` on
+GitHub; the API refuses to cancel them.
 
 ## Deep audit (2026-11-11, `main` at `e6a6d24`)
 
@@ -127,7 +128,7 @@ assertion. `tests/browser.smoke.mjs` and the C# mod tests were not run.
 | One throwing Bridge collector fails the whole snapshot without naming the section | `game-mod/CoiCalculatorExporter/CoiCalculatorExporterMod.cs:133-141`; `GameSnapshotCollector.Capture.cs:10-79` | S | Catch per section and return the section name. Needs Windows and the game. Complements plan 009. |
 | Map and layout parsers and three API routes are covered only by the browser smoke, which CI does not run | `app/factory-layout.ts:18-72`; `app/island-map.ts:18-51`; `app/api/{game-state,island-map,factory-layout}/route.ts` | S | Add vitest regressions modelled on `app/api/game-icons/[id]/route.test.ts`. |
 | Smoke suite is one serial 1,700-line file; about 46 test files re-parse the full recording on import | `tests/factory.smoke.test.ts`; `app/test-fixtures/recorded-game-data.ts:14-18` | S–M | Split by scenario and make the fixture lazy. Unmeasured. |
-| CI actions pinned by tag; installs run two packages' download scripts; `.gitignore` covers only `.env` and `.env.local` | `.github/workflows/ci.yml:20-26`; `pnpm-workspace.yaml:3-4`; `.gitignore:8-9` | S | Pin by SHA, `--ignore-scripts` in CI, ignore `.env*`. |
+| `.gitignore` covers only `.env` and `.env.local` | `.gitignore:8-9` | S | Ignore `.env*`. (The CI parts of this finding are moot: CI was removed.) |
 | A building inside two overlapping named areas lands in both area modules | `app/helpers/live-area-modules/live-area-modules.ts:222-227`; same filter in the population, computing and nuclear sync helpers | M | The recorded save has no such building (0 of 1,526). Investigate before planning. |
 | Most recorded-factory scenarios replay the retired `science-expansion` and `third-fbr` presets | `tests/factory.smoke.test.ts`; `tests/fixtures/factory-baseline.json`; `app/db/factory-presets.ts:18` | M | Decide which still guard anything; plan 012 covers the live preset's newest layer only. |
 | C# tests that need no game install are gated behind the game install and no script runs all three mods' tests | `scripts/build-game-mod.ps1:18-20,74-79`; `scripts/build-mine-storage-control.ps1:16,34-41` | S | Also: three build scripts duplicate hard-coded paths. |
