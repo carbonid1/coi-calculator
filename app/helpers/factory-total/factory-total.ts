@@ -16,6 +16,7 @@ import { getPresetResourceDemands } from "../preset-resource-demands/preset-reso
 import { isModuleInput } from "../recipe-input-scope/recipe-input-scope";
 import { allocateProcessingSupply, canPrioritizeProcessing } from "../resource-priorities/resource-priorities";
 import { typedEntries } from "../typed-entries/typed-entries";
+import { getLatentRouteDemand } from "./latent-route-demand";
 
 export interface FactoryTotalResult {
   flows: ResourceFlow[];
@@ -372,10 +373,7 @@ const calculateWithDispatch = (
           // A surplus route the solver refused for this output is demand the
           // flows do not show yet. Dispatching for it lets the next pass
           // accept the route instead of settling on the refusal.
-          const latentDemand = currentCalculation.blockedRoutes.reduce((total, route) => (
-            total + ((route.blockingResources ?? (route.blockedBy ? [route.blockedBy] : []))
-              .find(shortage => shortage.resourceId === output.resourceId)?.deficitIncrease ?? 0)
-          ), 0);
+          const latentDemand = getLatentRouteDemand(currentCalculation.blockedRoutes, output.resourceId);
 
           return [
             Math.max(0, flow.consumed + latentDemand - (flow.produced - currentProduced)) / capacity,

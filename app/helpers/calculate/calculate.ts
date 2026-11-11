@@ -2921,6 +2921,7 @@ const calculateNetCore = (
       // The routes that drew on the allowance are what made the factory
       // shorter, so that trade-off is the reason they stay refused, not the
       // input the first pass named.
+      // All of them share this one object; dispatch counts it once by identity.
       blockedRoutes.splice(0, blockedRoutes.length, ...firstRunRoutes.map((route) => (
         retryableRoutes.includes(route) ? { ...route, blockedBy: retryShortfall, blockingResources: [retryShortfall] } : route
       )));
