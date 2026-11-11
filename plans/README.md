@@ -17,6 +17,14 @@ of existing elements, data attributes, logs and stored data only.
 | [002](002-upgrade-next-bind-localhost.md) | Next.js is patched and the calculator listens on localhost only | P1 | S | — (001 helps) | DONE |
 | [003](003-keep-sync-failure-reason.md) | A failed game sync says why, in the status line and the server log | P1 | S | — | DONE |
 | [004](004-harden-browser-storage-writes.md) | Snapshot caching never blocks a poll, never leaves stale data, and a full storage cannot crash the page | P2 | S–M | — (after 003 to avoid a merge conflict) | DONE |
+| [005](005-stabilise-test-discovery-and-timeouts.md) | Tests are discovered from fixed folders, heavy smoke tests have explicit timeouts, and the smoke script runs every smoke file | P1 | S | — | DONE (`2fab1bc` on `main`) |
+| [006](006-fix-keep-ready-toast-separator.md) | The Keep ready toast shows "Module · Recipe" without a stray character | P1 | S | — | DONE (`d2a7c1a` on `main`) |
+| [007](007-allocate-module-sources-before-global-sources.md) | A global source no longer supplies demand that a module's own source already covers | P1 | S | 005 | DONE (`622c6e3` on `main`) |
+| [008](008-count-shared-retry-shortfall-once.md) | Dispatch counts a shortfall shared by several refused routes once, not once per route | P2 | S | 005 (after 007) | DONE (`bafce14` on `main`) |
+| [009](009-name-the-snapshot-rejection-reason.md) | A rejected Bridge reply says whether the Bridge, the calculator or the game version is the mismatch | P1 | S | — | DONE (`77b5d40` on `main`) |
+| [010](010-remove-dead-preference-hooks.md) | The three unused per-save preference hooks and their storage-key helpers are gone | P2 | S | — | DONE (`203f6e1` on `main`) |
+| [011](011-keep-hidden-pump-assignments.md) | Saving one pump assignment no longer erases stored assignments whose area is temporarily missing | P2 | S | — (after 006) | DONE (`0f25459` on `main`) |
+| [012](012-cover-next-preset-production-targets.md) | The recorded-factory smoke tests check the Next preset's production targets and household-appliance demand | P2 | S–M | 005 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -43,8 +51,41 @@ pre-existing 40 s timeout at `tests/factory.smoke.test.ts:127` (41.9 s here).
 Open: 001's CI workflow has never run — all three runs stay `queued` with no
 jobs. Check the repository's Actions settings and billing.
 
+## Deep audit (2026-11-11, `main` at `e6a6d24`)
+
+Plans 005–012 come from a deep audit: eight read-only passes (solver, state
+sync, C# mods, security and dependencies, performance, tests, debt/DX/docs,
+direction). The findings behind 005–011 were confirmed by reading the cited
+code; nothing was run or profiled, so every performance cost below is an
+estimate. Not audited: about 20 Bridge files (definition snapshots, models,
+parts of the JSON writer), the game's own web server,
+`app/helpers/processing-links/processing-links.ts`, and most UI components
+beyond `app/calculator.tsx`.
+
+## Execution notes (2026-11-12)
+
+Plans 005–011 were executed by separate executors, reviewed, and applied to
+`main` in order (`2fab1bc` … `0f25459`, not pushed). On `main` at `0f25459`:
+`pnpm ts` and `pnpm build` exit 0, vitest passes 92 files / 950 tests, and
+ESLint is clean once `.claude/**` is ignored. Plain `pnpm lint` fails while
+agent worktrees exist (see the candidates table).
+
+- 007 needed one revision: the first commit normalised the mixed line endings
+  of `app/helpers/calculate/calculate.ts`. The plan now warns about it.
+- 008's plan had a test helper with an `as` assertion, which lint forbids;
+  corrected in the plan.
+- Not verified anywhere: the running app (new sync messages, pump assignment
+  after a reload), `tests/browser.smoke.mjs`, and a completed GitHub Actions run.
+
 ## Dependency notes
 
+- 005 first: it makes the recorded-factory smoke tests reliable, and 007, 008
+  and 012 rely on them. 005 and 012 both edit `tests/factory.smoke.test.ts`.
+- 007 and 008 both edit `app/helpers/calculate/calculate.ts`; run 007, then 008.
+- 006 and 011 both edit `app/calculator.tsx` in different places; run 006, then 011.
+- 009 and 010 are independent of everything else.
+- 007 and 012 have STOP conditions that report a changed or failing number
+  instead of fixing it; expect to make a call on those.
 - 001 has no prerequisites and gives every later plan an automatic check.
 - 002 is independent but is a framework bump, so it is safer once 001's CI exists.
 - 003 and 004 both edit `app/hooks/use-game-state.ts` and `app/calculator.tsx`
@@ -67,15 +108,48 @@ assertion. `tests/browser.smoke.mjs` and the C# mod tests were not run.
 | Active area with its own resource pool runs the full factory solver during render, outside the worker | `app/calculator.tsx:434-444`; `app/helpers/live-area-modules/live-area-modules.ts:813` | M | Not measured. Move into the worker result or memoize. |
 | Pooled-solve cache key omits the contract starting plan | `app/helpers/factory-calculation/factory-calculation.ts:121-136` | S | Result can depend on solve order within the contract tolerance (0.001). |
 | Worker returns the whole model and snapshot on every solve and keys its cache on full-input JSON strings | `app/helpers/factory-calculation/factory-calculation.worker.ts:26-65` | M | |
-| Five drifted copies of the per-save preference hook | `app/hooks/use-operating-preferences.ts`, `use-resource-priorities.ts`, `use-keep-ready-preferences.ts`, `use-factory-preset.ts`, `app/calculator.tsx:160-221` | S–M | Plan 004 fixes the dangerous copy; consolidation is still open. |
+| Two live copies of the per-save preference pattern, plus pump assignments in the component | `app/hooks/use-keep-ready-preferences.ts`, `app/hooks/use-factory-preset.ts`, `app/calculator.tsx:160-225` | S–M | Was "five copies"; three were dead (plan 010). Consolidate after 010 and 011. |
 | `calculateBuildingStats` scans all lines per passive result and computes output capacity without modifiers while inputs use them | `app/helpers/building-stats/building-stats.ts:70-91` | S | The modifier mismatch needs a game-data check before changing. |
 | `calculateNetCore` takes 10 positional parameters, several of the same type | `app/helpers/calculate/calculate.ts:517-538` | M | Options object; do after 001. |
 | Test files are excluded from typecheck | `tsconfig.json` `exclude`; 393 errors when included | M | |
 | Preset fallback differs between call sites | `app/helpers/factory-calculation/factory-calculation.ts:89`, `app/helpers/resource-supply/resource-supply.ts:39` vs `factory-total.ts:795-796` | S | Latent; generated modules have matching ids. |
-| Unused module | `app/helpers/capacity-pools/` has no importers | S | Verify, then delete. |
 | Preferences and cached results are keyed by game name, not game id | `game-mod/CoiCalculatorExporter/GameSnapshotCollector.Capture.cs:40` | M | Investigate whether the game enforces unique names. |
 | Transitive build-tool advisories (`browserslist`, `source-map-js`, `baseline-browser-mapping`, `@babel/core`) | `pnpm audit --prod` on `0794128`; paths under `next` and `@carbonid1/design-system` | S | Try `pnpm update` within ranges, else `pnpm.overrides`. Build-time only; low exposure for a localhost tool. |
+| `pnpm lint` fails on `main` while agent worktrees exist | `eslint.config.mjs` ignores only `.next/**` and `next-env.d.ts`; ESLint then lints the config files inside `.claude/worktrees/*` (13 `import/no-default-export` errors seen on 2026-11-11) | S | Add `.claude/**` (and `out/**`, `Builds/**`) to the ignores. CI is unaffected. Plan 005 covered vitest and `tsc` but missed ESLint. |
+| Two files have mixed line endings | `app/helpers/calculate/calculate.ts` (about 2,100 CRLF, 900 LF), `app/components/MinesView.tsx`; no `.gitattributes` | S | Any tool that rewrites the file turns a small edit into a 900-line diff (seen while executing plan 007). Normalise both to LF in one commit and add `* text=auto eol=lf`. |
 | Dev server accepts any `Host` header | no middleware; `app/api/*/route.ts` | S | Read-only routes; low severity after plan 002. |
+| One throwing Bridge collector fails the whole snapshot without naming the section | `game-mod/CoiCalculatorExporter/CoiCalculatorExporterMod.cs:133-141`; `GameSnapshotCollector.Capture.cs:10-79` | S | Catch per section and return the section name. Needs Windows and the game. Complements plan 009. |
+| Map and layout parsers and three API routes are covered only by the browser smoke, which CI does not run | `app/factory-layout.ts:18-72`; `app/island-map.ts:18-51`; `app/api/{game-state,island-map,factory-layout}/route.ts` | S | Add vitest regressions modelled on `app/api/game-icons/[id]/route.test.ts`. |
+| Smoke suite is one serial 1,700-line file; about 46 test files re-parse the full recording on import | `tests/factory.smoke.test.ts`; `app/test-fixtures/recorded-game-data.ts:14-18` | S–M | Split by scenario and make the fixture lazy. Unmeasured. |
+| CI actions pinned by tag; installs run two packages' download scripts; `.gitignore` covers only `.env` and `.env.local` | `.github/workflows/ci.yml:20-26`; `pnpm-workspace.yaml:3-4`; `.gitignore:8-9` | S | Pin by SHA, `--ignore-scripts` in CI, ignore `.env*`. |
+| A building inside two overlapping named areas lands in both area modules | `app/helpers/live-area-modules/live-area-modules.ts:222-227`; same filter in the population, computing and nuclear sync helpers | M | The recorded save has no such building (0 of 1,526). Investigate before planning. |
+| Most recorded-factory scenarios replay the retired `science-expansion` and `third-fbr` presets | `tests/factory.smoke.test.ts`; `tests/fixtures/factory-baseline.json`; `app/db/factory-presets.ts:18` | M | Decide which still guard anything; plan 012 covers the live preset's newest layer only. |
+| C# tests that need no game install are gated behind the game install and no script runs all three mods' tests | `scripts/build-game-mod.ps1:18-20,74-79`; `scripts/build-mine-storage-control.ps1:16,34-41` | S | Also: three build scripts duplicate hard-coded paths. |
+| Every `Calculator` render recomputes derived data; each poll renders at least twice; no React Compiler | `app/calculator.tsx:375-660`; `app/helpers/game-state-polling/game-state-polling.ts:37,55`; `next.config.ts` | M | Unmeasured. Try `reactCompiler: true` first. |
+| Nested solver loops share no warm start across world-mine iterations | `app/helpers/factory-calculation/factory-calculation.ts:109,191-211` | M | Instrument pass counts on the recorded factory before changing anything. |
+| First page load ships the snapshot in the HTML, derives the model on server and client, then re-fetches at once | `app/page.tsx:10-38`; `app/calculator.tsx:135-148`; `app/hooks/use-game-state.ts:130` | M | Unmeasured. |
+| Number formatting differs between views (grouping, locale) | `parseFloat(x.toFixed(2))` in seven components; `toLocaleString('en-US', …)` in four; bare `toLocaleString()` in `ContractsView.tsx:25` | S | Text-only; one shared formatter. |
+| Save-specific plans are wired four different ways | `'Last-Stop Waters'` in `app/db/live-area-plans.ts:32`, `module-resource-links.ts`, `processing-links.ts:5`, `derive-calculator-model.ts:178` | S | One `getSavePlan(saveId)`. |
+| Unused exports | `cropProductResourceIds` (`app/db/crop-farming.ts:151`), `getCropFarmOwnerZones` (`app/db/modules/crop-farm-areas.ts:44`), `unplacedPlannedDefaultBuildings` (`app/db/modules/default.ts:58`); test-only `app/helpers/latest-revision-cache/` | S | Zero references confirmed for the first three. |
+| Low-confidence solver items | stale blocked route when a surplus input runs out (`calculate.ts:1896`); recyclable-source undo not matching its forward clamp (`:1120`); a processing route accepted at fraction 0 still rewrites the target recipe (`calculate-processing-chains.ts:213-216`); source `supplyRatio` ignores `speedLevel` (`calculate.ts:2537-2539`) | S each | Each needs a failing regression before any change. |
+| Mod settings tabs outlive their mod; Mine Storage Control UI start-up is unguarded | `game-mod/Shared/CoI.AutoHelpers.Settings.cs:85-90`; `game-mod/MineStorageControl/MineStorageUi.cs:30-39` | S–M | Needs Windows and the game. |
+| A cached snapshot replaces a server-rendered sync error with "loading" until the next poll | `app/hooks/use-game-state.ts:138-153` | S | Small; background tabs only. |
+
+## Direction options (not planned)
+
+- **Machine-readable solver result.** The whole pipeline already runs headless
+  (`tests/factory.smoke.test.ts:57-77`), but no route or script exposes
+  deficits, surpluses or plan mismatches, so an agent skill cannot read what
+  the calculator concluded. A revision-cached `/api/plan` route or script fits
+  the no-new-UI rule.
+- **Apply-plan skill.** Plan mismatches carry typed actions
+  (`app/db/modules/modules.ts:94-117`) but only as labels. Entity ids on pause
+  and unpause actions, plus the batch protocol already in
+  `.agents/skills/rebalance-farms/SKILL.md`, would let a skill carry them out.
+- **Planning toggles an agent can read.** Preset, contract, priority,
+  keep-ready and pump choices live only in browser storage.
+- Lower confidence: export Mine Storage Control rules and Train Network
+  Monitor occupancy through read routes so skills can use them.
 
 ## Findings considered and rejected
 
@@ -96,6 +170,29 @@ assertion. `tests/browser.smoke.mjs` and the C# mod tests were not run.
 - **Pinning `next` / `typescript` exactly**: the lockfile already protects installs.
 - **Lockfile not part of the calculation cache version**: the solver has no
   runtime dependencies that affect results.
+- **`app/helpers/capacity-pools/` listed as unused** (earlier version of this
+  index): wrong. Five modules import it, including
+  `app/helpers/resource-supply/supply-diagnosis.ts:6`.
+- **A planning preset solves the factory twice per revision**
+  (`factory-calculation.ts:217-238`): the second solve is the current-setup
+  baseline that calibrates power, it changes with every snapshot, and it is
+  already cached for edits within one revision. Inherent to the design.
+- **The Bridge starts the game's web server on load**
+  (`CoiCalculatorExporterMod.cs:85-100`): documented in `README.md` as
+  intended. Only the game's own bind address is unverified.
+- **A Groundwater Pump with no aquifer rejects the whole snapshot**
+  (`app/game-state.ts:692-694`, `:1157-1163`): rejected in two places, so it
+  reads as deliberate. Revisit only if the game allows such a pump.
+- **Enforcing Prettier**: configured but unused; adopting it means a roughly
+  100-file reformat for little gain now.
+- **Splitting `calculateNetCore` and the other large files**: real, but high
+  risk until 007 and 008 have landed with their regressions.
+- **Pump search dividing by a zero pump capacity or empty weather periods**
+  (`calculate-groundwater-production.ts:185-203`, `planning-weather.ts:3-6`):
+  the snapshot validator already requires a positive pump capacity
+  (`app/game-state.ts:660`); empty weather periods were not checked.
+- **Stale pnpm supply-chain exception, `cspell.json`, missing
+  `mine-storage:*` scripts**: trivia.
 - **Direction ideas needing new UI** (an "apply to game" button, export/import
   of presets): rejected by the maintainer's no-new-UI rule. The same goals fit
   skills that drive the game's command API, as `rebalance-farms` already does.
