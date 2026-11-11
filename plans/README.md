@@ -49,8 +49,11 @@ pre-existing 40 s timeout at `tests/factory.smoke.test.ts:127` (41.9 s here).
 `vitest run app/server app/hooks` (43/43) all pass. Not re-run: full vitest,
 `pnpm build`, browser smoke.
 
-Open: 001's CI workflow has never run — all three runs stay `queued` with no
-jobs. Check the repository's Actions settings and billing.
+001's CI workflow has since run: it passed on `e6a6d24` and on `465d714`
+(2026-11-12, all plans through 013). Three earlier runs are still shown as
+`queued` and can be cancelled. The run warns that `actions/checkout@v4`,
+`actions/setup-node@v4` and `pnpm/action-setup@v4` target the deprecated
+Node 20 runtime.
 
 ## Deep audit (2026-11-11, `main` at `e6a6d24`)
 
