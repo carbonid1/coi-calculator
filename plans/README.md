@@ -63,6 +63,13 @@ removed and checks run locally (`pnpm ts`, `pnpm lint`, `pnpm exec vitest run`,
 pull-request workflows again. Three early runs remain listed as `queued` on
 GitHub; the API refuses to cancel them.
 
+## Reconcile (2026-11-12, `main` at `6580cf3`)
+
+001–020 verified DONE: each plan's key criterion holds on HEAD, and `pnpm ts`
+and `pnpm lint` exit 0. Nothing is TODO, IN PROGRESS or BLOCKED. Still open
+from execution: the in-game check of the Bridge 0.65.1 (019) and Mine Storage
+Control 0.2.1 (020).
+
 ## Deep audit (2026-11-11, `main` at `e6a6d24`)
 
 Plans 005–012 come from a deep audit: eight read-only passes (solver, state
