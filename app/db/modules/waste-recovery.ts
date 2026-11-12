@@ -49,6 +49,7 @@ const recoveryRecipes = [
 export const applyWasteRecoveryPlan = (
   definitions: PlanningDefinitions,
   module: Module,
+  thermalDesalinatorTarget = 2,
 ): Module => {
   const configured = { ...module, recipes: [...(module.recipes ?? [])], builtBuildings: { ...module.builtBuildings } }
   const targets = recoveryRecipes.map(target => {
@@ -70,7 +71,8 @@ export const applyWasteRecoveryPlan = (
 
     configured.recipes = [...configured.recipes.filter(candidate => candidate.id !== id), planned]
     configured.builtBuildings[id] ??= 0
-    return { recipeId: id, name: target.name, target: target.target }
+    return { recipeId: id, name: target.name,
+      target: target.recipeId === 'DesalinationFromHP' ? thermalDesalinatorTarget : target.target }
   })
 
   return {

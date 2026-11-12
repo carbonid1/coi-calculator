@@ -37,7 +37,7 @@ export const thirdFbrCropFarmGroups: readonly CropFarmGroup[] = [
   group(['wheat', 'fruit', 'wheat', 'canola']),
 ]
 
-/** Rotations for Appliances & Waste Recovery with 28 Housing III and 3,900 chickens. */
+/** Rotations for the Household Appliances plan with 3,900 chickens. */
 export const applianceCropFarmGroups: readonly CropFarmGroup[] = [
   group(['corn', 'vegetables']),
   group(['corn', 'wheat']),

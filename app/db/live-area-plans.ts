@@ -63,7 +63,7 @@ const liveAreaPlansBySave: Readonly<Record<string, LiveAreaPlans>> = {
     13: {
       computing: { dataCenterCount: 8, rackCount: 369, waterChillers: 8 },
     },
-    14: { householdAppliances: true, housingTarget: 28 },
+    14: { householdAppliances: true, housingTarget: 27 },
     16: {
       resourcePool: 'factory',
       productionTargets: [

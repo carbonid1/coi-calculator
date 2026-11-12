@@ -123,7 +123,7 @@ export interface Recipe {
   balanceOutputIds?: ResourceId[]
   /** Output-balanced recipes can serve only demand created inside their physical module. */
   balanceOutputScope?: 'module'
-  /** Limit production to the amount of this output its module can take. */
+  /** Cap this output to settled demand within its supply scope. */
   backpressureOutputId?: ResourceId
   /** Lower values allocate demand-balanced recipes first when planned outputs compete. */
   demandPriority?: number
@@ -735,6 +735,7 @@ const recipePolicies: Recipe[] = [
     balanceBy: 'output',
     balanceInputIds: ['brine'],
     balanceOutputIds: ['salt'],
+    backpressureOutputId: 'salt',
     inputPriorities: { brine: 3 },
     inputs: [{ resourceId: 'brine', quantity: 0 }],
     outputs: [{ resourceId: 'salt', quantity: 0 }],

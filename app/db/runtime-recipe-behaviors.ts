@@ -9,6 +9,7 @@ type RuntimeRecipeBehavior = Partial<Pick<
   | "balanceInputScope"
   | "balanceOutputIds"
   | "balanceOutputScope"
+  | "backpressureOutputId"
   | "consumeSurplusInputIds"
   | "consumeSurplusOutputIds"
   | "consumeSurplusInputScope"
@@ -255,6 +256,7 @@ export const runtimeRecipeBehaviors: Readonly<Record<string, RuntimeRecipeBehavi
     balanceBy: "output",
     balanceInputIds: ["brine"],
     balanceOutputIds: ["salt"],
+    backpressureOutputId: "salt",
     inputPriorities: { brine: 3 },
   },
   "ExhaustScrubber:ExhaustFilteringLime": {

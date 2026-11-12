@@ -29,6 +29,7 @@ const connectionReasons: Record<string, string> = {
   'unsupported-device': 'The line reaches a device the connection check does not support.',
   'no-transport': 'No connected belt or pipe was found.',
   'direct-connection': 'A direct building connection has no separate belt or pipe capacity.',
+  'planned-configuration': 'Sync after configuring and unpausing the cargo modules to measure this line.',
 }
 const connectionTooltip = (reason?: string | null) => (
   reason ? connectionReasons[reason.split(':')[0] ?? ''] ?? 'Connection capacity could not be measured.'
@@ -255,6 +256,7 @@ export const ContractsView: React.FC<Props> = ({ issues, results, fullThrottlePr
 
     return count ? [`${count} ${state}`] : []
   }).join(' · ')
+  const hasPlannedRoutes = results.some(result => result.routes.some(({ route }) => route.source === 'planned'))
 
   return (
     <div className="space-y-4">
@@ -270,9 +272,11 @@ export const ContractsView: React.FC<Props> = ({ issues, results, fullThrottlePr
           </div>
         </section>
       )}
-      <section className="space-y-3" aria-labelledby="established-contracts-heading">
+      <section className="space-y-3" aria-labelledby="active-contracts-heading">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h3 id="established-contracts-heading" className="text-sm font-semibold text-foreground">Established · {results.length}</h3>
+          <h3 id="active-contracts-heading" className="text-sm font-semibold text-foreground">
+            {hasPlannedRoutes ? 'Contracts' : 'Established'} · {results.length}
+          </h3>
           {stateSummary && <p className="text-xs text-muted-foreground">{stateSummary}</p>}
         </div>
         {results.length > 0 ? (

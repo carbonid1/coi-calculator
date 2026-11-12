@@ -86,9 +86,8 @@ export interface SpaceStationCurrentState {
   stationPartsAssembly?: SpaceStationAreaBuildingState;
 }
 
-export interface SpaceStationResearchPlan {
-  requiredPoints: number;
-}
+type SpaceStationPlan = { requiredPoints: number; off?: never }
+  | { off: true; requiredPoints?: never };
 
 const romanLevels: Record<number, string> = {
   1: "I",
@@ -147,16 +146,17 @@ export const createSpaceStationModule = (
   rocketBuiltConfig: RocketInfrastructureConfig = emptyRocketInfrastructureConfig,
   currentState: SpaceStationCurrentState = {},
   generatedArea?: Module,
-  researchPlan?: SpaceStationResearchPlan,
+  plan?: SpaceStationPlan,
 ): Module => {
   const currentStation = calculateSpaceStationLevel(
     config.currentLevel,
     stationLevels,
   );
-  const targetLevel = researchPlan?.requiredPoints
+  const requiredPoints = plan?.requiredPoints ?? 0;
+  const targetLevel = requiredPoints > 0
     ? Math.max(
         currentStation.level,
-        getMinimumSpaceStationLevelForResearchPoints(researchPlan.requiredPoints, stationLevels),
+        getMinimumSpaceStationLevelForResearchPoints(requiredPoints, stationLevels),
       )
     : currentStation.level;
   const station = calculateSpaceStationLevel(
@@ -176,8 +176,10 @@ export const createSpaceStationModule = (
     built: 0,
     running: 0,
   };
-  const crewPlanned = Boolean(researchPlan) && config.crewDisabled === true;
-  const stationActive = hasStation && (researchPlan || config.crewDisabled !== true) ? 1 : 0;
+  const crewEnablePlanned = requiredPoints > 0 && config.crewDisabled === true;
+  const crewDisablePlanned = currentlyHasStation && plan?.off === true && config.crewDisabled !== true;
+  const crewPlanned = crewEnablePlanned || crewDisablePlanned;
+  const stationActive = hasStation && plan?.off !== true && (requiredPoints > 0 || config.crewDisabled !== true) ? 1 : 0;
   const currentStationActive = currentlyHasStation && config.crewDisabled !== true ? 1 : 0;
   const rocketBuiltBuildings = Object.fromEntries(
     rocketInfrastructureItems.map((item) => [item.recipeId, rocketBuilt[item.id]]),
@@ -232,18 +234,22 @@ export const createSpaceStationModule = (
           label: currentlyHasStation
             ? `Upgrade Space Station to level ${targetLevel}`
             : `Build Space Station level ${targetLevel}`,
-        }, ...(crewPlanned ? [{ type: "unpause" as const, label: "Enable Space Station crew" }] : [])],
+        }, ...(crewEnablePlanned ? [{ type: "unpause" as const, label: "Enable Space Station crew" }] : [])],
       }]
     : [];
 
   if (crewPlanned && !stationPlanPending) {
     stationPlanMismatches.push({
       recipeId: "space-station-operations",
-      current: 0,
-      target: 1,
-      direction: "at-least",
-      format: "count",
-      actions: [{ type: "unpause", label: "Enable Space Station crew" }],
+      current: crewDisablePlanned ? 1 : 0,
+      target: crewDisablePlanned ? 0 : 1,
+      direction: crewDisablePlanned ? "at-most" : "at-least",
+      format: "configuration",
+      currentLabel: crewDisablePlanned ? "Crew enabled" : "Shut down",
+      targetLabel: crewDisablePlanned ? "Shut down" : "Crew enabled",
+      actions: [crewDisablePlanned
+        ? { type: "pause", label: "Shut down Space Station" }
+        : { type: "unpause", label: "Enable Space Station crew" }],
     });
   }
 

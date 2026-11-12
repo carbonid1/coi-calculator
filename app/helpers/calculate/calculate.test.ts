@@ -386,6 +386,20 @@ it("trims a demand-balanced producer once a late byproduct covers part of its de
   expect(net("animalFeed")).toBeCloseTo(0);
 });
 
+it("caps salt to settled factory demand across evaporation ponds", () => {
+  const nativePond = recipes.find(recipe => recipe.id === "evaporation-pond-heated-salt-brine")!;
+  const pond = { ...nativePond, balanceBy: "input" as const };
+  const result = calculateNet([
+    balancedLine(pond, "default"),
+    balancedLine(pond, "nuclear"),
+  ], { brine: 192 }, undefined, {}, { salt: 13 });
+  const salt = result.allResourceFlows.find(flow => flow.resourceId === "salt")!;
+
+  expect(salt.consumed).toBe(13);
+  expect(salt.produced).toBeCloseTo(salt.consumed, 8);
+  expect(result.regularResults.every(line => line.supplyRatio > 0)).toBe(true);
+});
+
 it("keeps a module export demand on the selected producer", () => {
   const selectedProducer: Recipe = {
     id: "test-selected-module-producer",

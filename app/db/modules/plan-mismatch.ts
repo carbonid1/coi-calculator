@@ -1,4 +1,5 @@
-import { type PlanMismatchAction } from "./modules";
+import { type Recipe } from "../recipes";
+import { type Module, type PlanMismatchAction } from "./modules";
 
 interface AtLeastBuildingActionsOptions {
   built: number;
@@ -77,4 +78,33 @@ export const createAtMostBuildingActions = ({
         label: `Pause ${pauseCount} ${pluralize(name, pauseCount, pluralName)}`,
       }]
     : [];
+};
+
+/** Pause dedicated buildings identified by recipe, leaving shared recipe pools available. */
+export const pauseDedicatedProduction = (module: Module, matches: (recipe: Recipe) => boolean): Module => {
+  const recipes = module.recipes?.filter(recipe => !recipe.sharedCapacity && matches(recipe)) ?? [];
+
+  if (recipes.length === 0) return module;
+
+  return { ...module, presets: module.presets.map(preset => {
+    const activeBuildings = { ...preset.activeBuildings };
+    const dataSources = { ...preset.dataSources };
+    const planMismatches = [...(preset.planMismatches ?? [])];
+
+    for (const recipe of recipes) {
+      const active = activeBuildings[recipe.id] ?? 0;
+
+      if (active <= 0) continue;
+      const running = preset.currentActiveBuildings?.[recipe.id] ?? active;
+      const actions = createAtMostBuildingActions({ name: recipe.building, running, target: 0 });
+
+      activeBuildings[recipe.id] = 0;
+      dataSources[recipe.id] = 'planned';
+      if (actions.length > 0) planMismatches.push({
+        recipeId: recipe.id, current: running, target: 0, direction: 'at-most', format: 'count', actions,
+      });
+    }
+
+    return { ...preset, activeBuildings, dataSources, planMismatches };
+  }) };
 };

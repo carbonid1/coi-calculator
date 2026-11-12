@@ -58,47 +58,77 @@ import { type SpaceStationLevelDefinition } from '../app/space-station-state'
 const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
 const round = (value: number) => Number(value.toFixed(4)) || 0
 
-it('uses the live factory with two running labs and station crew as the new baseline', () => {
+it('plans a full research shutdown and reuses the depot for iron ore', () => {
   const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
 
   if (!snapshot) throw new Error('Recorded factory is incompatible')
-  snapshot.spaceStation = { currentLevel: 4, highestLevelAchieved: 4, crewDisabled: true }
+  snapshot.spaceStation = { currentLevel: 4, highestLevelAchieved: 4, crewDisabled: false }
+  snapshot.edicts.researchEfficiency = { enabledLevel: 3, activeLevel: 3, inactiveReason: null }
   const isLab = (prototypeId: string) => prototypeId.startsWith('ResearchLab')
 
   for (const entity of [...snapshot.productionEntities, ...snapshot.areaEntities]) {
-    if (isLab(entity.prototypeId)) entity.running = false
+    if (isLab(entity.prototypeId) && entity.entityId !== 317965) entity.running = true
+    if (entity.prototypeId === 'RocketAssemblyDepot' || entity.prototypeId === 'RocketLaunchPad') entity.running = true
   }
   const original = JSON.stringify(snapshot)
-  const derive = (presetId: 'current' | 'baseline' | 'next') => deriveCalculatorModel({
-    snapshot, presetId, machineZoneAssignments: {}, revision: 'research-baseline',
+  const derive = (presetId: 'baseline' | 'next') => deriveCalculatorModel({
+    snapshot, presetId, machineZoneAssignments: {}, revision: 'stable-operation',
   })
-  const current = derive('current')
-  const planned = derive('baseline')
-  const presets = (model: typeof planned) => model.configuredModules.flatMap(module => module.presets)
-  const changes = () => presets(derive('baseline')).flatMap(preset => preset.planMismatches ?? [])
-  const researchModule = planned.configuredModules.find(module => module.id === 'general')!
-  const researchRecipe = researchModule.recipes!.find(recipe => isLab(recipe.gameBuildingId ?? ''))!
+  const baseline = derive('baseline')
+  const planned = derive('next')
+  const actions = (model: typeof planned) => model.configuredModules.flatMap(module => module.presets)
+    .flatMap(preset => preset.planMismatches?.flatMap(change => change.actions.map(action => action.label)) ?? [])
+  const research = planned.configuredModules.find(module => module.id === 'general')!
+  const recipe = research.recipes!.find(recipe => isLab(recipe.gameBuildingId ?? ''))!
   const station = planned.configuredModules.find(module => module.capabilities?.includes('space-station'))!
+  const depot = snapshot.world.routes.find(route => route.depotEntityId === 382801)!
+  const iron = planned.enabledContracts.find(contract => contract.id === 'iron-ore-for-vehicle-parts-ii')!
 
   expect(factoryPresets.map(preset => preset.id)).toEqual(['baseline', 'next'])
-  expect(researchModule.presets[0].activeBuildings[researchRecipe.id]).toBe(2)
-  expect(researchModule.presets[0].builtBuildings?.[researchRecipe.id]).toBe(3)
-  expect(changes().flatMap(change => change.actions?.map(action => action.label) ?? [])).toEqual([
-    'Unpause 2 Research Lab IV', 'Enable Space Station crew',
-  ])
-  expect(presets(planned).flatMap(preset => Object.values(preset.unplacedPlannedBuildings ?? {})).some(count => count > 0)).toBe(false)
-  expect(station.presets[0].activeBuildings['space-station-operations']).toBe(1)
-  expect(station.presets[0].currentActiveBuildings?.['space-station-operations']).toBe(0)
-  expect(station.builtBuildings['space-station-operations']).toBe(1)
-  for (const area of planned.configuredModules.filter(module => module.id !== 'general' && module.id !== station.id)) {
-    expect(area).toEqual(current.configuredModules.find(candidate => candidate.id === area.id))
-  }
-  const result = calculateFactoryCalculation(planned.factoryCalculationInput)
-  const labs = result.factoryResult.allLines.filter(line => isLab(line.recipe.gameBuildingId ?? ''))
+  expect(actions(baseline)).toEqual([])
+  expect(actions(planned).filter(label => label.startsWith('Pause ') || label.startsWith('Shut down ')))
+    .toEqual(expect.arrayContaining([
+      'Pause 2 Research Lab IVs', 'Shut down Space Station', 'Pause 1 Rocket Assembly Depot', 'Pause 1 Rocket Launch Pad',
+    ]))
+  const supplyRecipes = planned.configuredModules.flatMap(module => (module.recipes ?? [])
+    .filter(recipe => recipe.stationRole === 'input'
+      || /^(LabEquipment[1-4]|CrewSupplies|StationParts|StationPartsBasic)Assembly$/.test(recipe.gameRecipeId ?? ''))
+    .map(recipe => ({ module, id: recipe.id })))
 
-  expect(labs.reduce((sum, line) => sum + line.activeBuildings, 0)).toBe(2)
-  expect(result.factoryResult.allLines.find(line => line.recipe.id === 'space-station-orbital-research')?.activeBuildings).toBe(1)
-  const calculation = result.factoryResult.calculation
+  expect(supplyRecipes.length).toBeGreaterThan(0)
+  for (const { module, id } of supplyRecipes) {
+    const preset = module.presets[0]
+
+    expect(preset.activeBuildings[id]).toBe(preset.currentActiveBuildings?.[id])
+    expect(preset.planMismatches?.some(change => change.recipeId === id)).not.toBe(true)
+  }
+  expect(research.presets[0].activeBuildings[recipe.id]).toBe(0)
+  expect(research.presets[0].currentActiveBuildings?.[recipe.id]).toBe(2)
+  expect(research.presets[0].builtBuildings?.[recipe.id]).toBe(3)
+  expect(station.presets[0].activeBuildings).toMatchObject({
+    'space-station-operations': 0, 'space-station-orbital-research': 0,
+    'rocket-ii-assembly': 0, 'rocket-ii-launch-amortized': 0,
+  })
+  expect(station.presets[0].currentActiveBuildings?.['space-station-operations']).toBe(1)
+  expect(station.builtBuildings['space-station-operations']).toBe(1)
+  expect(planned.rocketIiRecurringLogistics.launchesPerCycle).toBe(0)
+  expect(planned.edictLevels.researchEfficiency).toBe(3)
+  expect(planned.edictSources.researchEfficiency).toBe('synced')
+  expect(planned.focusAllocations.researchEfficiency).toEqual(baseline.focusAllocations.researchEfficiency)
+  expect(planned.housingCount).toBe(27)
+  expect(baseline.enabledContracts.some(contract => contract.gameId === iron.gameId)).toBe(false)
+  expect(iron.routes).toMatchObject([{ depotEntityId: depot.depotEntityId, source: 'planned', running: true,
+    cargoModules: [{ direction: 'export', running: true }, { direction: 'export', running: true },
+      { direction: 'import', running: true }, { direction: 'import', running: true }],
+  }])
+  expect(planned.worldMines.routes.some(route => route.route.depotEntityId === depot.depotEntityId)).toBe(false)
+  const { factoryResult } = calculateFactoryCalculation(planned.factoryCalculationInput)
+  const delivery = factoryResult.contractResults.find(result => result.contract.gameId === iron.gameId)!
+
+  expect(delivery.imported).toBeGreaterThan(0)
+  expect(delivery.exported).toBeGreaterThan(0)
+  expect(delivery.fuelPerProductionCycle).toBeGreaterThan(0)
+  const calculation = factoryResult.calculation
   const diagnostics = calculateBuildingDiagnostics(
     planned.configuredModules, calculation.allResourceFlows,
     calculation.regularResults.map(line => line.recipe.id.startsWith('solar-panel')
@@ -112,18 +142,17 @@ it('uses the live factory with two running labs and station crew as the new base
   expect(diagnostics.some(item => item.attention === 'can-pause')).toBe(true)
   expect(JSON.stringify(snapshot)).toBe(original)
 
-  snapshot.spaceStation.crewDisabled = false
-  const labIds = snapshot.productionEntities.filter(entity => isLab(entity.prototypeId)).slice(0, 2).map(entity => entity.entityId)
+  const terms = snapshot.planningDefinitions.factory.contracts.find(contract => contract.gameId === iron.gameId)!
 
-  for (const entity of [...snapshot.productionEntities, ...snapshot.areaEntities]) {
-    if (labIds.includes(entity.entityId)) entity.running = true
-  }
-  expect(changes()).toEqual([])
-  for (const entity of [...snapshot.productionEntities, ...snapshot.areaEntities]) {
-    if (isLab(entity.prototypeId)) entity.running = true
-  }
-  expect(changes().flatMap(change => change.actions?.map(action => action.label) ?? [])).toEqual(['Pause 1 Research Lab IV'])
-}, 30_000)
+  snapshot.contracts.established.push(terms)
+  snapshot.world.routes = snapshot.world.routes.filter(route => route.depotEntityId !== depot.depotEntityId)
+  snapshot.contracts.routes.push({ ...depot, contractGameId: terms.gameId, ship: { ...depot.ship!, running: true },
+    modules: depot.modules.map(module => ({ ...module, running: true,
+      direction: module.selectedProduct?.productId === terms.exportedProduct.productId ? 'export' : 'import' })),
+  })
+  expect(derive('next').enabledContracts.find(contract => contract.gameId === iron.gameId)?.routes)
+    .toMatchObject([{ depotEntityId: depot.depotEntityId, source: 'synced' }])
+}, 120_000)
 
 it('burns available Waste in Next and recovers residual local steam before importing Water and Brine', () => {
   const snapshot = normalizeGameStateSnapshot(structuredClone(capture))
@@ -159,7 +188,7 @@ it('burns available Waste in Next and recovers residual local steam before impor
   expect(waste.net).toBeGreaterThanOrEqual(-0.001)
   expect(baseline.result.factoryResult.allLines.some(line => line.recipe.id === 'waste-terrain-dump')).toBe(true)
   expect(next.result.factoryResult.allLines.some(line => line.recipe.id === 'waste-terrain-dump')).toBe(false)
-  expect(desalination.activeBuildings).toBe(2)
+  expect(desalination.activeBuildings).toBe(3)
   expect(amount(desalination.actualInputs, 'steamHigh')).toBeGreaterThan(0)
   expect(amount(burner.actualOutputs, 'steamHigh')).toBeCloseTo(steamForProduction + amount(desalination.actualInputs, 'steamHigh'), 3)
   expect(scrubber).toMatchObject({ activeBuildings: 1 })
@@ -179,8 +208,6 @@ it('burns available Waste in Next and recovers residual local steam before impor
     expect(net(next.general)).toBeGreaterThan(net(baseline.general))
     expect(net(next.nuclear)).toBeLessThan(net(baseline.nuclear))
   }
-  expect(next.result.factoryResult.allLines.filter(line => line.recipe.gameBuildingId?.startsWith('ResearchLab'))
-    .reduce((total, line) => total + line.activeBuildings, 0)).toBe(2)
   const appliances = (solved: typeof next) => solved.result.factoryResult.flows
     .find(flow => flow.resourceId === 'householdAppliances')?.consumed ?? 0
 

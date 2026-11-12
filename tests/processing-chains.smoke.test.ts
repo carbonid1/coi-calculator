@@ -10,6 +10,9 @@ import { calculateFactoryCalculation } from '../app/helpers/factory-calculation/
 it('runs the Default titanium byproduct → oxygen furnace → cooled caster chain in the recorded factory', () => {
   const capture = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/factory.json.gz', import.meta.url))).toString())
   const snapshot = normalizeGameStateSnapshot(capture)!
+
+  // Running the station creates the recurring titanium demand for this chain.
+  snapshot.spaceStation = { currentLevel: 4, highestLevelAchieved: 4, crewDisabled: false }
   const options = { snapshot, revision: 'processing-chain', machineZoneAssignments: {}, presetId: 'baseline' as const }
   const model = deriveCalculatorModel(options)
   const owner = model.configuredModules.find(module => module.id === 'general')!

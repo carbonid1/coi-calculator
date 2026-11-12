@@ -278,7 +278,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
 
   t.after(() => browser('close'))
 
-  await t.test('keeps the live baseline preset, migrates completed plans and reminds us to resume research', async () => {
+  await t.test('keeps the synced baseline and previews the iron ore and research shutdown plan', async () => {
     await browser('open', appUrl)
     await browser('set', 'viewport', '1440', '1000')
     await ready()
@@ -286,26 +286,25 @@ test('recorded factory: browser → Next API → replayed game API → worker �
 
     assert.equal(await selected(), 'Baseline')
     await browser('click', '[aria-label="Factory preset"]')
-    assert.deepEqual(await evaluate('Array.from(document.querySelectorAll("[role=option]")).map(node => node.innerText)'), ['Baseline', 'Appliances & Waste Recovery'])
+    assert.deepEqual(await evaluate('Array.from(document.querySelectorAll("[role=option]")).map(node => node.innerText)'), ['Baseline', 'Appliances & Iron Ore'])
     await browser('press', 'Escape')
     const summary = () => evaluate('Array.from(document.querySelectorAll("[data-summary-metric]")).map(node => node.innerText)')
     const baselineSummary = await summary()
 
-    await preset('Appliances & Waste Recovery')
+    await preset('Appliances & Iron Ore')
     await ready()
-    assert.equal(await selected(), 'Appliances & Waste Recovery')
+    assert.equal(await selected(), 'Appliances & Iron Ore')
     assert.notDeepEqual(await summary(), baselineSummary)
     await expandChecklist()
     assert.match(await text(), /Build 1 Incineration plant/)
-    assert.match(await text(), /Build 2 Thermal desalinators/)
+    assert.match(await text(), /Build 3 Thermal desalinators/)
     await browser('reload')
     await ready()
-    assert.equal(await selected(), 'Appliances & Waste Recovery')
+    assert.equal(await selected(), 'Appliances & Iron Ore')
     await preset('Baseline')
     await ready()
     await expandChecklist()
-    assert.match(await text(), /Unpause 2 Research Lab IV/)
-    assert.match(await text(), /Build Space Station level 4/)
+    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
     assert.doesNotMatch(await text(), /Build 1 Fast breeder reactor|Set 3× enrichment FBR|Unpause 1 Household Goods Module/)
     const key = `coi-factory-preset-v1:${encodeURIComponent(fixture.saveId)}`
 
@@ -315,15 +314,18 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.equal(await selected(), 'Baseline')
     await expandChecklist()
     assert.doesNotMatch(await text(), /Build 1 Fast breeder reactor|Set 3× enrichment FBR/)
-    state.stationCrewDisabled = true
+    state.stationCrewDisabled = false
+    state.researchRunning = true
     await click('Sync now')
     await browser('wait', '[aria-label="Sync now"]:not([disabled])')
     await ready()
+    await preset('Appliances & Iron Ore')
+    await ready()
     await expandChecklist()
-    assert.match(await text(), /Unpause 2 Research Lab IV[\s\S]*Enable Space Station crew/)
+    assert.match(await text(), /Pause 2 Research Lab IV/)
+    assert.match(await text(), /Shut down Space Station/)
     assert.doesNotMatch(await text(), /Build Space Station level 4/)
-    assert.deepEqual(await evaluate('Array.from(document.querySelectorAll("[data-checklist-module]")).map(node => node.dataset.checklistModule)'), ['general', 'live-area-15'])
-    await screenshot('baseline-research-reminders')
+    await screenshot('research-shutdown-plan')
     await browser('set', 'viewport', '375', '900')
     assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'))
     await browser('click', '[aria-label="Factory preset"]')
@@ -331,6 +333,14 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await screenshot('baseline-mobile')
     await browser('press', 'Escape')
     await browser('set', 'viewport', '1440', '1000')
+    await click('Contracts')
+    const iron = 'details[data-contract-id="Contract_Product_IronOre_For_Product_VehicleParts2"]'
+
+    await browser('wait', iron)
+    assert.match(await evaluate(`document.querySelector('${iron}').innerText`), /Planned/)
+    assert.match(await text(), /Establish the Vehicle Parts II → Iron Ore contract/)
+    await preset('Baseline')
+    await ready()
     state.stationCrewDisabled = undefined
     state.researchRunning = undefined
     await click('Sync now')
@@ -380,13 +390,12 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await preset('Baseline')
     await ready()
     await expandChecklist()
-    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*Modeled demand[\s\S]*222\.3 MW[\s\S]*\+124\.71 TFLOPS[\s\S]*-0\.71 \/ cycle[\s\S]*7,310 \/ 7,488/)
+    assert.match(await text(), /Factory Summary[\s\S]*Projected · flows \/ cycle[\s\S]*Modeled demand[\s\S]*122\.4 MW[\s\S]*\+356\.71 TFLOPS[\s\S]*\+0\.27 \/ cycle[\s\S]*6,954 \/ 7,488/)
     assert.doesNotMatch(await text(), /(?:Pause|Unpause|Build) \d+ Cracking Units?/)
-    assert.match(await text(), /Unpause 2 Research Lab IV/)
-    assert.match(await text(), /Build Space Station level 4/)
+    assert.doesNotMatch(await text(), /Unpause 2 Research Lab IV|Build Space Station level 4/)
     const storedRock = await evaluate(`document.querySelector('[aria-label="From storage"] li:has([aria-label="Inspect Rock supply"])').innerText`)
 
-    assert.match(storedRock, /Rock[\s\S]*stored · [\d,.]+ in-game years remaining[\s\S]*51\.85/)
+    assert.match(storedRock, /Rock[\s\S]*stored · [\d,.]+ in-game years remaining[\s\S]*48\.94/)
     assert.doesNotMatch(storedRock, /\bcycles\b/)
     assert.equal(await evaluate(`Array.from(document.querySelectorAll('section')).find(section => section.querySelector('h4')?.textContent === 'Deficit / cycle').querySelector('[aria-label="Inspect Rock supply"]') === null`), true)
     const desktopTabs = await tabClearance('first')
@@ -402,7 +411,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('press', 'Escape')
 
     await click('Resource supply')
-    for (const [resource, quantity] of [['Core fuel', '12'], ['Core fuel (spent)', '12'], ['Recyclables', '133.41']]) {
+    for (const [resource, quantity] of [['Core fuel', '12'], ['Core fuel (spent)', '12'], ['Recyclables', '58.48']]) {
       await browser('fill', '[aria-label="Resource"]', resource)
       await browser('find', 'role', 'option', 'click', '--name', resource, '--exact')
       const balance = new RegExp(`Supply\\s+${quantity.replace('.', '\\.')}\\s+Demand\\s+${quantity.replace('.', '\\.')}\\s+Remaining\\s+0`)
@@ -425,7 +434,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.ok(await evaluate('document.querySelector("[data-source=synced]").getBoundingClientRect().top < 650'))
     await screenshot('steel-compact')
     await browser('find', 'role', 'button', 'click', '--name', 'Resource balance')
-    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*73\.41[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
+    assert.match(await text(), /Inputs \/ cycle[\s\S]*Seawater[\s\S]*Copper #1[\s\S]*37\.84[\s\S]*Outputs \/ cycle[\s\S]*Exhaust #1/)
     assert.equal(await evaluate('document.querySelectorAll("[aria-label=\\"Module inputs\\"] [data-resource-id=seaWater]").length'), 1)
     await screenshot('steel-balance')
 
@@ -458,7 +467,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await area('Computing')
     assert.match(await text(), /Basic Rack[\s\S]*369 \/ 369[\s\S]*1476/)
     await area('Nuclear')
-    assert.match(await text(), /Electricity\s+Net[\s\S]*24 TFLOPS[\s\S]*711/)
+    assert.match(await text(), /Electricity\s+Demand\s+13\.8 MW[\s\S]*24 TFLOPS[\s\S]*711/)
     await area('Population')
     assert.match(await text(), /7,488 population cap[\s\S]*Clinic I/)
     await click('Focus')
@@ -625,7 +634,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     assert.match(await text(), /Factory Summary/)
     await click('Inspect Rock supply')
     assert.equal(await evaluate(`document.querySelector('[aria-label="Rock supply diagnosis"]') !== null`), true)
-    assert.match(await evaluate(`document.querySelector('[aria-label="Supply sources"]').innerText`), /Reserves[\s\S]*51\.85/)
+    assert.match(await evaluate(`document.querySelector('[aria-label="Supply sources"]').innerText`), /Reserves[\s\S]*48\.94/)
     await click('Back to Factory Total')
     assert.equal((await browser('errors')).errors.length, 0)
   })
@@ -773,7 +782,7 @@ test('recorded factory: browser → Next API → replayed game API → worker �
     await browser('wait', '[aria-label="Sync now"]:not([disabled])')
     await ready()
     await click('Factory Total')
-    assert.match(await text(), /7,310 \/ 7,488/)
+    assert.match(await text(), /6,954 \/ 7,488/)
     assert.equal((await browser('errors')).errors.length, 0)
   })
 

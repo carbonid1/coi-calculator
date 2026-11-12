@@ -183,6 +183,20 @@ it.each([
   expect(model.sharedMachineAllocation.issues).toEqual([])
 })
 
+it('uses the measured power target for Baseline and calibrates forecasts against current', () => {
+  const snapshot = createSnapshot()
+
+  snapshot.electricity = {
+    demandMw: 150, surplusDemandMw: 0, consumedMw: 150, generationMw: 150,
+    generationCapacityMw: 213, maximumGenerationCapacityMw: 345, byType: [],
+  }
+  const baseline = deriveCalculatorModel({ presetId: 'baseline', snapshot, machineZoneAssignments: {} })
+  const next = deriveCalculatorModel({ presetId: 'next', snapshot, machineZoneAssignments: {} })
+
+  expect(baseline.factoryCalculationInput.powerPlanning).toEqual({ measuredDemandMw: 150, bufferPercent: 20 })
+  expect(next.factoryCalculationInput.powerPlanning?.baseline).toBeDefined()
+})
+
 it('uses the housing and station plans for the research summary', () => {
   const model = deriveCalculatorModel({ presetId: 'science-expansion', snapshot: createSnapshot(), machineZoneAssignments: {} })
 

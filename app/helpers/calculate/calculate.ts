@@ -3002,10 +3002,13 @@ const calculateNetCore = (
     const ratio = allocationRatios.get(line) ?? 0;
 
     if (!output || ratio <= 0) continue;
-    const flowKey = moduleResourceKey(line.moduleId, output.resourceId);
-    const surplus = remainingOutput.get(flowKey) ?? getSettledModuleFlow(
-      line.moduleId, output.resourceId, getActualModuleFlow(line.moduleId, output.resourceId),
-    ).net;
+    const moduleScoped = resourceSupplyRules[output.resourceId] === "connections"
+      || line.recipe.balanceOutputScope === "module";
+    const flowKey = moduleScoped ? moduleResourceKey(line.moduleId, output.resourceId) : output.resourceId;
+    const flow = moduleScoped
+      ? getSettledModuleFlow(line.moduleId, output.resourceId, getActualModuleFlow(line.moduleId, output.resourceId))
+      : getFlow(output.resourceId);
+    const surplus = remainingOutput.get(flowKey) ?? flow.produced - flow.consumed;
     const capacity = getRecipeOutputQuantity(line.recipe, output, outputModifiers) * lineFactor(line);
 
     if (surplus <= STRICT_TOLERANCE || capacity <= 0) continue;

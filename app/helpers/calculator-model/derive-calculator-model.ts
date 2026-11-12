@@ -1,5 +1,5 @@
 import { baseConfig } from '../../db/config'
-import { contractRoutePlans } from '../../db/contract-plans'
+import { contractRoutePlans, planIronOreContract } from '../../db/contract-plans'
 import {
   getEdict,
   mapEdictValues,
@@ -61,6 +61,7 @@ import {
   getModuleOfficeConfigurations,
   hasAttachedOfficeRecipes,
 } from '../../db/modules/offices'
+import { pauseDedicatedProduction } from '../../db/modules/plan-mismatch'
 import {
   createPopulationModule,
   resolvePopulationHousingPlanTargets,
@@ -175,6 +176,7 @@ const deriveUncalibratedCalculatorModel = ({
 }: DeriveCalculatorModelOptions) => {
   const plan = getFactoryPreset(presetId)
   const targets = new Set<PlanLayerId>(plan.layers)
+  const planStableOperation = targets.has('stable-operation') && snapshot.saveId === 'Last-Stop Waters'
   const planWasteRecovery = targets.has('waste-recovery') && snapshot.saveId === 'Last-Stop Waters'
   const nuclearOperation = targets.has('third-fbr') ? thirdFbrNuclearOperation : plannedNuclearOperation
   const resourcePriorityOverrides = operatingOverrides ? savedResourcePriorities : {}
@@ -216,14 +218,18 @@ const deriveUncalibratedCalculatorModel = ({
   const rocketInfrastructureRunningConfig: RocketInfrastructureConfig = {
     ...emptyRocketInfrastructureConfig,
   }
+  const ironOrePlan = planStableOperation ? planIronOreContract(snapshot) : null
+  const world = ironOrePlan?.world ?? snapshot.world
   const contractResolution = resolveSyncedContracts(
-    snapshot.contracts,
-    contractRoutePlans,
+    ironOrePlan?.contracts ?? snapshot.contracts,
+    ironOrePlan?.routePlans ?? contractRoutePlans,
     contractFullThrottlePreferences,
   )
+
+  if (ironOrePlan) contractResolution.issues.unshift(...ironOrePlan.issues)
   const enabledContracts = contractResolution.contracts
-  const worldMines = calculateWorldMines(snapshot.world)
-  const cargoEntityIds = new Set([...contractResolution.claimedEntityIds, ...getWorldClaimedEntityIds(snapshot.world)])
+  const worldMines = calculateWorldMines(world)
+  const cargoEntityIds = new Set([...contractResolution.claimedEntityIds, ...getWorldClaimedEntityIds(world)])
   const cargoElectricityKw = worldMines.electricityKw + enabledContracts.reduce((total, contract) => total
     + contract.routes.reduce((routeTotal, route) => routeTotal + (route.enabled
       ? route.operation?.modules.reduce((sum, module) => sum + module.electricityKw, 0) ?? 0 : 0), 0), 0)
@@ -297,11 +303,6 @@ const deriveUncalibratedCalculatorModel = ({
   const researchLabEntities = productionEntities.filter(entity => (
     entity.prototypeId.startsWith('ResearchLab')
   ))
-  const baselineResearchLabEntities = targets.has('research-on')
-    ? [...researchLabEntities].sort((left, right) => (
-        Number(right.running) - Number(left.running) || left.entityId - right.entityId
-      )).slice(0, plannedResearchLabTarget)
-    : undefined
   const defaultResearchLabEntities = researchLabEntities.filter(entity => (
     !entity.zones.some(zone => Boolean(zone.name))
   ))
@@ -311,20 +312,19 @@ const deriveUncalibratedCalculatorModel = ({
   ).length
   const runningOtherResearchLabCount = runningResearchLabCount - runningDefaultResearchLabCount
   const hasDefaultResearchLabInventory = defaultResearchLabEntities.length > 0
-  const plannedResearchLabCount = baselineResearchLabEntities?.length ?? (targets.has('science') && baseConfig.researchMode === 'with-space'
+  const planSpaceResearch = targets.has('science') && baseConfig.researchMode === 'with-space'
+  const plannedResearchLabCount = planSpaceResearch
     ? runningOtherResearchLabCount + (hasDefaultResearchLabInventory
         ? Math.max(runningDefaultResearchLabCount, plannedResearchLabTarget)
         : 0)
-    : 0)
+    : 0
   const runningSpaceResearchPoints = researchLabEntities.filter(entity => entity.running).reduce((total, entity) => total
     + getLabSpacePoints(planningDefinitions.factory, entity.prototypeId), 0)
-  const plannedSpaceResearchPoints = baselineResearchLabEntities?.reduce((total, entity) => (
-    total + getLabSpacePoints(planningDefinitions.factory, entity.prototypeId)
-  ), 0) ?? (targets.has('science') && baseConfig.researchMode === 'with-space'
+  const plannedSpaceResearchPoints = planSpaceResearch
     ? runningSpaceResearchPoints + Math.max(0, plannedResearchLabCount - runningResearchLabCount)
       * getLabSpacePoints(planningDefinitions.factory, defaultResearchLabEntities[0]?.prototypeId ?? 'ResearchLab5')
-    : 0)
-  const projectedSpaceStationTargetLevel = Math.max(
+    : 0
+  const projectedSpaceStationTargetLevel = planStableOperation ? 0 : Math.max(
     currentSpaceStationLevel.level,
     getMinimumSpaceStationLevelForResearchPoints(plannedSpaceResearchPoints, snapshot.spaceStationLevels),
   )
@@ -375,7 +375,8 @@ const deriveUncalibratedCalculatorModel = ({
   const currentChickenFarmEntities = getSyncedChickenFarmEntities(snapshot.chickenFarms)
 
   const createConfiguredSpaceStationModule = (generatedArea: Module) => {
-    return createSpaceStationModule(
+    const researchPlan = plannedSpaceResearchPoints > 0 ? { requiredPoints: plannedSpaceResearchPoints } : undefined
+    const stationModule = createSpaceStationModule(
       spaceStationConfig,
       snapshot.spaceStationLevels,
       snapshot.rocketIiDefinition,
@@ -387,10 +388,12 @@ const deriveUncalibratedCalculatorModel = ({
         },
       },
       generatedArea,
-      plannedSpaceResearchPoints > 0
-        ? { requiredPoints: plannedSpaceResearchPoints }
-        : undefined,
+      planStableOperation ? { off: true } : researchPlan,
     )
+
+    return planStableOperation ? pauseDedicatedProduction(stationModule, recipe => (
+      recipe.id === 'rocket-ii-assembly' || recipe.id === 'rocket-ii-launch-amortized'
+    )) : stationModule
   }
 
   const configuredAreaModules = [
@@ -459,7 +462,8 @@ const deriveUncalibratedCalculatorModel = ({
         defaultGroundwaterConstraint,
       )
       if (planWasteRecovery) {
-        configured.module = applyWasteRecoveryPlan(planningDefinitions, configured.module)
+        // The stable factory has less local steam demand with research and rocket production paused.
+        configured.module = applyWasteRecoveryPlan(planningDefinitions, configured.module, 3)
       }
     } else if (nuclearReactorZoneIds.has(module.liveArea.zoneId)) {
       const appliesPlan = module.liveArea.zoneId === plannedNuclearZoneId
@@ -513,18 +517,12 @@ const deriveUncalibratedCalculatorModel = ({
       configured.module = applyLiveAreaProductionTargets(planningDefinitions, configured.module, productionTargets)
     }
 
-    if (baselineResearchLabEntities) {
+    if (planStableOperation) {
       for (const recipe of configured.module.recipes ?? []) {
         if (!recipe.gameBuildingId?.startsWith('ResearchLab')) continue
-        const target = baselineResearchLabEntities.filter(entity => (
-          entity.prototypeId === recipe.gameBuildingId
-          && (module.liveArea?.zoneId === DEFAULT_LIVE_AREA_ZONE_ID
-            ? !entity.zones.some(zone => Boolean(zone.name))
-            : entity.zones.some(zone => zone.id === module.liveArea?.zoneId))
-        )).length
 
         configured.module = applyResearchLabPlan(
-          planningDefinitions.factory, configured.module, baseConfig.researchMode, target, recipe, true,
+          planningDefinitions.factory, configured.module, baseConfig.researchMode, 0, recipe, true,
         )
       }
     }
@@ -579,7 +577,7 @@ const deriveUncalibratedCalculatorModel = ({
   const officePlan = {
     ...officeInventoryPlan,
     offices: { ...officeInventoryPlan.offices },
-    focusSteps: mapFocusValues(id => targets.has('computing') ? snapshot.focus[id].targetStep : snapshot.focus[id].activeStep),
+    focusSteps: mapFocusValues(id => focusAllocations[id].step ?? 0),
   }
 
   for (const office of officeCatalog) {
@@ -811,7 +809,7 @@ const deriveUncalibratedCalculatorModel = ({
   // revision, assignments, operating modes, and the factory preset identified by `calculationRevision`.
   const factoryCalculationInput: FactoryCalculationInput = {
     contracts: enabledContracts,
-    worldMinePlanning: { world: snapshot.world, fullThrottle: worldMineFullThrottlePreferences },
+    worldMinePlanning: { world, fullThrottle: worldMineFullThrottlePreferences },
     externalDemands: { electricity: cargoElectricityKw / 1000 },
     contractsProfitMultiplier: 1 + focusBonuses.contractsProfitability / 100,
     links: resolvedModuleResourceLinks,
@@ -877,10 +875,12 @@ export const deriveCalculatorModel = (options: DeriveCalculatorModelOptions) => 
   const electricity = options.snapshot.electricity
 
   if (electricity) {
+    const hasForecast = getFactoryPreset(model.presetId).layers.length > 0 || model.operatingOverrides
+
     model.factoryCalculationInput.powerPlanning = {
       measuredDemandMw: electricity.demandMw,
       bufferPercent: 20,
-      ...((model.presetId !== 'current' || model.operatingOverrides) ? {
+      ...(hasForecast ? {
         baseline: deriveUncalibratedCalculatorModel({ ...options, presetId: 'current', operatingOverrides: false }).factoryCalculationInput,
       } : {}),
     }
