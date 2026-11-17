@@ -35,7 +35,7 @@ For solver bugs, isolate the failure in a small regression test before experimen
 
 ## Debugging tools
 
-Prefer the project-pinned `agent-browser` for browser inspection and debugging, and `agent-desktop` for native app and OS inspection and debugging. Run them with `pnpm exec agent-browser` and `pnpm exec agent-desktop` to use the exact versions in this repository. Read the installed tools' help and bundled skills for current usage; use other tools when these do not support the required task.
+For ad-hoc browser inspection and debugging use `agent-browser`, and for native app and OS inspection and debugging use `agent-desktop`. Read the installed tools' help and bundled skills for current usage; use other tools when these do not support the required task. The browser smoke test does not use them: it runs on Playwright.
 
 ## Data states
 
