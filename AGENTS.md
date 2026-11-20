@@ -1,5 +1,7 @@
 # COI Calculator
 
+Use the optional `carbonid1-ai:code-review` skill for code review when available.
+
 ## Timing
 
 60s = 1 in-game month. Recipe rates "per 60s" = per in-game month.
