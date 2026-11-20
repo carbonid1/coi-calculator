@@ -1,6 +1,6 @@
 # COI Calculator
 
-Use the optional `carbonid1-ai:code-review` skill for code review when available.
+Use the optional `ai:code-review` skill for code review when available.
 
 ## Timing
 
