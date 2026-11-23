@@ -1,4 +1,8 @@
 {
+  "permissions": {
+    "allow": ["mcp__linear"]
+  },
+  "enabledMcpjsonServers": ["linear"],
   "enabledPlugins": {
     "ai@carbonid1": true
   }
