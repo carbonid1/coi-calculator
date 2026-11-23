@@ -1,8 +1,17 @@
 {
   "mcpServers": {
     "linear": {
-      "type": "http",
-      "url": "https://mcp.linear.app/mcp"
+      "type": "stdio",
+      "command": "pnpm",
+      "args": [
+        "dlx",
+        "mcp-remote@0.16.6",
+        "https://mcp.linear.app/mcp",
+        "--authorize-param",
+        "prompt=consent",
+        "--transport",
+        "http-only"
+      ]
     }
   }
 }
