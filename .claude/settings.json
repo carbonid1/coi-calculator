@@ -5,5 +5,14 @@
   "enabledMcpjsonServers": ["linear"],
   "enabledPlugins": {
     "ai@carbonid1": true
+  },
+  "extraKnownMarketplaces": {
+    "carbonid1": {
+      "source": {
+        "source": "github",
+        "repo": "carbonid1/ai"
+      },
+      "autoUpdate": true
+    }
   }
 }

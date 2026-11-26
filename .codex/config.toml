@@ -12,3 +12,8 @@ args = [
 
 [plugins."ai@carbonid1"]
 enabled = true
+
+[marketplaces.carbonid1]
+source_type = "git"
+source = "https://github.com/carbonid1/ai.git"
+ref = "main"
